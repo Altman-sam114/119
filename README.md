@@ -17,6 +17,7 @@
 - 手机横屏紧凑战斗栏、可攻击目标头顶徽标、选中单位待机/跳过
 - AI 招募、休整、战术姿态、将领技能、移动后攻击和目标优先级评估
 - 敌军意图预判：地图徽标、顶部敌情芯片和侧栏敌情面板展示攻击、接敌、夺城、固守等倾向
+- Codex 后续协作规范：`agent.md` 汇总项目状态、系统提示词、测试规范和每轮文档维护要求
 - 核心规则测试：`Tests/RomeLegionsCoreTests/GameStateTests.swift`
 
 ## 运行
@@ -26,6 +27,10 @@
 3. 运行 `RomeLegions` target
 
 当前工程用代码绘制占位美术，`Assets.xcassets` 暂时只保留在项目中，不参与 target 的资源编译。这样可以避免受限环境里 `actool` 访问 CoreSimulatorService 失败；后续替换正式图标或图片资源时，再把资产目录加入 Resources build phase。
+
+## 协作规范
+
+后续使用 Codex 继续迭代时，先读取 `agent.md`。该文件是本项目的 Codex 系统提示词、项目总结和规范化管理文档，要求每次功能完成后同步更新测试说明、`README.md` 完成情况；若测试流程、架构边界或协作规则变化，也要同步更新 `agent.md`。
 
 ## 本地验证
 
