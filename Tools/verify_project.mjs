@@ -16,7 +16,13 @@ const requiredFiles = [
   "RomeLegionsApp/Assets.xcassets/AccentColor.colorset/Contents.json",
   "RomeLegionsApp/Assets.xcassets/AppIcon.appiconset/Contents.json",
   "RomeLegionsApp/Assets.xcassets/AppIcon.appiconset/AppIcon.png",
-  "README.md"
+  "README.md",
+  "AGENT.md",
+  "update_log.md",
+  "md/test/test.md",
+  "md/flow/flow.md",
+  "md/flow/flowchart.md",
+  "md/prompt/v0（协作系统）/v0.1（建立多Agent协作文档）.md"
 ];
 
 const failures = [];
@@ -33,6 +39,11 @@ for (const path of requiredFiles.filter((file) => file.endsWith(".json"))) {
   } catch (error) {
     failures.push(`Invalid JSON ${path}: ${error.message}`);
   }
+}
+
+if (failures.length > 0) {
+  console.error(failures.join("\n"));
+  process.exit(1);
 }
 
 const pbx = readFileSync("RomeLegionsApp.xcodeproj/project.pbxproj", "utf8");
@@ -68,6 +79,34 @@ const battle = readFileSync("RomeLegionsApp/Views/BattleView.swift", "utf8");
 for (const token of ["CompactCommandPanelView", "PhoneCommandDeckView", "TacticalStatusStripView", "BattlefieldFocusPanelView", "CityBadgeView", "TerrainGlyphView", "AttackTargetButton", "AttackTargetRing", "forward.end.fill"]) {
   if (!battle.includes(token)) {
     failures.push(`Battle view does not include ${token}`);
+  }
+}
+
+const agentGuide = readFileSync("AGENT.md", "utf8");
+for (const token of ["Agent A", "Agent B", "Agent C", "核心架构边界", "测试规则", "禁止项"]) {
+  if (!agentGuide.includes(token)) {
+    failures.push(`AGENT.md does not include ${token}`);
+  }
+}
+
+const testGuide = readFileSync("md/test/test.md", "utf8");
+for (const token of ["Probe / Fast", "Smoke", "Stage Regression", "Full", "node Tools/verify_project.mjs", "swift test"]) {
+  if (!testGuide.includes(token)) {
+    failures.push(`md/test/test.md does not include ${token}`);
+  }
+}
+
+const flowGuide = readFileSync("md/flow/flow.md", "utf8");
+for (const token of ["当前核心数据流", "当前核心执行流", "核心状态对象", "关键边界", "不允许破坏的行为"]) {
+  if (!flowGuide.includes(token)) {
+    failures.push(`md/flow/flow.md does not include ${token}`);
+  }
+}
+
+const flowchartGuide = readFileSync("md/flow/flowchart.md", "utf8");
+for (const token of ["```mermaid", "核心数据流", "回合执行流", "多 Agent 迭代流", "测试选择流"]) {
+  if (!flowchartGuide.includes(token)) {
+    failures.push(`md/flow/flowchart.md does not include ${token}`);
   }
 }
 
