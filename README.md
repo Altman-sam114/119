@@ -17,7 +17,7 @@
 - 手机横屏紧凑战斗栏、可攻击目标头顶徽标、选中单位待机/跳过
 - AI 招募、休整、战术姿态、将领技能、移动后攻击和目标优先级评估
 - 敌军意图预判：地图徽标、顶部敌情芯片和侧栏敌情面板展示攻击、接敌、夺城、固守等倾向
-- Codex 后续协作规范：`AGENT.md`、`update_log.md`、`md/test/test.md`、`md/flow/flow.md`、`md/flow/flowchart.md` 和 `md/prompt/` 组成长期多 Agent 迭代文档系统
+- Codex 后续协作规范：`AGENTS.md`、`update_log.md`、`md/test/test.md`、`md/flow/flow.md`、`md/flow/flowchart.md` 和 `md/prompt/` 组成长期多 Agent 迭代文档系统
 - 核心规则测试：`Tests/RomeLegionsCoreTests/GameStateTests.swift`
 
 ## 运行
@@ -30,18 +30,18 @@
 
 ## 协作规范
 
-后续使用 Codex 继续迭代时，先读取 `AGENT.md`。该文件是本项目的入口记忆、项目总览、基本规则和多 Agent 工作流。
+后续使用 Codex 继续迭代时，先读取 `AGENTS.md`。该文件是本项目的入口记忆、项目总览、基本规则和多 Agent 工作流。
 
 协作文档分工：
 
-- `AGENT.md`：入口规则、架构边界、Agent A/B/C 工作流、交付格式和禁止项
+- `AGENTS.md`：入口规则、架构边界、Agent A/B/C 工作流、交付格式和禁止项
 - `update_log.md`：版本更新记录、历史决策、完成事项和遗留问题
 - `md/prompt/`：Agent A 每轮输出详细实现提示词的位置，按版本号管理
 - `md/test/test.md`：测试规范、测试分层、命令、触发条件和当前基线
 - `md/flow/flow.md`：当前真实架构和核心运行流程
 - `md/flow/flowchart.md`：与 `flow.md` 同步的 Mermaid 可视化流程图
 
-每次功能完成后必须同步更新测试说明和 `README.md` 完成情况；若测试流程、架构边界、核心流程或协作规则变化，也要同步更新 `AGENT.md`、`update_log.md`、`md/test/test.md` 或 `md/flow/` 对应文档。
+每次功能完成后必须同步更新测试说明和 `README.md` 完成情况；若测试流程、架构边界、核心流程或协作规则变化，也要同步更新 `AGENTS.md`、`update_log.md`、`md/test/test.md` 或 `md/flow/` 对应文档。Agent C 最终验收通过后按版本号自动 git commit；不通过时退回 Agent B 修正，不提交版本。
 
 ## 本地验证
 

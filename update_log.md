@@ -16,9 +16,38 @@
 - 核心架构：纯 Swift `RomeLegionsCore` 负责玩法规则；`GameViewModel` 负责 UI 状态和派生数据；SwiftUI 视图负责展示和命令入口。
 - 当前玩法：六边形地图、地形、城市、阵营、军团、移动、攻击、反击、占城、招募、科技、任务、外交、城市扩建、军团训练、将领任命、主动技能、战术姿态、AI 回合、敌军意图预判、战局态势面板。
 - 当前测试入口：Swift Testing、Gameplay Smoke、项目结构检查、SwiftUI 类型检查、战斗页预览图渲染、无签名 Xcode 构建。
-- 当前协作系统：已建立 `AGENT.md`、`update_log.md`、`md/prompt/`、`md/test/test.md`、`md/flow/flow.md`、`md/flow/flowchart.md`。
+- 当前协作系统：已建立 `AGENTS.md`、`update_log.md`、`md/prompt/`、`md/test/test.md`、`md/flow/flow.md`、`md/flow/flowchart.md`。
 
 ## 历史记录
+
+### v0.2 / 规范 Agent C 版本提交
+
+日期：2026-06-29
+
+核心变更：
+
+- 将入口文档统一为 `AGENTS.md`。
+- 更新 Agent C 工作流：验收不通过时退回 Agent B；验收通过后按版本号自动 git commit。
+- 规定提交说明格式：标题包含版本号，正文简要概括本版本工作内容和验证结果。
+- 同步 README、测试规范、流程图和结构检查脚本。
+
+关键文件：
+
+- `AGENTS.md`
+- `README.md`
+- `md/test/test.md`
+- `md/flow/flowchart.md`
+- `Tools/verify_project.mjs`
+- `update_log.md`
+
+验证结果：
+
+- `node Tools/verify_project.mjs`：通过，输出 `Project structure verification passed.`
+- 本轮只修改协作文档和结构检查脚本，未修改 Swift 源码和核心规则，未运行 Swift Testing、Gameplay Smoke、SwiftUI typecheck 或 Xcode build。
+
+遗留事项：
+
+- 后续 Agent C 执行提交前仍需确认 `git status --short`，避免纳入无关文件。
 
 ### v0.1 / 建立多 Agent 协作系统
 
@@ -63,4 +92,4 @@
 
 核心变更：曾新增小写 `agent.md` 并在 `README.md` 中记录 Codex 后续协作规范。
 
-后续处理：2026-06-28 按标准命名和多 Agent 工作流要求，统一升级为大写 `AGENT.md`，并补齐 `update_log.md`、`md/test`、`md/flow`、`md/prompt` 目录。
+后续处理：2026-06-28 按标准命名和多 Agent 工作流要求，统一升级为大写 `AGENT.md`，并补齐 `update_log.md`、`md/test`、`md/flow`、`md/prompt` 目录。2026-06-29 入口再统一为复数 `AGENTS.md`，匹配用户对 agents 工作流的命名。

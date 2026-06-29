@@ -59,7 +59,7 @@ flowchart TD
 
 ## 4. 多 Agent 迭代流
 
-读图说明：这张图展示人工、Agent A、Agent B、Agent C 的职责边界。Agent A 写提示词，Agent B 实现测试，Agent C 验收并更新核心流程文档，最后交还人工复核。
+读图说明：这张图展示人工、Agent A、Agent B、Agent C 的职责边界。Agent A 写提示词，Agent B 实现测试，Agent C 验收并更新核心流程文档；通过后按版本号自动提交，不通过就退回 Agent B 修正。
 
 ```mermaid
 flowchart TD
@@ -71,8 +71,9 @@ flowchart TD
     F --> G["Agent C<br/>查看 diff、核对测试、检查架构边界"]
     G --> H{"是否满足目标？"}
     H -->|通过| I["Agent C 更新 flow.md、flowchart.md、update_log.md"]
-    H -->|不通过| J["输出问题清单<br/>返回 Agent B 修正"]
-    I --> K["人工复核<br/>决定下一轮目标"]
+    I --> L["按版本号 git commit<br/>提交说明概括本版本工作和验证"]
+    H -->|不通过| J["输出问题清单<br/>退回 Agent B 修正，不提交"]
+    L --> K["人工复核<br/>决定下一轮目标"]
     J --> D
     K --> A
 ```

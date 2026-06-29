@@ -114,6 +114,7 @@
 - 模型层：`RomeLegionsCore`，纯 Swift 可测试规则。
 - 数据层：`SaveStore`，持久化 `GameState`。
 - 测试层：`GameStateTests` 直接验证核心模型；工具脚本验证结构、冒烟和 UI 渲染。
+- 协作层：`AGENTS.md`、`update_log.md`、`md/test/test.md`、`md/flow/` 和 `md/prompt/` 约束 Agent 迭代；Agent C 验收通过后按版本号提交，不通过则退回 Agent B，协作流程不得改变游戏核心规则边界。
 
 ## 已确认的铁律
 

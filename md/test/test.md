@@ -41,7 +41,7 @@ node Tools/verify_project.mjs
 当前基线：
 
 - 应输出 `Project structure verification passed.`
-- 结构检查必须覆盖 `AGENT.md`、`update_log.md`、`md/test/test.md`、`md/flow/flow.md`、`md/flow/flowchart.md` 和至少一个版本化 prompt。
+- 结构检查必须覆盖 `AGENTS.md`、`update_log.md`、`md/test/test.md`、`md/flow/flow.md`、`md/flow/flowchart.md` 和至少一个版本化 prompt。
 
 ### 2. Smoke
 
@@ -151,7 +151,7 @@ SwiftUI 源码类型检查：
 README/文档检查：
 
 ```sh
-grep -n "AGENT.md\|md/test/test.md\|md/flow/flow.md\|update_log.md" README.md AGENT.md update_log.md md/test/test.md md/flow/flow.md md/flow/flowchart.md
+grep -n "AGENTS.md\|md/test/test.md\|md/flow/flow.md\|update_log.md" README.md AGENTS.md update_log.md md/test/test.md md/flow/flow.md md/flow/flowchart.md
 ```
 
 ## 规则
@@ -162,4 +162,5 @@ grep -n "AGENT.md\|md/test/test.md\|md/flow/flow.md\|update_log.md" README.md AG
 - 不得伪造测试结果。
 - 失败测试要记录失败摘要和下一步处理，不得只写“失败”。
 - 文档-only 修改可只跑结构检查和文档内容检查，但必须说明未跑完整 Swift 测试的原因。
-- 修改测试命令、触发条件或当前基线后，必须同步更新 `README.md`、`AGENT.md` 和 `update_log.md`。
+- 修改测试命令、触发条件或当前基线后，必须同步更新 `README.md`、`AGENTS.md` 和 `update_log.md`。
+- Agent C 验收通过后必须按版本号 git commit；验收不通过时只输出退回 Agent B 的修正项，不提交。

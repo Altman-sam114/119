@@ -17,7 +17,7 @@ const requiredFiles = [
   "RomeLegionsApp/Assets.xcassets/AppIcon.appiconset/Contents.json",
   "RomeLegionsApp/Assets.xcassets/AppIcon.appiconset/AppIcon.png",
   "README.md",
-  "AGENT.md",
+  "AGENTS.md",
   "update_log.md",
   "md/test/test.md",
   "md/flow/flow.md",
@@ -82,10 +82,10 @@ for (const token of ["CompactCommandPanelView", "PhoneCommandDeckView", "Tactica
   }
 }
 
-const agentGuide = readFileSync("AGENT.md", "utf8");
-for (const token of ["Agent A", "Agent B", "Agent C", "核心架构边界", "测试规则", "禁止项"]) {
+const agentGuide = readFileSync("AGENTS.md", "utf8");
+for (const token of ["Agent A", "Agent B", "Agent C", "核心架构边界", "测试规则", "禁止项", "git commit"]) {
   if (!agentGuide.includes(token)) {
-    failures.push(`AGENT.md does not include ${token}`);
+    failures.push(`AGENTS.md does not include ${token}`);
   }
 }
 
