@@ -44,7 +44,7 @@
 
 ## 4. 核心架构边界
 
-- 玩法核心层：`GameState`、`Faction`、`Position`、`Tile`、`ArmyUnit`、`City`、`Technology`、`Mission`、`CombatPreview`、`AIIntent` 等类型。
+- 玩法核心层：`GameState`、`Faction`、`Position`、`Tile`、`ArmyUnit`、`City`、`Technology`、`Mission`、`MissionRequirement`、`CampaignStatus`、`CombatPreview`、`AIIntent` 等类型。
 - 应用状态层：`GameViewModel` 持有 `GameState`，处理菜单、选择、命令、错误消息、敌军意图摘要和战局态势摘要。
 - 视图层：`RootView` 根据 `isShowingMenu` 切换 `MainMenuView` 和 `BattleView`；`BattleView` 展示地图、侧栏、命令面板、敌情和状态栏。
 - 存档层：`SaveStore` 用 SQLite 存取编码后的 `GameState`，不得绕过核心状态结构写散落状态。

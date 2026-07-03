@@ -1,6 +1,6 @@
 # 项目核心流程文档
 
-一句话总览：`RomeLegions` 当前是 SwiftUI App + 纯 Swift 核心规则的罗马题材战棋原型，用户在菜单选择模式后进入战场，SwiftUI 通过 `GameViewModel` 调用 `GameState` 完成移动、战斗、城市、科技、外交、AI 和敌军意图展示；协作层默认通过 `main` 直推触发 GitHub Actions，并由 Agent C 下载未加密结果包复判。
+一句话总览：`RomeLegions` 当前是 SwiftUI App + 纯 Swift 核心规则的罗马题材战棋原型，用户在菜单选择模式后进入战场，SwiftUI 通过 `GameViewModel` 调用 `GameState` 完成移动、战斗、城市、科技、外交、战役胜负结算、AI 和敌军意图展示；协作层默认通过 `main` 直推触发 GitHub Actions，并由 Agent C 下载未加密结果包复判。
 
 本文只记录当前真实链路，不写历史叙事。
 
@@ -9,7 +9,7 @@
 1. `RomeLegionsApp` 创建 `GameViewModel`，并通过 `.environmentObject(viewModel)` 注入根视图。
 2. `RootView` 根据 `viewModel.isShowingMenu` 展示 `MainMenuView` 或 `BattleView`。
 3. `MainMenuView` 调用 `viewModel.start(mode:)`，创建 `GameState.newCampaign(mode:)` 并进入战斗。
-4. `BattleView` 读取 `GameViewModel` 的派生数据：当前回合、资源、选中单位、选中城市、可移动格、攻击目标、战斗预览、敌军意图、战局态势。
+4. `BattleView` 读取 `GameViewModel` 的派生数据：当前回合、资源、选中单位、选中城市、可移动格、攻击目标、战斗预览、任务目标、战役状态、敌军意图、战局态势。
 5. 用户点击地图或命令按钮后，`GameViewModel` 调用 `GameState` 的 mutating 方法。
 6. `GameState` 修改核心状态并返回中文消息数组。
 7. `GameViewModel.apply` 捕获成功消息或 `GameRuleError`，更新 `bannerMessage`。
@@ -57,11 +57,22 @@
 - `research(_:)` 消耗资源解锁科技，重复研究会抛出规则错误。
 - `sendEnvoy(to:)` 改变罗马与目标势力外交状态；条约可阻止攻击。
 
+### 任务、战役目标与胜负
+
+- `MissionRequirement` 描述任务判断条件，当前支持控制指定城市、指定阵营单位数量不少于目标值。
+- `newCampaign(mode:)` 创建三项核心任务：占领叙拉古、拥有 5 支罗马部队、占领迦太基。
+- `evaluateMissions()` 优先按 `Mission.requirement` 判断完成，缺 requirement 的旧任务才走 legacy id 兜底。
+- 任务完成时只在 `isCompleted == false` 时发放一次奖励，并写入中文完成消息。
+- `campaignStatus` 是 `GameState` 的只读计算状态：进行中显示当前目标；罗马完成全部核心任务后胜利；罗马失去全部城市后失败。
+- 会改变战局的核心命令在 `campaignStatus.isGameOver == true` 时抛出或返回 `campaignAlreadyEnded`，不再移动、攻击、招募、研发、外交或推进回合。
+- 导致胜负的命令先完成本次结算和任务奖励，再输出胜利或失败消息；后续命令才被结束保护拦截。
+
 ### 回合与 AI
 
 - `GameViewModel.endTurn()` 调用 `state.endTurn()` 结束罗马回合。
-- 当 `activeFaction` 不是罗马时，ViewModel 循环调用 `state.performSimpleAI(for:)` 和 `state.endTurn()`，直到回到罗马。
+- 当 `activeFaction` 不是罗马且战役未结束时，ViewModel 循环调用 `state.performSimpleAI(for:)` 和 `state.endTurn()`，直到回到罗马或出现胜负结果。
 - AI 当前支持招募、休整、战术姿态、主动技能、移动后攻击、目标优先级评估。
+- `performSimpleAI(for:)` 在战役结束后直接返回空消息；AI 单位循环中若移动或攻击导致胜负，也会停止后续动作。
 - `aiIntents(for:limit:)` 只预测敌军倾向，不改变状态。
 
 ### 存档链路
@@ -96,7 +107,9 @@
 - `ArmyUnit`：单位状态、生命、经验、将领、姿态、行动标记。
 - `City`：城市位置、所属、产出、防御。
 - `Technology`：科技解锁。
-- `Mission`：任务状态。
+- `MissionRequirement`：任务完成条件。
+- `Mission`：任务状态、目标文本、奖励和可判断条件。
+- `CampaignStatusKind` / `CampaignStatus`：战役进行中、罗马胜利、罗马失败及 UI 友好说明。
 - `CombatPreview`：战斗预估。
 - `AIIntentKind` / `AIIntent`：敌军意图预测。
 - `GameRuleError`：规则错误和中文提示。
@@ -112,6 +125,8 @@
 - `SaveStore` 存取完整 `GameState`，不得维护另一套玩法状态。
 - AI 意图预测不得改变 `GameState`。
 - 战斗预览和实际战斗必须共享规则来源。
+- 战役胜负只由 `GameState.campaignStatus` 判断，SwiftUI 不复制占城、部队数量或失败条件。
+- 战役结束保护必须在核心 mutating 命令中生效，ViewModel / SwiftUI 的禁用状态只能作为用户体验层。
 - 云端 CI 和协作文档不得改变玩法语义；流程升级不等于业务质量提升。
 
 ## 用户入口
@@ -145,7 +160,6 @@
 
 ## 未来扩展点
 
-- 更明确的战役目标、失败条件和胜利结算。
 - 将领详情、技能范围预览、技能冷却和升级树。
 - 存档列表、继续游戏、删除存档和存档错误 UI。
 - 城市生产、军团编制和外交界面的战略桌体验。
@@ -168,3 +182,7 @@
 - 跳过单位必须消耗移动和行动。
 - AI 能移动到攻击范围并攻击。
 - AI 意图必须能预测直接攻击和夺城，且不改变状态。
+- 任务 requirement 必须继续作为任务完成判断的主路径，legacy mission id 只能兜底旧数据。
+- 任务奖励不得重复发放。
+- 罗马完成全部核心任务必须进入胜利；罗马失去全部城市必须进入失败。
+- 战役结束后，移动、攻击、招募、科技、外交、AI 推进和结束回合不得继续改变战局。

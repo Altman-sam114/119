@@ -24,7 +24,8 @@ const requiredFiles = [
   "md/flow/flowchart.md",
   "md/prompt/README.md",
   ".github/workflows/ci-results.yml",
-  "md/prompt/v0（协作系统）/v0.1（建立多Agent协作文档）.md"
+  "md/prompt/v0（协作系统）/v0.1（建立多Agent协作文档）.md",
+  "md/prompt/v0（玩法推进）/v0.4（战役目标与胜负结算）.md"
 ];
 
 const failures = [];
@@ -64,14 +65,14 @@ for (const token of [
 }
 
 const core = readFileSync("Sources/RomeLegionsCore/GameState.swift", "utf8");
-for (const token of ["moveUnit", "attack", "attackPreview", "CombatPreview", "recruit", "research", "performSimpleAI", "skipUnit", "performAIRecruitment", "bestAITarget", "developCity", "trainUnit", "appointGeneral", "sendEnvoy"]) {
+for (const token of ["moveUnit", "attack", "attackPreview", "CombatPreview", "recruit", "research", "performSimpleAI", "skipUnit", "performAIRecruitment", "bestAITarget", "developCity", "trainUnit", "appointGeneral", "sendEnvoy", "CampaignStatus", "campaignStatus", "MissionRequirement", "campaignAlreadyEnded"]) {
   if (!core.includes(token)) {
     failures.push(`Core game state does not include ${token}`);
   }
 }
 
 const viewModel = readFileSync("RomeLegionsApp/App/GameViewModel.swift", "utf8");
-for (const token of ["selectedPosition", "selectedTile", "func attackPreview", "primaryMission", "skipSelectedUnit", "--attack-demo", "restSelectedUnit"]) {
+for (const token of ["selectedPosition", "selectedTile", "func attackPreview", "primaryMission", "skipSelectedUnit", "--attack-demo", "restSelectedUnit", "isCampaignOver", "campaignStatusTitle"]) {
   if (!viewModel.includes(token)) {
     failures.push(`Game view model does not include ${token}`);
   }

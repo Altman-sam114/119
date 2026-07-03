@@ -193,8 +193,29 @@ final class GameViewModel: ObservableObject {
         return state.tile(at: position)
     }
 
+    var campaignStatus: CampaignStatus {
+        state.campaignStatus
+    }
+
+    var isCampaignOver: Bool {
+        campaignStatus.isGameOver
+    }
+
+    var campaignStatusTitle: String {
+        campaignStatus.title
+    }
+
+    var campaignStatusDetail: String {
+        campaignStatus.detail
+    }
+
     var primaryMission: Mission? {
-        state.missions.first { !$0.isCompleted } ?? state.missions.first
+        if let primaryMissionID = campaignStatus.primaryMissionID,
+           let mission = state.missions.first(where: { $0.id == primaryMissionID }) {
+            return mission
+        }
+
+        return state.missions.first { !$0.isCompleted } ?? state.missions.first
     }
 
     var readyRomanUnitCount: Int {
@@ -313,11 +334,13 @@ final class GameViewModel: ObservableObject {
     }
 
     var reachablePositions: Set<Position> {
+        guard !isCampaignOver else { return [] }
         guard let selectedUnitID = selectedUnitID else { return [] }
         return state.reachablePositions(for: selectedUnitID)
     }
 
     var attackTargets: [ArmyUnit] {
+        guard !isCampaignOver else { return [] }
         guard let selectedUnitID = selectedUnitID else { return [] }
         return state.attackTargets(for: selectedUnitID)
     }
@@ -328,11 +351,13 @@ final class GameViewModel: ObservableObject {
     }
 
     var canSkipSelectedUnit: Bool {
+        guard !isCampaignOver else { return false }
         guard let selectedUnit else { return false }
         return selectedUnit.faction == state.activeFaction && (!selectedUnit.hasMoved || !selectedUnit.hasActed)
     }
 
     var canUseSelectedGeneralSkill: Bool {
+        guard !isCampaignOver else { return false }
         guard let selectedUnit else { return false }
         return selectedUnit.faction == state.activeFaction &&
             selectedUnit.generalName != nil &&
@@ -341,6 +366,7 @@ final class GameViewModel: ObservableObject {
     }
 
     func canSetSelectedTacticalOrder(_ order: TacticalOrder) -> Bool {
+        guard !isCampaignOver else { return false }
         guard let selectedUnit else { return false }
         return selectedUnit.faction == state.activeFaction &&
             selectedUnit.resolvedTacticalOrder != order &&
@@ -520,23 +546,36 @@ final class GameViewModel: ObservableObject {
     }
 
     func endTurn() {
+        guard !isCampaignOver else {
+            bannerMessage = "\(campaignStatusTitle)：\(campaignStatusDetail)"
+            return
+        }
+
         var messages = state.endTurn()
 
-        while state.activeFaction != .rome {
+        while state.activeFaction != .rome && !state.campaignStatus.isGameOver {
             messages.append(contentsOf: state.performSimpleAI(for: state.activeFaction))
+            guard !state.campaignStatus.isGameOver else {
+                break
+            }
             messages.append(contentsOf: state.endTurn())
         }
 
         selectedUnitID = nil
         selectedCityID = nil
         selectedPosition = nil
-        bannerMessage = messages.last ?? "新的罗马回合开始。"
+        if state.campaignStatus.isGameOver {
+            bannerMessage = messages.last ?? "\(campaignStatusTitle)：\(campaignStatusDetail)"
+        } else {
+            bannerMessage = messages.last ?? "新的罗马回合开始。"
+        }
     }
 
     private func apply(_ operation: () throws -> [String]) {
         do {
             let messages = try operation()
-            bannerMessage = messages.last ?? "命令已执行。"
+            let fallback = state.campaignStatus.isGameOver ? "\(campaignStatusTitle)：\(campaignStatusDetail)" : "命令已执行。"
+            bannerMessage = messages.last ?? fallback
         } catch {
             if let ruleError = error as? GameRuleError {
                 bannerMessage = ruleError.displayMessage

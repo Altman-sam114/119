@@ -14,12 +14,64 @@
 
 - 项目类型：原创 SwiftUI iOS 罗马题材战棋原型。
 - 核心架构：纯 Swift `RomeLegionsCore` 负责玩法规则；`GameViewModel` 负责 UI 状态和派生数据；SwiftUI 视图负责展示和命令入口。
-- 当前玩法：六边形地图、地形、城市、阵营、军团、移动、攻击、反击、占城、招募、科技、任务、外交、城市扩建、军团训练、将领任命、主动技能、战术姿态、AI 回合、敌军意图预判、战局态势面板。
+- 当前玩法：六边形地图、地形、城市、阵营、军团、移动、攻击、反击、占城、招募、科技、任务 requirement、战役目标、胜负结算、结束保护、外交、城市扩建、军团训练、将领任命、主动技能、战术姿态、AI 回合、敌军意图预判、战局态势面板。
 - 当前测试入口：Swift Testing、Gameplay Smoke、项目结构检查、SwiftUI 类型检查、战斗页预览图渲染、无签名 Xcode 构建。
 - 当前协作系统：已建立 `AGENTS.md`、`update_log.md`、`md/prompt/`、`md/test/test.md`、`md/flow/flow.md`、`md/flow/flowchart.md`，默认按 `main` 直推、GitHub Actions 云端重验证、Agent C 下载未加密结果包复判。
 - 当前 CI 入口：`.github/workflows/ci-results.yml`，在 `main` push 和手动触发时运行结构检查、SwiftPM 测试、Gameplay Smoke 和无签名 Xcode build，并上传 CI 结果包。
 
 ## 历史记录
+
+### v0.4 / 战役目标与胜负结算
+
+日期：2026-07-04
+
+核心变更：
+
+- 在 `RomeLegionsCore` 中新增 `MissionRequirement`、`CampaignStatusKind`、`CampaignStatus` 和 `GameState.campaignStatus`，让核心层判断战役进行中、罗马胜利和罗马失败。
+- 三项核心任务改为带 requirement 的可判断目标：占领叙拉古、拥有 5 支罗马部队、占领迦太基；旧 mission id 只作为缺 requirement 的兼容兜底。
+- `evaluateMissions()` 保持任务奖励只发一次；触发全部核心目标后输出罗马胜利，罗马失去所有城市后输出罗马失败。
+- `moveUnit`、`attack`、`recruit`、`research`、`developCity`、`trainUnit`、`appointGeneral`、`useGeneralSkill`、`restUnit`、`skipUnit`、`setTacticalOrder`、`sendEnvoy`、`endTurn` 和 `performSimpleAI` 接入战役结束保护。
+- `GameViewModel` 暴露战役状态派生值，结束后停止 AI while loop，并让命令可用性跟随 `isCampaignOver`。
+- `BattleView` 在顶部、战术状态条和元老院任务面板展示战役状态；结束回合、军令、科技和外交入口在战役结束后禁用。
+- 更新 Gameplay Smoke、结构检查、CI artifact 版本、README、flow、flowchart、test 和 Agent 入口文档。
+
+关键文件：
+
+- `Sources/RomeLegionsCore/GameState.swift`
+- `RomeLegionsApp/App/GameViewModel.swift`
+- `RomeLegionsApp/Views/BattleView.swift`
+- `Tests/RomeLegionsCoreTests/GameStateTests.swift`
+- `Tools/GameplaySmoke/main.swift`
+- `Tools/verify_project.mjs`
+- `.github/workflows/ci-results.yml`
+- `AGENTS.md`
+- `README.md`
+- `md/flow/flow.md`
+- `md/flow/flowchart.md`
+- `md/test/test.md`
+- `md/prompt/v0（玩法推进）/v0.4（战役目标与胜负结算）.md`
+- `update_log.md`
+
+验证结果：
+
+- `env HOME=$PWD/.home CLANG_MODULE_CACHE_PATH=$PWD/.build/module-cache DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/swift test --scratch-path .build/swift-test-local --disable-sandbox`：通过，31 个 Swift Testing 用例通过。
+- `swiftc -swift-version 5 -module-cache-path .build/module-cache Sources/RomeLegionsCore/GameState.swift Tools/GameplaySmoke/main.swift -o .build/gameplay-smoke`：通过，无错误输出。
+- `.build/gameplay-smoke`：通过，输出 `Gameplay smoke test passed.`
+- `env HOME=$PWD/.home CLANG_MODULE_CACHE_PATH=$PWD/.build/module-cache /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/swiftc -parse-as-library -sdk /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX26.5.sdk -target arm64-apple-macosx14.0 -o .build/render-battle-preview Tools/RenderBattlePreview/main.swift Sources/RomeLegionsCore/GameState.swift RomeLegionsApp/App/GameViewModel.swift RomeLegionsApp/Views/BattleView.swift`：通过，无错误输出。
+- `.build/render-battle-preview DerivedData/battle-landscape-preview.png 932 430`：通过，生成横屏预览图。
+- `.build/render-battle-preview DerivedData/battle-portrait-preview.png 390 844`：通过，生成竖屏预览图。
+- `.build/render-battle-preview DerivedData/battle-wide-preview.png 1024 768`：通过，生成宽屏预览图。
+- `git diff --check`：通过，无输出。
+- `node Tools/verify_project.mjs`：通过，输出 `Project structure verification passed.`
+- `ruby -e 'require "yaml"; YAML.load_file(".github/workflows/ci-results.yml"); puts "yaml ok"'`：通过，输出 `yaml ok`。
+- `plutil -lint RomeLegionsApp.xcodeproj/project.pbxproj`：通过，输出 `RomeLegionsApp.xcodeproj/project.pbxproj: OK`。
+- `git status --short`：已确认只包含本轮 v0.4 相关源码、测试、工具、CI、文档和 Agent A 提示词。
+- GitHub Actions 云端结果包需要本轮 commit push 到 `origin/main` 后由 Agent C 下载复判。
+
+遗留事项：
+
+- 本轮没有默认本机跑完整 `xcodebuild build`，按项目规则交给 `main` push 后的 GitHub Actions 重验证。
+- Agent C 必须核对最新 `origin/main` commit 对应的 v0.4 artifact，不能使用 v0.3 旧结果包。
 
 ### v0.3 / 升级 main 直推云端验证流程
 

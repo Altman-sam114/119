@@ -91,6 +91,22 @@ do {
     expect(turnState.activeFaction == .carthage, "End turn should advance faction")
     expect(turnState.turn == beforeTurn, "Round should not increment until Rome acts again")
 
+    var victoryState = GameState.newCampaign()
+    for index in victoryState.cities.indices where ["syracuse", "carthage"].contains(victoryState.cities[index].id) {
+        victoryState.cities[index].owner = .rome
+    }
+    victoryState.units.append(ArmyUnit(id: "rome-smoke-extra", kind: .legion, faction: .rome, position: Position(x: 1, y: 1)))
+    let victoryMessages = try victoryState.recruit(.archer, at: "rome")
+    expect(victoryState.campaignStatus.kind == .romanVictory, "Completed objectives should create Roman victory")
+    expect(victoryMessages.contains { $0.contains("战役胜利") }, "Victory message should be emitted")
+    expect(victoryState.endTurn() == [GameRuleError.campaignAlreadyEnded.displayMessage], "Ended campaign should block turn advance")
+
+    var defeatState = GameState.newCampaign()
+    for index in defeatState.cities.indices where defeatState.cities[index].owner == .rome {
+        defeatState.cities[index].owner = .carthage
+    }
+    expect(defeatState.campaignStatus.kind == .romanDefeat, "Losing all Roman cities should create defeat")
+
     print("Gameplay smoke test passed.")
 } catch {
     print("FAIL: \(error)")

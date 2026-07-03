@@ -93,8 +93,10 @@ struct TopBarView: View {
             .buttonStyle(CommandIconButtonStyle())
 
             VStack(alignment: .leading, spacing: 2) {
-                Text("\(viewModel.state.mode.displayName) · 第 \(viewModel.state.turn) 回合")
+                Text("\(viewModel.state.mode.displayName) · 第 \(viewModel.state.turn) 回合 · \(viewModel.campaignStatusTitle)")
                     .font(.headline.weight(.bold))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.72)
                 Text(viewModel.bannerMessage)
                     .font(.caption)
                     .foregroundStyle(.white.opacity(0.72))
@@ -127,6 +129,7 @@ struct TopBarView: View {
                 .padding(.horizontal, isCondensed ? 10 : 12)
             }
             .buttonStyle(PrimaryButtonStyle())
+            .disabled(viewModel.isCampaignOver)
         }
         .padding(.horizontal, isCondensed ? 8 : 12)
         .padding(.vertical, isCondensed ? 8 : 10)
@@ -356,20 +359,18 @@ struct TacticalStatusStripView: View {
                 }
             }
 
-            if let mission = viewModel.primaryMission {
-                HStack(spacing: 6) {
-                    Image(systemName: mission.isCompleted ? "checkmark.seal.fill" : "building.columns.fill")
-                        .foregroundStyle(mission.isCompleted ? .green : Color(red: 0.84, green: 0.66, blue: 0.32))
-                    Text(mission.title)
-                        .font(.caption.weight(.heavy))
-                    Text(mission.objective)
-                        .font(.caption2.weight(.semibold))
-                        .foregroundStyle(.white.opacity(0.70))
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.7)
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
+            HStack(spacing: 6) {
+                Image(systemName: viewModel.campaignStatus.kind.systemImage)
+                    .foregroundStyle(viewModel.campaignStatus.kind.tintColor)
+                Text(viewModel.campaignStatusTitle)
+                    .font(.caption.weight(.heavy))
+                Text(viewModel.isCampaignOver ? viewModel.campaignStatusDetail : (viewModel.campaignStatus.progressText ?? viewModel.campaignStatusDetail))
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(.white.opacity(0.70))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
         .foregroundStyle(.white)
         .padding(.horizontal, 10)
@@ -833,7 +834,7 @@ struct CompactActionsPanelView: View {
                             CommandButtonLabel(symbol: "cross.case.fill", text: "休整")
                         }
                         .buttonStyle(SecondaryButtonStyle())
-                        .disabled(unit.hasActed)
+                        .disabled(unit.hasActed || viewModel.isCampaignOver)
 
                         Button {
                             viewModel.skipSelectedUnit()
@@ -852,6 +853,7 @@ struct CompactActionsPanelView: View {
                         CommandButtonLabel(symbol: "building.2.crop.circle.fill", text: "扩建")
                     }
                     .buttonStyle(SecondaryButtonStyle())
+                    .disabled(viewModel.isCampaignOver)
                 }
             }
         }
@@ -1531,6 +1533,7 @@ struct ActionsPanelView: View {
                             )
                         }
                         .buttonStyle(PrimaryButtonStyle())
+                        .disabled(viewModel.isCampaignOver)
                     }
                 }
 
@@ -1541,6 +1544,7 @@ struct ActionsPanelView: View {
                         CommandButtonLabel(symbol: "building.2.crop.circle.fill", text: "扩建 \(city.name)")
                     }
                     .buttonStyle(SecondaryButtonStyle())
+                    .disabled(viewModel.isCampaignOver)
 
                     HStack(spacing: 8) {
                         ForEach(UnitKind.allCases.filter { kind in
@@ -1561,6 +1565,7 @@ struct ActionsPanelView: View {
                                 .frame(maxWidth: .infinity, minHeight: 48)
                             }
                             .buttonStyle(SecondaryButtonStyle())
+                            .disabled(viewModel.isCampaignOver)
                         }
                     }
                 }
@@ -1585,6 +1590,7 @@ struct ActionsPanelView: View {
                             CommandButtonLabel(symbol: "figure.walk", text: "训练")
                         }
                         .buttonStyle(SecondaryButtonStyle())
+                        .disabled(viewModel.isCampaignOver)
 
                         Button {
                             viewModel.appointGeneralToSelectedUnit()
@@ -1592,7 +1598,7 @@ struct ActionsPanelView: View {
                             CommandButtonLabel(symbol: "person.crop.circle.badge.plus", text: "任命")
                         }
                         .buttonStyle(SecondaryButtonStyle())
-                        .disabled(unit.generalName != nil)
+                        .disabled(unit.generalName != nil || viewModel.isCampaignOver)
                     }
 
                     HStack(spacing: 8) {
@@ -1602,7 +1608,7 @@ struct ActionsPanelView: View {
                             CommandButtonLabel(symbol: "cross.case.fill", text: "休整")
                         }
                         .buttonStyle(SecondaryButtonStyle())
-                        .disabled(unit.hasActed)
+                        .disabled(unit.hasActed || viewModel.isCampaignOver)
 
                         Button {
                             viewModel.skipSelectedUnit()
@@ -1655,7 +1661,7 @@ struct DiplomacyPanelView: View {
                         .frame(minHeight: 36)
                     }
                     .buttonStyle(SecondaryButtonStyle())
-                    .disabled(status == .alliance)
+                    .disabled(status == .alliance || viewModel.isCampaignOver)
                 }
             }
         }
@@ -1690,7 +1696,7 @@ struct TechnologyPanelView: View {
                         .frame(minHeight: 36)
                     }
                     .buttonStyle(SecondaryButtonStyle())
-                    .disabled(known)
+                    .disabled(known || viewModel.isCampaignOver)
                 }
             }
         }
@@ -1703,6 +1709,20 @@ struct MissionPanelView: View {
     var body: some View {
         PanelView(title: "元老院", symbol: "building.columns.fill") {
             VStack(spacing: 6) {
+                HStack(spacing: 8) {
+                    Image(systemName: viewModel.campaignStatus.kind.systemImage)
+                        .foregroundStyle(viewModel.campaignStatus.kind.tintColor)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(viewModel.campaignStatusTitle)
+                            .font(.caption.weight(.bold))
+                        Text(viewModel.campaignStatusDetail)
+                            .font(.caption2)
+                            .foregroundStyle(.white.opacity(0.62))
+                            .lineLimit(2)
+                    }
+                    Spacer()
+                }
+
                 ForEach(viewModel.state.missions) { mission in
                     HStack(spacing: 8) {
                         Image(systemName: mission.isCompleted ? "checkmark.circle.fill" : "circle")
@@ -1947,6 +1967,24 @@ extension DiplomaticStatus {
         case .war: return Color(red: 0.86, green: 0.24, blue: 0.18)
         case .truce: return Color(red: 0.84, green: 0.66, blue: 0.32)
         case .alliance: return Color(red: 0.24, green: 0.66, blue: 0.34)
+        }
+    }
+}
+
+extension CampaignStatusKind {
+    var systemImage: String {
+        switch self {
+        case .ongoing: return "flag.fill"
+        case .romanVictory: return "checkmark.seal.fill"
+        case .romanDefeat: return "exclamationmark.triangle.fill"
+        }
+    }
+
+    var tintColor: Color {
+        switch self {
+        case .ongoing: return Color(red: 0.84, green: 0.66, blue: 0.32)
+        case .romanVictory: return Color(red: 0.24, green: 0.72, blue: 0.38)
+        case .romanDefeat: return Color(red: 0.86, green: 0.24, blue: 0.18)
         }
     }
 }

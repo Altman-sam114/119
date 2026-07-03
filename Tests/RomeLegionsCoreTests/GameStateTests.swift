@@ -1,3 +1,4 @@
+import Foundation
 import Testing
 @testable import RomeLegionsCore
 
@@ -309,4 +310,131 @@ import Testing
 
     #expect(state.units.count > before)
     #expect(state.units.contains { $0.faction == .gaul })
+}
+
+@Test func missionRequirementCompletesAndPaysRewardOnce() throws {
+    var state = GameState.newCampaign()
+    let beforeGold = state.resources[.rome]?.gold ?? 0
+
+    _ = try state.recruit(.archer, at: "rome")
+    let completionMessages = try state.recruit(.archer, at: "rome")
+
+    #expect(state.missions.first { $0.id == "raise-legions" }?.isCompleted == true)
+    #expect(completionMessages.contains { $0.contains("任务完成：扩充军团") })
+    #expect((state.resources[.rome]?.gold ?? 0) == beforeGold - UnitKind.archer.recruitmentCost.gold * 2 + 40)
+
+    let beforeExtraRecruitmentGold = state.resources[.rome]?.gold ?? 0
+    let repeatMessages = try state.recruit(.archer, at: "rome")
+
+    #expect(!repeatMessages.contains { $0.contains("任务完成：扩充军团") })
+    #expect((state.resources[.rome]?.gold ?? 0) == beforeExtraRecruitmentGold - UnitKind.archer.recruitmentCost.gold)
+}
+
+@Test func completingAllCampaignObjectivesCreatesRomanVictory() throws {
+    var state = GameState.newCampaign()
+    for index in state.cities.indices where ["syracuse", "carthage"].contains(state.cities[index].id) {
+        state.cities[index].owner = .rome
+    }
+    state.units.append(ArmyUnit(id: "rome-extra-legion", kind: .legion, faction: .rome, position: Position(x: 1, y: 1)))
+
+    let messages = try state.recruit(.archer, at: "rome")
+
+    #expect(state.campaignStatus.kind == .romanVictory)
+    #expect(state.campaignStatus.isGameOver)
+    #expect(state.missions.allSatisfy { $0.isCompleted })
+    #expect(messages.contains { $0.contains("任务完成：夺取西西里") })
+    #expect(messages.contains { $0.contains("任务完成：压制迦太基") })
+    #expect(messages.contains { $0.contains("战役胜利") })
+}
+
+@Test func campaignVictoryRequiresCurrentRequirements() {
+    var state = GameState.newCampaign()
+    for index in state.cities.indices where ["syracuse", "carthage"].contains(state.cities[index].id) {
+        state.cities[index].owner = .rome
+    }
+    state.units.append(ArmyUnit(id: "rome-extra-legion", kind: .legion, faction: .rome, position: Position(x: 1, y: 1)))
+    state.units.append(ArmyUnit(id: "rome-extra-archer", kind: .archer, faction: .rome, position: Position(x: 1, y: 2)))
+    for index in state.missions.indices {
+        state.missions[index].isCompleted = true
+    }
+    if let syracuseIndex = state.cities.firstIndex(where: { $0.id == "syracuse" }) {
+        state.cities[syracuseIndex].owner = .carthage
+    }
+
+    #expect(state.campaignStatus.kind == .ongoing)
+    #expect(state.campaignStatus.primaryMissionID == "secure-sicily")
+}
+
+@Test func losingAllRomanCitiesCreatesRomanDefeat() {
+    var state = GameState.newCampaign()
+    for index in state.cities.indices where state.cities[index].owner == .rome {
+        state.cities[index].owner = .carthage
+    }
+
+    #expect(state.campaignStatus.kind == .romanDefeat)
+    #expect(state.campaignStatus.isGameOver)
+}
+
+@Test func campaignEndBlocksMutatingPlayerCommands() throws {
+    var state = GameState.newCampaign()
+    for index in state.cities.indices where ["syracuse", "carthage"].contains(state.cities[index].id) {
+        state.cities[index].owner = .rome
+    }
+    state.units.append(ArmyUnit(id: "rome-extra-legion", kind: .legion, faction: .rome, position: Position(x: 1, y: 1)))
+    _ = try state.recruit(.archer, at: "rome")
+
+    let before = state
+
+    #expect(throws: GameRuleError.campaignAlreadyEnded) {
+        try state.moveUnit(id: "rome-legion-1", to: Position(x: 5, y: 2))
+    }
+    #expect(throws: GameRuleError.campaignAlreadyEnded) {
+        try state.recruit(.archer, at: "rome")
+    }
+
+    let endTurnMessages = state.endTurn()
+    #expect(endTurnMessages == [GameRuleError.campaignAlreadyEnded.displayMessage])
+    #expect(state == before)
+}
+
+@Test func aiDoesNotAdvanceAfterCampaignEnds() {
+    var state = GameState.newCampaign()
+    state.activeFaction = .carthage
+    for index in state.cities.indices where state.cities[index].owner == .rome {
+        state.cities[index].owner = .carthage
+    }
+    let before = state
+
+    let messages = state.performSimpleAI(for: .carthage)
+
+    #expect(messages.isEmpty)
+    #expect(state == before)
+}
+
+@Test func campaignStateCodableKeepsMissionRequirementsAndReadsLegacyMissions() throws {
+    let state = GameState.newCampaign()
+    let data = try JSONEncoder().encode(state)
+    let decoded = try JSONDecoder().decode(GameState.self, from: data)
+
+    #expect(decoded.missions.first { $0.id == "secure-sicily" }?.requirement == .controlCity(cityID: "syracuse", faction: .rome))
+    #expect(decoded.campaignStatus.kind == state.campaignStatus.kind)
+
+    let legacyMissionJSON = """
+    {
+      "id": "secure-sicily",
+      "title": "夺取西西里",
+      "objective": "占领叙拉古",
+      "reward": {
+        "gold": 80,
+        "grain": 30,
+        "iron": 25,
+        "science": 10,
+        "prestige": 2
+      },
+      "isCompleted": false
+    }
+    """
+    let legacyMission = try JSONDecoder().decode(Mission.self, from: Data(legacyMissionJSON.utf8))
+
+    #expect(legacyMission.requirement == nil)
 }

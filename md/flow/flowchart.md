@@ -57,7 +57,31 @@ flowchart TD
     L --> M["BattleView 显示地图徽标、顶部芯片、侧栏敌情"]
 ```
 
-## 4. 多 Agent 云端迭代流
+## 4. 任务与胜负结算流
+
+读图说明：这张图展示 v0.4 后任务 requirement、任务奖励、战役胜负和结束保护的关系。胜负只由 `GameState` 判断，SwiftUI 只读取结果和禁用入口。
+
+```mermaid
+flowchart TD
+    A["写状态命令<br/>移动、攻击、招募、科技、外交、AI"] --> B{"campaignStatus 已结束？"}
+    B -->|是| C["GameRuleError.campaignAlreadyEnded<br/>不改变战局"]
+    B -->|否| D["执行本次核心结算<br/>移动/伤害/占城/招募等"]
+    D --> E["evaluateMissions()<br/>按 MissionRequirement 判断任务"]
+    E --> F{"任务首次完成？"}
+    F -->|是| G["标记 isCompleted<br/>发放一次奖励并写中文消息"]
+    F -->|否| H["不重复发放奖励"]
+    G --> I["重新读取 campaignStatus"]
+    H --> I
+    I --> J{"是否满足胜负？"}
+    J -->|全部核心任务完成| K["罗马胜利<br/>输出战役胜利消息"]
+    J -->|罗马失去全部城市| L["罗马失败<br/>输出战役失败消息"]
+    J -->|仍在进行| M["返回任务/战斗消息<br/>继续玩家回合"]
+    K --> N["后续写命令被结束保护拦截"]
+    L --> N
+    N --> O["只读展示仍可查看<br/>状态、预览、敌军意图"]
+```
+
+## 5. 多 Agent 云端迭代流
 
 读图说明：这张图展示人工、Agent A、Agent B、GitHub Actions 和 Agent C 的职责边界。当前默认不是 PR 流，而是 `main` 直推、云端结果包、Agent C 下载复判；失败时在 `main` 上追加修复 commit。
 
@@ -80,7 +104,7 @@ flowchart TD
     N --> A
 ```
 
-## 5. 测试选择流
+## 6. 测试选择流
 
 读图说明：这张图帮助 Agent B/C 判断默认验证路径。默认先跑本地轻量检查，再 push 到 `main` 触发云端重验证；只有人工明确要求时才把本机完整 Swift / Xcode 测试作为默认路径。
 

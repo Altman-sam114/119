@@ -599,15 +599,67 @@ public struct Mission: Identifiable, Codable, Equatable, Sendable {
     public var id: String
     public var title: String
     public var objective: String
+    public var requirement: MissionRequirement?
     public var reward: EmpireResources
     public var isCompleted: Bool
 
-    public init(id: String, title: String, objective: String, reward: EmpireResources, isCompleted: Bool = false) {
+    public init(
+        id: String,
+        title: String,
+        objective: String,
+        requirement: MissionRequirement? = nil,
+        reward: EmpireResources,
+        isCompleted: Bool = false
+    ) {
         self.id = id
         self.title = title
         self.objective = objective
+        self.requirement = requirement
         self.reward = reward
         self.isCompleted = isCompleted
+    }
+}
+
+public enum MissionRequirement: Codable, Equatable, Sendable {
+    case controlCity(cityID: String, faction: Faction)
+    case factionUnitCount(faction: Faction, atLeast: Int)
+}
+
+public enum CampaignStatusKind: String, Codable, Equatable, Sendable {
+    case ongoing
+    case romanVictory
+    case romanDefeat
+
+    public var displayName: String {
+        switch self {
+        case .ongoing: return "战役进行中"
+        case .romanVictory: return "罗马胜利"
+        case .romanDefeat: return "罗马失败"
+        }
+    }
+}
+
+public struct CampaignStatus: Codable, Equatable, Sendable {
+    public var kind: CampaignStatusKind
+    public var title: String
+    public var detail: String
+    public var isGameOver: Bool
+    public var primaryMissionID: String?
+    public var progressText: String?
+
+    public init(
+        kind: CampaignStatusKind,
+        title: String,
+        detail: String,
+        primaryMissionID: String? = nil,
+        progressText: String? = nil
+    ) {
+        self.kind = kind
+        self.title = title
+        self.detail = detail
+        self.isGameOver = kind != .ongoing
+        self.primaryMissionID = primaryMissionID
+        self.progressText = progressText
     }
 }
 
@@ -744,6 +796,7 @@ public enum GameRuleError: Error, Equatable, Sendable {
     case protectedByTreaty
     case noSupply
     case generalSkillUnavailable
+    case campaignAlreadyEnded
     case missingEntity
 
     public var displayMessage: String {
@@ -762,6 +815,7 @@ public enum GameRuleError: Error, Equatable, Sendable {
         case .protectedByTreaty: return "停战或同盟关系下不能攻击"
         case .noSupply: return "当前位置没有可用补给"
         case .generalSkillUnavailable: return "该单位没有可用将领技能"
+        case .campaignAlreadyEnded: return "战役已结束，不能继续改变战局"
         case .missingEntity: return "目标不存在"
         }
     }
@@ -868,9 +922,27 @@ public struct GameState: Codable, Equatable, Sendable {
         }
 
         let missions = [
-            Mission(id: "secure-sicily", title: "夺取西西里", objective: "占领叙拉古", reward: EmpireResources(gold: 80, grain: 30, iron: 25, science: 10, prestige: 2)),
-            Mission(id: "raise-legions", title: "扩充军团", objective: "拥有 5 支罗马部队", reward: EmpireResources(gold: 40, grain: 50, iron: 25, science: 8, prestige: 1)),
-            Mission(id: "break-carthage", title: "压制迦太基", objective: "占领迦太基", reward: EmpireResources(gold: 120, grain: 60, iron: 45, science: 20, prestige: 4))
+            Mission(
+                id: "secure-sicily",
+                title: "夺取西西里",
+                objective: "占领叙拉古",
+                requirement: .controlCity(cityID: "syracuse", faction: .rome),
+                reward: EmpireResources(gold: 80, grain: 30, iron: 25, science: 10, prestige: 2)
+            ),
+            Mission(
+                id: "raise-legions",
+                title: "扩充军团",
+                objective: "拥有 5 支罗马部队",
+                requirement: .factionUnitCount(faction: .rome, atLeast: 5),
+                reward: EmpireResources(gold: 40, grain: 50, iron: 25, science: 8, prestige: 1)
+            ),
+            Mission(
+                id: "break-carthage",
+                title: "压制迦太基",
+                objective: "占领迦太基",
+                requirement: .controlCity(cityID: "carthage", faction: .rome),
+                reward: EmpireResources(gold: 120, grain: 60, iron: 45, science: 20, prestige: 4)
+            )
         ]
 
         return GameState(
@@ -894,6 +966,41 @@ public struct GameState: Codable, Equatable, Sendable {
             ],
             missions: missions,
             eventLog: ["元老院命令：确保罗马在地中海的补给线。"]
+        )
+    }
+
+    public var campaignStatus: CampaignStatus {
+        if !cities.contains(where: { $0.owner == .rome }) {
+            return CampaignStatus(
+                kind: .romanDefeat,
+                title: CampaignStatusKind.romanDefeat.displayName,
+                detail: "罗马失去所有城市，元老院撤回战役授权。"
+            )
+        }
+
+        let objectives = campaignObjectiveMissions
+        if !objectives.isEmpty, objectives.allSatisfy({ isMissionFulfilled($0) }) {
+            return CampaignStatus(
+                kind: .romanVictory,
+                title: CampaignStatusKind.romanVictory.displayName,
+                detail: "所有元老院战役目标已经完成。"
+            )
+        }
+
+        if let mission = objectives.first(where: { !isMissionFulfilled($0) }) ?? missions.first(where: { !$0.isCompleted }) {
+            return CampaignStatus(
+                kind: .ongoing,
+                title: CampaignStatusKind.ongoing.displayName,
+                detail: "当前目标：\(mission.objective)",
+                primaryMissionID: mission.id,
+                progressText: missionProgressText(for: mission)
+            )
+        }
+
+        return CampaignStatus(
+            kind: .ongoing,
+            title: CampaignStatusKind.ongoing.displayName,
+            detail: "稳固地中海战线，等待元老院新命令。"
         )
     }
 
@@ -1118,6 +1225,8 @@ public struct GameState: Codable, Equatable, Sendable {
     }
 
     public mutating func moveUnit(id unitID: String, to destination: Position) throws -> [String] {
+        try ensureCampaignCanContinue()
+
         guard let index = units.firstIndex(where: { $0.id == unitID }) else {
             throw GameRuleError.missingEntity
         }
@@ -1143,12 +1252,14 @@ public struct GameState: Codable, Equatable, Sendable {
 
         var messages = ["\(units[index].faction.displayName)\(units[index].kind.displayName)移动至 \(destination)。"]
         messages.append(contentsOf: captureCityIfPossible(at: destination, by: units[index].faction))
-        messages.append(contentsOf: evaluateMissions())
+        messages.append(contentsOf: evaluateCampaignProgress())
         eventLog.append(contentsOf: messages)
         return messages
     }
 
     public mutating func attack(attackerID: String, defenderID: String) throws -> [String] {
+        try ensureCampaignCanContinue()
+
         guard let attacker = unit(withID: attackerID),
               let defender = unit(withID: defenderID) else {
             throw GameRuleError.missingEntity
@@ -1188,7 +1299,7 @@ public struct GameState: Codable, Equatable, Sendable {
         if let updatedDefender = unit(withID: defenderID), updatedDefender.health <= 0 {
             units.removeAll { $0.id == defenderID }
             messages.append("\(defender.faction.displayName)\(defender.kind.displayName)被击溃。")
-            messages.append(contentsOf: evaluateMissions())
+            messages.append(contentsOf: evaluateCampaignProgress())
             eventLog.append(contentsOf: messages)
             return messages
         }
@@ -1206,12 +1317,14 @@ public struct GameState: Codable, Equatable, Sendable {
             }
         }
 
-        messages.append(contentsOf: evaluateMissions())
+        messages.append(contentsOf: evaluateCampaignProgress())
         eventLog.append(contentsOf: messages)
         return messages
     }
 
     public mutating func developCity(id cityID: String) throws -> [String] {
+        try ensureCampaignCanContinue()
+
         guard let cityIndex = cities.firstIndex(where: { $0.id == cityID }) else {
             throw GameRuleError.missingEntity
         }
@@ -1234,6 +1347,8 @@ public struct GameState: Codable, Equatable, Sendable {
     }
 
     public mutating func trainUnit(id unitID: String) throws -> [String] {
+        try ensureCampaignCanContinue()
+
         guard let index = units.firstIndex(where: { $0.id == unitID }) else {
             throw GameRuleError.missingEntity
         }
@@ -1257,6 +1372,8 @@ public struct GameState: Codable, Equatable, Sendable {
     }
 
     public mutating func skipUnit(id unitID: String) throws -> [String] {
+        try ensureCampaignCanContinue()
+
         guard let index = units.firstIndex(where: { $0.id == unitID }) else {
             throw GameRuleError.missingEntity
         }
@@ -1274,6 +1391,8 @@ public struct GameState: Codable, Equatable, Sendable {
     }
 
     public mutating func setTacticalOrder(unitID: String, order: TacticalOrder) throws -> [String] {
+        try ensureCampaignCanContinue()
+
         guard let index = units.firstIndex(where: { $0.id == unitID }) else {
             throw GameRuleError.missingEntity
         }
@@ -1297,6 +1416,8 @@ public struct GameState: Codable, Equatable, Sendable {
     }
 
     public mutating func restUnit(id unitID: String) throws -> [String] {
+        try ensureCampaignCanContinue()
+
         guard let index = units.firstIndex(where: { $0.id == unitID }) else {
             throw GameRuleError.missingEntity
         }
@@ -1329,6 +1450,8 @@ public struct GameState: Codable, Equatable, Sendable {
     }
 
     public mutating func appointGeneral(unitID: String) throws -> [String] {
+        try ensureCampaignCanContinue()
+
         guard let index = units.firstIndex(where: { $0.id == unitID }) else {
             throw GameRuleError.missingEntity
         }
@@ -1360,6 +1483,8 @@ public struct GameState: Codable, Equatable, Sendable {
     }
 
     public mutating func useGeneralSkill(unitID: String) throws -> [String] {
+        try ensureCampaignCanContinue()
+
         guard let commanderIndex = units.firstIndex(where: { $0.id == unitID }) else {
             throw GameRuleError.missingEntity
         }
@@ -1418,12 +1543,14 @@ public struct GameState: Codable, Equatable, Sendable {
             units[updatedCommanderIndex].hasActed = true
         }
 
-        messages.append(contentsOf: evaluateMissions())
+        messages.append(contentsOf: evaluateCampaignProgress())
         eventLog.append(contentsOf: messages)
         return messages
     }
 
     public mutating func sendEnvoy(to target: Faction) throws -> [String] {
+        try ensureCampaignCanContinue()
+
         guard target != activeFaction, target != .neutral else {
             throw GameRuleError.invalidDiplomacyTarget
         }
@@ -1451,6 +1578,8 @@ public struct GameState: Codable, Equatable, Sendable {
     }
 
     public mutating func recruit(_ kind: UnitKind, at cityID: String) throws -> [String] {
+        try ensureCampaignCanContinue()
+
         guard let city = city(withID: cityID) else {
             throw GameRuleError.missingEntity
         }
@@ -1478,12 +1607,14 @@ public struct GameState: Codable, Equatable, Sendable {
         units.append(unit)
 
         var messages = ["\(city.name)招募\(kind.displayName)。"]
-        messages.append(contentsOf: evaluateMissions())
+        messages.append(contentsOf: evaluateCampaignProgress())
         eventLog.append(contentsOf: messages)
         return messages
     }
 
     public mutating func research(_ technology: Technology) throws -> [String] {
+        try ensureCampaignCanContinue()
+
         var known = researchedTechnologies[activeFaction] ?? []
         guard !known.contains(technology) else {
             throw GameRuleError.technologyAlreadyResearched
@@ -1501,6 +1632,10 @@ public struct GameState: Codable, Equatable, Sendable {
     }
 
     public mutating func endTurn() -> [String] {
+        guard !campaignStatus.isGameOver else {
+            return [GameRuleError.campaignAlreadyEnded.displayMessage]
+        }
+
         let gained = income(for: activeFaction)
         resources[activeFaction, default: .zero].add(gained)
 
@@ -1527,7 +1662,10 @@ public struct GameState: Codable, Equatable, Sendable {
     }
 
     public mutating func performSimpleAI(for faction: Faction) -> [String] {
-        guard faction == activeFaction, faction != .rome, faction != .neutral else {
+        guard !campaignStatus.isGameOver,
+              faction == activeFaction,
+              faction != .rome,
+              faction != .neutral else {
             return []
         }
 
@@ -1538,12 +1676,20 @@ public struct GameState: Codable, Equatable, Sendable {
         let actingIDs = units.filter { $0.faction == faction }.map(\.id)
 
         for unitID in actingIDs {
+            guard !campaignStatus.isGameOver else {
+                break
+            }
+
             guard let actingUnit = unit(withID: unitID), !actingUnit.hasActed else {
                 continue
             }
 
             if let orderMessages = try? setTacticalOrder(unitID: unitID, order: preferredAITacticalOrder(for: actingUnit)) {
                 messages.append(contentsOf: orderMessages)
+            }
+
+            guard !campaignStatus.isGameOver else {
+                break
             }
 
             guard let orderedUnit = unit(withID: unitID) else {
@@ -1559,11 +1705,17 @@ public struct GameState: Codable, Equatable, Sendable {
             if shouldAIUseGeneralSkill(orderedUnit),
                let result = try? useGeneralSkill(unitID: unitID) {
                 messages.append(contentsOf: result)
+                if campaignStatus.isGameOver {
+                    break
+                }
                 continue
             }
 
             if let target = bestAITarget(for: orderedUnit) {
                 messages.append(contentsOf: performAIAttack(attackerID: unitID, defenderID: target.id))
+                if campaignStatus.isGameOver {
+                    break
+                }
                 continue
             }
 
@@ -1579,9 +1731,16 @@ public struct GameState: Codable, Equatable, Sendable {
             if let result = try? moveUnit(id: unitID, to: destination) {
                 messages.append(contentsOf: result)
 
+                guard !campaignStatus.isGameOver else {
+                    break
+                }
+
                 if let movedUnit = self.unit(withID: unitID),
                    let target = bestAITarget(for: movedUnit) {
                     messages.append(contentsOf: performAIAttack(attackerID: unitID, defenderID: target.id))
+                    if campaignStatus.isGameOver {
+                        break
+                    }
                 }
             }
         }
@@ -1838,24 +1997,90 @@ public struct GameState: Codable, Equatable, Sendable {
         return paradeGround
     }
 
+    private static let campaignObjectiveMissionIDs: Set<String> = [
+        "secure-sicily",
+        "raise-legions",
+        "break-carthage"
+    ]
+
+    private var campaignObjectiveMissions: [Mission] {
+        missions.filter { mission in
+            mission.requirement != nil || Self.campaignObjectiveMissionIDs.contains(mission.id)
+        }
+    }
+
+    private func ensureCampaignCanContinue() throws {
+        if campaignStatus.isGameOver {
+            throw GameRuleError.campaignAlreadyEnded
+        }
+    }
+
+    private func isMissionFulfilled(_ mission: Mission) -> Bool {
+        isMissionRequirementSatisfied(for: mission)
+    }
+
+    private func isMissionRequirementSatisfied(for mission: Mission) -> Bool {
+        if let requirement = mission.requirement {
+            return isMissionRequirementSatisfied(requirement)
+        }
+
+        switch mission.id {
+        case "secure-sicily":
+            return city(withID: "syracuse")?.owner == .rome
+        case "raise-legions":
+            return units.filter { $0.faction == .rome }.count >= 5
+        case "break-carthage":
+            return city(withID: "carthage")?.owner == .rome
+        default:
+            return false
+        }
+    }
+
+    private func isMissionRequirementSatisfied(_ requirement: MissionRequirement) -> Bool {
+        switch requirement {
+        case let .controlCity(cityID, faction):
+            return city(withID: cityID)?.owner == faction
+        case let .factionUnitCount(faction, atLeast):
+            return units.filter { $0.faction == faction }.count >= atLeast
+        }
+    }
+
+    private func missionProgressText(for mission: Mission) -> String? {
+        guard let requirement = mission.requirement else {
+            return nil
+        }
+
+        switch requirement {
+        case let .controlCity(cityID, faction):
+            let owner = city(withID: cityID)?.owner.displayName ?? "未知"
+            return "\(owner)控制 / 目标\(faction.displayName)"
+        case let .factionUnitCount(faction, atLeast):
+            let count = units.filter { $0.faction == faction }.count
+            return "\(count)/\(atLeast) 支\(faction.displayName)部队"
+        }
+    }
+
+    private mutating func evaluateCampaignProgress() -> [String] {
+        var messages = evaluateMissions()
+        let status = campaignStatus
+
+        switch status.kind {
+        case .ongoing:
+            break
+        case .romanVictory:
+            messages.append("战役胜利：\(status.detail)")
+        case .romanDefeat:
+            messages.append("战役失败：\(status.detail)")
+        }
+
+        return messages
+    }
+
     private mutating func evaluateMissions() -> [String] {
         var messages: [String] = []
 
         for index in missions.indices where !missions[index].isCompleted {
-            let completed: Bool
-
-            switch missions[index].id {
-            case "secure-sicily":
-                completed = city(withID: "syracuse")?.owner == .rome
-            case "raise-legions":
-                completed = units.filter { $0.faction == .rome }.count >= 5
-            case "break-carthage":
-                completed = city(withID: "carthage")?.owner == .rome
-            default:
-                completed = false
-            }
-
-            if completed {
+            if isMissionRequirementSatisfied(for: missions[index]) {
                 missions[index].isCompleted = true
                 resources[.rome, default: .zero].add(missions[index].reward)
                 messages.append("任务完成：\(missions[index].title)。")
