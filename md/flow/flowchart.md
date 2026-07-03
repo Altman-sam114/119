@@ -83,30 +83,33 @@ flowchart TD
 
 ## 5. 多 Agent 云端迭代流
 
-读图说明：这张图展示人工、Agent A、Agent B、GitHub Actions 和 Agent C 的职责边界。当前默认不是 PR 流，而是 `main` 直推、云端结果包、Agent C 下载复判；失败时在 `main` 上追加修复 commit。
+读图说明：这张图展示人工、Agent X、Agent A、Agent B、GitHub Actions 和 Agent C 的职责边界。Agent X 只做主控调度和轮次判断，不替代 A/B/C；当前默认不是 PR 流，而是 `main` 直推、云端结果包、Agent C 下载复判；失败时在 `main` 上追加修复 commit。
 
 ```mermaid
 flowchart TD
-    A["人工提出目标<br/>功能、禁止项、验收标准、测试要求"] --> B["Agent A<br/>读取文档和源码，设计实现提示词"]
-    B --> C["写入 md/prompt/vX/...md<br/>版本、目标、非目标、步骤、CI 要求"]
-    C --> D["Agent B<br/>同步 origin/main，在 main 小步实现"]
-    D --> E["本地轻量检查<br/>git diff --check / verify_project / YAML / Plist"]
-    E --> F["main commit/push<br/>git push origin main"]
-    F --> G["GitHub Actions<br/>RomeLegions CI Results"]
-    G --> H["未加密 CI 结果包<br/>manifest / junit / logs / xcresult"]
-    H --> I["Agent C<br/>gh auth login 后下载 artifact"]
-    I --> J["核对 origin/main 最新 commit<br/>run id / run attempt / manifest / 日志"]
-    J --> K{"是否满足目标？"}
-    K -->|通过| L["确认文档和版本记录<br/>输出云端验收证据"]
-    K -->|不通过| M["退回问题清单<br/>Agent B 追加修复 commit"]
-    M --> D
-    L --> N["人工复核<br/>决定下一轮目标"]
-    N --> A
+    A["人工用 agentx: 提供总目标 X<br/>功能、禁止项、验收标准、测试要求"] --> B["Agent X<br/>读取入口文档，拆分当前轮次目标"]
+    B --> C["Agent A<br/>读取文档和源码，设计本轮提示词"]
+    C --> D["写入 md/prompt/vX/...md<br/>目标、非目标、步骤、CI、artifact、Agent C 要求"]
+    D --> E["Agent B<br/>同步 origin/main，在 main 小步实现"]
+    E --> F["本地轻量检查<br/>git diff --check / verify_project / YAML / Plist"]
+    F --> G["main commit/push<br/>git push origin main"]
+    G --> H["GitHub Actions<br/>RomeLegions CI Results"]
+    H --> I["未加密必要 CI 结果包<br/>manifest / junit / logs / xcresult"]
+    I --> J["Agent C<br/>gh auth login 后下载最新 artifact"]
+    J --> K["核对 origin/main 最新 commit<br/>run id / run attempt / manifest / 日志"]
+    K --> L["Agent C 输出验收结论<br/>通过或不通过"]
+    L --> M{"Agent X 判断下一步"}
+    M -->|退回修复| N["退回问题清单<br/>Agent B 追加修复 commit"]
+    N --> E
+    M -->|继续下一轮| C
+    M -->|暂停等待人工| O["人工确认方向、权限或取舍"]
+    O --> B
+    M -->|总目标完成| P["Agent X 输出最终结论<br/>列出 run、artifact 和剩余风险"]
 ```
 
 ## 6. 测试选择流
 
-读图说明：这张图帮助 Agent B/C 判断默认验证路径。默认先跑本地轻量检查，再 push 到 `main` 触发云端重验证；只有人工明确要求时才把本机完整 Swift / Xcode 测试作为默认路径。
+读图说明：这张图帮助 Agent B/C/X 判断默认验证路径。默认先跑本地轻量检查，再 push 到 `main` 触发云端重验证；只有人工明确要求时才把本机完整 Swift / Xcode 测试作为默认路径。
 
 ```mermaid
 flowchart TD

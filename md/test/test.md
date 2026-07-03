@@ -1,6 +1,6 @@
 # 测试规范
 
-本文指导 Agent B 和 Agent C 根据改动范围选择测试层级、云端重验证和结果包复判。每次实现前必须先读本文件。
+本文指导 Agent B、Agent C 和未来的 Agent X 根据改动范围选择测试层级、云端重验证和结果包复判。每次实现前必须先读本文件。
 
 ## 固定前缀 / 环境要求
 
@@ -30,6 +30,8 @@ env HOME=$PWD/.home CLANG_MODULE_CACHE_PATH=$PWD/.build/module-cache DEVELOPER_D
 - 云端失败时，Agent B 根据结果包中的失败摘要、日志路径和 manifest 修复后继续在 `main` 上追加 commit 并 push。
 - 云端环境缺依赖时，必须说明哪个测试没跑、缺什么依赖、是否影响验收、需要人工提供什么。
 - 仓库没有 `origin` 或没有 GitHub Actions 权限时，必须明确报告阻塞，不能声称云端已验证。
+- Agent X 主控循环下，每一轮仍以 Agent B 本地轻量检查、GitHub Actions artifact 和 Agent C 下载复判为准。
+- Agent X 不得跳过 Agent C artifact 验收，不得在云端失败或验收不通过时继续下一轮并伪装成功。
 
 ## 本地轻量检查
 
@@ -177,6 +179,37 @@ Agent C 必须核对：
 - workflow 结论、JUnit、主构建日志、失败摘要互相一致。
 - 若 workflow 失败，失败摘要和日志路径足以退回 Agent B 修复。
 - 若本地仓库没有 `origin` 或 `gh` 无权限，明确报告阻塞，不能伪造下载核对。
+- 只能使用 `Altman-sam114` 对应 GitHub 权限完成 push、CI 或 artifact 验收；不得使用其他账号伪装完成。
+
+## Agent X 循环验证规则
+
+Agent X 只调度验证链路，不替代 Agent B 的本地轻量检查，也不替代 Agent C 的云端 artifact 验收。
+
+- 每轮开始前，Agent X 必须确认本轮目标可被本地轻量检查、GitHub Actions 和 Agent C 结果包复判验证。
+- 每轮 Agent A 提示词必须写清本轮验证命令、`main` push、CI artifact 和 Agent C 验收要求。
+- Agent B 未完成本地轻量检查、未 push 到 `origin/main`，或 GitHub Actions 未产出最新 artifact 时，Agent X 不能宣布该轮完成。
+- Agent C 未核对最新 run 的 manifest、JUnit、主日志、失败摘要、run id、run attempt 和 `origin/main` 最新 commit 时，Agent X 不能进入下一轮。
+- 若 Agent C 验收不通过，Agent X 只能退回 Agent B 修复、暂停等待人工确认，或因停止条件结束；不能继续下一轮伪装成功。
+- 若连续 3 轮遇到同一阻塞、连续 2 轮没有有效 diff、CI 连续失败且原因相同，Agent X 必须暂停并说明阻塞。
+
+## 测试数据与下载容量限制
+
+本项目默认采用小数据量验证策略，避免下载过大 artifact、模型、数据集、缓存或结果包，把本机、CI runner 或临时目录容量撑爆。
+
+规则：
+
+- 测试数据必须尽量小，只覆盖必要边界。
+- CI artifact 只上传必要文件：manifest、JUnit 或测试摘要、关键日志、失败摘要、必要结果包。
+- 不上传大体积 DerivedData、完整 build cache、无关截图、视频、模型文件、历史 artifact 或重复压缩包。
+- Agent C 下载 artifact 前优先确认只下载最新 run 对应的必要结果包。
+- 下载缓存默认放在 `/private/tmp/<project>-review-<run_id>/`；本项目具体目录为 `/private/tmp/romelegions-c-review-<run_id>/`。
+- 下载后应检查目录大小：
+
+```sh
+du -sh /private/tmp/romelegions-c-review-<run_id>/
+```
+
+- 禁止默认下载大体积测试数据、模型、历史 artifact 或无关产物。
 
 ## 本机完整测试命令
 

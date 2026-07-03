@@ -7,14 +7,16 @@
 - `agenta`、`a:` 或 `A:`：召唤 Agent A。
 - `agentb`、`b:` 或 `B:`：召唤 Agent B。
 - `agentc`、`c:` 或 `C:`：召唤 Agent C。
-- 没有前缀时，按普通 Codex 任务处理；若任务需要 A/B/C 边界，应提醒用户指定角色，或说明本轮按普通任务执行。
+- `agentx`、`x:` 或 `X:`：召唤 Agent X。
+- 没有前缀时，按普通 Codex 任务处理；若任务需要 A/B/C/X 边界，应提醒用户指定角色，或说明本轮按普通任务执行。
 
-Agent A、B、C 的最终回复第一行分别必须是：
+Agent A、B、C、X 的最终回复第一行分别必须是：
 
 ```text
 我是 Agent A。
 我是 Agent B。
 我是 Agent C。
+我是 Agent X。
 ```
 
 ## 目录和命名
@@ -46,6 +48,24 @@ md/prompt/v0（某主题）/v0.3（某任务）.md
 - 验收标准。
 - 风险和禁止项。
 
+## Agent X 与每轮提示词管理
+
+Agent X 可以围绕人工总目标 X 要求 Agent A 为每个小轮次生成版本化提示词。Agent X 不直接替代 Agent A 写实现提示词，也不直接替代 Agent B 实现或 Agent C 验收。
+
+Agent X 要求 Agent A 生成每轮提示词时，必须明确：
+
+- 本轮目标和它对应总目标 X 的哪一部分。
+- 本轮非目标和不得扩大的范围。
+- 需要读取的源码、测试、文档和历史提示词。
+- 本轮实现步骤、关键文件和必须保持不变的旧行为。
+- 本轮本地轻量检查命令。
+- `main` commit/push 要求。
+- GitHub Actions artifact 要求。
+- Agent C 下载、核对和复判要求。
+- Agent X 在 Agent C 结论后如何判断继续、退回、暂停或完成。
+
+每轮提示词必须按版本目录保存，不覆盖旧提示词；若人工指定版本号，以人工指定为准，否则从 `update_log.md` 现有版本继续递增。
+
 ## 云端阶段要求
 
 Agent A 写提示词时必须明确：
@@ -57,6 +77,7 @@ Agent A 写提示词时必须明确：
 - Agent C 必须用 `gh auth login` 后下载最新 run artifact 到 `/private/tmp/romelegions-c-review-<run_id>/`。
 - Agent C 必须核对 manifest 的 `branch=main`、`commitSha`、`runId`、`runAttempt` 与 `origin/main` 最新状态一致。
 - 云端失败时，不回滚 main；退回 Agent B 在 `main` 上追加修复 commit 并重新 push。
+- Agent X 主控循环时，不得跳过 Agent C 最新 artifact 验收，也不得在云端失败时进入下一轮伪装成功。
 - 本轮不设计 PR、`develop`、`smalldata_test`、`codeb/...` 或其他候选分支流，除非人工另行明确要求。
 
 ## 禁止项
@@ -65,3 +86,4 @@ Agent A 写提示词时必须明确：
 - 禁止把 AITRANS、MD Journal 或其他项目的业务探针、模型、截图、数据文件硬复制到本项目。
 - 禁止把旧 artifact、旧 output 或 checkout 自带报告写成新一轮云端验证结果。
 - 禁止让 Agent C 只看 Agent B 文字汇报。
+- 禁止让 Agent X 用旧 run、旧 artifact、本地输出或未验收结果推进循环。

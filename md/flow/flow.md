@@ -1,6 +1,6 @@
 # 项目核心流程文档
 
-一句话总览：`RomeLegions` 当前是 SwiftUI App + 纯 Swift 核心规则的罗马题材战棋原型，用户在菜单选择模式后进入战场，SwiftUI 通过 `GameViewModel` 调用 `GameState` 完成移动、战斗、城市、科技、外交、战役胜负结算、AI 和敌军意图展示；协作层默认通过 `main` 直推触发 GitHub Actions，并由 Agent C 下载未加密结果包复判。
+一句话总览：`RomeLegions` 当前是 SwiftUI App + 纯 Swift 核心规则的罗马题材战棋原型，用户在菜单选择模式后进入战场，SwiftUI 通过 `GameViewModel` 调用 `GameState` 完成移动、战斗、城市、科技、外交、战役胜负结算、AI 和敌军意图展示；协作层默认通过 `main` 直推触发 GitHub Actions，并由 Agent C 下载未加密结果包复判；未来可由 Agent X 围绕人工总目标调度 A/B/C 多轮迭代。
 
 本文只记录当前真实链路，不写历史叙事。
 
@@ -94,6 +94,23 @@
 9. 若云端失败或验收不通过，Agent C 退回 Agent B，Agent B 在 `main` 上追加修复 commit 并重新 push。
 10. 若通过，Agent C 确认文档同步、记录版本事项和结果包证据；若 Agent C 产生新提交，也必须 push 并验收最新 run。
 
+## Agent X 主控循环
+
+Agent X 是未来的主控调度角色。人工用 `agentx`、`x:` 或 `X:` 提供总目标 X 后，Agent X 不直接替代 Agent A/B/C，而是把总目标拆成多个可验证的小轮次，并让每轮继续走现有云端协作执行流。
+
+Agent X 循环步骤：
+
+1. Agent X 读取入口文档、当前状态和人工总目标，拆出当前轮次目标、非目标和验收标准。
+2. Agent X 要求 Agent A 为当前轮次生成版本化提示词，提示词必须写清本轮目标、实现边界、本地轻量检查、`main` push、GitHub Actions artifact 和 Agent C 验收要求。
+3. Agent B 按提示词实现，先同步 `origin/main`，在 `main` 上提交并 push 本轮相关 diff。
+4. GitHub Actions 生成最新 run 的未加密 artifact，只上传必要 manifest、JUnit、关键日志、失败摘要和必要结果包。
+5. Agent C 下载最新 artifact 到 `/private/tmp/romelegions-c-review-<run_id>/`，核对 manifest、JUnit、主日志、失败摘要、run id、run attempt 和 `origin/main` 最新 commit。
+6. Agent X 根据 Agent C 结论判断：继续下一轮、退回 Agent B 追加修复、暂停等待人工确认，或宣布总目标完成。
+
+Agent X 停止条件包括：总目标已完成；连续 3 轮遇到同一阻塞；连续 2 轮没有产生有效 diff；CI 连续失败且原因相同；需要账号、权限、密钥、付费服务或人工决策；当前工作区存在无法判断归属的冲突；用户要求停止或改变方向。
+
+Agent X 不能跳过 Agent C artifact 验收，不能把旧 run、旧 artifact、本地输出或 checkout 自带报告冒充最新云端结果，不能为了循环推进扩大无关改动范围。
+
 ## 核心状态对象 / 模块
 
 - `Faction`：罗马、迦太基、高卢、埃及、中立等势力及回合顺序。
@@ -145,7 +162,7 @@
 - 数据层：`SaveStore`，持久化 `GameState`。
 - 测试层：`GameStateTests` 直接验证核心模型；工具脚本验证结构、冒烟和 UI 渲染。
 - CI 层：`.github/workflows/ci-results.yml` 运行结构检查、SwiftPM 测试、Gameplay Smoke 和无签名 Xcode build，并上传未加密结果包。
-- 协作层：`AGENTS.md`、`update_log.md`、`md/test/test.md`、`md/flow/` 和 `md/prompt/` 约束 Agent 迭代；默认流程是本地轻量检查、`main` 直推、云端重验证和 Agent C 结果包复判。
+- 协作层：`AGENTS.md`、`update_log.md`、`md/test/test.md`、`md/flow/` 和 `md/prompt/` 约束 Agent 迭代；默认流程是本地轻量检查、`main` 直推、云端重验证和 Agent C 结果包复判；Agent X 可在未来作为主控调度多轮 A/B/C 循环。
 
 ## 已确认的铁律
 
@@ -157,6 +174,7 @@
 - 战术姿态只能在单位移动或行动前切换。
 - 城市招募优先城市格，城市格被占用时使用相邻可用格。
 - Agent C 不能只看 Agent B 文字汇报，必须核对最新云端结果包。
+- Agent X 不能越过 Agent C 的最新 artifact 验收来推进下一轮。
 
 ## 未来扩展点
 

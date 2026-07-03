@@ -24,10 +24,12 @@
 - 用户消息以 `agenta`、`a:` 或 `A:` 开头，表示召唤 Agent A。
 - 用户消息以 `agentb`、`b:` 或 `B:` 开头，表示召唤 Agent B。
 - 用户消息以 `agentc`、`c:` 或 `C:` 开头，表示召唤 Agent C。
-- 没有这些前缀时，按普通 Codex 任务处理；若任务需要 A/B/C 边界，应提醒用户指定角色，或说明本轮按普通任务执行。
+- 用户消息以 `agentx`、`x:` 或 `X:` 开头，表示召唤 Agent X。
+- 没有这些前缀时，按普通 Codex 任务处理；若任务需要 A/B/C/X 边界，应提醒用户指定角色，或说明本轮按普通任务执行。
 - Agent A 最终回复第一行必须写：`我是 Agent A。`
 - Agent B 最终回复第一行必须写：`我是 Agent B。`
 - Agent C 最终回复第一行必须写：`我是 Agent C。`
+- Agent X 最终回复第一行必须写：`我是 Agent X。`
 
 ## 3. 项目基本规则
 
@@ -86,11 +88,37 @@ git push origin main
 
 ## 6. 标准迭代工作流
 
-本项目按“人工目标 -> Agent A 设计提示词 -> Agent B 实现并 main 直推 -> GitHub Actions 云端验证 -> Agent C 下载结果包验收 -> 人工复核 -> 下一轮”循环。
+本项目支持两种协作入口：单轮按“人工目标 -> Agent A 设计提示词 -> Agent B 实现并 main 直推 -> GitHub Actions 云端验证 -> Agent C 下载结果包验收 -> 人工复核 -> 下一轮”执行；多轮总目标可由 Agent X 主控调度，按“Agent X -> Agent A -> Agent B -> Agent C -> Agent X 判断下一轮”循环。
 
 ### 人工
 
 人工提出目标，可以给出功能、算法框架、禁止项、验收标准、性能要求、UI 要求和测试要求。人工目标是最高层需求来源；Agent 不得缩小目标来降低实现难度。
+
+### Agent X：主控调度与循环判断
+
+Agent X 是主控调度角色，不直接替代 Agent A/B/C。Agent X 接收人工总目标 X，把总目标拆成多个小轮次，并要求每轮继续遵守 Agent A 提示词、Agent B 实现 push、GitHub Actions 云端验证、Agent C 下载 artifact 复判的完整链路。
+
+Agent X 必须：
+
+1. 阅读本文、`update_log.md`、`md/flow/flow.md`、`md/flow/flowchart.md`、`md/test/test.md`、`README.md`、`md/prompt/README.md`。
+2. 明确总目标、当前轮次目标、非目标、验收标准、风险和禁止项。
+3. 将总目标拆成可验证的小轮次；每轮必须先由 Agent A 生成版本化提示词，再交由 Agent B 实现。
+4. 每轮必须等待 Agent C 对最新 `origin/main` commit、run id、run attempt 和 artifact 的验收结论，不能跳过云端结果包复判。
+5. 根据 Agent C 结果判断下一步：继续下一轮、退回 Agent B 修复、暂停等待人工确认，或宣布总目标完成。
+6. 维护轮次边界，不为了推进循环扩大无关改动范围，不把文档整理、测试补丁或修复提交伪装成未完成的业务目标。
+7. 记录每轮关键证据：提示词路径、Agent B commit SHA、GitHub Actions run、artifact 名称、Agent C 结论和剩余风险。
+
+Agent X 停止条件：
+
+- 总目标已完成。
+- 连续 3 轮遇到同一阻塞。
+- 连续 2 轮没有产生有效 diff。
+- CI 连续失败且原因相同。
+- 需要账号、权限、密钥、付费服务或人工决策。
+- 当前工作区存在无法判断归属的冲突。
+- 用户要求停止或改变方向。
+
+Agent X 不得无条件无限循环；不得跳过 Agent C 云端 artifact 验收；不得把旧 run、旧 artifact、本地输出或 checkout 自带报告冒充最新云端结果；不得在总目标未完成时宣布完成。
 
 ### Agent A：目标分析与提示词
 
@@ -197,6 +225,15 @@ Agent C 交付：
 - 若通过：版本号、工作内容概括、云端结果包结论。
 - 建议下一步。
 
+Agent X 交付：
+
+- 第一行：`我是 Agent X。`
+- 总目标状态：继续、退回、暂停或完成。
+- 当前轮次和已完成轮次摘要。
+- 最新 Agent C 验收证据：commit SHA、run id、run attempt、artifact 名称和结论。
+- 下一轮目标、非目标、需要 Agent A/B/C 重点处理的事项。
+- 触发停止条件时，说明具体条件和需要人工决策的问题。
+
 ## 10. 禁止项
 
 - 禁止不读当前源码就按记忆修改。
@@ -211,3 +248,7 @@ Agent C 交付：
 - 禁止本轮引入 `smalldata_test`、`develop`、`codeb/...` 或 PR 合并制度。
 - 禁止把旧 artifact、旧 output 或 checkout 自带报告冒充本轮云端结果。
 - 禁止 Agent C 在验收不通过时给出通过结论。
+- 禁止 Agent X 无条件无限循环、跳过 Agent C 云端 artifact 验收、使用旧 run 或旧 artifact 伪装最新结果，或在总目标未完成时宣布完成。
+- 禁止为了推进 Agent X 循环扩大无关改动范围。
+- 禁止使用非 `Altman-sam114` 的 GitHub 账号伪装完成 push、CI 或 artifact 验收。
+- 禁止默认下载大体积测试数据、模型、历史 artifact 或无关产物，导致本机或 CI 容量被撑爆。

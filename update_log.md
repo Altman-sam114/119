@@ -16,10 +16,44 @@
 - 核心架构：纯 Swift `RomeLegionsCore` 负责玩法规则；`GameViewModel` 负责 UI 状态和派生数据；SwiftUI 视图负责展示和命令入口。
 - 当前玩法：六边形地图、地形、城市、阵营、军团、移动、攻击、反击、占城、招募、科技、任务 requirement、战役目标、胜负结算、结束保护、外交、城市扩建、军团训练、将领任命、主动技能、战术姿态、AI 回合、敌军意图预判、战局态势面板。
 - 当前测试入口：Swift Testing、Gameplay Smoke、项目结构检查、SwiftUI 类型检查、战斗页预览图渲染、无签名 Xcode 构建。
-- 当前协作系统：已建立 `AGENTS.md`、`update_log.md`、`md/prompt/`、`md/test/test.md`、`md/flow/flow.md`、`md/flow/flowchart.md`，默认按 `main` 直推、GitHub Actions 云端重验证、Agent C 下载未加密结果包复判。
+- 当前协作系统：已建立 `AGENTS.md`、`update_log.md`、`md/prompt/`、`md/test/test.md`、`md/flow/flow.md`、`md/flow/flowchart.md`，默认按 `main` 直推、GitHub Actions 云端重验证、Agent C 下载未加密结果包复判，并具备未来由 Agent X 主控调度 Agent A/B/C 多轮循环的文档基线。
 - 当前 CI 入口：`.github/workflows/ci-results.yml`，在 `main` push 和手动触发时运行结构检查、SwiftPM 测试、Gameplay Smoke 和无签名 Xcode build，并上传 CI 结果包。
 
 ## 历史记录
+
+### v0.5 / 引入 Agent X 循环迭代文档基线
+
+日期：2026-07-04
+
+核心变更：
+
+- 新增 Agent X 召唤、职责、循环判断和停止条件。
+- 将现有 Agent A/B/C 云端验证流程扩展为可被 Agent X 多轮调度。
+- 更新 flow、flowchart、test、prompt README 和 README 中的协作说明。
+- 明确本轮只做文档准备，不启动真实自动循环。
+- 补充小数据量验证、必要 artifact 下载和下载目录容量检查规则。
+
+关键文件：
+
+- `AGENTS.md`
+- `README.md`
+- `md/flow/flow.md`
+- `md/flow/flowchart.md`
+- `md/test/test.md`
+- `md/prompt/README.md`
+- `md/prompt/v0（协作自动化）/v0.5（引入AgentX循环迭代）.md`
+- `update_log.md`
+
+验证结果：
+
+- `git diff --check`：通过。
+- `node Tools/verify_project.mjs`：通过，输出 `Project structure verification passed.`
+
+遗留事项：
+
+- 后续人工可用 `agentx:` 提供总目标 X，启动 Agent X 主控循环。
+- Agent X 真正执行循环时，仍必须经过 Agent A 提示词、Agent B 实现 push、Agent C 云端 artifact 验收。
+- 本轮未修改 `.github/workflows/ci-results.yml`，CI artifact 命名版本仍以当前 workflow 的 `CI_VERSION` 为准。
 
 ### v0.4 / 战役目标与胜负结算
 

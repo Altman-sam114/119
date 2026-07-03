@@ -19,7 +19,7 @@
 - 手机横屏紧凑战斗栏、可攻击目标头顶徽标、选中单位待机/跳过
 - AI 招募、休整、战术姿态、将领技能、移动后攻击和目标优先级评估
 - 敌军意图预判：地图徽标、顶部敌情芯片和侧栏敌情面板展示攻击、接敌、夺城、固守等倾向
-- Codex 后续协作规范：`AGENTS.md`、`update_log.md`、`md/test/test.md`、`md/flow/flow.md`、`md/flow/flowchart.md` 和 `md/prompt/` 组成长期多 Agent 迭代文档系统
+- Codex 后续协作规范：`AGENTS.md`、`update_log.md`、`md/test/test.md`、`md/flow/flow.md`、`md/flow/flowchart.md` 和 `md/prompt/` 组成长期多 Agent 迭代文档系统，支持未来用 `agentx:` 主控调度 A/B/C 多轮循环
 - GitHub Actions 云端验证：`.github/workflows/ci-results.yml` 在 `main` push 时生成未加密 CI 结果包
 - 核心规则测试：`Tests/RomeLegionsCoreTests/GameStateTests.swift`
 
@@ -37,7 +37,7 @@
 
 协作文档分工：
 
-- `AGENTS.md`：入口规则、架构边界、Agent A/B/C 工作流、交付格式和禁止项
+- `AGENTS.md`：入口规则、架构边界、Agent A/B/C/X 工作流、交付格式和禁止项
 - `update_log.md`：版本更新记录、历史决策、完成事项和遗留问题
 - `md/prompt/`：Agent A 每轮输出详细实现提示词的位置，按版本号管理
 - `md/prompt/README.md`：角色召唤、提示词格式和云端阶段要求
@@ -50,6 +50,8 @@
 ## 协作与云端验证
 
 默认协作流固定为 `main` 直推：Agent B 本地跑轻量检查后提交并 push 到 `origin/main`，GitHub Actions 运行 SwiftPM 测试、Gameplay Smoke 和无签名 Xcode build，并上传未加密结果包。Agent C 使用 `gh auth login` 后下载最新 run artifact，核对 manifest、JUnit、日志和 `origin/main` 最新 commit；失败时退回 Agent B 在 `main` 上追加修复 commit。
+
+`agentx:` 用于未来启动主控循环。Agent X 接收人工总目标后拆分轮次，并调度 Agent A 写提示词、Agent B 实现 push、Agent C 下载 artifact 验收；Agent X 不直接替代 A/B/C，也不能跳过 Agent C 的最新云端结果包复判。
 
 ## 本地验证
 
