@@ -1,0 +1,215 @@
+name: RomeLegions CI Results
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  CI_VERSION: v0.3
+  PROJECT_NAME: RomeLegions
+  XCODE_PROJECT: RomeLegionsApp.xcodeproj
+  XCODE_SCHEME: RomeLegions
+  XCODE_DESTINATION: generic/platform=iOS
+  DERIVED_DATA_PATH: .derivedData-ci
+  RESULT_BUNDLE_PATH: ci-results/RomeLegions.xcresult
+
+jobs:
+  build-test:
+    name: Build, Test, and Package Results
+    runs-on: macos-latest
+    timeout-minutes: 45
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Prepare result directory
+        run: |
+          rm -rf ci-results "$DERIVED_DATA_PATH"
+          mkdir -p ci-results
+
+      - name: Static checks
+        id: static_checks
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -o pipefail
+          {
+            if git rev-parse HEAD^ >/dev/null 2>&1; then
+              git diff --check HEAD^ HEAD
+            else
+              git diff --check --root HEAD
+            fi
+            plutil -lint "$XCODE_PROJECT/project.pbxproj"
+            node Tools/verify_project.mjs
+          } 2>&1 | tee ci-results/static-checks.log
+
+      - name: SwiftPM tests
+        id: swift_tests
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -o pipefail
+          env HOME="$PWD/.home" \
+            CLANG_MODULE_CACHE_PATH="$PWD/.build/module-cache" \
+            swift test --scratch-path .build/swift-test-ci --disable-sandbox \
+            2>&1 | tee ci-results/swift-test.log
+
+      - name: Gameplay smoke
+        id: gameplay_smoke
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -o pipefail
+          {
+            swiftc -swift-version 5 \
+              -module-cache-path .build/module-cache \
+              Sources/RomeLegionsCore/GameState.swift \
+              Tools/GameplaySmoke/main.swift \
+              -o .build/gameplay-smoke
+            .build/gameplay-smoke
+          } 2>&1 | tee ci-results/gameplay-smoke.log
+
+      - name: Xcode build
+        id: xcode_build
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -o pipefail
+          xcodebuild \
+            -project "$XCODE_PROJECT" \
+            -scheme "$XCODE_SCHEME" \
+            -configuration Debug \
+            -destination "$XCODE_DESTINATION" \
+            -derivedDataPath "$DERIVED_DATA_PATH" \
+            -resultBundlePath "$RESULT_BUNDLE_PATH" \
+            CODE_SIGNING_ALLOWED=NO \
+            build \
+            2>&1 | tee ci-results/xcodebuild.log
+
+      - name: Generate CI result metadata
+        id: metadata
+        if: always()
+        shell: bash
+        env:
+          STATIC_OUTCOME: ${{ steps.static_checks.outcome }}
+          SWIFT_TESTS_OUTCOME: ${{ steps.swift_tests.outcome }}
+          GAMEPLAY_SMOKE_OUTCOME: ${{ steps.gameplay_smoke.outcome }}
+          XCODE_BUILD_OUTCOME: ${{ steps.xcode_build.outcome }}
+        run: |
+          node <<'NODE'
+          const fs = require("fs");
+          const path = require("path");
+
+          const env = process.env;
+          const branch = env.GITHUB_REF_NAME || "";
+          const shortSha = (env.GITHUB_SHA || "").slice(0, 7);
+          const branchSlug = branch.replace(/[^A-Za-z0-9._-]+/g, "-");
+          const artifactName = `${env.PROJECT_NAME}-ci-${env.CI_VERSION}-${branchSlug}-${shortSha}-run${env.GITHUB_RUN_ID}-attempt${env.GITHUB_RUN_ATTEMPT}`;
+          const testOutcome = env.SWIFT_TESTS_OUTCOME === "success" && env.GAMEPLAY_SMOKE_OUTCOME === "success" ? "success" : "failure";
+          const outcomes = {
+            staticChecksOutcome: env.STATIC_OUTCOME || "skipped",
+            swiftTestsOutcome: env.SWIFT_TESTS_OUTCOME || "skipped",
+            gameplaySmokeOutcome: env.GAMEPLAY_SMOKE_OUTCOME || "skipped",
+            buildOutcome: env.XCODE_BUILD_OUTCOME || "skipped",
+            testOutcome
+          };
+          const manifest = {
+            version: env.CI_VERSION,
+            branch,
+            commitSha: env.GITHUB_SHA,
+            shortSha,
+            runId: env.GITHUB_RUN_ID,
+            runAttempt: env.GITHUB_RUN_ATTEMPT,
+            workflowName: env.GITHUB_WORKFLOW,
+            createdAt: new Date().toISOString(),
+            projectName: env.PROJECT_NAME,
+            scheme: env.XCODE_SCHEME,
+            destination: env.XCODE_DESTINATION,
+            resultBundlePath: env.RESULT_BUNDLE_PATH,
+            junitPath: "ci-results/junit.xml",
+            buildLogPath: "ci-results/xcodebuild.log",
+            failureSummaryPath: "ci-results/ci-failure-summary.md",
+            staticChecksOutcome: outcomes.staticChecksOutcome,
+            buildOutcome: outcomes.buildOutcome,
+            testOutcome: outcomes.testOutcome,
+            projectSpecificReports: [
+              "ci-results/static-checks.log",
+              "ci-results/swift-test.log",
+              "ci-results/gameplay-smoke.log",
+              "ci-results/xcodebuild.log"
+            ]
+          };
+          fs.writeFileSync("ci-results/ci-artifact-manifest.json", JSON.stringify(manifest, null, 2) + "\n");
+
+          const escapeXml = (value) => String(value).replace(/[<>&'"]/g, (ch) => ({
+            "<": "&lt;",
+            ">": "&gt;",
+            "&": "&amp;",
+            "'": "&apos;",
+            '"': "&quot;"
+          }[ch]));
+          const checks = [
+            ["static-checks", outcomes.staticChecksOutcome, "ci-results/static-checks.log"],
+            ["swift-tests", outcomes.swiftTestsOutcome, "ci-results/swift-test.log"],
+            ["gameplay-smoke", outcomes.gameplaySmokeOutcome, "ci-results/gameplay-smoke.log"],
+            ["xcode-build", outcomes.buildOutcome, "ci-results/xcodebuild.log"]
+          ];
+          const failures = checks.filter(([, outcome]) => outcome !== "success");
+          const testcases = checks.map(([name, outcome, logPath]) => {
+            const failure = outcome === "success" ? "" : `<failure message="${escapeXml(outcome)}">See ${escapeXml(logPath)}</failure>`;
+            return `<testcase classname="RomeLegionsCI" name="${escapeXml(name)}">${failure}</testcase>`;
+          }).join("");
+          const junit = `<?xml version="1.0" encoding="UTF-8"?>\n<testsuite name="RomeLegions CI" tests="${checks.length}" failures="${failures.length}">${testcases}</testsuite>\n`;
+          fs.writeFileSync("ci-results/junit.xml", junit);
+
+          const summary = [
+            "# RomeLegions CI Failure Summary",
+            "",
+            `- version: ${env.CI_VERSION}`,
+            `- branch: ${branch}`,
+            `- commitSha: ${env.GITHUB_SHA}`,
+            `- runId: ${env.GITHUB_RUN_ID}`,
+            `- runAttempt: ${env.GITHUB_RUN_ATTEMPT}`,
+            `- staticChecksOutcome: ${outcomes.staticChecksOutcome}`,
+            `- swiftTestsOutcome: ${outcomes.swiftTestsOutcome}`,
+            `- gameplaySmokeOutcome: ${outcomes.gameplaySmokeOutcome}`,
+            `- buildOutcome: ${outcomes.buildOutcome}`,
+            "",
+            failures.length === 0 ? "All configured CI checks passed." : "One or more CI checks failed. Inspect the log paths listed in `ci-artifact-manifest.json`.",
+            ""
+          ].join("\n");
+          fs.writeFileSync("ci-results/ci-failure-summary.md", summary);
+
+          fs.appendFileSync(env.GITHUB_OUTPUT, `artifact_name=${artifactName}\n`);
+          NODE
+
+      - name: Upload CI result artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.metadata.outputs.artifact_name }}
+          path: ci-results
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Fail job on failed checks
+        if: always()
+        env:
+          STATIC_OUTCOME: ${{ steps.static_checks.outcome }}
+          SWIFT_TESTS_OUTCOME: ${{ steps.swift_tests.outcome }}
+          GAMEPLAY_SMOKE_OUTCOME: ${{ steps.gameplay_smoke.outcome }}
+          XCODE_BUILD_OUTCOME: ${{ steps.xcode_build.outcome }}
+        run: |
+          if [ "$STATIC_OUTCOME" != "success" ] || \
+             [ "$SWIFT_TESTS_OUTCOME" != "success" ] || \
+             [ "$GAMEPLAY_SMOKE_OUTCOME" != "success" ] || \
+             [ "$XCODE_BUILD_OUTCOME" != "success" ]; then
+            echo "One or more CI checks failed. Artifact was uploaded for Agent C review."
+            exit 1
+          fi

@@ -22,6 +22,8 @@ const requiredFiles = [
   "md/test/test.md",
   "md/flow/flow.md",
   "md/flow/flowchart.md",
+  "md/prompt/README.md",
+  ".github/workflows/ci-results.yml",
   "md/prompt/v0（协作系统）/v0.1（建立多Agent协作文档）.md"
 ];
 
@@ -83,30 +85,44 @@ for (const token of ["CompactCommandPanelView", "PhoneCommandDeckView", "Tactica
 }
 
 const agentGuide = readFileSync("AGENTS.md", "utf8");
-for (const token of ["Agent A", "Agent B", "Agent C", "核心架构边界", "测试规则", "禁止项", "git commit"]) {
+for (const token of ["Agent A", "Agent B", "Agent C", "核心架构边界", "测试规则", "禁止项", "git push origin main", "GitHub Actions"]) {
   if (!agentGuide.includes(token)) {
     failures.push(`AGENTS.md does not include ${token}`);
   }
 }
 
 const testGuide = readFileSync("md/test/test.md", "utf8");
-for (const token of ["Probe / Fast", "Smoke", "Stage Regression", "Full", "node Tools/verify_project.mjs", "swift test"]) {
+for (const token of ["Probe / Fast", "Smoke", "Stage Regression", "Full", "node Tools/verify_project.mjs", "swift test", "GitHub Actions", "ci-artifact-manifest.json"]) {
   if (!testGuide.includes(token)) {
     failures.push(`md/test/test.md does not include ${token}`);
   }
 }
 
 const flowGuide = readFileSync("md/flow/flow.md", "utf8");
-for (const token of ["当前核心数据流", "当前核心执行流", "核心状态对象", "关键边界", "不允许破坏的行为"]) {
+for (const token of ["当前核心数据流", "当前核心执行流", "云端协作执行流", "核心状态对象", "关键边界", "不允许破坏的行为"]) {
   if (!flowGuide.includes(token)) {
     failures.push(`md/flow/flow.md does not include ${token}`);
   }
 }
 
 const flowchartGuide = readFileSync("md/flow/flowchart.md", "utf8");
-for (const token of ["```mermaid", "核心数据流", "回合执行流", "多 Agent 迭代流", "测试选择流"]) {
+for (const token of ["```mermaid", "核心数据流", "回合执行流", "多 Agent 云端迭代流", "测试选择流", "GitHub Actions"]) {
   if (!flowchartGuide.includes(token)) {
     failures.push(`md/flow/flowchart.md does not include ${token}`);
+  }
+}
+
+const promptReadme = readFileSync("md/prompt/README.md", "utf8");
+for (const token of ["角色召唤", "Agent A 提示词必含内容", "CI / main push", "gh auth login"]) {
+  if (!promptReadme.includes(token)) {
+    failures.push(`md/prompt/README.md does not include ${token}`);
+  }
+}
+
+const ciWorkflow = readFileSync(".github/workflows/ci-results.yml", "utf8");
+for (const token of ["RomeLegions CI Results", "branches:", "main", "ci-artifact-manifest.json", "actions/upload-artifact", "xcodebuild"]) {
+  if (!ciWorkflow.includes(token)) {
+    failures.push(`.github/workflows/ci-results.yml does not include ${token}`);
   }
 }
 

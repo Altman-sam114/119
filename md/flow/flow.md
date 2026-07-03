@@ -1,6 +1,6 @@
 # 项目核心流程文档
 
-一句话总览：`RomeLegions` 当前是 SwiftUI App + 纯 Swift 核心规则的罗马题材战棋原型，用户在菜单选择模式后进入战场，SwiftUI 通过 `GameViewModel` 调用 `GameState` 完成移动、战斗、城市、科技、外交、AI 和敌军意图展示。
+一句话总览：`RomeLegions` 当前是 SwiftUI App + 纯 Swift 核心规则的罗马题材战棋原型，用户在菜单选择模式后进入战场，SwiftUI 通过 `GameViewModel` 调用 `GameState` 完成移动、战斗、城市、科技、外交、AI 和敌军意图展示；协作层默认通过 `main` 直推触发 GitHub Actions，并由 Agent C 下载未加密结果包复判。
 
 本文只记录当前真实链路，不写历史叙事。
 
@@ -70,6 +70,19 @@
 - 存档内容是编码后的完整 `GameState` blob，同时保存模式、回合、当前势力、时间和摘要。
 - 当前核心存档代码已存在，但 UI 中继续完善存档列表、继续游戏、删除存档和错误展示仍是扩展点。
 
+## 云端协作执行流
+
+1. 人工提出目标；若消息以 `agenta`、`a:` 或 `A:` 开头，召唤 Agent A。
+2. Agent A 读取项目文档、相关源码和历史提示词，写入版本化提示词，明确本地轻量检查、`main` commit/push、CI artifact 和 Agent C 复判要求。
+3. Agent B 读取提示词和项目文档，先同步最新 `origin/main`，确认当前分支是 `main` 且工作区无无关改动。
+4. Agent B 小步实现并更新必要测试和文档，默认只跑本地轻量检查。
+5. Agent B 在 `main` 上提交本轮相关文件并 push 到 `origin/main`。
+6. GitHub Actions 的 `RomeLegions CI Results` workflow 在 `main` push 或手动触发时运行，产出未加密 CI 结果包。
+7. Agent C 用 `gh auth login` 后下载最新 run 的 artifact 到 `/private/tmp/romelegions-c-review-<run_id>/`。
+8. Agent C 核对 manifest、JUnit、主日志、失败摘要、run id、run attempt 和 `origin/main` 最新 commit。
+9. 若云端失败或验收不通过，Agent C 退回 Agent B，Agent B 在 `main` 上追加修复 commit 并重新 push。
+10. 若通过，Agent C 确认文档同步、记录版本事项和结果包证据；若 Agent C 产生新提交，也必须 push 并验收最新 run。
+
 ## 核心状态对象 / 模块
 
 - `Faction`：罗马、迦太基、高卢、埃及、中立等势力及回合顺序。
@@ -99,6 +112,7 @@
 - `SaveStore` 存取完整 `GameState`，不得维护另一套玩法状态。
 - AI 意图预测不得改变 `GameState`。
 - 战斗预览和实际战斗必须共享规则来源。
+- 云端 CI 和协作文档不得改变玩法语义；流程升级不等于业务质量提升。
 
 ## 用户入口
 
@@ -106,6 +120,7 @@
 - 命令行 UI 复现：`xcrun simctl launch booted com.codex.RomeLegions --attack-demo`。
 - 预览渲染：`Tools/RenderBattlePreview/main.swift` 生成战斗页 PNG。
 - 核心测试：Swift Testing 和 Gameplay Smoke。
+- 云端验证：push 到 `origin/main` 后由 `.github/workflows/ci-results.yml` 上传 CI 结果包。
 
 ## 前端 / 数据层 / 模型层 / 测试层关系
 
@@ -114,7 +129,8 @@
 - 模型层：`RomeLegionsCore`，纯 Swift 可测试规则。
 - 数据层：`SaveStore`，持久化 `GameState`。
 - 测试层：`GameStateTests` 直接验证核心模型；工具脚本验证结构、冒烟和 UI 渲染。
-- 协作层：`AGENTS.md`、`update_log.md`、`md/test/test.md`、`md/flow/` 和 `md/prompt/` 约束 Agent 迭代；Agent C 验收通过后按版本号提交，不通过则退回 Agent B，协作流程不得改变游戏核心规则边界。
+- CI 层：`.github/workflows/ci-results.yml` 运行结构检查、SwiftPM 测试、Gameplay Smoke 和无签名 Xcode build，并上传未加密结果包。
+- 协作层：`AGENTS.md`、`update_log.md`、`md/test/test.md`、`md/flow/` 和 `md/prompt/` 约束 Agent 迭代；默认流程是本地轻量检查、`main` 直推、云端重验证和 Agent C 结果包复判。
 
 ## 已确认的铁律
 
@@ -125,6 +141,7 @@
 - 外交条约必须能阻止被保护势力之间的攻击。
 - 战术姿态只能在单位移动或行动前切换。
 - 城市招募优先城市格，城市格被占用时使用相邻可用格。
+- Agent C 不能只看 Agent B 文字汇报，必须核对最新云端结果包。
 
 ## 未来扩展点
 
@@ -135,6 +152,7 @@
 - AI 多步规划，使敌军意图和实际行为共享更多评分逻辑。
 - 移动、攻击、反击、占城和回合切换动画。
 - 拆分 `BattleView.swift` 中稳定的大型子视图。
+- 将战斗页预览图渲染稳定纳入云端结果包。
 
 ## 不允许破坏的行为
 

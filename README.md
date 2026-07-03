@@ -18,6 +18,7 @@
 - AI 招募、休整、战术姿态、将领技能、移动后攻击和目标优先级评估
 - 敌军意图预判：地图徽标、顶部敌情芯片和侧栏敌情面板展示攻击、接敌、夺城、固守等倾向
 - Codex 后续协作规范：`AGENTS.md`、`update_log.md`、`md/test/test.md`、`md/flow/flow.md`、`md/flow/flowchart.md` 和 `md/prompt/` 组成长期多 Agent 迭代文档系统
+- GitHub Actions 云端验证：`.github/workflows/ci-results.yml` 在 `main` push 时生成未加密 CI 结果包
 - 核心规则测试：`Tests/RomeLegionsCoreTests/GameStateTests.swift`
 
 ## 运行
@@ -37,13 +38,20 @@
 - `AGENTS.md`：入口规则、架构边界、Agent A/B/C 工作流、交付格式和禁止项
 - `update_log.md`：版本更新记录、历史决策、完成事项和遗留问题
 - `md/prompt/`：Agent A 每轮输出详细实现提示词的位置，按版本号管理
+- `md/prompt/README.md`：角色召唤、提示词格式和云端阶段要求
 - `md/test/test.md`：测试规范、测试分层、命令、触发条件和当前基线
 - `md/flow/flow.md`：当前真实架构和核心运行流程
 - `md/flow/flowchart.md`：与 `flow.md` 同步的 Mermaid 可视化流程图
 
-每次功能完成后必须同步更新测试说明和 `README.md` 完成情况；若测试流程、架构边界、核心流程或协作规则变化，也要同步更新 `AGENTS.md`、`update_log.md`、`md/test/test.md` 或 `md/flow/` 对应文档。Agent C 最终验收通过后按版本号自动 git commit；不通过时退回 Agent B 修正，不提交版本。
+每次功能完成后必须同步更新测试说明和 `README.md` 完成情况；若测试流程、架构边界、核心流程或协作规则变化，也要同步更新 `AGENTS.md`、`update_log.md`、`md/test/test.md` 或 `md/flow/` 对应文档。
+
+## 协作与云端验证
+
+默认协作流固定为 `main` 直推：Agent B 本地跑轻量检查后提交并 push 到 `origin/main`，GitHub Actions 运行 SwiftPM 测试、Gameplay Smoke 和无签名 Xcode build，并上传未加密结果包。Agent C 使用 `gh auth login` 后下载最新 run artifact，核对 manifest、JUnit、日志和 `origin/main` 最新 commit；失败时退回 Agent B 在 `main` 上追加修复 commit。
 
 ## 本地验证
+
+默认完整验证在云端运行；以下本机命令用于人工明确要求本地验证、定位失败或快速检查。
 
 不依赖 SwiftPM 的核心玩法冒烟测试：
 

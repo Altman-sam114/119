@@ -57,48 +57,51 @@ flowchart TD
     L --> M["BattleView 显示地图徽标、顶部芯片、侧栏敌情"]
 ```
 
-## 4. 多 Agent 迭代流
+## 4. 多 Agent 云端迭代流
 
-读图说明：这张图展示人工、Agent A、Agent B、Agent C 的职责边界。Agent A 写提示词，Agent B 实现测试，Agent C 验收并更新核心流程文档；通过后按版本号自动提交，不通过就退回 Agent B 修正。
+读图说明：这张图展示人工、Agent A、Agent B、GitHub Actions 和 Agent C 的职责边界。当前默认不是 PR 流，而是 `main` 直推、云端结果包、Agent C 下载复判；失败时在 `main` 上追加修复 commit。
 
 ```mermaid
 flowchart TD
-    A["人工提出目标<br/>功能、禁止项、验收标准、测试要求"] --> B["Agent A<br/>读取记忆文档和源码，设计实现提示词"]
-    B --> C["写入 md/prompt/vX/...md<br/>版本号、目标、非目标、步骤、测试、验收"]
-    C --> D["Agent B<br/>读取提示词和项目文档，小步实现"]
-    D --> E["Agent B 运行测试<br/>按 md/test/test.md 选择层级"]
-    E --> F["Agent B 更新 README / 测试说明 / 必要文档"]
-    F --> G["Agent C<br/>查看 diff、核对测试、检查架构边界"]
-    G --> H{"是否满足目标？"}
-    H -->|通过| I["Agent C 更新 flow.md、flowchart.md、update_log.md"]
-    I --> L["按版本号 git commit<br/>提交说明概括本版本工作和验证"]
-    H -->|不通过| J["输出问题清单<br/>退回 Agent B 修正，不提交"]
-    L --> K["人工复核<br/>决定下一轮目标"]
-    J --> D
-    K --> A
+    A["人工提出目标<br/>功能、禁止项、验收标准、测试要求"] --> B["Agent A<br/>读取文档和源码，设计实现提示词"]
+    B --> C["写入 md/prompt/vX/...md<br/>版本、目标、非目标、步骤、CI 要求"]
+    C --> D["Agent B<br/>同步 origin/main，在 main 小步实现"]
+    D --> E["本地轻量检查<br/>git diff --check / verify_project / YAML / Plist"]
+    E --> F["main commit/push<br/>git push origin main"]
+    F --> G["GitHub Actions<br/>RomeLegions CI Results"]
+    G --> H["未加密 CI 结果包<br/>manifest / junit / logs / xcresult"]
+    H --> I["Agent C<br/>gh auth login 后下载 artifact"]
+    I --> J["核对 origin/main 最新 commit<br/>run id / run attempt / manifest / 日志"]
+    J --> K{"是否满足目标？"}
+    K -->|通过| L["确认文档和版本记录<br/>输出云端验收证据"]
+    K -->|不通过| M["退回问题清单<br/>Agent B 追加修复 commit"]
+    M --> D
+    L --> N["人工复核<br/>决定下一轮目标"]
+    N --> A
 ```
 
 ## 5. 测试选择流
 
-读图说明：这张图帮助 Agent B/C 快速判断应该跑哪些测试。默认先跑最快的结构检查，再根据是否改核心、UI、工程或布局扩大验证范围。
+读图说明：这张图帮助 Agent B/C 判断默认验证路径。默认先跑本地轻量检查，再 push 到 `main` 触发云端重验证；只有人工明确要求时才把本机完整 Swift / Xcode 测试作为默认路径。
 
 ```mermaid
 flowchart TD
-    A["本轮改动完成"] --> B["先跑 Probe / Fast<br/>node Tools/verify_project.mjs"]
-    B --> C{"是否修改核心规则？"}
-    C -->|是| D["跑 Stage Regression<br/>swift test"]
-    C -->|否| E{"是否修改核心主链路或工具？"}
-    E -->|是| F["跑 Smoke<br/>GameplaySmoke"]
-    E -->|否| G{"是否修改 SwiftUI / ViewModel？"}
-    G -->|是| H["跑 SwiftUI typecheck"]
-    G -->|否| I{"是否修改战斗页布局？"}
-    H --> I
-    I -->|是| J["渲染预览图<br/>landscape / portrait / wide"]
-    I -->|否| K["记录未跑更高层测试的原因"]
-    D --> L{"是否重大版本或工程变更？"}
-    F --> L
-    J --> L
-    L -->|是| M["跑 Full 或无签名构建"]
-    L -->|否| K
-    M --> K
+    A["本轮改动完成"] --> B["本地轻量检查<br/>git diff --check / verify_project"]
+    B --> C{"是否修改 workflow / project / 文档入口？"}
+    C -->|是| D["本地解析<br/>plutil / YAML / JSON"]
+    C -->|否| E["记录轻量检查结果"]
+    D --> E
+    E --> F{"是否可推送 origin/main？"}
+    F -->|否| G["报告阻塞<br/>缺 origin、权限或网络"]
+    F -->|是| H["main commit/push<br/>触发 GitHub Actions"]
+    H --> I["云端重验证<br/>Swift Testing / Smoke / Xcode build"]
+    I --> J["上传结果包<br/>manifest / junit / logs / xcresult"]
+    J --> K["Agent C 下载并核对<br/>/private/tmp/romelegions-c-review-run_id"]
+    K --> L{"云端是否通过？"}
+    L -->|是| M["验收通过<br/>记录 run 和 artifact"]
+    L -->|否| N["退回 Agent B<br/>main 追加修复 commit"]
+    N --> H
+    G --> O{"人工是否明确要求本机完整测试？"}
+    O -->|是| P["运行本机 Swift / Xcode / 预览命令"]
+    O -->|否| Q["说明未跑完整测试原因"]
 ```

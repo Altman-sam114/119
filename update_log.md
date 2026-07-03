@@ -16,9 +16,48 @@
 - 核心架构：纯 Swift `RomeLegionsCore` 负责玩法规则；`GameViewModel` 负责 UI 状态和派生数据；SwiftUI 视图负责展示和命令入口。
 - 当前玩法：六边形地图、地形、城市、阵营、军团、移动、攻击、反击、占城、招募、科技、任务、外交、城市扩建、军团训练、将领任命、主动技能、战术姿态、AI 回合、敌军意图预判、战局态势面板。
 - 当前测试入口：Swift Testing、Gameplay Smoke、项目结构检查、SwiftUI 类型检查、战斗页预览图渲染、无签名 Xcode 构建。
-- 当前协作系统：已建立 `AGENTS.md`、`update_log.md`、`md/prompt/`、`md/test/test.md`、`md/flow/flow.md`、`md/flow/flowchart.md`。
+- 当前协作系统：已建立 `AGENTS.md`、`update_log.md`、`md/prompt/`、`md/test/test.md`、`md/flow/flow.md`、`md/flow/flowchart.md`，默认按 `main` 直推、GitHub Actions 云端重验证、Agent C 下载未加密结果包复判。
+- 当前 CI 入口：`.github/workflows/ci-results.yml`，在 `main` push 和手动触发时运行结构检查、SwiftPM 测试、Gameplay Smoke 和无签名 Xcode build，并上传 CI 结果包。
 
 ## 历史记录
+
+### v0.3 / 升级 main 直推云端验证流程
+
+日期：2026-07-03
+
+核心变更：
+
+- 精简并强化 `AGENTS.md`，加入 `agenta` / `a:`、`agentb` / `b:`、`agentc` / `c:` 角色召唤、身份标识、`main` 直推和 Agent C 结果包验收规则。
+- 更新 `md/test/test.md`，把默认策略改为本地轻量检查 + GitHub Actions 云端重验证，保留人工明确要求时的本机完整测试命令。
+- 更新 `md/flow/flow.md` 和 `md/flow/flowchart.md`，加入 Agent A/B/C、`main` commit/push、GitHub Actions、未加密结果包、Agent C 下载复判和追加修复 commit 闭环。
+- 新增 `md/prompt/README.md`，记录提示词目录、角色召唤和 Agent A 必须写入的 CI / main push / artifact 要求。
+- 新增 `.github/workflows/ci-results.yml`，在 `main` push 或手动触发时生成 `ci-artifact-manifest.json`、`ci-failure-summary.md`、`junit.xml`、日志和 `.xcresult` 结果包。
+- 更新 `README.md` 和 `Tools/verify_project.mjs`，让快速入口和结构检查覆盖新的云端协作制度。
+- 本轮是协作流程制度变更，不是业务功能或玩法质量提升；未修改 Swift 玩法源码。
+
+关键文件：
+
+- `AGENTS.md`
+- `README.md`
+- `md/test/test.md`
+- `md/flow/flow.md`
+- `md/flow/flowchart.md`
+- `md/prompt/README.md`
+- `.github/workflows/ci-results.yml`
+- `Tools/verify_project.mjs`
+- `update_log.md`
+
+验证结果：
+
+- `git diff --check`：通过，无输出。
+- `node Tools/verify_project.mjs`：通过，输出 `Project structure verification passed.`
+- `plutil -lint RomeLegionsApp.xcodeproj/project.pbxproj`：通过，输出 `RomeLegionsApp.xcodeproj/project.pbxproj: OK`
+- `ruby -e 'require "yaml"; YAML.load_file(".github/workflows/ci-results.yml"); puts "yaml ok"'`：通过，输出 `yaml ok`
+
+遗留事项：
+
+- 当前本地仓库未配置 `origin`，`git remote -v` 无输出，因此本轮无法真实 `git push origin main`、等待 GitHub Actions、下载 artifact 或核对 run id。配置远端后必须按 `md/test/test.md` 的 Agent C 结果包下载与核对流程补跑。
+- 本轮未跑完整 Swift Testing、Gameplay Smoke 或 Xcode build；原因是本轮仅改协作文档、结构检查和 GitHub Actions workflow，且新制度默认由云端重验证承担完整测试。
 
 ### v0.2 / 规范 Agent C 版本提交
 
