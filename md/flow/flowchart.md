@@ -54,9 +54,9 @@ flowchart TD
 
     J["敌军意图面板"] --> K["GameViewModel.enemyIntentSummaries"]
     K --> L["GameState.aiIntents(for:limit:)<br/>只读预测攻击、接敌、夺城、固守、整备、技能<br/>forecast copy 刷新行动并递减该势力冷却<br/>攻击类预计伤害来自规划态 attackPreview"]
-    K --> M["GameViewModel.enemyIntentMapOverlays<br/>派生起点、目的地、目标格、路线段、伤害/效果文案"]
+    K --> M["GameViewModel.enemyIntentMapOverlays<br/>派生起点、六边形邻接路径、目的地、目标格、伤害/效果文案"]
     L --> K
-    M --> W["BattleView 地图路线、目的地叠层、目标格叠层<br/>侧栏显示来源、去向、目标和预计伤害"]
+    M --> W["BattleView 地图折线路径、目的地叠层、目标格叠层<br/>侧栏显示来源、去向、目标和预计伤害"]
 
     N["选中有将领单位"] --> O["GameViewModel.selectedGeneralSkillPreview"]
     O --> P["GameState.generalSkillPreview<br/>只读计算范围、目标、预计恢复或削城防"]

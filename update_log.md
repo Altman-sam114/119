@@ -14,12 +14,55 @@
 
 - 项目类型：原创 SwiftUI iOS 罗马题材战棋原型。
 - 核心架构：纯 Swift `RomeLegionsCore` 负责玩法规则；`GameViewModel` 负责 UI 状态和派生数据；SwiftUI 视图负责展示和命令入口。
-- 当前玩法：六边形地图、地形、城市、阵营、军团、移动、攻击、反击、占城、招募、科技、任务 requirement、战役目标、胜负结算、结束保护、外交、城市扩建、军团训练、将领任命、主动技能、技能冷却、将领详情读板、被动贡献、战功状态、战术姿态与姿态预览、AI 回合、敌军意图预判、敌军意图路线/目标叠层、战局态势面板。
+- 当前玩法：六边形地图、地形、城市、阵营、军团、移动、攻击、反击、占城、招募、科技、任务 requirement、战役目标、胜负结算、结束保护、外交、城市扩建、军团训练、将领任命、主动技能、技能冷却、将领详情读板、被动贡献、战功状态、战术姿态与姿态预览、AI 回合、敌军意图预判、敌军意图六边形路径/目标叠层、战局态势面板。
 - 当前测试入口：Swift Testing、Gameplay Smoke、项目结构检查、SwiftUI 类型检查、战斗页预览图渲染、无签名 Xcode 构建。
 - 当前协作系统：已建立 `AGENTS.md`、`update_log.md`、`md/prompt/`、`md/test/test.md`、`md/flow/flow.md`、`md/flow/flowchart.md`，默认按 `main` 直推、GitHub Actions 云端重验证、Agent C 下载未加密结果包复判，并具备未来由 Agent X 主控调度 Agent A/B/C 多轮循环的文档基线。
 - 当前 CI 入口：`.github/workflows/ci-results.yml`，在 `main` push 和手动触发时运行结构检查、SwiftPM 测试、Gameplay Smoke 和无签名 Xcode build，并上传 CI 结果包。
 
 ## 历史记录
+
+### v0.12 / 敌军意图路径贴合六边形地图
+
+日期：2026-07-04
+
+核心变更：
+
+- `GameViewModel.enemyIntentMapOverlays(for:)` 不再只透传 `EnemyIntentSummary` 的直线路线，而是为每条敌军意图只读派生地图路线段。
+- 敌军移动路线现在按 `Position.neighbors(width:height:)`、地形进入能力、地形移动成本、单位占用和该意图战术姿态后的有效机动生成相邻六边形路径；找不到合法路径时保留旧直线兜底，避免叠层消失。
+- 目标段继续显示为 `destination -> target` 的 target leg，不和移动路径混淆；`BattleView` 仍只消费 `EnemyIntentMapOverlay.routeSegments`，不参与路径算法。
+- `Tools/RenderBattlePreview` 增加路径断言：移动后攻击路线必须包含多个非 targetLeg 段，每段 `from` / `to` 都必须是六边形邻居，最后一段到达 `AIIntent.destination`，target leg 从 destination 指向目标格；同时保留 v0.11 将领详情、姿态预览和紧凑命令区像素检查。
+- README、flow、flowchart、test 文档同步敌军意图六边形路径、ViewModel 只读派生边界和 v0.12 artifact 版本，并新增 v0.12 Agent A 提示词。
+
+关键文件：
+
+- `RomeLegionsApp/App/GameViewModel.swift`
+- `Tools/RenderBattlePreview/main.swift`
+- `.github/workflows/ci-results.yml`
+- `README.md`
+- `md/flow/flow.md`
+- `md/flow/flowchart.md`
+- `md/test/test.md`
+- `md/prompt/v0（玩法推进）/v0.12（敌军意图路径贴合六边形地图）.md`
+- `update_log.md`
+
+验证结果：
+
+- `env HOME=$PWD/.home CLANG_MODULE_CACHE_PATH=$PWD/.build/module-cache /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/swiftc -parse-as-library -sdk /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX26.5.sdk -target arm64-apple-macosx14.0 -o .build/render-battle-preview Tools/RenderBattlePreview/main.swift Sources/RomeLegionsCore/GameState.swift RomeLegionsApp/App/GameViewModel.swift RomeLegionsApp/Views/BattleView.swift`：通过，无错误输出。
+- `/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/swiftc -typecheck -swift-version 5 -sdk /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS26.5.sdk -target arm64-apple-ios17.0 -module-cache-path DerivedData/ManualModuleCache Sources/RomeLegionsCore/GameState.swift RomeLegionsApp/App/RomeLegionsApp.swift RomeLegionsApp/App/GameViewModel.swift RomeLegionsApp/Views/RootView.swift RomeLegionsApp/Views/MainMenuView.swift RomeLegionsApp/Views/BattleView.swift`：通过，无错误输出。
+- `.build/render-battle-preview DerivedData/battle-landscape-preview.png 932 430`：通过，短横屏预览图生成成功；敌军路线显示为相邻六边形折线，军令入口仍在首屏。
+- `.build/render-battle-preview DerivedData/battle-portrait-preview.png 390 844`：通过，竖屏预览图生成成功；地图路线折线、目标线和地图叠层可读，命令入口无回归。
+- `.build/render-battle-preview DerivedData/battle-wide-preview.png 1024 768`：通过，宽屏预览图生成成功；路线从敌军位置按格点折向目的地，再以目标段指向罗马单位。
+- `git diff --check`：通过，无输出。
+- `node Tools/verify_project.mjs`：通过，输出 `Project structure verification passed.`
+- `ruby -e 'require "yaml"; YAML.load_file(".github/workflows/ci-results.yml"); puts "yaml ok"'`：通过，输出 `yaml ok`。
+- `plutil -lint RomeLegionsApp.xcodeproj/project.pbxproj`：通过，输出 `RomeLegionsApp.xcodeproj/project.pbxproj: OK`。
+
+遗留事项：
+
+- 本轮没有改变 `GameState` 核心 AI 决策、评分、真实移动、战斗结算、Codable 存档字段或 Swift Testing 用例数量；路径只是 `GameViewModel` 的 UI 派生。
+- 本轮没有默认本机跑完整 SwiftPM `swift test`、Gameplay Smoke 或 `xcodebuild build`；按项目规则交给 `origin/main` 最新 commit 的 GitHub Actions 重验证。
+- 路线按核心 `Position.neighbors` 计算；未来如果要进一步提升视觉贴合度，应单独审查核心邻接和 `HexMetrics.center(for:)` 的坐标系一致性，不能在本轮顺手大改地图坐标。
+- Agent C 必须核对最新 `origin/main` commit 对应的 v0.12 run id、run attempt 和 artifact；不能使用 v0.11 旧结果包。
 
 ### v0.11 / 将领详情与战术指挥可读化
 

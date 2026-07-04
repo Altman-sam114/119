@@ -35,6 +35,20 @@ struct RenderBattlePreview {
               advanceOverlay.impactLabel.contains("预计伤害") else {
             throw PreviewRenderError.missingIntentOverlay
         }
+        let movementSegments = advanceOverlay.routeSegments.filter { !$0.isTargetLeg }
+        guard movementSegments.count > 1,
+              movementSegments.allSatisfy({ segment in
+                  segment.from.neighbors(width: viewModel.state.width, height: viewModel.state.height).contains(segment.to)
+              }),
+              movementSegments.first?.from == advanceOverlay.originPosition,
+              movementSegments.last?.to == advanceOverlay.destinationPosition,
+              advanceOverlay.routeSegments.contains(where: { segment in
+                  segment.isTargetLeg &&
+                      segment.from == advanceOverlay.destinationPosition &&
+                      segment.to == Position(x: 3, y: 3)
+              }) else {
+            throw PreviewRenderError.missingHexIntentRoute
+        }
         guard let commanderBrief = viewModel.selectedCommanderBrief,
               commanderBrief.traitName == GeneralTrait.eagleStandard.displayName,
               commanderBrief.passiveContributions.contains(where: { $0.id == "attack" && $0.value == "+5" }),
@@ -126,6 +140,7 @@ struct RenderBattlePreview {
 enum PreviewRenderError: Error {
     case renderFailed
     case missingIntentOverlay
+    case missingHexIntentRoute
     case missingCommanderBrief
     case missingTacticalOrderPreview
     case missingCompactCommandRender

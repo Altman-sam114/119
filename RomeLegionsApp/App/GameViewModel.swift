@@ -250,6 +250,12 @@ struct EnemyIntentSummary: Identifiable {
 
 struct EnemyIntentMapOverlay: Identifiable {
     var summary: EnemyIntentSummary
+    var routeSegments: [EnemyIntentRouteSegment]
+
+    init(summary: EnemyIntentSummary, routeSegments: [EnemyIntentRouteSegment]? = nil) {
+        self.summary = summary
+        self.routeSegments = routeSegments ?? summary.routeSegments
+    }
 
     var id: String { summary.id }
     var unitID: String { summary.unit.id }
@@ -259,7 +265,6 @@ struct EnemyIntentMapOverlay: Identifiable {
     var targetPosition: Position? { summary.targetPosition }
     var targetLabel: String { summary.targetLabel }
     var impactLabel: String { summary.impactLabel }
-    var routeSegments: [EnemyIntentRouteSegment] { summary.routeSegments }
     var isHighThreat: Bool { summary.isHighThreat }
 
     var showsDestinationMarker: Bool {
@@ -505,7 +510,137 @@ final class GameViewModel: ObservableObject {
     }
 
     func enemyIntentMapOverlays(for summaries: [EnemyIntentSummary]) -> [EnemyIntentMapOverlay] {
-        summaries.prefix(4).map { EnemyIntentMapOverlay(summary: $0) }
+        summaries.prefix(4).map { summary in
+            EnemyIntentMapOverlay(
+                summary: summary,
+                routeSegments: enemyIntentRouteSegments(for: summary)
+            )
+        }
+    }
+
+    private func enemyIntentRouteSegments(for summary: EnemyIntentSummary) -> [EnemyIntentRouteSegment] {
+        var segments = enemyIntentMovementRouteSegments(for: summary)
+
+        if let targetPosition = summary.targetPosition,
+           targetPosition != summary.destinationPosition {
+            segments.append(
+                EnemyIntentRouteSegment(
+                    id: "\(summary.id)-target",
+                    from: summary.destinationPosition,
+                    to: targetPosition,
+                    kind: summary.intent.kind,
+                    isTargetLeg: true,
+                    isHighThreat: summary.isHighThreat
+                )
+            )
+        }
+
+        return segments
+    }
+
+    private func enemyIntentMovementRouteSegments(for summary: EnemyIntentSummary) -> [EnemyIntentRouteSegment] {
+        let origin = summary.originPosition
+        let destination = summary.destinationPosition
+        guard origin != destination else { return [] }
+
+        guard let path = enemyIntentMovementPath(for: summary),
+              path.count >= 2 else {
+            return [
+                EnemyIntentRouteSegment(
+                    id: "\(summary.id)-move",
+                    from: origin,
+                    to: destination,
+                    kind: summary.intent.kind,
+                    isTargetLeg: false,
+                    isHighThreat: summary.isHighThreat
+                )
+            ]
+        }
+
+        return zip(path, path.dropFirst()).enumerated().map { index, pair in
+            EnemyIntentRouteSegment(
+                id: "\(summary.id)-route-\(index)",
+                from: pair.0,
+                to: pair.1,
+                kind: summary.intent.kind,
+                isTargetLeg: false,
+                isHighThreat: summary.isHighThreat
+            )
+        }
+    }
+
+    private func enemyIntentMovementPath(for summary: EnemyIntentSummary) -> [Position]? {
+        let origin = summary.originPosition
+        let destination = summary.destinationPosition
+        guard origin != destination else { return [origin] }
+
+        var planningUnit = summary.unit
+        planningUnit.tacticalOrder = summary.intent.tacticalOrder == .balanced ? nil : summary.intent.tacticalOrder
+
+        let movementLimit = state.effectiveMovement(for: planningUnit)
+        var bestCost: [Position: Int] = [origin: 0]
+        var previous: [Position: Position] = [:]
+        var frontier = [origin]
+
+        while !frontier.isEmpty {
+            let currentIndex = frontier.indices.min { leftIndex, rightIndex in
+                let left = frontier[leftIndex]
+                let right = frontier[rightIndex]
+                let leftCost = bestCost[left] ?? Int.max
+                let rightCost = bestCost[right] ?? Int.max
+                if leftCost != rightCost { return leftCost < rightCost }
+
+                let leftDistance = left.hexDistance(to: destination)
+                let rightDistance = right.hexDistance(to: destination)
+                if leftDistance != rightDistance { return leftDistance < rightDistance }
+
+                if left.y != right.y { return left.y < right.y }
+                return left.x < right.x
+            } ?? frontier.startIndex
+            let current = frontier.remove(at: currentIndex)
+            if current == destination {
+                return reconstructEnemyIntentPath(to: destination, from: previous, origin: origin)
+            }
+
+            let currentCost = bestCost[current] ?? 0
+            for neighbor in current.neighbors(width: state.width, height: state.height) {
+                guard let tile = state.tile(at: neighbor),
+                      planningUnit.kind.canEnter(tile.terrain),
+                      state.unit(at: neighbor).map({ $0.id == planningUnit.id }) ?? true else {
+                    continue
+                }
+
+                let nextCost = currentCost + tile.terrain.movementCost
+                guard nextCost <= movementLimit else { continue }
+
+                if nextCost < (bestCost[neighbor] ?? Int.max) {
+                    bestCost[neighbor] = nextCost
+                    previous[neighbor] = current
+                    if !frontier.contains(neighbor) {
+                        frontier.append(neighbor)
+                    }
+                }
+            }
+        }
+
+        return nil
+    }
+
+    private func reconstructEnemyIntentPath(
+        to destination: Position,
+        from previous: [Position: Position],
+        origin: Position
+    ) -> [Position]? {
+        var path = [destination]
+        var current = destination
+
+        while current != origin {
+            guard let step = previous[current] else { return nil }
+            current = step
+            path.append(current)
+        }
+
+        return path.reversed()
     }
 
     func enemyIntentDestinationOverlays(for overlays: [EnemyIntentMapOverlay]) -> [Position: EnemyIntentMapOverlay] {
