@@ -70,12 +70,13 @@ swiftc -swift-version 5 -module-cache-path .build/module-cache Sources/RomeLegio
 node Tools/verify_project.mjs
 ```
 
-横屏战斗页预览图：
+战斗页三尺寸预览图：
 
 ```sh
 env HOME=$PWD/.home CLANG_MODULE_CACHE_PATH=$PWD/.build/module-cache /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/swiftc -parse-as-library -sdk /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX26.5.sdk -target arm64-apple-macosx14.0 -o .build/render-battle-preview Tools/RenderBattlePreview/main.swift Sources/RomeLegionsCore/GameState.swift RomeLegionsApp/App/GameViewModel.swift RomeLegionsApp/Views/BattleView.swift
 .build/render-battle-preview DerivedData/battle-landscape-preview.png 932 430
 .build/render-battle-preview DerivedData/battle-portrait-preview.png 390 844
+.build/render-battle-preview DerivedData/battle-wide-preview.png 1024 768
 ```
 
 模拟器攻击 UI 复现入口：

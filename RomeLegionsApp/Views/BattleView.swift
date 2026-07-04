@@ -10,6 +10,8 @@ struct BattleView: View {
             let usesCondensedTopBar = proxy.size.width < 900 || isShortLandscape
             let panelWidth = min(340, max(270, proxy.size.width * (isShortLandscape ? 0.32 : 0.30)))
             let battlefieldHeight = max(0, proxy.size.height - (usesCondensedTopBar ? 54 : 64))
+            let mapPadding: CGFloat = isShortLandscape ? 8 : 10
+            let mapHeight = max(0, battlefieldHeight - mapPadding * 2)
             let phoneMapHeight = max(280, min(360, proxy.size.height * 0.45))
             let phoneContentWidth = max(0, proxy.size.width - 20)
 
@@ -32,10 +34,11 @@ struct BattleView: View {
                         .padding(10)
                         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
                     } else {
-                        HStack(spacing: 0) {
+                        HStack(alignment: .top, spacing: 0) {
                             WarMapView()
-                                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                                .padding(isShortLandscape ? 8 : 10)
+                                .frame(maxWidth: .infinity)
+                                .frame(height: mapHeight)
+                                .padding(mapPadding)
 
                             if isShortLandscape {
                                 CompactCommandPanelView()
@@ -58,7 +61,8 @@ struct BattleView: View {
                                 #endif
                             }
                         }
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        .frame(maxWidth: .infinity)
+                        .frame(height: battlefieldHeight, alignment: .top)
                     }
                 }
             }
@@ -212,7 +216,8 @@ struct WarMapView: View {
                         enemyIntent: viewModel.state.unit(at: tile.position).flatMap { enemyIntentsByUnit[$0.id] },
                         isSelected: selectedPosition == tile.position,
                         isReachable: viewModel.reachablePositions.contains(tile.position),
-                        isAttackTarget: attackTargets.contains { $0.position == tile.position }
+                        isAttackTarget: attackTargets.contains { $0.position == tile.position },
+                        scale: metrics.tileScale
                     )
                     .frame(width: metrics.tileWidth, height: metrics.tileHeight)
                     .position(center)
@@ -311,6 +316,7 @@ struct AttackTargetButton: View {
                 .offset(y: -1)
         }
         .accessibilityLabel("攻击\(unit.faction.displayName)\(unit.kind.displayName)")
+        .accessibilityAddTraits(.isButton)
     }
 }
 
@@ -319,44 +325,16 @@ struct TacticalStatusStripView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 7) {
-            HStack(spacing: 7) {
-                TacticalChipView(
-                    symbol: "flag.fill",
-                    label: "行动",
-                    value: viewModel.state.activeFaction.displayName,
-                    tint: viewModel.state.activeFaction.factionColor
-                )
-                TacticalChipView(
-                    symbol: "shield.lefthalf.filled",
-                    label: "待命",
-                    value: "\(viewModel.readyRomanUnitCount)",
-                    tint: Color(red: 0.84, green: 0.66, blue: 0.32)
-                )
-
-                if let tile = viewModel.selectedTile {
-                    TacticalChipView(
-                        symbol: tile.terrain.systemImage,
-                        label: "地形",
-                        value: tile.terrain.displayName,
-                        tint: tile.terrain.accentColor
-                    )
+            ViewThatFits(in: .horizontal) {
+                HStack(spacing: 7) {
+                    tacticalChips(compact: false)
                 }
+                .fixedSize(horizontal: true, vertical: false)
 
-                TacticalChipView(
-                    symbol: "flame.fill",
-                    label: "敌军",
-                    value: "\(viewModel.hostileUnitCount)",
-                    tint: .red
-                )
-
-                if let intent = viewModel.primaryEnemyIntent {
-                    TacticalChipView(
-                        symbol: intent.intent.kind.systemImage,
-                        label: "敌情",
-                        value: intent.shortTitle,
-                        tint: intent.intent.kind.tintColor
-                    )
+                HStack(spacing: 6) {
+                    tacticalChips(compact: true)
                 }
+                .fixedSize(horizontal: true, vertical: false)
             }
 
             HStack(spacing: 6) {
@@ -382,6 +360,52 @@ struct TacticalStatusStripView: View {
                 .stroke(Color(red: 0.84, green: 0.66, blue: 0.32).opacity(0.34), lineWidth: 1)
         }
     }
+
+    @ViewBuilder
+    private func tacticalChips(compact: Bool) -> some View {
+        TacticalChipView(
+            symbol: "flag.fill",
+            label: "行动",
+            value: viewModel.state.activeFaction.displayName,
+            tint: viewModel.state.activeFaction.factionColor,
+            compact: compact
+        )
+        TacticalChipView(
+            symbol: "shield.lefthalf.filled",
+            label: "待命",
+            value: "\(viewModel.readyRomanUnitCount)",
+            tint: Color(red: 0.84, green: 0.66, blue: 0.32),
+            compact: compact
+        )
+
+        if let tile = viewModel.selectedTile {
+            TacticalChipView(
+                symbol: tile.terrain.systemImage,
+                label: "地形",
+                value: tile.terrain.displayName,
+                tint: tile.terrain.accentColor,
+                compact: compact
+            )
+        }
+
+        TacticalChipView(
+            symbol: "flame.fill",
+            label: "敌军",
+            value: "\(viewModel.hostileUnitCount)",
+            tint: .red,
+            compact: compact
+        )
+
+        if let intent = viewModel.primaryEnemyIntent {
+            TacticalChipView(
+                symbol: intent.intent.kind.systemImage,
+                label: "敌情",
+                value: intent.shortTitle,
+                tint: intent.intent.kind.tintColor,
+                compact: compact
+            )
+        }
+    }
 }
 
 struct TacticalChipView: View {
@@ -389,15 +413,18 @@ struct TacticalChipView: View {
     var label: String
     var value: String
     var tint: Color
+    var compact = false
 
     var body: some View {
         HStack(spacing: 5) {
             Image(systemName: symbol)
                 .font(.caption2.weight(.heavy))
                 .foregroundStyle(tint)
-            Text(label)
-                .font(.caption2.weight(.semibold))
-                .foregroundStyle(.white.opacity(0.58))
+            if !compact {
+                Text(label)
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(.white.opacity(0.58))
+            }
             Text(value)
                 .font(.caption.monospacedDigit().weight(.heavy))
                 .lineLimit(1)
@@ -460,51 +487,75 @@ struct HexTileView: View {
     var isSelected: Bool
     var isReachable: Bool
     var isAttackTarget: Bool
+    var scale: CGFloat = 1
 
     var body: some View {
         ZStack {
             Hexagon()
                 .fill(tileColor)
                 .overlay {
+                    TerrainTextureView(terrain: tile.terrain, scale: scale)
+                }
+                .overlay {
+                    if let faction = controlFaction {
+                        Hexagon()
+                            .stroke(faction.factionColor.opacity(0.72), lineWidth: max(1.6, 2.4 * scale))
+                            .padding(2.4 * scale)
+                    }
+                }
+                .overlay {
                     Hexagon()
-                        .stroke(borderColor, lineWidth: isSelected || isAttackTarget ? 3 : 1)
+                        .stroke(borderColor, lineWidth: isSelected || isAttackTarget ? max(2.4, 3 * scale) : max(0.8, 1.1 * scale))
                 }
 
             TerrainGlyphView(terrain: tile.terrain)
+                .scaleEffect(scale)
                 .opacity(city == nil && unit == nil ? 0.42 : 0.20)
 
             if isReachable {
-                Circle()
-                    .fill(.white.opacity(0.24))
-                    .frame(width: 14, height: 14)
+                ReachableTileOverlay(scale: scale)
             }
 
             if let city = city {
                 CityBadgeView(city: city, compact: true)
-                .offset(y: unit == nil ? 0 : -14)
+                    .scaleEffect(scale)
+                    .offset(y: unit == nil ? 0 : -14 * scale)
             }
 
             if let unit = unit {
                 UnitTokenView(unit: unit)
-                    .offset(y: city == nil ? 0 : 14)
+                    .scaleEffect(scale)
+                    .offset(y: city == nil ? 0 : 14 * scale)
 
                 if let enemyIntent {
                     EnemyIntentMapBadgeView(summary: enemyIntent)
-                        .offset(x: 24, y: city == nil ? -18 : -4)
+                        .scaleEffect(scale)
+                        .offset(x: 24 * scale, y: city == nil ? -18 * scale : -4 * scale)
                 }
+            }
+
+            if isSelected {
+                SelectedTileOverlay(scale: scale)
+            }
+
+            if isAttackTarget {
+                AttackTileOverlay(scale: scale)
             }
         }
         .shadow(color: .black.opacity(isSelected ? 0.38 : 0.18), radius: isSelected ? 9 : 2, y: 2)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(accessibilityLabel)
+        .accessibilityAddTraits(.isButton)
     }
 
     private var tileColor: Color {
         switch tile.terrain {
-        case .plains: return Color(red: 0.38, green: 0.48, blue: 0.27)
-        case .forest: return Color(red: 0.15, green: 0.34, blue: 0.20)
-        case .hills: return Color(red: 0.46, green: 0.40, blue: 0.30)
-        case .water: return Color(red: 0.17, green: 0.39, blue: 0.53)
-        case .road: return Color(red: 0.50, green: 0.43, blue: 0.32)
-        case .city: return Color(red: 0.43, green: 0.37, blue: 0.30)
+        case .plains: return Color(red: 0.40, green: 0.50, blue: 0.28)
+        case .forest: return Color(red: 0.15, green: 0.36, blue: 0.21)
+        case .hills: return Color(red: 0.48, green: 0.40, blue: 0.30)
+        case .water: return Color(red: 0.15, green: 0.40, blue: 0.56)
+        case .road: return Color(red: 0.53, green: 0.45, blue: 0.32)
+        case .city: return Color(red: 0.46, green: 0.38, blue: 0.30)
         }
     }
 
@@ -513,6 +564,234 @@ struct HexTileView: View {
         if isSelected { return .white }
         if isReachable { return .yellow.opacity(0.8) }
         return .black.opacity(0.28)
+    }
+
+    private var controlFaction: Faction? {
+        if let city, city.owner != .neutral {
+            return city.owner
+        }
+
+        if let unit, unit.faction != .neutral {
+            return unit.faction
+        }
+
+        return nil
+    }
+
+    private var accessibilityLabel: String {
+        var parts = [tile.terrain.displayName]
+        if let city {
+            parts.append("\(city.owner.displayName)\(city.name)")
+        }
+        if let unit {
+            parts.append("\(unit.faction.displayName)\(unit.kind.displayName)")
+        }
+        if isSelected {
+            parts.append("已选中")
+        }
+        if isReachable {
+            parts.append("可移动")
+        }
+        if isAttackTarget {
+            parts.append("可攻击")
+        }
+        return parts.joined(separator: "，")
+    }
+}
+
+struct TerrainTextureView: View {
+    var terrain: TerrainType
+    var scale: CGFloat
+
+    var body: some View {
+        ZStack {
+            switch terrain {
+            case .road:
+                RoadTextureView(scale: scale)
+            case .water:
+                WaterTextureView(scale: scale)
+            case .city:
+                CityTileTextureView(scale: scale)
+            case .forest:
+                ForestTextureView(scale: scale)
+            case .hills:
+                HillsTextureView(scale: scale)
+            case .plains:
+                PlainsTextureView(scale: scale)
+            }
+        }
+        .clipShape(Hexagon())
+    }
+}
+
+struct ReachableTileOverlay: View {
+    var scale: CGFloat
+
+    var body: some View {
+        ZStack {
+            Hexagon()
+                .fill(Color(red: 0.92, green: 0.76, blue: 0.28).opacity(0.17))
+            Hexagon()
+                .stroke(
+                    Color(red: 0.96, green: 0.82, blue: 0.36).opacity(0.95),
+                    style: StrokeStyle(lineWidth: max(1.3, 1.9 * scale), lineCap: .round, dash: [5 * scale, 4 * scale])
+                )
+                .padding(4 * scale)
+            Circle()
+                .fill(Color(red: 0.96, green: 0.82, blue: 0.36))
+                .frame(width: 7 * scale, height: 7 * scale)
+                .shadow(color: .black.opacity(0.35), radius: 2, y: 1)
+        }
+    }
+}
+
+struct SelectedTileOverlay: View {
+    var scale: CGFloat
+
+    var body: some View {
+        ZStack {
+            Hexagon()
+                .fill(.white.opacity(0.12))
+            Hexagon()
+                .stroke(.white.opacity(0.95), lineWidth: max(1.8, 2.6 * scale))
+                .padding(1.5 * scale)
+            Hexagon()
+                .stroke(Color(red: 0.94, green: 0.76, blue: 0.30).opacity(0.75), lineWidth: max(1, 1.2 * scale))
+                .padding(6 * scale)
+        }
+        .shadow(color: .white.opacity(0.45), radius: 5 * scale)
+    }
+}
+
+struct AttackTileOverlay: View {
+    var scale: CGFloat
+
+    var body: some View {
+        ZStack {
+            Hexagon()
+                .fill(Color.red.opacity(0.16))
+            Hexagon()
+                .stroke(Color.red.opacity(0.95), style: StrokeStyle(lineWidth: max(2, 2.5 * scale), lineCap: .round, dash: [7 * scale, 4 * scale]))
+                .padding(2 * scale)
+        }
+        .shadow(color: .red.opacity(0.42), radius: 5 * scale)
+    }
+}
+
+struct RoadTextureView: View {
+    var scale: CGFloat
+
+    var body: some View {
+        ZStack {
+            RouteLineShape()
+                .stroke(.black.opacity(0.24), style: StrokeStyle(lineWidth: max(4, 6 * scale), lineCap: .round))
+            RouteLineShape()
+                .stroke(Color(red: 0.88, green: 0.68, blue: 0.36).opacity(0.88), style: StrokeStyle(lineWidth: max(2.4, 4 * scale), lineCap: .round))
+            RouteLineShape()
+                .stroke(.white.opacity(0.20), style: StrokeStyle(lineWidth: max(0.8, 1.2 * scale), lineCap: .round, dash: [5 * scale, 5 * scale]))
+        }
+        .padding(6 * scale)
+    }
+}
+
+struct WaterTextureView: View {
+    var scale: CGFloat
+
+    var body: some View {
+        VStack(spacing: 5 * scale) {
+            ForEach(0..<3, id: \.self) { index in
+                Capsule()
+                    .fill(.white.opacity(0.14))
+                    .frame(width: (index == 1 ? 34 : 26) * scale, height: max(1, 2 * scale))
+                    .offset(x: index == 1 ? -4 * scale : 5 * scale)
+            }
+        }
+        .rotationEffect(.degrees(-8))
+    }
+}
+
+struct CityTileTextureView: View {
+    var scale: CGFloat
+
+    var body: some View {
+        VStack(spacing: 3 * scale) {
+            Rectangle()
+                .fill(Color(red: 0.88, green: 0.70, blue: 0.36).opacity(0.30))
+                .frame(width: 34 * scale, height: 4 * scale)
+            Rectangle()
+                .fill(Color(red: 0.88, green: 0.70, blue: 0.36).opacity(0.22))
+                .frame(width: 44 * scale, height: 4 * scale)
+        }
+    }
+}
+
+struct ForestTextureView: View {
+    var scale: CGFloat
+
+    var body: some View {
+        HStack(spacing: 5 * scale) {
+            ForEach(0..<3, id: \.self) { index in
+                Circle()
+                    .fill(.black.opacity(0.13))
+                    .frame(width: (8 + CGFloat(index % 2) * 3) * scale, height: (8 + CGFloat(index % 2) * 3) * scale)
+            }
+        }
+        .offset(y: 8 * scale)
+    }
+}
+
+struct HillsTextureView: View {
+    var scale: CGFloat
+
+    var body: some View {
+        HStack(spacing: -5 * scale) {
+            TriangleHillShape()
+                .fill(.white.opacity(0.12))
+                .frame(width: 24 * scale, height: 14 * scale)
+            TriangleHillShape()
+                .fill(.black.opacity(0.12))
+                .frame(width: 28 * scale, height: 16 * scale)
+        }
+        .offset(y: 8 * scale)
+    }
+}
+
+struct PlainsTextureView: View {
+    var scale: CGFloat
+
+    var body: some View {
+        HStack(spacing: 5 * scale) {
+            ForEach(0..<3, id: \.self) { _ in
+                Capsule()
+                    .fill(.white.opacity(0.10))
+                    .frame(width: 12 * scale, height: max(1, 2 * scale))
+            }
+        }
+        .offset(y: 9 * scale)
+    }
+}
+
+struct RouteLineShape: Shape {
+    func path(in rect: CGRect) -> Path {
+        var path = Path()
+        path.move(to: CGPoint(x: rect.minX, y: rect.midY + rect.height * 0.10))
+        path.addCurve(
+            to: CGPoint(x: rect.maxX, y: rect.midY - rect.height * 0.08),
+            control1: CGPoint(x: rect.minX + rect.width * 0.32, y: rect.minY + rect.height * 0.18),
+            control2: CGPoint(x: rect.minX + rect.width * 0.66, y: rect.maxY - rect.height * 0.12)
+        )
+        return path
+    }
+}
+
+struct TriangleHillShape: Shape {
+    func path(in rect: CGRect) -> Path {
+        var path = Path()
+        path.move(to: CGPoint(x: rect.midX, y: rect.minY))
+        path.addLine(to: CGPoint(x: rect.maxX, y: rect.maxY))
+        path.addLine(to: CGPoint(x: rect.minX, y: rect.maxY))
+        path.closeSubpath()
+        return path
     }
 }
 
@@ -617,10 +896,20 @@ struct UnitTokenView: View {
                         .frame(height: 4)
                 }
                 .overlay {
-                    Text(unit.kind.shortLabel)
-                        .font(.caption.weight(.black))
-                        .foregroundStyle(.white)
-                        .shadow(color: .black.opacity(0.35), radius: 1, y: 1)
+                    ZStack {
+                        Image(systemName: unit.kind.tokenSystemImage)
+                            .font(.system(size: 14, weight: .black))
+                            .foregroundStyle(.white.opacity(0.18))
+                            .offset(x: -7, y: 2)
+                        Text(unit.kind.shortLabel)
+                            .font(.caption.weight(.black))
+                            .foregroundStyle(.white)
+                            .shadow(color: .black.opacity(0.35), radius: 1, y: 1)
+                    }
+                }
+                .overlay {
+                    RoundedRectangle(cornerRadius: 4)
+                        .stroke(.white.opacity(unit.faction == .rome ? 0.34 : 0.18), lineWidth: 1)
                 }
                 .overlay(alignment: .topTrailing) {
                     if unit.generalName != nil {
@@ -1891,21 +2180,31 @@ struct HexMetrics {
     let tileHeight: CGFloat
     let origin: CGPoint
     let actionScale: CGFloat
+    let tileScale: CGFloat
 
     init(mapWidth: Int, mapHeight: Int, container: CGSize) {
         let horizontalUnits = CGFloat(mapWidth) * 0.76 + 0.24
         let verticalUnits = CGFloat(mapHeight) + 0.5
-        let widthBased = container.width / horizontalUnits
-        let heightBased = container.height / verticalUnits
-        tileWidth = max(44, min(widthBased, heightBased * 1.12))
+
+        let horizontalInset = min(22, max(10, container.width * 0.035))
+        let topInset = min(68, max(50, container.height * 0.16))
+        let bottomInset = min(42, max(30, container.height * 0.10))
+        let availableWidth = max(1, container.width - horizontalInset * 2)
+        let availableHeight = max(1, container.height - topInset - bottomInset)
+        let widthBased = availableWidth / horizontalUnits
+        let heightBased = availableHeight / (verticalUnits * 0.88)
+        let fittedTileWidth = min(widthBased, heightBased)
+
+        tileWidth = max(18, min(76, fittedTileWidth))
         tileHeight = tileWidth * 0.88
-        actionScale = min(1.15, max(0.82, tileWidth / 58))
+        tileScale = min(1.05, max(0.74, tileWidth / 44))
+        actionScale = min(1.15, max(0.72, tileWidth / 54))
 
         let totalWidth = tileWidth * (0.76 * CGFloat(mapWidth - 1) + 1)
         let totalHeight = tileHeight * (CGFloat(mapHeight) + 0.5)
         origin = CGPoint(
-            x: (container.width - totalWidth) / 2 + tileWidth / 2,
-            y: (container.height - totalHeight) / 2 + tileHeight / 2
+            x: horizontalInset + (availableWidth - totalWidth) / 2 + tileWidth / 2,
+            y: topInset + (availableHeight - totalHeight) / 2 + tileHeight / 2
         )
     }
 
@@ -2071,6 +2370,15 @@ extension TerrainType {
 }
 
 extension UnitKind {
+    var tokenSystemImage: String {
+        switch self {
+        case .legion: return "shield.fill"
+        case .cavalry: return "bolt.fill"
+        case .archer: return "target"
+        case .navy: return "water.waves"
+        }
+    }
+
     var shortLabel: String {
         switch self {
         case .legion: return "步"

@@ -21,6 +21,44 @@
 
 ## 历史记录
 
+### v0.6 / 战斗地图可读性与窄屏完整显示
+
+日期：2026-07-04
+
+核心变更：
+
+- 修正非竖屏战斗区高度约束，让 `WarMapView` 使用顶栏后的真实可见高度，避免短横屏地图按过高容器放大后被裁切。
+- 调整 `HexMetrics`，移除固定 44pt 地块下限，按地图安全边距和可用宽高自适应 tile 尺寸，并输出用于地图内容缩放的 `tileScale`。
+- 强化地图视觉层级：可移动格改为黄色半透明六边形和虚线边框，选中格增加白金双层描边，攻击目标增加红色半透明覆盖层。
+- 增加原创地形纹理：道路路线、水域波纹、城市据点横纹、森林/丘陵/平原低调纹理，使战略通道和海陆分界更清楚。
+- 强化单位兵牌：加入单位类型底纹图标和阵营描边，保持将领星标、战术姿态和生命条显示。
+- 为地图格和攻击徽标补充 VoiceOver 按钮语义，避免仅靠 `onTapGesture` 暴露交互。
+- README 补齐 1024x768 宽屏战斗页预览命令。
+- 新增 v0.6 Agent A 提示词，明确本轮 UI 边界、三尺寸预览验收和 Agent C 云端复判要求。
+
+关键文件：
+
+- `RomeLegionsApp/Views/BattleView.swift`
+- `README.md`
+- `md/prompt/v0（玩法推进）/v0.6（战斗地图可读性与窄屏完整显示）.md`
+- `update_log.md`
+
+验证结果：
+
+- `env HOME=$PWD/.home CLANG_MODULE_CACHE_PATH=$PWD/.build/module-cache /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/swiftc -parse-as-library -sdk /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX26.5.sdk -target arm64-apple-macosx14.0 -o .build/render-battle-preview Tools/RenderBattlePreview/main.swift Sources/RomeLegionsCore/GameState.swift RomeLegionsApp/App/GameViewModel.swift RomeLegionsApp/Views/BattleView.swift`：通过，无错误输出。
+- `.build/render-battle-preview DerivedData/battle-landscape-preview.png 932 430`：通过，短横屏预览图生成成功，12x8 棋盘完整可见。
+- `.build/render-battle-preview DerivedData/battle-portrait-preview.png 390 844`：通过，竖屏预览图生成成功，地图不横向裁切。
+- `.build/render-battle-preview DerivedData/battle-wide-preview.png 1024 768`：通过，宽屏预览图生成成功，地图与完整侧栏不重叠。
+- `git diff --check`：通过，无输出。
+- `node Tools/verify_project.mjs`：通过，输出 `Project structure verification passed.`
+
+遗留事项：
+
+- 本轮只改 SwiftUI 呈现层、README 和提示词/日志，未修改 `GameState`、`GameViewModel` 玩法语义或核心测试。
+- 本轮没有默认本机跑完整 `swift test`、Gameplay Smoke 或 `xcodebuild build`；按项目规则交给 `main` push 后的 GitHub Actions 重验证。
+- Agent C 必须核对最新 `origin/main` commit 对应的 v0.6 run id、run attempt 和 artifact；不能使用 v0.5 旧结果包。
+- `.github/workflows/ci-results.yml` 未同步 CI_VERSION，artifact 名称可能仍含 v0.4，验收以 manifest 的 commit、run id 和 run attempt 为准。
+
 ### v0.5 / 引入 Agent X 循环迭代文档基线
 
 日期：2026-07-04
