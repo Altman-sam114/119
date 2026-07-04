@@ -201,7 +201,11 @@ struct WarMapView: View {
             )
             let attackTargets: [ArmyUnit] = viewModel.attackTargets
             let attackTargetIDs = Set(attackTargets.map(\.id))
-            let enemyIntentsByUnit = Dictionary(uniqueKeysWithValues: viewModel.enemyIntentSummaries.map { ($0.unit.id, $0) })
+            let enemyIntentSummaries = viewModel.enemyIntentSummaries
+            let enemyIntentOverlays = viewModel.enemyIntentMapOverlays(for: enemyIntentSummaries)
+            let enemyIntentsByUnit = Dictionary(uniqueKeysWithValues: enemyIntentSummaries.map { ($0.unit.id, $0) })
+            let enemyIntentDestinations = viewModel.enemyIntentDestinationOverlays(for: enemyIntentOverlays)
+            let enemyIntentTargets = viewModel.enemyIntentTargetOverlays(for: enemyIntentOverlays)
             let selectedPosition = viewModel.focusedPosition
             let skillRangePositions = viewModel.selectedGeneralSkillRangePositions
             let skillTargetPositions = viewModel.selectedGeneralSkillTargetPositions
@@ -210,6 +214,10 @@ struct WarMapView: View {
 
             ZStack {
                 MapBackdropView()
+
+                EnemyIntentRouteLayerView(overlays: enemyIntentOverlays, metrics: metrics)
+                    .allowsHitTesting(false)
+                    .zIndex(1)
 
                 ForEach(viewModel.state.tiles) { tile in
                     let city = viewModel.state.city(at: tile.position)
@@ -220,6 +228,8 @@ struct WarMapView: View {
                         city: city,
                         unit: unit,
                         enemyIntent: unit.flatMap { enemyIntentsByUnit[$0.id] },
+                        enemyIntentDestination: enemyIntentDestinations[tile.position],
+                        enemyIntentTarget: enemyIntentTargets[tile.position],
                         isSelected: selectedPosition == tile.position,
                         isReachable: viewModel.reachablePositions.contains(tile.position),
                         isAttackTarget: attackTargets.contains { $0.position == tile.position },
@@ -494,6 +504,8 @@ struct HexTileView: View {
     var city: City?
     var unit: ArmyUnit?
     var enemyIntent: EnemyIntentSummary?
+    var enemyIntentDestination: EnemyIntentMapOverlay?
+    var enemyIntentTarget: EnemyIntentMapOverlay?
     var isSelected: Bool
     var isReachable: Bool
     var isAttackTarget: Bool
@@ -534,6 +546,14 @@ struct HexTileView: View {
 
             if isSkillTarget && !isAttackTarget {
                 SkillTargetOverlay(scale: scale)
+            }
+
+            if let enemyIntentDestination, !isAttackTarget {
+                EnemyIntentDestinationOverlay(overlay: enemyIntentDestination, scale: scale)
+            }
+
+            if let enemyIntentTarget, !isAttackTarget && !isSkillTarget {
+                EnemyIntentTargetOverlay(overlay: enemyIntentTarget, scale: scale)
             }
 
             if let city = city {
@@ -620,6 +640,12 @@ struct HexTileView: View {
         }
         if isAttackTarget {
             parts.append("可攻击")
+        }
+        if let enemyIntentDestination {
+            parts.append("敌军意图目的地\(enemyIntentDestination.summary.destinationLabel)")
+        }
+        if let enemyIntentTarget {
+            parts.append("敌军意图目标\(enemyIntentTarget.targetLabel)")
         }
         return parts.joined(separator: "，")
     }
@@ -738,6 +764,106 @@ struct AttackTileOverlay: View {
                 .padding(2 * scale)
         }
         .shadow(color: .red.opacity(0.42), radius: 5 * scale)
+    }
+}
+
+struct EnemyIntentRouteLayerView: View {
+    var overlays: [EnemyIntentMapOverlay]
+    var metrics: HexMetrics
+
+    var body: some View {
+        ZStack {
+            ForEach(overlays) { overlay in
+                ForEach(overlay.routeSegments) { segment in
+                    EnemyIntentRouteSegmentView(segment: segment, metrics: metrics)
+                }
+            }
+        }
+    }
+}
+
+struct EnemyIntentRouteSegmentView: View {
+    var segment: EnemyIntentRouteSegment
+    var metrics: HexMetrics
+
+    var body: some View {
+        let start = metrics.center(for: segment.from)
+        let end = metrics.center(for: segment.to)
+        let color = segment.kind.tintColor.opacity(segment.isTargetLeg ? 0.70 : 0.86)
+        let width = max(1.4, (segment.isHighThreat ? 3.2 : 2.3) * metrics.tileScale)
+        let dash = segment.isTargetLeg ? [4 * metrics.tileScale, 4 * metrics.tileScale] : []
+        let angle = Angle(radians: atan2(Double(end.y - start.y), Double(end.x - start.x)))
+
+        ZStack {
+            Path { path in
+                path.move(to: start)
+                path.addLine(to: end)
+            }
+            .stroke(.black.opacity(0.34), style: StrokeStyle(lineWidth: width + 2.2, lineCap: .round, lineJoin: .round, dash: dash))
+
+            Path { path in
+                path.move(to: start)
+                path.addLine(to: end)
+            }
+            .stroke(color, style: StrokeStyle(lineWidth: width, lineCap: .round, lineJoin: .round, dash: dash))
+
+            Image(systemName: segment.isTargetLeg ? "scope" : "arrowtriangle.right.fill")
+                .font(.system(size: max(8, 10 * metrics.tileScale), weight: .black))
+                .foregroundStyle(color)
+                .shadow(color: .black.opacity(0.45), radius: 2, y: 1)
+                .rotationEffect(segment.isTargetLeg ? .zero : angle)
+                .position(end)
+        }
+        .accessibilityHidden(true)
+    }
+}
+
+struct EnemyIntentDestinationOverlay: View {
+    var overlay: EnemyIntentMapOverlay
+    var scale: CGFloat
+
+    var body: some View {
+        ZStack {
+            Hexagon()
+                .fill(overlay.kind.tintColor.opacity(0.11))
+            Hexagon()
+                .stroke(
+                    overlay.kind.tintColor.opacity(0.78),
+                    style: StrokeStyle(lineWidth: max(1.2, 1.7 * scale), lineCap: .round, dash: [5 * scale, 4 * scale])
+                )
+                .padding(7 * scale)
+            Image(systemName: "arrow.down.circle.fill")
+                .font(.system(size: 12 * scale, weight: .black))
+                .foregroundStyle(overlay.kind.tintColor)
+                .shadow(color: .black.opacity(0.35), radius: 2, y: 1)
+                .offset(y: 20 * scale)
+        }
+        .accessibilityLabel(overlay.accessibilityLabel)
+    }
+}
+
+struct EnemyIntentTargetOverlay: View {
+    var overlay: EnemyIntentMapOverlay
+    var scale: CGFloat
+
+    var body: some View {
+        ZStack {
+            Hexagon()
+                .fill(Color(red: 0.82, green: 0.12, blue: 0.10).opacity(overlay.isHighThreat ? 0.18 : 0.10))
+            Hexagon()
+                .stroke(Color(red: 0.96, green: 0.34, blue: 0.24).opacity(0.90), lineWidth: max(1.4, 2 * scale))
+                .padding(4 * scale)
+            Circle()
+                .stroke(.white.opacity(0.88), lineWidth: max(1, 1.4 * scale))
+                .frame(width: 19 * scale, height: 19 * scale)
+            Image(systemName: "scope")
+                .font(.system(size: 13 * scale, weight: .black))
+                .foregroundStyle(.white)
+                .shadow(color: .black.opacity(0.45), radius: 2, y: 1)
+                .offset(y: -21 * scale)
+        }
+        .shadow(color: Color.red.opacity(0.30), radius: 4 * scale)
+        .accessibilityLabel(overlay.accessibilityLabel)
     }
 }
 
@@ -881,7 +1007,7 @@ struct EnemyIntentMapBadgeView: View {
                 .stroke(.black.opacity(0.28), lineWidth: 1)
         }
         .shadow(color: .black.opacity(0.35), radius: 3, y: 1)
-        .accessibilityLabel("\(summary.unit.faction.displayName)\(summary.unit.kind.displayName)\(summary.title)")
+        .accessibilityLabel("\(summary.actorLabel)，\(summary.title)，\(summary.routeDetail)，\(summary.impactLabel)")
     }
 }
 
@@ -1730,8 +1856,8 @@ struct EnemyIntentRowView: View {
                 Text(summary.detail)
                     .font(.caption2.weight(.semibold))
                     .foregroundStyle(.white.opacity(0.62))
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.68)
+                    .lineLimit(2)
+                    .minimumScaleFactor(0.70)
             }
 
             Spacer(minLength: 0)
@@ -1745,7 +1871,7 @@ struct EnemyIntentRowView: View {
                 .clipShape(RoundedRectangle(cornerRadius: 5))
         }
         .padding(.horizontal, 8)
-        .frame(minHeight: 38)
+        .frame(minHeight: 44)
         .background(.black.opacity(0.18))
         .clipShape(RoundedRectangle(cornerRadius: 7))
     }

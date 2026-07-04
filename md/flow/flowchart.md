@@ -39,7 +39,7 @@ flowchart TD
 
 ## 3. 战斗与敌军意图流
 
-读图说明：这张图展示战斗预览、实际攻击和敌军意图之间的关系。关键铁律是预览与结算必须一致，敌军意图只能读取和预测，不能改变状态。
+读图说明：这张图展示战斗预览、实际攻击和敌军意图之间的关系。关键铁律是预览与结算必须一致，敌军意图只能读取和预测，地图路线只是 `AIIntent` 既有字段的可视化，不能改变状态或 AI 决策。
 
 ```mermaid
 flowchart TD
@@ -54,7 +54,9 @@ flowchart TD
 
     J["敌军意图面板"] --> K["GameViewModel.enemyIntentSummaries"]
     K --> L["GameState.aiIntents(for:limit:)<br/>只读预测攻击、接敌、夺城、固守、整备、技能<br/>forecast copy 刷新行动并递减该势力冷却<br/>攻击类预计伤害来自规划态 attackPreview"]
-    L --> M["BattleView 显示地图徽标、顶部芯片、侧栏敌情"]
+    K --> M["GameViewModel.enemyIntentMapOverlays<br/>派生起点、目的地、目标格、路线段、伤害/效果文案"]
+    L --> K
+    M --> W["BattleView 地图路线、目的地叠层、目标格叠层<br/>侧栏显示来源、去向、目标和预计伤害"]
 
     N["选中有将领单位"] --> O["GameViewModel.selectedGeneralSkillPreview"]
     O --> P["GameState.generalSkillPreview<br/>只读计算范围、目标、预计恢复或削城防"]

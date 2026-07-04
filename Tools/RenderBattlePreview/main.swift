@@ -11,19 +11,30 @@ struct RenderBattlePreview {
         let height = arguments.dropFirst(2).first.flatMap(Double.init) ?? 430
         let viewModel = GameViewModel()
         viewModel.isShowingMenu = false
-        viewModel.state.units.removeAll { $0.id == "preview-carthage-adjacent" }
-        viewModel.state.units.append(
-            ArmyUnit(
-                id: "preview-carthage-adjacent",
-                kind: .archer,
-                faction: .carthage,
-                position: Position(x: 4, y: 3),
-                health: 60
-            )
-        )
+        viewModel.state.units = [
+            ArmyUnit(id: "rome-legion-1", kind: .legion, faction: .rome, position: Position(x: 3, y: 3), generalName: "凯撒", generalTrait: .eagleStandard),
+            ArmyUnit(id: "carthage-hunter", kind: .cavalry, faction: .carthage, position: Position(x: 7, y: 2))
+        ]
+        for index in viewModel.state.cities.indices where viewModel.state.cities[index].owner != .rome {
+            viewModel.state.cities[index].owner = .carthage
+        }
+        if let romeIndex = viewModel.state.cities.firstIndex(where: { $0.id == "rome" }) {
+            viewModel.state.cities[romeIndex].position = Position(x: 0, y: 0)
+        }
+        viewModel.state.resources[.carthage] = .zero
+        viewModel.state.activeFaction = .rome
         viewModel.selectedUnitID = "rome-legion-1"
         viewModel.selectedPosition = Position(x: 3, y: 3)
-        viewModel.bannerMessage = "预览战斗：选择敌军头顶徽标发起攻击。"
+        viewModel.bannerMessage = "预览战斗：敌军路线和目标叠层已显示。"
+
+        let overlays = viewModel.enemyIntentMapOverlays
+        guard let advanceOverlay = overlays.first(where: { $0.kind == .advanceAttack && $0.unitID == "carthage-hunter" }),
+              advanceOverlay.destinationPosition != advanceOverlay.originPosition,
+              advanceOverlay.targetPosition == Position(x: 3, y: 3),
+              !advanceOverlay.routeSegments.isEmpty,
+              advanceOverlay.impactLabel.contains("预计伤害") else {
+            throw PreviewRenderError.missingIntentOverlay
+        }
 
         let content = BattleView()
             .environmentObject(viewModel)
@@ -46,4 +57,5 @@ struct RenderBattlePreview {
 
 enum PreviewRenderError: Error {
     case renderFailed
+    case missingIntentOverlay
 }

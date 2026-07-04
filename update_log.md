@@ -14,12 +14,61 @@
 
 - 项目类型：原创 SwiftUI iOS 罗马题材战棋原型。
 - 核心架构：纯 Swift `RomeLegionsCore` 负责玩法规则；`GameViewModel` 负责 UI 状态和派生数据；SwiftUI 视图负责展示和命令入口。
-- 当前玩法：六边形地图、地形、城市、阵营、军团、移动、攻击、反击、占城、招募、科技、任务 requirement、战役目标、胜负结算、结束保护、外交、城市扩建、军团训练、将领任命、主动技能、技能冷却、战功状态、战术姿态、AI 回合、敌军意图预判、战局态势面板。
+- 当前玩法：六边形地图、地形、城市、阵营、军团、移动、攻击、反击、占城、招募、科技、任务 requirement、战役目标、胜负结算、结束保护、外交、城市扩建、军团训练、将领任命、主动技能、技能冷却、战功状态、战术姿态、AI 回合、敌军意图预判、敌军意图路线/目标叠层、战局态势面板。
 - 当前测试入口：Swift Testing、Gameplay Smoke、项目结构检查、SwiftUI 类型检查、战斗页预览图渲染、无签名 Xcode 构建。
 - 当前协作系统：已建立 `AGENTS.md`、`update_log.md`、`md/prompt/`、`md/test/test.md`、`md/flow/flow.md`、`md/flow/flowchart.md`，默认按 `main` 直推、GitHub Actions 云端重验证、Agent C 下载未加密结果包复判，并具备未来由 Agent X 主控调度 Agent A/B/C 多轮循环的文档基线。
 - 当前 CI 入口：`.github/workflows/ci-results.yml`，在 `main` push 和手动触发时运行结构检查、SwiftPM 测试、Gameplay Smoke 和无签名 Xcode build，并上传 CI 结果包。
 
 ## 历史记录
+
+### v0.10 / 敌军意图路线与目标地图叠层
+
+日期：2026-07-04
+
+核心变更：
+
+- `GameViewModel` 新增敌军意图 UI 派生模型，把 `AIIntent`、来源单位、目标单位和目标城市转成起点、目的地、目标格、路线段、目标文案、预计伤害/效果文案和无障碍说明。
+- `BattleView` 新增敌军意图路线层，使用 `HexMetrics.center(for:)` 绘制 `origin -> destination -> target` 可视线段，并增加目的地虚线叠层和目标格准星叠层；叠层不拦截地图点击，不改变 AI 行为。
+- 敌情侧栏行从单行摘要扩展为可换行摘要，能显示来源、路线、目标和预计伤害或效果；单位头顶意图徽标保留并补充更完整的 VoiceOver 文案。
+- Swift Testing 扩展既有 AI 意图测试，锁定直接攻击、移动后攻击和夺城意图继续提供 UI 叠层所需的 `destination`、`targetUnitID` / `targetCityID` 和 `projectedDamage` 字段，并保持预测只读。
+- Gameplay Smoke 增加直接攻击、移动后攻击和夺城意图字段轻量断言，确认 forecast 不移动原始单位、不改变状态。
+- `Tools/RenderBattlePreview` 改为确定性移动后攻击场景，渲染前断言 `enemyIntentMapOverlays` 含起点、目的地、目标格、路线段和预计伤害文案；三尺寸截图用于检查路线、目标叠层和侧栏敌情可读性。
+- README、flow、flowchart、test 文档同步敌军意图路线/目标叠层、ViewModel 派生边界和 v0.10 artifact 版本，并新增 v0.10 Agent A 提示词。
+
+关键文件：
+
+- `RomeLegionsApp/App/GameViewModel.swift`
+- `RomeLegionsApp/Views/BattleView.swift`
+- `Tests/RomeLegionsCoreTests/GameStateTests.swift`
+- `Tools/GameplaySmoke/main.swift`
+- `Tools/RenderBattlePreview/main.swift`
+- `.github/workflows/ci-results.yml`
+- `README.md`
+- `md/flow/flow.md`
+- `md/flow/flowchart.md`
+- `md/test/test.md`
+- `md/prompt/v0（玩法推进）/v0.10（敌军意图路线与目标地图叠层）.md`
+- `update_log.md`
+
+验证结果：
+
+- `env HOME=$PWD/.home CLANG_MODULE_CACHE_PATH=$PWD/.build/module-cache DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/swift test --scratch-path .build/swift-test-local --disable-sandbox`：通过，41 个 Swift Testing 用例通过；本机 SwiftPM cache 目录只读警告不影响测试结果。
+- `swiftc -swift-version 5 -module-cache-path .build/module-cache Sources/RomeLegionsCore/GameState.swift Tools/GameplaySmoke/main.swift -o .build/gameplay-smoke`：通过，无错误输出。
+- `.build/gameplay-smoke`：通过，输出 `Gameplay smoke test passed.`
+- `env HOME=$PWD/.home CLANG_MODULE_CACHE_PATH=$PWD/.build/module-cache /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/swiftc -parse-as-library -sdk /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX26.5.sdk -target arm64-apple-macosx14.0 -o .build/render-battle-preview Tools/RenderBattlePreview/main.swift Sources/RomeLegionsCore/GameState.swift RomeLegionsApp/App/GameViewModel.swift RomeLegionsApp/Views/BattleView.swift`：通过，无错误输出。
+- `.build/render-battle-preview DerivedData/battle-landscape-preview.png 932 430`：通过，短横屏预览图生成成功，敌军路线和目标叠层可辨认，右侧情报未被遮挡。
+- `.build/render-battle-preview DerivedData/battle-portrait-preview.png 390 844`：通过，竖屏预览图生成成功，地图不横向裁切，路线和目标叠层位于地图内部，信息面板无重叠。
+- `.build/render-battle-preview DerivedData/battle-wide-preview.png 1024 768`：通过，宽屏预览图生成成功，敌情面板显示接敌攻击、起点、目的地、目标和预计伤害，地图路线和目标叠层可读。
+- `git diff --check`：通过，无输出。
+- `node Tools/verify_project.mjs`：通过，输出 `Project structure verification passed.`
+- `ruby -e 'require "yaml"; YAML.load_file(".github/workflows/ci-results.yml"); puts "yaml ok"'`：通过，输出 `yaml ok`。
+- `plutil -lint RomeLegionsApp.xcodeproj/project.pbxproj`：通过，输出 `RomeLegionsApp.xcodeproj/project.pbxproj: OK`。
+
+遗留事项：
+
+- 本轮没有改变 AI 评分、目标选择、真实移动路径、`performSimpleAI` 执行顺序或战斗结算；路线叠层只是 `AIIntent` 既有字段的直线可视化。
+- 本轮没有默认本机跑完整 `xcodebuild build`；按项目规则交给 `main` push 后的 GitHub Actions 重验证。
+- Agent C 必须核对最新 `origin/main` commit 对应的 v0.10 run id、run attempt 和 artifact；不能使用 v0.9 旧结果包。
 
 ### v0.9 / 将领技能冷却与战功状态可读化
 

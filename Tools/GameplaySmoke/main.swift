@@ -62,6 +62,8 @@ do {
     let enemyIntent = intentState.aiIntents(for: .carthage, limit: 1).first
     expect(enemyIntent?.kind == .attack, "Enemy intent should predict a direct attack")
     expect(enemyIntent?.targetUnitID == "rome-target", "Enemy intent should identify the Roman target")
+    expect(enemyIntent?.destination == Position(x: 4, y: 3), "Direct intent should expose the attacker origin as destination for UI overlays")
+    expect((enemyIntent?.projectedDamage ?? 0) > 0, "Direct intent should expose projected damage")
     if let enemyIntent {
         var directIntentPreviewState = intentState
         directIntentPreviewState.activeFaction = .carthage
@@ -93,6 +95,8 @@ do {
     let advanceIntent = advanceIntentState.aiIntents(for: .carthage, limit: 4).first { $0.unitID == "carthage-hunter" }
     expect(advanceIntent?.kind == .advanceAttack, "Enemy intent should predict a move-then-attack")
     expect(advanceIntent?.targetUnitID == "rome-target", "Advance attack intent should identify the Roman target")
+    expect(advanceIntent?.destination != nil, "Advance attack intent should expose a destination for UI route overlays")
+    expect((advanceIntent?.projectedDamage ?? 0) > 0, "Advance attack intent should expose projected damage")
     if let advanceIntent, let destination = advanceIntent.destination {
         var advancePreviewState = advanceIntentState
         advancePreviewState.activeFaction = .carthage
@@ -112,6 +116,21 @@ do {
         _ = aiResolutionState.performSimpleAI(for: .carthage)
         expect(aiResolutionState.unit(withID: "rome-target")?.health == beforeHealth - advancePreview.damage, "AI resolution damage should match advance attack intent")
     }
+    expect(advanceIntentState.unit(withID: "carthage-hunter")?.position == Position(x: 7, y: 2), "Advance intent forecast should not move the source unit")
+
+    var captureIntentState = GameState.newCampaign()
+    captureIntentState.units = [
+        ArmyUnit(id: "carthage-capturer", kind: .cavalry, faction: .carthage, position: Position(x: 6, y: 2))
+    ]
+    for index in captureIntentState.cities.indices where captureIntentState.cities[index].id != "massilia" {
+        captureIntentState.cities[index].owner = .carthage
+    }
+    let captureBefore = captureIntentState
+    let captureIntent = captureIntentState.aiIntents(for: .carthage, limit: 1).first
+    expect(captureIntent?.kind == .captureCity, "Enemy intent should predict city capture")
+    expect(captureIntent?.targetCityID == "massilia", "Capture intent should identify target city")
+    expect(captureIntent?.destination == Position(x: 5, y: 2), "Capture intent should expose destination for UI route overlays")
+    expect(captureIntentState == captureBefore, "Capture intent forecast should not mutate state")
 
     var skillState = GameState.newCampaign()
     let damagedArcherIndex = skillState.units.firstIndex { $0.id == "rome-archer-1" }

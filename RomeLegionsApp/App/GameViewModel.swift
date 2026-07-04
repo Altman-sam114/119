@@ -11,6 +11,15 @@ struct FactionSituation: Identifiable {
     var id: Faction { faction }
 }
 
+struct EnemyIntentRouteSegment: Identifiable {
+    var id: String
+    var from: Position
+    var to: Position
+    var kind: AIIntentKind
+    var isTargetLeg: Bool
+    var isHighThreat: Bool
+}
+
 struct EnemyIntentSummary: Identifiable {
     var intent: AIIntent
     var unit: ArmyUnit
@@ -61,20 +70,14 @@ struct EnemyIntentSummary: Identifiable {
     }
 
     var detail: String {
-        var parts = ["\(unit.faction.displayName)\(unit.kind.displayName)"]
+        var parts = [actorLabel, routeDetail, impactLabel]
+
+        if targetPosition != nil {
+            parts.insert(targetLabel, at: 2)
+        }
 
         if let generalName = unit.generalName {
             parts.append(generalName)
-        }
-
-        if let projectedDamage = intent.projectedDamage {
-            parts.append("伤害\(projectedDamage)")
-        } else if intent.kind == .useSkill, let targetCity {
-            parts.append("目标\(targetCity.name)")
-        } else if intent.kind == .useSkill, let targetUnit {
-            parts.append("支援\(targetUnit.kind.displayName)")
-        } else if let destination = intent.destination, destination != unit.position {
-            parts.append("前往\(destination.description)")
         }
 
         if intent.tacticalOrder != .balanced {
@@ -130,11 +133,144 @@ struct EnemyIntentSummary: Identifiable {
         isHighThreat ? "高威胁" : "监视"
     }
 
+    var actorLabel: String {
+        "\(unit.faction.displayName)\(unit.kind.displayName)"
+    }
+
+    var originPosition: Position {
+        unit.position
+    }
+
+    var originLabel: String {
+        "起点\(originPosition.description)"
+    }
+
+    var destinationPosition: Position {
+        intent.destination ?? unit.position
+    }
+
+    var destinationLabel: String {
+        if destinationPosition == originPosition {
+            return "原地\(destinationPosition.description)"
+        }
+
+        return "目的地\(destinationPosition.description)"
+    }
+
+    var targetPosition: Position? {
+        targetUnit?.position ?? targetCity?.position
+    }
+
+    var targetLabel: String {
+        if let targetUnit {
+            return "目标\(targetUnit.faction.displayName)\(targetUnit.kind.displayName)"
+        }
+
+        if let targetCity {
+            return "目标\(targetCity.name)"
+        }
+
+        return "无目标"
+    }
+
+    var impactLabel: String {
+        if let projectedDamage = intent.projectedDamage {
+            return "预计伤害\(projectedDamage)"
+        }
+
+        switch intent.kind {
+        case .attack, .advanceAttack:
+            return "压制目标"
+        case .captureCity:
+            return targetCity.map { "夺取\($0.name)" } ?? "夺取城市"
+        case .advance:
+            return targetCity.map { "逼近\($0.name)" } ?? "逼近战线"
+        case .defend:
+            return targetCity.map { "固守\($0.name)" } ?? "原地固守"
+        case .regroup:
+            return "整备恢复"
+        case .useSkill:
+            if let targetCity {
+                return "技能压制\(targetCity.name)"
+            }
+            if let targetUnit {
+                return "技能支援\(targetUnit.faction.displayName)\(targetUnit.kind.displayName)"
+            }
+            return "准备技能"
+        }
+    }
+
+    var routeDetail: String {
+        if let targetPosition {
+            return "\(originLabel) -> \(destinationLabel) -> 目标\(targetPosition.description)"
+        }
+
+        return "\(originLabel) -> \(destinationLabel)"
+    }
+
+    var routeSegments: [EnemyIntentRouteSegment] {
+        var segments: [EnemyIntentRouteSegment] = []
+
+        if originPosition != destinationPosition {
+            segments.append(
+                EnemyIntentRouteSegment(
+                    id: "\(id)-move",
+                    from: originPosition,
+                    to: destinationPosition,
+                    kind: intent.kind,
+                    isTargetLeg: false,
+                    isHighThreat: isHighThreat
+                )
+            )
+        }
+
+        if let targetPosition, targetPosition != destinationPosition {
+            segments.append(
+                EnemyIntentRouteSegment(
+                    id: "\(id)-target",
+                    from: destinationPosition,
+                    to: targetPosition,
+                    kind: intent.kind,
+                    isTargetLeg: true,
+                    isHighThreat: isHighThreat
+                )
+            )
+        }
+
+        return segments
+    }
+
     var isHighThreat: Bool {
         intent.kind == .attack ||
             intent.kind == .advanceAttack ||
             intent.kind == .captureCity ||
             intent.threatScore >= 420
+    }
+}
+
+struct EnemyIntentMapOverlay: Identifiable {
+    var summary: EnemyIntentSummary
+
+    var id: String { summary.id }
+    var unitID: String { summary.unit.id }
+    var kind: AIIntentKind { summary.intent.kind }
+    var originPosition: Position { summary.originPosition }
+    var destinationPosition: Position { summary.destinationPosition }
+    var targetPosition: Position? { summary.targetPosition }
+    var targetLabel: String { summary.targetLabel }
+    var impactLabel: String { summary.impactLabel }
+    var routeSegments: [EnemyIntentRouteSegment] { summary.routeSegments }
+    var isHighThreat: Bool { summary.isHighThreat }
+
+    var showsDestinationMarker: Bool {
+        destinationPosition != originPosition ||
+            kind == .advanceAttack ||
+            kind == .advance ||
+            kind == .captureCity
+    }
+
+    var accessibilityLabel: String {
+        "\(summary.actorLabel)，\(summary.routeDetail)，\(summary.targetLabel)，\(summary.impactLabel)"
     }
 }
 
@@ -321,6 +457,32 @@ final class GameViewModel: ObservableObject {
 
     func enemyIntentSummary(for unitID: String) -> EnemyIntentSummary? {
         enemyIntentSummaries.first { $0.unit.id == unitID }
+    }
+
+    var enemyIntentMapOverlays: [EnemyIntentMapOverlay] {
+        enemyIntentMapOverlays(for: enemyIntentSummaries)
+    }
+
+    func enemyIntentMapOverlays(for summaries: [EnemyIntentSummary]) -> [EnemyIntentMapOverlay] {
+        summaries.prefix(4).map { EnemyIntentMapOverlay(summary: $0) }
+    }
+
+    func enemyIntentDestinationOverlays(for overlays: [EnemyIntentMapOverlay]) -> [Position: EnemyIntentMapOverlay] {
+        overlays.reduce(into: [Position: EnemyIntentMapOverlay]()) { result, overlay in
+            guard overlay.showsDestinationMarker else { return }
+            if result[overlay.destinationPosition] == nil {
+                result[overlay.destinationPosition] = overlay
+            }
+        }
+    }
+
+    func enemyIntentTargetOverlays(for overlays: [EnemyIntentMapOverlay]) -> [Position: EnemyIntentMapOverlay] {
+        overlays.reduce(into: [Position: EnemyIntentMapOverlay]()) { result, overlay in
+            guard let targetPosition = overlay.targetPosition else { return }
+            if result[targetPosition] == nil {
+                result[targetPosition] = overlay
+            }
+        }
     }
 
     var selectedSupplyLabel: String {

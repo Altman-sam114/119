@@ -480,6 +480,8 @@ import Testing
     #expect(intent?.kind == .attack)
     #expect(intent?.unitID == "carthage-hunter")
     #expect(intent?.targetUnitID == "rome-target")
+    #expect(intent?.targetCityID == nil)
+    #expect(intent?.destination == Position(x: 4, y: 3))
     #expect((intent?.projectedDamage ?? 0) > 0)
     #expect(intent?.tacticalOrder == .assault)
 
@@ -524,6 +526,7 @@ import Testing
     #expect(intent?.kind == .advanceAttack)
     #expect(intent?.unitID == "carthage-hunter")
     #expect(intent?.targetUnitID == "rome-target")
+    #expect(intent?.targetCityID == nil)
     #expect(intent?.destination != nil)
     #expect((intent?.projectedDamage ?? 0) > 0)
 
@@ -566,14 +569,17 @@ import Testing
     for index in state.cities.indices where state.cities[index].id != "massilia" {
         state.cities[index].owner = .carthage
     }
+    let before = state
 
     let intents = state.aiIntents(for: .carthage, limit: 1)
     let intent = intents.first
 
     #expect(intent?.kind == .captureCity)
     #expect(intent?.unitID == "carthage-capturer")
+    #expect(intent?.targetUnitID == nil)
     #expect(intent?.targetCityID == "massilia")
     #expect(intent?.destination == Position(x: 5, y: 2))
+    #expect(state == before)
 }
 
 @Test func aiRecruitsWhenBelowTargetForce() {
