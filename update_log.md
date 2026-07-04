@@ -21,6 +21,57 @@
 
 ## 历史记录
 
+### v0.8 / 将领技能范围与目标预览体验
+
+日期：2026-07-04
+
+核心变更：
+
+- 新增 `GeneralSkillPreview` 只读模型，统一描述将领主动技能的范围格、受影响友军/敌城、预计恢复量、预计城防削弱、可执行状态、不可用原因和 UI 摘要。
+- `useGeneralSkill(unitID:)` 改为先生成技能预览，再复用预览中的目标 ID 执行治疗或削城防，避免预览和结算使用两套目标筛选逻辑。
+- AI 主动技能判断和 `.useSkill` 意图复用技能预览；攻城技能继续填目标城市，治疗类技能填主要受益友军。
+- `GameViewModel` 新增选中将领技能预览、范围格、目标格、目标单位/城市集合和技能按钮摘要等 UI 派生数据。
+- `BattleView` 新增技能范围青色虚线叠层、技能目标金色叠层，并在将领卡、紧凑情报面板和军令按钮展示范围、目标数、预计效果或不可用原因。
+- Swift Testing 增加将领技能预览相关基线，覆盖预览只读、鹰旗/军需/盾墙恢复预览与释放一致、攻城预览与释放一致、攻城无目标不可执行、AI 技能意图目标来自预览。
+- Gameplay Smoke 增加将领技能预览不改状态、恢复预览和攻城预览与释放结果一致的轻量断言。
+- README、flow、flowchart、test 文档同步将领技能预览链路，并将 CI artifact 版本同步到 v0.8。
+- 新增 v0.8 Agent A 提示词，明确本轮技能预览目标、UI 边界、测试和 Agent C 云端复判要求。
+
+关键文件：
+
+- `Sources/RomeLegionsCore/GameState.swift`
+- `RomeLegionsApp/App/GameViewModel.swift`
+- `RomeLegionsApp/Views/BattleView.swift`
+- `Tests/RomeLegionsCoreTests/GameStateTests.swift`
+- `Tools/GameplaySmoke/main.swift`
+- `.github/workflows/ci-results.yml`
+- `README.md`
+- `md/flow/flow.md`
+- `md/flow/flowchart.md`
+- `md/test/test.md`
+- `md/prompt/v0（玩法推进）/v0.8（将领技能范围与目标预览体验）.md`
+- `update_log.md`
+
+验证结果：
+
+- `env HOME=$PWD/.home CLANG_MODULE_CACHE_PATH=$PWD/.build/module-cache DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/swift test --scratch-path .build/swift-test-local --disable-sandbox`：通过，35 个 Swift Testing 用例通过；本机 SwiftPM cache 目录只读警告不影响测试结果。
+- `swiftc -swift-version 5 -module-cache-path .build/module-cache Sources/RomeLegionsCore/GameState.swift Tools/GameplaySmoke/main.swift -o .build/gameplay-smoke`：通过，无错误输出。
+- `.build/gameplay-smoke`：通过，输出 `Gameplay smoke test passed.`
+- `env HOME=$PWD/.home CLANG_MODULE_CACHE_PATH=$PWD/.build/module-cache /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/swiftc -parse-as-library -sdk /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX26.5.sdk -target arm64-apple-macosx14.0 -o .build/render-battle-preview Tools/RenderBattlePreview/main.swift Sources/RomeLegionsCore/GameState.swift RomeLegionsApp/App/GameViewModel.swift RomeLegionsApp/Views/BattleView.swift`：通过，无错误输出。
+- `.build/render-battle-preview DerivedData/battle-landscape-preview.png 932 430`：通过，短横屏预览图生成成功，地图完整可见，技能范围/目标叠层和侧栏摘要可读。
+- `.build/render-battle-preview DerivedData/battle-portrait-preview.png 390 844`：通过，竖屏预览图生成成功，地图不横向裁切，技能叠层不遮断主要操作。
+- `.build/render-battle-preview DerivedData/battle-wide-preview.png 1024 768`：通过，宽屏预览图生成成功，将领卡展示范围、友军目标数和技能状态。
+- `git diff --check`：通过，无输出。
+- `node Tools/verify_project.mjs`：通过，输出 `Project structure verification passed.`
+- `ruby -e 'require "yaml"; YAML.load_file(".github/workflows/ci-results.yml"); puts "yaml ok"'`：通过，输出 `yaml ok`。
+- `plutil -lint RomeLegionsApp.xcodeproj/project.pbxproj`：通过，输出 `RomeLegionsApp.xcodeproj/project.pbxproj: OK`。
+
+遗留事项：
+
+- 本轮没有新增将领、技能冷却、升级树或手动点选技能目标；后续仍可继续扩展将领详情和成长系统。
+- 本轮没有默认本机跑完整 `xcodebuild build`；按项目规则交给 `main` push 后的 GitHub Actions 重验证。
+- Agent C 必须核对最新 `origin/main` commit 对应的 v0.8 run id、run attempt 和 artifact；不能使用 v0.7 旧结果包。
+
 ### v0.7 / AI 意图与移动后攻击预览一致性
 
 日期：2026-07-04

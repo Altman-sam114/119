@@ -55,6 +55,12 @@ flowchart TD
     J["敌军意图面板"] --> K["GameViewModel.enemyIntentSummaries"]
     K --> L["GameState.aiIntents(for:limit:)<br/>只读预测攻击、接敌、夺城、固守、整备、技能<br/>攻击类预计伤害来自规划态 attackPreview"]
     L --> M["BattleView 显示地图徽标、顶部芯片、侧栏敌情"]
+
+    N["选中有将领单位"] --> O["GameViewModel.selectedGeneralSkillPreview"]
+    O --> P["GameState.generalSkillPreview<br/>只读计算范围、目标、预计恢复或削城防"]
+    P --> Q["BattleView 显示技能范围和目标叠层<br/>将领卡与军令按钮展示摘要"]
+    Q --> R["玩家发动技能"]
+    R --> S["GameState.useGeneralSkill<br/>复用预览目标筛选并消耗行动"]
 ```
 
 ## 4. 任务与胜负结算流

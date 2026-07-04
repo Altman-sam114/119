@@ -119,7 +119,7 @@ on:
 artifact 命名规则：
 
 ```text
-RomeLegions-ci-v0.7-main-<short_sha>-run<run_id>-attempt<run_attempt>
+RomeLegions-ci-v0.8-main-<short_sha>-run<run_id>-attempt<run_attempt>
 ```
 
 `ci-artifact-manifest.json` 必须至少包含：
@@ -235,7 +235,7 @@ swiftc -swift-version 5 -module-cache-path .build/module-cache Sources/RomeLegio
 当前基线：
 
 - 应输出 `Gameplay smoke test passed.`
-- 覆盖占城、招募、科技、训练、将领、战术姿态、战斗修正、AI 意图 projectedDamage 与移动后攻击预览一致性、主动技能、外交、回合推进、战役胜利、战役失败和结束后回合保护。
+- 覆盖占城、招募、科技、训练、将领、战术姿态、战斗修正、AI 意图 projectedDamage 与移动后攻击预览一致性、主动技能预览与结算一致性、外交、回合推进、战役胜利、战役失败和结束后回合保护。
 
 ### Stage Regression
 
@@ -255,8 +255,8 @@ env HOME=$PWD/.home CLANG_MODULE_CACHE_PATH=$PWD/.build/module-cache DEVELOPER_D
 
 当前基线：
 
-- `Tests/RomeLegionsCoreTests/GameStateTests.swift` 当前包含 32 个 Swift Testing 用例。
-- 基线覆盖地形移动、占城、攻击、预览结算一致性、招募、科技重复保护、城市扩建、训练、将领、战术姿态、支援/包夹/指挥/守军支援、主动技能、外交保护、回合收入、跳过单位、AI 攻击、AI 意图、AI 移动后攻击 projectedDamage 与规划态预览一致性、AI 招募、任务 requirement、奖励幂等、战役胜利、战役失败、结束保护、AI 结束后停止和 Codable 兼容。
+- `Tests/RomeLegionsCoreTests/GameStateTests.swift` 当前包含 35 个 Swift Testing 用例。
+- 基线覆盖地形移动、占城、攻击、预览结算一致性、招募、科技重复保护、城市扩建、训练、将领、战术姿态、支援/包夹/指挥/守军支援、主动技能预览与释放一致性、攻城无目标预览、AI 技能意图目标、外交保护、回合收入、跳过单位、AI 攻击、AI 意图、AI 移动后攻击 projectedDamage 与规划态预览一致性、AI 招募、任务 requirement、奖励幂等、战役胜利、战役失败、结束保护、AI 结束后停止和 Codable 兼容。
 
 ### Full
 

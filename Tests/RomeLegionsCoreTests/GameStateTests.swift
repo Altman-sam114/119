@@ -191,13 +191,54 @@ import Testing
     state.units[damagedArcherIndex!].position = Position(x: 4, y: 3)
     state.units[damagedArcherIndex!].health = 30
 
+    let beforePreview = state
+    let preview = try state.generalSkillPreview(unitID: "rome-legion-1")
+    #expect(state == beforePreview)
+    #expect(preview.trait == .eagleStandard)
+    #expect(preview.isExecutable)
+    #expect(preview.rangePositions.contains(Position(x: 4, y: 3)))
+    #expect(preview.affectedUnitIDs == ["rome-archer-1"])
+    #expect(preview.projectedRecoveredHealth == 12)
+
     let beforeExperience = state.unit(withID: "rome-legion-1")?.experience ?? 0
     let messages = try state.useGeneralSkill(unitID: "rome-legion-1")
 
-    #expect((state.unit(withID: "rome-archer-1")?.health ?? 0) == 42)
+    #expect((state.unit(withID: "rome-archer-1")?.health ?? 0) == 30 + preview.projectedRecoveredHealth)
     #expect((state.unit(withID: "rome-legion-1")?.experience ?? 0) == beforeExperience + 1)
     #expect(state.unit(withID: "rome-legion-1")?.hasActed == true)
     #expect(messages.contains { $0.contains("鹰旗鼓舞") })
+}
+
+@Test func quartermasterAndShieldWallSkillPreviewsMatchRecovery() throws {
+    var quartermasterState = GameState.newCampaign()
+    quartermasterState.units = [
+        ArmyUnit(id: "quartermaster", kind: .legion, faction: .rome, position: Position(x: 3, y: 3), generalName: "阿格里帕", generalTrait: .quartermaster),
+        ArmyUnit(id: "near-ally", kind: .cavalry, faction: .rome, position: Position(x: 5, y: 3), health: 40),
+        ArmyUnit(id: "far-ally", kind: .archer, faction: .rome, position: Position(x: 7, y: 3), health: 20)
+    ]
+
+    let quartermasterPreview = try quartermasterState.generalSkillPreview(unitID: "quartermaster")
+    #expect(quartermasterPreview.trait == .quartermaster)
+    #expect(quartermasterPreview.affectedUnitIDs == ["near-ally"])
+    #expect(quartermasterPreview.projectedRecoveredHealth == 22)
+
+    _ = try quartermasterState.useGeneralSkill(unitID: "quartermaster")
+    #expect(quartermasterState.unit(withID: "near-ally")?.health == 62)
+    #expect(quartermasterState.unit(withID: "far-ally")?.health == 20)
+
+    var shieldWallState = GameState.newCampaign()
+    shieldWallState.units = [
+        ArmyUnit(id: "shield", kind: .legion, faction: .rome, position: Position(x: 3, y: 3), generalName: "马略", generalTrait: .shieldWall),
+        ArmyUnit(id: "adjacent-ally", kind: .archer, faction: .rome, position: Position(x: 4, y: 3), health: 36)
+    ]
+
+    let shieldPreview = try shieldWallState.generalSkillPreview(unitID: "shield")
+    #expect(shieldPreview.trait == .shieldWall)
+    #expect(shieldPreview.affectedUnitIDs == ["adjacent-ally"])
+    #expect(shieldPreview.projectedRecoveredHealth == 14)
+
+    _ = try shieldWallState.useGeneralSkill(unitID: "shield")
+    #expect(shieldWallState.unit(withID: "adjacent-ally")?.health == 50)
 }
 
 @Test func siegeEngineerSkillReducesEnemyCityFortification() throws {
@@ -206,11 +247,60 @@ import Testing
         ArmyUnit(id: "test-siege", kind: .legion, faction: .rome, position: Position(x: 7, y: 2), generalName: "苏拉", generalTrait: .siegeEngineer)
     ]
     let before = state.city(withID: "alesia")?.fortification ?? 0
+    let beforePreview = state
+
+    let preview = try state.generalSkillPreview(unitID: "test-siege")
+
+    #expect(state == beforePreview)
+    #expect(preview.trait == .siegeEngineer)
+    #expect(preview.isExecutable)
+    #expect(preview.affectedCityIDs == ["alesia"])
+    #expect(preview.projectedFortificationReduction == 4)
 
     _ = try state.useGeneralSkill(unitID: "test-siege")
 
-    #expect((state.city(withID: "alesia")?.fortification ?? 0) == before - 4)
+    #expect((state.city(withID: "alesia")?.fortification ?? 0) == before - preview.projectedFortificationReduction)
     #expect(state.unit(withID: "test-siege")?.hasActed == true)
+}
+
+@Test func siegeEngineerPreviewReportsNoTargetWithoutChangingSkillError() throws {
+    var state = GameState.newCampaign()
+    state.units = [
+        ArmyUnit(id: "test-siege", kind: .legion, faction: .rome, position: Position(x: 3, y: 3), generalName: "苏拉", generalTrait: .siegeEngineer)
+    ]
+
+    for index in state.cities.indices where state.cities[index].owner != .rome {
+        state.cities[index].fortification = 1
+    }
+
+    let preview = try state.generalSkillPreview(unitID: "test-siege")
+
+    #expect(!preview.isExecutable)
+    #expect(preview.blockedReason == "范围内没有可削弱敌城")
+    #expect(preview.affectedCityIDs.isEmpty)
+    #expect(preview.projectedFortificationReduction == 0)
+    #expect(throws: GameRuleError.invalidTarget) {
+        try state.useGeneralSkill(unitID: "test-siege")
+    }
+}
+
+@Test func aiUseSkillIntentTargetsGeneralSkillPreview() throws {
+    var state = GameState.newCampaign()
+    state.units = [
+        ArmyUnit(id: "rome-observer", kind: .legion, faction: .rome, position: Position(x: 0, y: 0)),
+        ArmyUnit(id: "carthage-quartermaster", kind: .legion, faction: .carthage, position: Position(x: 6, y: 3), generalName: "阿格里帕", generalTrait: .quartermaster),
+        ArmyUnit(id: "carthage-wounded", kind: .cavalry, faction: .carthage, position: Position(x: 5, y: 3), health: 30)
+    ]
+    state.activeFaction = .rome
+    let before = state
+    let preview = try state.generalSkillPreview(unitID: "carthage-quartermaster")
+
+    let intent = state.aiIntents(for: .carthage, limit: 2).first { $0.unitID == "carthage-quartermaster" }
+
+    #expect(intent?.kind == .useSkill)
+    #expect(intent?.targetUnitID == "carthage-wounded")
+    #expect(preview.affectedUnitIDs.contains(intent?.targetUnitID ?? ""))
+    #expect(state == before)
 }
 
 @Test func envoyCanCreateTreatyAndBlockAttack() throws {

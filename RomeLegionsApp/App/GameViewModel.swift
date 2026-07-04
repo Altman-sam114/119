@@ -49,7 +49,14 @@ struct EnemyIntentSummary: Identifiable {
             return "休整补给"
 
         case .useSkill:
-            return unit.resolvedGeneralTrait?.skillName ?? intent.kind.displayName
+            let skillName = unit.resolvedGeneralTrait?.skillName ?? intent.kind.displayName
+            if let targetCity {
+                return "\(skillName) \(targetCity.name)"
+            }
+            if let targetUnit {
+                return "\(skillName) \(targetUnit.kind.displayName)"
+            }
+            return skillName
         }
     }
 
@@ -62,6 +69,10 @@ struct EnemyIntentSummary: Identifiable {
 
         if let projectedDamage = intent.projectedDamage {
             parts.append("伤害\(projectedDamage)")
+        } else if intent.kind == .useSkill, let targetCity {
+            parts.append("目标\(targetCity.name)")
+        } else if intent.kind == .useSkill, let targetUnit {
+            parts.append("支援\(targetUnit.kind.displayName)")
         } else if let destination = intent.destination, destination != unit.position {
             parts.append("前往\(destination.description)")
         }
@@ -350,6 +361,32 @@ final class GameViewModel: ObservableObject {
         return try? state.attackPreview(attackerID: selectedUnitID, defenderID: defenderID)
     }
 
+    var selectedGeneralSkillPreview: GeneralSkillPreview? {
+        guard let selectedUnitID = selectedUnitID else { return nil }
+        return try? state.generalSkillPreview(unitID: selectedUnitID)
+    }
+
+    var selectedGeneralSkillRangePositions: Set<Position> {
+        Set(selectedGeneralSkillPreview?.rangePositions ?? [])
+    }
+
+    var selectedGeneralSkillTargetPositions: Set<Position> {
+        Set(selectedGeneralSkillPreview?.affectedPositions ?? [])
+    }
+
+    var selectedGeneralSkillTargetUnitIDs: Set<String> {
+        Set(selectedGeneralSkillPreview?.affectedUnitIDs ?? [])
+    }
+
+    var selectedGeneralSkillTargetCityIDs: Set<String> {
+        Set(selectedGeneralSkillPreview?.affectedCityIDs ?? [])
+    }
+
+    var selectedGeneralSkillButtonDetail: String? {
+        guard let preview = selectedGeneralSkillPreview else { return nil }
+        return preview.blockedReason ?? preview.summary
+    }
+
     var canSkipSelectedUnit: Bool {
         guard !isCampaignOver else { return false }
         guard let selectedUnit else { return false }
@@ -358,11 +395,9 @@ final class GameViewModel: ObservableObject {
 
     var canUseSelectedGeneralSkill: Bool {
         guard !isCampaignOver else { return false }
-        guard let selectedUnit else { return false }
-        return selectedUnit.faction == state.activeFaction &&
-            selectedUnit.generalName != nil &&
-            selectedUnit.resolvedGeneralTrait != nil &&
-            !selectedUnit.hasActed
+        guard selectedUnit != nil,
+              let preview = selectedGeneralSkillPreview else { return false }
+        return preview.isExecutable
     }
 
     func canSetSelectedTacticalOrder(_ order: TacticalOrder) -> Bool {

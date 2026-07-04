@@ -465,6 +465,13 @@ public enum GeneralTrait: String, CaseIterable, Codable, Identifiable, Hashable,
         }
     }
 
+    public var fortificationReductionAmount: Int {
+        switch self {
+        case .siegeEngineer: return 4
+        case .eagleStandard, .quartermaster, .shieldWall: return 0
+        }
+    }
+
     public static func defaultTrait(forName name: String?) -> GeneralTrait? {
         guard let name else { return nil }
 
@@ -480,6 +487,55 @@ public enum GeneralTrait: String, CaseIterable, Codable, Identifiable, Hashable,
         default:
             return .eagleStandard
         }
+    }
+}
+
+public struct GeneralSkillPreview: Codable, Equatable, Sendable {
+    public var unitID: String
+    public var trait: GeneralTrait
+    public var origin: Position
+    public var range: Int
+    public var rangePositions: [Position]
+    public var affectedUnitIDs: [String]
+    public var affectedCityIDs: [String]
+    public var affectedPositions: [Position]
+    public var projectedRecoveredHealth: Int
+    public var projectedFortificationReduction: Int
+    public var isExecutable: Bool
+    public var blockedReason: String?
+    public var summary: String
+    public var detail: String
+
+    public init(
+        unitID: String,
+        trait: GeneralTrait,
+        origin: Position,
+        range: Int,
+        rangePositions: [Position],
+        affectedUnitIDs: [String],
+        affectedCityIDs: [String],
+        affectedPositions: [Position],
+        projectedRecoveredHealth: Int,
+        projectedFortificationReduction: Int,
+        isExecutable: Bool,
+        blockedReason: String?,
+        summary: String,
+        detail: String
+    ) {
+        self.unitID = unitID
+        self.trait = trait
+        self.origin = origin
+        self.range = range
+        self.rangePositions = rangePositions
+        self.affectedUnitIDs = affectedUnitIDs
+        self.affectedCityIDs = affectedCityIDs
+        self.affectedPositions = affectedPositions
+        self.projectedRecoveredHealth = projectedRecoveredHealth
+        self.projectedFortificationReduction = projectedFortificationReduction
+        self.isExecutable = isExecutable
+        self.blockedReason = blockedReason
+        self.summary = summary
+        self.detail = detail
     }
 }
 
@@ -1197,6 +1253,19 @@ public struct GameState: Codable, Equatable, Sendable {
             .first
     }
 
+    public func generalSkillPreview(unitID: String) throws -> GeneralSkillPreview {
+        guard let commander = unit(withID: unitID) else {
+            throw GameRuleError.missingEntity
+        }
+
+        guard commander.generalName != nil,
+              commander.resolvedGeneralTrait != nil else {
+            throw GameRuleError.generalSkillUnavailable
+        }
+
+        return generalSkillPreview(for: commander)
+    }
+
     public func aiIntents(for faction: Faction, limit: Int = 4) -> [AIIntent] {
         guard faction != .neutral else {
             return []
@@ -1502,26 +1571,25 @@ public struct GameState: Codable, Equatable, Sendable {
             throw GameRuleError.generalSkillUnavailable
         }
 
-        let commander = units[commanderIndex]
+        let preview = try generalSkillPreview(unitID: unitID)
         var messages: [String]
 
         switch trait {
         case .eagleStandard:
             let recovered = recoverFriendlyUnits(
-                faction: commander.faction,
-                around: commander.position,
-                range: trait.commandRange,
+                unitIDs: preview.affectedUnitIDs,
                 amount: trait.recoveryAmount
             )
             units[commanderIndex].experience += 1
             messages = ["\(generalName)发动\(trait.skillName)，\(recovered.messageFragment)，鹰旗声望提升。"]
 
         case .siegeEngineer:
+            guard preview.isExecutable else {
+                throw GameRuleError.invalidTarget
+            }
             let affectedCities = reduceEnemyFortifications(
-                around: commander.position,
-                faction: commander.faction,
-                range: trait.commandRange,
-                amount: 4
+                cityIDs: preview.affectedCityIDs,
+                amount: trait.fortificationReductionAmount
             )
             guard !affectedCities.isEmpty else {
                 throw GameRuleError.invalidTarget
@@ -1530,9 +1598,7 @@ public struct GameState: Codable, Equatable, Sendable {
 
         case .quartermaster, .shieldWall:
             let recovered = recoverFriendlyUnits(
-                faction: commander.faction,
-                around: commander.position,
-                range: trait.commandRange,
+                unitIDs: preview.affectedUnitIDs,
                 amount: trait.recoveryAmount
             )
             messages = ["\(generalName)发动\(trait.skillName)，\(recovered.messageFragment)。"]
@@ -1892,17 +1958,170 @@ public struct GameState: Codable, Equatable, Sendable {
             }
     }
 
-    private mutating func recoverFriendlyUnits(
-        faction: Faction,
-        around origin: Position,
+    private func generalSkillPreview(for commander: ArmyUnit) -> GeneralSkillPreview {
+        guard let trait = commander.resolvedGeneralTrait else {
+            return GeneralSkillPreview(
+                unitID: commander.id,
+                trait: .eagleStandard,
+                origin: commander.position,
+                range: 0,
+                rangePositions: [],
+                affectedUnitIDs: [],
+                affectedCityIDs: [],
+                affectedPositions: [],
+                projectedRecoveredHealth: 0,
+                projectedFortificationReduction: 0,
+                isExecutable: false,
+                blockedReason: "该单位没有可用将领技能",
+                summary: "无可用技能",
+                detail: "该单位没有可用将领技能"
+            )
+        }
+
+        let range = trait.commandRange
+        let rangePositions = positions(inRange: range, around: commander.position)
+        let recoveryTargets = recoveryTargets(for: commander, range: range, amount: trait.recoveryAmount)
+        let fortificationTargets = fortificationTargets(
+            around: commander.position,
+            faction: commander.faction,
+            range: range,
+            amount: trait.fortificationReductionAmount
+        )
+        let affectedUnitIDs = recoveryTargets.map { $0.id }
+        let affectedCityIDs = fortificationTargets.map { $0.id }
+        let projectedRecoveredHealth = recoveryTargets.reduce(0) { $0 + $1.recoveredHealth }
+        let projectedFortificationReduction = fortificationTargets.reduce(0) { $0 + $1.reduction }
+
+        let blockedReason: String?
+        if campaignStatus.isGameOver {
+            blockedReason = "战役已结束"
+        } else if commander.faction != activeFaction {
+            blockedReason = "非当前行动势力"
+        } else if commander.hasActed {
+            blockedReason = "本回合已行动"
+        } else if trait == .siegeEngineer && fortificationTargets.isEmpty {
+            blockedReason = "范围内没有可削弱敌城"
+        } else {
+            blockedReason = nil
+        }
+
+        let summary: String
+        switch trait {
+        case .siegeEngineer:
+            if fortificationTargets.isEmpty {
+                summary = "范围内没有可削弱敌城"
+            } else {
+                summary = "削弱 \(fortificationTargets.count) 座敌城共 \(projectedFortificationReduction) 城防"
+            }
+
+        case .eagleStandard, .quartermaster, .shieldWall:
+            if recoveryTargets.isEmpty {
+                summary = "阵线已满员"
+            } else {
+                summary = "恢复 \(recoveryTargets.count) 支友军共 \(projectedRecoveredHealth) 生命"
+            }
+        }
+
+        let affectedPositions = sortedPositions(Array(Set(recoveryTargets.map { $0.position } + fortificationTargets.map { $0.position })))
+        let detailParts = [
+            "范围 \(range)",
+            summary,
+            blockedReason.map { "不可用：\($0)" }
+        ].compactMap { $0 }
+
+        return GeneralSkillPreview(
+            unitID: commander.id,
+            trait: trait,
+            origin: commander.position,
+            range: range,
+            rangePositions: rangePositions,
+            affectedUnitIDs: affectedUnitIDs,
+            affectedCityIDs: affectedCityIDs,
+            affectedPositions: affectedPositions,
+            projectedRecoveredHealth: projectedRecoveredHealth,
+            projectedFortificationReduction: projectedFortificationReduction,
+            isExecutable: blockedReason == nil,
+            blockedReason: blockedReason,
+            summary: summary,
+            detail: detailParts.joined(separator: " · ")
+        )
+    }
+
+    private func positions(inRange range: Int, around origin: Position) -> [Position] {
+        sortedPositions(tiles.map(\.position).filter { $0.hexDistance(to: origin) <= range })
+    }
+
+    private func sortedPositions(_ positions: [Position]) -> [Position] {
+        positions.sorted { left, right in
+            if left.y == right.y {
+                return left.x < right.x
+            }
+            return left.y < right.y
+        }
+    }
+
+    private func recoveryTargets(
+        for commander: ArmyUnit,
         range: Int,
+        amount: Int
+    ) -> [(id: String, position: Position, recoveredHealth: Int)] {
+        units.compactMap { unit in
+            let candidate = unit.id == commander.id ? commander : unit
+            guard candidate.faction == commander.faction,
+                  candidate.position.hexDistance(to: commander.position) <= range,
+                  candidate.health < candidate.kind.maxHealth else {
+                return nil
+            }
+
+            return (
+                id: candidate.id,
+                position: candidate.position,
+                recoveredHealth: min(amount, candidate.kind.maxHealth - candidate.health)
+            )
+        }
+    }
+
+    private func fortificationTargets(
+        around origin: Position,
+        faction: Faction,
+        range: Int,
+        amount: Int
+    ) -> [(id: String, name: String, position: Position, reduction: Int)] {
+        cities.compactMap { city in
+            guard city.owner != faction,
+                  city.owner != .neutral,
+                  diplomaticStatus(between: faction, and: city.owner) == .war,
+                  city.position.hexDistance(to: origin) <= range,
+                  city.fortification > 1 else {
+                return nil
+            }
+
+            return (
+                id: city.id,
+                name: city.name,
+                position: city.position,
+                reduction: min(amount, city.fortification - 1)
+            )
+        }
+        .sorted { left, right in
+            let leftDistance = left.position.hexDistance(to: origin)
+            let rightDistance = right.position.hexDistance(to: origin)
+            if leftDistance == rightDistance {
+                return left.id < right.id
+            }
+            return leftDistance < rightDistance
+        }
+    }
+
+    private mutating func recoverFriendlyUnits(
+        unitIDs: [String],
         amount: Int
     ) -> (unitCount: Int, health: Int, messageFragment: String) {
         var recoveredUnitCount = 0
         var recoveredHealth = 0
 
-        for index in units.indices where units[index].faction == faction {
-            guard units[index].position.hexDistance(to: origin) <= range,
+        for unitID in unitIDs {
+            guard let index = units.firstIndex(where: { $0.id == unitID }),
                   units[index].health < units[index].kind.maxHealth else {
                 continue
             }
@@ -1921,18 +2140,13 @@ public struct GameState: Codable, Equatable, Sendable {
     }
 
     private mutating func reduceEnemyFortifications(
-        around origin: Position,
-        faction: Faction,
-        range: Int,
+        cityIDs: [String],
         amount: Int
     ) -> [String] {
         var affectedCities: [String] = []
 
-        for index in cities.indices {
-            guard cities[index].owner != faction,
-                  cities[index].owner != .neutral,
-                  diplomaticStatus(between: faction, and: cities[index].owner) == .war,
-                  cities[index].position.hexDistance(to: origin) <= range,
+        for cityID in cityIDs {
+            guard let index = cities.firstIndex(where: { $0.id == cityID }),
                   cities[index].fortification > 1 else {
                 continue
             }
@@ -2170,34 +2384,27 @@ public struct GameState: Codable, Equatable, Sendable {
             return false
         }
 
+        let preview = generalSkillPreview(for: unit)
+
         switch trait {
         case .siegeEngineer:
-            return cities.contains { city in
-                city.owner != unit.faction &&
-                    city.owner != .neutral &&
-                    diplomaticStatus(between: unit.faction, and: city.owner) == .war &&
-                    city.position.hexDistance(to: unit.position) <= trait.commandRange &&
-                    city.fortification > 1
-            }
+            return preview.isExecutable && preview.projectedFortificationReduction > 0
 
         case .quartermaster, .shieldWall, .eagleStandard:
-            let threshold: Double
-            switch trait {
-            case .quartermaster:
-                threshold = 0.72
-            case .shieldWall:
-                threshold = 0.64
-            case .eagleStandard:
-                threshold = 0.55
-            case .siegeEngineer:
-                threshold = 0
-            }
+            return aiSkillTargetUnit(for: unit, preview: preview) != nil
+        }
+    }
 
-            return units.contains { ally in
-                ally.faction == unit.faction &&
-                    ally.healthRatio <= threshold &&
-                    ally.position.hexDistance(to: unit.position) <= trait.commandRange
-            }
+    private func aiSkillRecoveryThreshold(for trait: GeneralTrait) -> Double {
+        switch trait {
+        case .quartermaster:
+            return 0.72
+        case .shieldWall:
+            return 0.64
+        case .eagleStandard:
+            return 0.55
+        case .siegeEngineer:
+            return 0
         }
     }
 
@@ -2405,14 +2612,16 @@ public struct GameState: Codable, Equatable, Sendable {
         }
 
         if shouldAIUseGeneralSkill(orderedUnit) {
+            let preview = generalSkillPreview(for: orderedUnit)
             return AIIntent(
                 unitID: unit.id,
                 faction: unit.faction,
                 kind: .useSkill,
                 tacticalOrder: order,
-                targetCityID: aiSkillTargetCity(for: orderedUnit)?.id,
+                targetUnitID: aiSkillTargetUnit(for: orderedUnit, preview: preview)?.id,
+                targetCityID: aiSkillTargetCity(for: orderedUnit, preview: preview)?.id,
                 destination: unit.position,
-                threatScore: 260 + (orderedUnit.generalName == nil ? 0 : 35)
+                threatScore: aiSkillThreatScore(for: orderedUnit, preview: preview)
             )
         }
 
@@ -2502,19 +2711,51 @@ public struct GameState: Codable, Equatable, Sendable {
         )
     }
 
-    private func aiSkillTargetCity(for unit: ArmyUnit) -> City? {
+    private func aiSkillThreatScore(for unit: ArmyUnit, preview: GeneralSkillPreview) -> Int {
+        var score = 260 + (unit.generalName == nil ? 0 : 35)
+        score += min(130, preview.projectedRecoveredHealth * 2)
+        score += min(130, preview.projectedFortificationReduction * 18)
+        if preview.blockedReason == nil {
+            score += 20
+        }
+        return score
+    }
+
+    private func aiSkillTargetUnit(for unit: ArmyUnit, preview: GeneralSkillPreview) -> ArmyUnit? {
+        guard let trait = unit.resolvedGeneralTrait,
+              trait != .siegeEngineer else {
+            return nil
+        }
+
+        let targetIDs = Set(preview.affectedUnitIDs)
+        let threshold = aiSkillRecoveryThreshold(for: trait)
+        return units
+            .filter { ally in
+                targetIDs.contains(ally.id) &&
+                    ally.healthRatio <= threshold
+            }
+            .sorted { left, right in
+                if left.health == right.health {
+                    let leftDistance = left.position.hexDistance(to: unit.position)
+                    let rightDistance = right.position.hexDistance(to: unit.position)
+                    if leftDistance == rightDistance {
+                        return left.id < right.id
+                    }
+                    return leftDistance < rightDistance
+                }
+                return left.health < right.health
+            }
+            .first
+    }
+
+    private func aiSkillTargetCity(for unit: ArmyUnit, preview: GeneralSkillPreview) -> City? {
         guard unit.resolvedGeneralTrait == .siegeEngineer else {
             return nil
         }
 
+        let targetIDs = Set(preview.affectedCityIDs)
         return cities
-            .filter { city in
-                city.owner != unit.faction &&
-                    city.owner != .neutral &&
-                    diplomaticStatus(between: unit.faction, and: city.owner) == .war &&
-                    city.position.hexDistance(to: unit.position) <= (unit.resolvedGeneralTrait?.commandRange ?? 1) &&
-                    city.fortification > 1
-            }
+            .filter { targetIDs.contains($0.id) }
             .sorted { left, right in
                 if left.position.hexDistance(to: unit.position) == right.position.hexDistance(to: unit.position) {
                     return left.id < right.id

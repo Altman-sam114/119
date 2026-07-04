@@ -203,20 +203,30 @@ struct WarMapView: View {
             let attackTargetIDs = Set(attackTargets.map(\.id))
             let enemyIntentsByUnit = Dictionary(uniqueKeysWithValues: viewModel.enemyIntentSummaries.map { ($0.unit.id, $0) })
             let selectedPosition = viewModel.focusedPosition
+            let skillRangePositions = viewModel.selectedGeneralSkillRangePositions
+            let skillTargetPositions = viewModel.selectedGeneralSkillTargetPositions
+            let skillTargetUnitIDs = viewModel.selectedGeneralSkillTargetUnitIDs
+            let skillTargetCityIDs = viewModel.selectedGeneralSkillTargetCityIDs
 
             ZStack {
                 MapBackdropView()
 
                 ForEach(viewModel.state.tiles) { tile in
+                    let city = viewModel.state.city(at: tile.position)
+                    let unit = viewModel.state.unit(at: tile.position)
                     let center = metrics.center(for: tile.position)
                     HexTileView(
                         tile: tile,
-                        city: viewModel.state.city(at: tile.position),
-                        unit: viewModel.state.unit(at: tile.position),
-                        enemyIntent: viewModel.state.unit(at: tile.position).flatMap { enemyIntentsByUnit[$0.id] },
+                        city: city,
+                        unit: unit,
+                        enemyIntent: unit.flatMap { enemyIntentsByUnit[$0.id] },
                         isSelected: selectedPosition == tile.position,
                         isReachable: viewModel.reachablePositions.contains(tile.position),
                         isAttackTarget: attackTargets.contains { $0.position == tile.position },
+                        isSkillRange: skillRangePositions.contains(tile.position),
+                        isSkillTarget: skillTargetPositions.contains(tile.position) ||
+                            unit.map { skillTargetUnitIDs.contains($0.id) } == true ||
+                            city.map { skillTargetCityIDs.contains($0.id) } == true,
                         scale: metrics.tileScale
                     )
                     .frame(width: metrics.tileWidth, height: metrics.tileHeight)
@@ -487,6 +497,8 @@ struct HexTileView: View {
     var isSelected: Bool
     var isReachable: Bool
     var isAttackTarget: Bool
+    var isSkillRange: Bool
+    var isSkillTarget: Bool
     var scale: CGFloat = 1
 
     var body: some View {
@@ -512,8 +524,16 @@ struct HexTileView: View {
                 .scaleEffect(scale)
                 .opacity(city == nil && unit == nil ? 0.42 : 0.20)
 
+            if isSkillRange && !isAttackTarget {
+                SkillRangeOverlay(scale: scale)
+            }
+
             if isReachable {
                 ReachableTileOverlay(scale: scale)
+            }
+
+            if isSkillTarget && !isAttackTarget {
+                SkillTargetOverlay(scale: scale)
             }
 
             if let city = city {
@@ -592,6 +612,12 @@ struct HexTileView: View {
         if isReachable {
             parts.append("可移动")
         }
+        if isSkillRange {
+            parts.append("技能范围")
+        }
+        if isSkillTarget {
+            parts.append("技能目标")
+        }
         if isAttackTarget {
             parts.append("可攻击")
         }
@@ -642,6 +668,43 @@ struct ReachableTileOverlay: View {
                 .frame(width: 7 * scale, height: 7 * scale)
                 .shadow(color: .black.opacity(0.35), radius: 2, y: 1)
         }
+    }
+}
+
+struct SkillRangeOverlay: View {
+    var scale: CGFloat
+
+    var body: some View {
+        ZStack {
+            Hexagon()
+                .fill(Color(red: 0.28, green: 0.72, blue: 0.82).opacity(0.13))
+            Hexagon()
+                .stroke(
+                    Color(red: 0.36, green: 0.86, blue: 0.92).opacity(0.72),
+                    style: StrokeStyle(lineWidth: max(1, 1.4 * scale), lineCap: .round, dash: [3 * scale, 4 * scale])
+                )
+                .padding(7 * scale)
+        }
+    }
+}
+
+struct SkillTargetOverlay: View {
+    var scale: CGFloat
+
+    var body: some View {
+        ZStack {
+            Hexagon()
+                .fill(Color(red: 0.98, green: 0.82, blue: 0.36).opacity(0.20))
+            Hexagon()
+                .stroke(Color(red: 0.98, green: 0.82, blue: 0.36).opacity(0.95), lineWidth: max(1.7, 2.2 * scale))
+                .padding(5 * scale)
+            Image(systemName: "sparkles")
+                .font(.system(size: 13 * scale, weight: .black))
+                .foregroundStyle(Color(red: 0.98, green: 0.82, blue: 0.36))
+                .shadow(color: .black.opacity(0.35), radius: 2, y: 1)
+                .offset(y: -22 * scale)
+        }
+        .shadow(color: Color(red: 0.98, green: 0.82, blue: 0.36).opacity(0.38), radius: 4 * scale)
     }
 }
 
@@ -1039,7 +1102,7 @@ struct CompactSelectionPanelView: View {
                     CompactOrderBadgeView(order: unit.resolvedTacticalOrder)
 
                     if let trait = unit.resolvedGeneralTrait {
-                        CompactGeneralTraitView(trait: trait)
+                        CompactGeneralTraitView(trait: trait, preview: viewModel.selectedGeneralSkillPreview)
                     }
                 }
             } else if let city = viewModel.selectedCity {
@@ -1110,7 +1173,11 @@ struct CompactActionsPanelView: View {
                         Button {
                             viewModel.useSelectedGeneralSkill()
                         } label: {
-                            CommandButtonLabel(symbol: trait.systemImage, text: trait.skillName)
+                            CommandButtonLabel(
+                                symbol: trait.systemImage,
+                                text: trait.skillName,
+                                detail: viewModel.selectedGeneralSkillButtonDetail
+                            )
                         }
                         .buttonStyle(SecondaryButtonStyle())
                         .disabled(!viewModel.canUseSelectedGeneralSkill)
@@ -1151,6 +1218,7 @@ struct CompactActionsPanelView: View {
 
 struct CompactGeneralTraitView: View {
     var trait: GeneralTrait
+    var preview: GeneralSkillPreview?
 
     var body: some View {
         HStack(spacing: 7) {
@@ -1171,6 +1239,22 @@ struct CompactGeneralTraitView: View {
         .frame(minHeight: 28)
         .background(.black.opacity(0.18))
         .clipShape(RoundedRectangle(cornerRadius: 6))
+        if let preview {
+            HStack(spacing: 6) {
+                Image(systemName: preview.isExecutable ? "sparkles" : "exclamationmark.triangle.fill")
+                    .foregroundStyle(preview.isExecutable ? Color(red: 0.36, green: 0.86, blue: 0.92) : .orange)
+                Text(preview.blockedReason ?? preview.summary)
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(.white.opacity(0.62))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.68)
+                Spacer(minLength: 0)
+            }
+            .padding(.horizontal, 8)
+            .frame(minHeight: 24)
+            .background(.black.opacity(0.14))
+            .clipShape(RoundedRectangle(cornerRadius: 6))
+        }
     }
 }
 
@@ -1654,7 +1738,7 @@ struct SelectionPanelView: View {
                     StatRow(label: "姿态", value: unit.resolvedTacticalOrder.displayName)
 
                     if let trait = unit.resolvedGeneralTrait {
-                        GeneralTraitCardView(trait: trait)
+                        GeneralTraitCardView(trait: trait, preview: viewModel.selectedGeneralSkillPreview)
                     }
                 }
             } else if let city = viewModel.selectedCity {
@@ -1689,6 +1773,7 @@ struct SelectionPanelView: View {
 
 struct GeneralTraitCardView: View {
     var trait: GeneralTrait
+    var preview: GeneralSkillPreview?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 7) {
@@ -1716,6 +1801,33 @@ struct GeneralTraitCardView: View {
                 .font(.caption2)
                 .foregroundStyle(.white.opacity(0.56))
                 .fixedSize(horizontal: false, vertical: true)
+
+            if let preview {
+                HStack(spacing: 7) {
+                    SkillPreviewPill(symbol: "scope", text: "范围 \(preview.range)")
+                    SkillPreviewPill(
+                        symbol: preview.trait == .siegeEngineer ? "building.columns.fill" : "cross.case.fill",
+                        text: preview.trait == .siegeEngineer ?
+                            "目标 \(preview.affectedCityIDs.count)" :
+                            "友军 \(preview.affectedUnitIDs.count)"
+                    )
+                }
+
+                HStack(spacing: 7) {
+                    Image(systemName: preview.isExecutable ? "sparkles" : "exclamationmark.triangle.fill")
+                        .foregroundStyle(preview.isExecutable ? Color(red: 0.36, green: 0.86, blue: 0.92) : .orange)
+                    Text(preview.blockedReason ?? preview.summary)
+                        .font(.caption2.weight(.semibold))
+                        .foregroundStyle(.white.opacity(0.66))
+                        .lineLimit(2)
+                        .minimumScaleFactor(0.74)
+                    Spacer(minLength: 0)
+                }
+                .padding(.horizontal, 7)
+                .frame(minHeight: 28)
+                .background(.black.opacity(0.16))
+                .clipShape(RoundedRectangle(cornerRadius: 6))
+            }
         }
         .padding(9)
         .background(.black.opacity(0.20))
@@ -1724,6 +1836,27 @@ struct GeneralTraitCardView: View {
             RoundedRectangle(cornerRadius: 7)
                 .stroke(Color(red: 0.86, green: 0.68, blue: 0.34).opacity(0.22), lineWidth: 1)
         }
+    }
+}
+
+struct SkillPreviewPill: View {
+    var symbol: String
+    var text: String
+
+    var body: some View {
+        HStack(spacing: 4) {
+            Image(systemName: symbol)
+                .font(.caption2.weight(.heavy))
+            Text(text)
+                .font(.caption2.monospacedDigit().weight(.bold))
+                .lineLimit(1)
+                .minimumScaleFactor(0.72)
+        }
+        .foregroundStyle(Color(red: 0.36, green: 0.86, blue: 0.92))
+        .padding(.horizontal, 7)
+        .frame(height: 24)
+        .background(.black.opacity(0.16))
+        .clipShape(RoundedRectangle(cornerRadius: 6))
     }
 }
 
@@ -1866,7 +1999,11 @@ struct ActionsPanelView: View {
                         Button {
                             viewModel.useSelectedGeneralSkill()
                         } label: {
-                            CommandButtonLabel(symbol: trait.systemImage, text: trait.skillName)
+                            CommandButtonLabel(
+                                symbol: trait.systemImage,
+                                text: trait.skillName,
+                                detail: viewModel.selectedGeneralSkillButtonDetail
+                            )
                         }
                         .buttonStyle(SecondaryButtonStyle())
                         .disabled(!viewModel.canUseSelectedGeneralSkill)

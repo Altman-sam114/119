@@ -118,8 +118,13 @@ do {
     expect(damagedArcherIndex != nil, "Damaged ally should exist")
     skillState.units[damagedArcherIndex!].position = Position(x: 4, y: 3)
     skillState.units[damagedArcherIndex!].health = 30
+    let skillPreviewState = skillState
+    let skillPreview = try skillState.generalSkillPreview(unitID: "rome-legion-1")
+    expect(skillState == skillPreviewState, "General skill preview should not mutate state")
+    expect(skillPreview.affectedUnitIDs == ["rome-archer-1"], "General skill preview should identify affected ally")
+    expect(skillPreview.projectedRecoveredHealth == 12, "General skill preview should project recovery")
     _ = try skillState.useGeneralSkill(unitID: "rome-legion-1")
-    expect(skillState.unit(withID: "rome-archer-1")?.health == 42, "Eagle standard should restore nearby ally")
+    expect(skillState.unit(withID: "rome-archer-1")?.health == 30 + skillPreview.projectedRecoveredHealth, "Eagle standard should match recovery preview")
     expect(skillState.unit(withID: "rome-legion-1")?.hasActed == true, "General skill should consume action")
 
     var siegeSkillState = GameState.newCampaign()
@@ -127,8 +132,11 @@ do {
         ArmyUnit(id: "test-siege", kind: .legion, faction: .rome, position: Position(x: 7, y: 2), generalName: "苏拉", generalTrait: .siegeEngineer)
     ]
     let beforeFortification = siegeSkillState.city(withID: "alesia")?.fortification ?? 0
+    let siegePreview = try siegeSkillState.generalSkillPreview(unitID: "test-siege")
+    expect(siegePreview.affectedCityIDs == ["alesia"], "Siege preview should identify affected city")
+    expect(siegePreview.projectedFortificationReduction == 4, "Siege preview should project fortification reduction")
     _ = try siegeSkillState.useGeneralSkill(unitID: "test-siege")
-    expect(siegeSkillState.city(withID: "alesia")?.fortification == beforeFortification - 4, "Siege skill should reduce enemy fortification")
+    expect(siegeSkillState.city(withID: "alesia")?.fortification == beforeFortification - siegePreview.projectedFortificationReduction, "Siege skill should match fortification preview")
 
     var diplomacyState = GameState.newCampaign()
     _ = try diplomacyState.sendEnvoy(to: .carthage)
