@@ -2230,7 +2230,7 @@ public struct GameState: Codable, Equatable, Sendable {
                 hasActed: unit.hasActed
             )
 
-            if estimatedDamage(from: assaultUnit, to: target) >= target.health {
+            if (aiCombatPreview(attacker: assaultUnit, defender: target)?.damage ?? 0) >= target.health {
                 return .assault
             }
 
@@ -2273,7 +2273,11 @@ public struct GameState: Codable, Equatable, Sendable {
     }
 
     private func aiAttackScore(attacker: ArmyUnit, defender: ArmyUnit) -> Int {
-        let damage = estimatedDamage(from: attacker, to: defender)
+        guard let preview = aiCombatPreview(attacker: attacker, defender: defender) else {
+            return Int.min / 4
+        }
+
+        let damage = preview.damage
         var score = damage * 4 - defender.health
 
         if damage >= defender.health {
@@ -2302,6 +2306,18 @@ public struct GameState: Codable, Equatable, Sendable {
         }
 
         return score
+    }
+
+    private func aiCombatPreview(attacker: ArmyUnit, defender: ArmyUnit) -> CombatPreview? {
+        var forecast = self
+        forecast.activeFaction = attacker.faction
+
+        guard let attackerIndex = forecast.units.firstIndex(where: { $0.id == attacker.id }) else {
+            return nil
+        }
+
+        forecast.units[attackerIndex] = attacker
+        return try? forecast.attackPreview(attackerID: attacker.id, defenderID: defender.id)
     }
 
     private func aiFrontlineDistance(from position: Position, for faction: Faction) -> Int {
@@ -2401,7 +2417,7 @@ public struct GameState: Codable, Equatable, Sendable {
         }
 
         if let target = bestAITarget(for: orderedUnit) {
-            let damage = estimatedDamage(from: orderedUnit, to: target)
+            let preview = aiCombatPreview(attacker: orderedUnit, defender: target)
             return AIIntent(
                 unitID: unit.id,
                 faction: unit.faction,
@@ -2409,7 +2425,7 @@ public struct GameState: Codable, Equatable, Sendable {
                 tacticalOrder: order,
                 targetUnitID: target.id,
                 destination: unit.position,
-                projectedDamage: damage,
+                projectedDamage: preview?.damage,
                 threatScore: 500 + aiAttackScore(attacker: orderedUnit, defender: target)
             )
         }
@@ -2426,6 +2442,21 @@ public struct GameState: Codable, Equatable, Sendable {
             )
         }
 
+        let movedUnit = aiPlanningUnit(from: orderedUnit, position: destination, hasMoved: true)
+        if let target = bestAITarget(for: movedUnit) {
+            let preview = aiCombatPreview(attacker: movedUnit, defender: target)
+            return AIIntent(
+                unitID: unit.id,
+                faction: unit.faction,
+                kind: .advanceAttack,
+                tacticalOrder: order,
+                targetUnitID: target.id,
+                destination: destination,
+                projectedDamage: preview?.damage,
+                threatScore: 420 + aiAttackScore(attacker: movedUnit, defender: target)
+            )
+        }
+
         if let city = capturableCity(at: destination, by: orderedUnit.faction) {
             return AIIntent(
                 unitID: unit.id,
@@ -2435,21 +2466,6 @@ public struct GameState: Codable, Equatable, Sendable {
                 targetCityID: city.id,
                 destination: destination,
                 threatScore: 360 + city.production.gold + city.production.prestige * 20 + city.fortification
-            )
-        }
-
-        let movedUnit = aiPlanningUnit(from: orderedUnit, position: destination, hasMoved: true)
-        if let target = bestAITarget(for: movedUnit) {
-            let damage = estimatedDamage(from: movedUnit, to: target)
-            return AIIntent(
-                unitID: unit.id,
-                faction: unit.faction,
-                kind: .advanceAttack,
-                tacticalOrder: order,
-                targetUnitID: target.id,
-                destination: destination,
-                projectedDamage: damage,
-                threatScore: 420 + aiAttackScore(attacker: movedUnit, defender: target)
             )
         }
 

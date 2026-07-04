@@ -62,7 +62,56 @@ do {
     let enemyIntent = intentState.aiIntents(for: .carthage, limit: 1).first
     expect(enemyIntent?.kind == .attack, "Enemy intent should predict a direct attack")
     expect(enemyIntent?.targetUnitID == "rome-target", "Enemy intent should identify the Roman target")
+    if let enemyIntent {
+        var directIntentPreviewState = intentState
+        directIntentPreviewState.activeFaction = .carthage
+        let hunterIndex = directIntentPreviewState.units.firstIndex { $0.id == "carthage-hunter" }
+        expect(hunterIndex != nil, "Direct intent attacker should exist")
+        directIntentPreviewState.units[hunterIndex!].hasMoved = false
+        directIntentPreviewState.units[hunterIndex!].hasActed = false
+        directIntentPreviewState.units[hunterIndex!].tacticalOrder = enemyIntent.tacticalOrder == .balanced ? nil : enemyIntent.tacticalOrder
+        let directIntentPreview = try directIntentPreviewState.attackPreview(attackerID: "carthage-hunter", defenderID: "rome-target")
+        expect(enemyIntent.projectedDamage == directIntentPreview.damage, "Direct intent damage should match combat preview")
+    }
     expect(intentState.unit(withID: "carthage-hunter")?.hasActed == true, "Intent forecast should not mutate unit action state")
+
+    var advanceIntentState = GameState.newCampaign()
+    advanceIntentState.units = [
+        ArmyUnit(id: "rome-target", kind: .legion, faction: .rome, position: Position(x: 3, y: 3)),
+        ArmyUnit(id: "carthage-hunter", kind: .cavalry, faction: .carthage, position: Position(x: 7, y: 2)),
+        ArmyUnit(id: "carthage-support-north", kind: .legion, faction: .carthage, position: Position(x: 3, y: 1), hasMoved: true, hasActed: true),
+        ArmyUnit(id: "carthage-support-east", kind: .legion, faction: .carthage, position: Position(x: 5, y: 4), hasMoved: true, hasActed: true),
+        ArmyUnit(id: "carthage-support-south", kind: .legion, faction: .carthage, position: Position(x: 2, y: 4), hasMoved: true, hasActed: true)
+    ]
+    for index in advanceIntentState.cities.indices where advanceIntentState.cities[index].owner != .rome {
+        advanceIntentState.cities[index].owner = .carthage
+    }
+    if let romeIndex = advanceIntentState.cities.firstIndex(where: { $0.id == "rome" }) {
+        advanceIntentState.cities[romeIndex].position = Position(x: 0, y: 0)
+    }
+    advanceIntentState.resources[.carthage] = .zero
+    let advanceIntent = advanceIntentState.aiIntents(for: .carthage, limit: 4).first { $0.unitID == "carthage-hunter" }
+    expect(advanceIntent?.kind == .advanceAttack, "Enemy intent should predict a move-then-attack")
+    expect(advanceIntent?.targetUnitID == "rome-target", "Advance attack intent should identify the Roman target")
+    if let advanceIntent, let destination = advanceIntent.destination {
+        var advancePreviewState = advanceIntentState
+        advancePreviewState.activeFaction = .carthage
+        let hunterIndex = advancePreviewState.units.firstIndex { $0.id == "carthage-hunter" }
+        expect(hunterIndex != nil, "Advance intent attacker should exist")
+        advancePreviewState.units[hunterIndex!].position = destination
+        advancePreviewState.units[hunterIndex!].hasMoved = true
+        advancePreviewState.units[hunterIndex!].hasActed = false
+        advancePreviewState.units[hunterIndex!].tacticalOrder = advanceIntent.tacticalOrder == .balanced ? nil : advanceIntent.tacticalOrder
+        let advancePreview = try advancePreviewState.attackPreview(attackerID: "carthage-hunter", defenderID: "rome-target")
+        expect(advancePreview.supportBonus > 0, "Advance preview should include moved-position support")
+        expect(advanceIntent.projectedDamage == advancePreview.damage, "Advance attack intent damage should match combat preview")
+
+        var aiResolutionState = advanceIntentState
+        aiResolutionState.activeFaction = .carthage
+        let beforeHealth = aiResolutionState.unit(withID: "rome-target")?.health ?? 0
+        _ = aiResolutionState.performSimpleAI(for: .carthage)
+        expect(aiResolutionState.unit(withID: "rome-target")?.health == beforeHealth - advancePreview.damage, "AI resolution damage should match advance attack intent")
+    }
 
     var skillState = GameState.newCampaign()
     let damagedArcherIndex = skillState.units.firstIndex { $0.id == "rome-archer-1" }

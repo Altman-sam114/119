@@ -53,7 +53,7 @@ flowchart TD
     H --> I["更新单位生命、行动标记、经验和消息"]
 
     J["敌军意图面板"] --> K["GameViewModel.enemyIntentSummaries"]
-    K --> L["GameState.aiIntents(for:limit:)<br/>只读预测攻击、接敌、夺城、固守、整备、技能"]
+    K --> L["GameState.aiIntents(for:limit:)<br/>只读预测攻击、接敌、夺城、固守、整备、技能<br/>攻击类预计伤害来自规划态 attackPreview"]
     L --> M["BattleView 显示地图徽标、顶部芯片、侧栏敌情"]
 ```
 

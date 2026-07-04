@@ -250,7 +250,10 @@ import Testing
     var state = GameState.newCampaign()
     state.units = [
         ArmyUnit(id: "rome-target", kind: .legion, faction: .rome, position: Position(x: 3, y: 3)),
-        ArmyUnit(id: "carthage-hunter", kind: .cavalry, faction: .carthage, position: Position(x: 7, y: 2))
+        ArmyUnit(id: "carthage-hunter", kind: .cavalry, faction: .carthage, position: Position(x: 7, y: 2)),
+        ArmyUnit(id: "carthage-support-north", kind: .legion, faction: .carthage, position: Position(x: 3, y: 1), hasMoved: true, hasActed: true),
+        ArmyUnit(id: "carthage-support-east", kind: .legion, faction: .carthage, position: Position(x: 5, y: 4), hasMoved: true, hasActed: true),
+        ArmyUnit(id: "carthage-support-south", kind: .legion, faction: .carthage, position: Position(x: 2, y: 4), hasMoved: true, hasActed: true)
     ]
     state.activeFaction = .carthage
 
@@ -262,13 +265,14 @@ import Testing
     #expect((state.unit(withID: "rome-target")?.health ?? UnitKind.legion.maxHealth) < UnitKind.legion.maxHealth)
 }
 
-@Test func aiIntentForecastPredictsDirectAttackWithoutMutatingState() {
+@Test func aiIntentForecastPredictsDirectAttackWithoutMutatingState() throws {
     var state = GameState.newCampaign()
     state.units = [
         ArmyUnit(id: "rome-target", kind: .legion, faction: .rome, position: Position(x: 3, y: 3)),
         ArmyUnit(id: "carthage-hunter", kind: .cavalry, faction: .carthage, position: Position(x: 4, y: 3), hasMoved: true, hasActed: true)
     ]
     state.activeFaction = .rome
+    let before = state
 
     let intents = state.aiIntents(for: .carthage, limit: 1)
     let intent = intents.first
@@ -278,8 +282,80 @@ import Testing
     #expect(intent?.targetUnitID == "rome-target")
     #expect((intent?.projectedDamage ?? 0) > 0)
     #expect(intent?.tacticalOrder == .assault)
-    #expect(state.activeFaction == .rome)
-    #expect(state.unit(withID: "carthage-hunter")?.hasActed == true)
+
+    if let intent {
+        var previewState = state
+        previewState.activeFaction = .carthage
+        let hunterIndex = previewState.units.firstIndex { $0.id == "carthage-hunter" }
+        #expect(hunterIndex != nil)
+        if let hunterIndex {
+            previewState.units[hunterIndex].hasMoved = false
+            previewState.units[hunterIndex].hasActed = false
+            previewState.units[hunterIndex].tacticalOrder = intent.tacticalOrder == .balanced ? nil : intent.tacticalOrder
+        }
+        let preview = try previewState.attackPreview(attackerID: "carthage-hunter", defenderID: "rome-target")
+        #expect(intent.projectedDamage == preview.damage)
+    }
+
+    #expect(state == before)
+}
+
+@Test func aiIntentAdvanceAttackDamageMatchesPreviewAndResolution() throws {
+    var state = GameState.newCampaign()
+    state.units = [
+        ArmyUnit(id: "rome-target", kind: .legion, faction: .rome, position: Position(x: 3, y: 3)),
+        ArmyUnit(id: "carthage-hunter", kind: .cavalry, faction: .carthage, position: Position(x: 7, y: 2)),
+        ArmyUnit(id: "carthage-support-north", kind: .legion, faction: .carthage, position: Position(x: 3, y: 1), hasMoved: true, hasActed: true),
+        ArmyUnit(id: "carthage-support-east", kind: .legion, faction: .carthage, position: Position(x: 5, y: 4), hasMoved: true, hasActed: true),
+        ArmyUnit(id: "carthage-support-south", kind: .legion, faction: .carthage, position: Position(x: 2, y: 4), hasMoved: true, hasActed: true)
+    ]
+    for index in state.cities.indices where state.cities[index].owner != .rome {
+        state.cities[index].owner = .carthage
+    }
+    if let romeIndex = state.cities.firstIndex(where: { $0.id == "rome" }) {
+        state.cities[romeIndex].position = Position(x: 0, y: 0)
+    }
+    state.resources[.carthage] = .zero
+    state.activeFaction = .rome
+    let beforeIntentForecast = state
+
+    let intent = state.aiIntents(for: .carthage, limit: 4).first { $0.unitID == "carthage-hunter" }
+
+    #expect(intent?.kind == .advanceAttack)
+    #expect(intent?.unitID == "carthage-hunter")
+    #expect(intent?.targetUnitID == "rome-target")
+    #expect(intent?.destination != nil)
+    #expect((intent?.projectedDamage ?? 0) > 0)
+
+    guard let intent, let destination = intent.destination else {
+        return
+    }
+
+    var previewState = state
+    previewState.activeFaction = .carthage
+    let hunterIndex = previewState.units.firstIndex { $0.id == "carthage-hunter" }
+    #expect(hunterIndex != nil)
+    if let hunterIndex {
+        previewState.units[hunterIndex].position = destination
+        previewState.units[hunterIndex].hasMoved = true
+        previewState.units[hunterIndex].hasActed = false
+        previewState.units[hunterIndex].tacticalOrder = intent.tacticalOrder == .balanced ? nil : intent.tacticalOrder
+    }
+    let preview = try previewState.attackPreview(attackerID: "carthage-hunter", defenderID: "rome-target")
+
+    #expect(preview.supportBonus > 0)
+    #expect(intent.projectedDamage == preview.damage)
+    #expect(state == beforeIntentForecast)
+
+    var aiState = state
+    aiState.activeFaction = .carthage
+    let beforeHealth = aiState.unit(withID: "rome-target")?.health ?? 0
+
+    _ = aiState.performSimpleAI(for: .carthage)
+
+    #expect(aiState.unit(withID: "carthage-hunter")?.position == destination)
+    #expect(aiState.unit(withID: "carthage-hunter")?.hasActed == true)
+    #expect(aiState.unit(withID: "rome-target")?.health == beforeHealth - preview.damage)
 }
 
 @Test func aiIntentForecastPredictsCityCapture() {

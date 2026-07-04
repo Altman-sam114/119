@@ -21,6 +21,48 @@
 
 ## 历史记录
 
+### v0.7 / AI 意图与移动后攻击预览一致性
+
+日期：2026-07-04
+
+核心变更：
+
+- 新增 AI 规划态战斗预览 helper，让 AI 攻击评分、直接攻击意图和移动后攻击意图优先使用 `attackPreview` 的同一套伤害来源。
+- 修正同一移动目的地既可占城又可攻击时的意图优先级：真实 AI 会移动后继续攻击，因此敌军意图优先显示 `.advanceAttack` 和预计伤害，无法攻击时才显示 `.captureCity`。
+- 直接攻击和移动后攻击意图的 `projectedDamage` 与规划态 `attackPreview.damage` 对齐，保持 `aiIntents(for:limit:)` 只读不改原始状态。
+- 新增 Swift Testing 用例，锁定移动后攻击意图、规划态预览和 `performSimpleAI` 真实伤害一致。
+- Gameplay Smoke 增加直接攻击和移动后攻击 projectedDamage / preview 一致性断言。
+- README、flow、flowchart、test 文档同步 AI 意图预计伤害来源，并将 CI artifact 版本同步到 v0.7。
+- 新增 v0.7 Agent A 提示词，明确本轮 AI 一致性目标、核心边界、测试和 Agent C 云端复判要求。
+
+关键文件：
+
+- `Sources/RomeLegionsCore/GameState.swift`
+- `Tests/RomeLegionsCoreTests/GameStateTests.swift`
+- `Tools/GameplaySmoke/main.swift`
+- `.github/workflows/ci-results.yml`
+- `README.md`
+- `md/flow/flow.md`
+- `md/flow/flowchart.md`
+- `md/test/test.md`
+- `md/prompt/v0（玩法推进）/v0.7（AI意图与移动后攻击预览一致性）.md`
+- `update_log.md`
+
+验证结果：
+
+- `env HOME=$PWD/.home CLANG_MODULE_CACHE_PATH=$PWD/.build/module-cache DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/swift test --scratch-path .build/swift-test-local --disable-sandbox`：通过，32 个 Swift Testing 用例通过；本机 SwiftPM cache 目录只读警告不影响测试结果。
+- `swiftc -swift-version 5 -module-cache-path .build/module-cache Sources/RomeLegionsCore/GameState.swift Tools/GameplaySmoke/main.swift -o .build/gameplay-smoke`：通过，无错误输出。
+- `.build/gameplay-smoke`：通过，输出 `Gameplay smoke test passed.`
+- `git diff --check`：通过，无输出。
+- `node Tools/verify_project.mjs`：通过，输出 `Project structure verification passed.`
+- `ruby -e 'require "yaml"; YAML.load_file(".github/workflows/ci-results.yml"); puts "yaml ok"'`：通过，输出 `yaml ok`。
+
+遗留事项：
+
+- 本轮未修改 SwiftUI 呈现层、`GameViewModel`、存档结构或 Xcode project。
+- 本轮没有默认本机跑完整 `xcodebuild build`；按项目规则交给 `main` push 后的 GitHub Actions 重验证。
+- Agent C 必须核对最新 `origin/main` commit 对应的 v0.7 run id、run attempt 和 artifact；不能使用 v0.6 旧结果包。
+
 ### v0.6 / 战斗地图可读性与窄屏完整显示
 
 日期：2026-07-04
