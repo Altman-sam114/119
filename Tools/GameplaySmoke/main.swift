@@ -126,6 +126,23 @@ do {
     _ = try skillState.useGeneralSkill(unitID: "rome-legion-1")
     expect(skillState.unit(withID: "rome-archer-1")?.health == 30 + skillPreview.projectedRecoveredHealth, "Eagle standard should match recovery preview")
     expect(skillState.unit(withID: "rome-legion-1")?.hasActed == true, "General skill should consume action")
+    expect(skillState.unit(withID: "rome-legion-1")?.generalSkillCooldownRemaining == 2, "General skill should start cooldown")
+    let commanderIndex = skillState.units.firstIndex { $0.id == "rome-legion-1" }
+    expect(commanderIndex != nil, "Commander should exist after skill")
+    skillState.units[commanderIndex!].hasActed = false
+    let cooldownPreview = try skillState.generalSkillPreview(unitID: "rome-legion-1")
+    expect(!cooldownPreview.isExecutable, "Cooldown preview should block skill reuse")
+    expect(cooldownPreview.cooldownRemaining == 2, "Cooldown preview should report remaining turns")
+    _ = skillState.endTurn()
+    expect(skillState.unit(withID: "rome-legion-1")?.generalSkillCooldownRemaining == 2, "Enemy turn start should not tick Roman cooldown")
+    _ = skillState.endTurn()
+    _ = skillState.endTurn()
+    _ = skillState.endTurn()
+    expect(skillState.activeFaction == .rome, "Cooldown smoke should return to Rome")
+    expect(skillState.unit(withID: "rome-legion-1")?.generalSkillCooldownRemaining == 1, "Roman turn start should tick Roman cooldown once")
+    let warMerit = skillState.warMeritStatus(for: skillState.unit(withID: "rome-legion-1")!)
+    expect(warMerit.damageBonus == warMerit.experience * 3, "War merit damage bonus should match experience formula")
+    expect(!warMerit.rankName.isEmpty, "War merit should expose a readable rank")
 
     var siegeSkillState = GameState.newCampaign()
     siegeSkillState.units = [

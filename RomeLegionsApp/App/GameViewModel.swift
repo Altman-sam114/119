@@ -366,6 +366,11 @@ final class GameViewModel: ObservableObject {
         return try? state.generalSkillPreview(unitID: selectedUnitID)
     }
 
+    var selectedWarMeritStatus: WarMeritStatus? {
+        guard let selectedUnit else { return nil }
+        return state.warMeritStatus(for: selectedUnit)
+    }
+
     var selectedGeneralSkillRangePositions: Set<Position> {
         Set(selectedGeneralSkillPreview?.rangePositions ?? [])
     }
@@ -384,7 +389,15 @@ final class GameViewModel: ObservableObject {
 
     var selectedGeneralSkillButtonDetail: String? {
         guard let preview = selectedGeneralSkillPreview else { return nil }
-        return preview.blockedReason ?? preview.summary
+        if preview.cooldownRemaining > 0 {
+            return preview.cooldownText
+        }
+
+        return preview.blockedReason ?? "\(preview.summary) · \(preview.cooldownText)"
+    }
+
+    var selectedGeneralSkillCooldownDetail: String? {
+        selectedGeneralSkillPreview?.cooldownText
     }
 
     var canSkipSelectedUnit: Bool {

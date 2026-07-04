@@ -1003,6 +1003,17 @@ struct UnitTokenView: View {
                     }
                     .padding(3)
                 }
+                .overlay(alignment: .trailing) {
+                    if unit.generalSkillCooldownRemaining > 0 {
+                        Text("\(unit.generalSkillCooldownRemaining)")
+                            .font(.system(size: 8, weight: .black, design: .rounded))
+                            .foregroundStyle(.black.opacity(0.78))
+                            .frame(width: 13, height: 13)
+                            .background(Color(red: 0.36, green: 0.86, blue: 0.92))
+                            .clipShape(Circle())
+                            .offset(x: 5)
+                    }
+                }
                 .overlay(alignment: .bottomTrailing) {
                     if unit.hasMoved && unit.hasActed {
                         Image(systemName: "checkmark.circle.fill")
@@ -1099,10 +1110,23 @@ struct CompactSelectionPanelView: View {
                         CompactStat(label: "移", value: "\(viewModel.state.effectiveMovement(for: unit))")
                     }
 
+                    if let status = viewModel.selectedWarMeritStatus {
+                        HStack(spacing: 8) {
+                            CompactStat(label: "阶", value: status.rankName)
+                            CompactStat(label: "战功", value: "\(status.experience)")
+                            CompactStat(label: "伤", value: "+\(status.damageBonus)")
+                            CompactStat(label: "技能", value: viewModel.selectedGeneralSkillCooldownDetail ?? "无")
+                        }
+                    }
+
                     CompactOrderBadgeView(order: unit.resolvedTacticalOrder)
 
                     if let trait = unit.resolvedGeneralTrait {
-                        CompactGeneralTraitView(trait: trait, preview: viewModel.selectedGeneralSkillPreview)
+                        CompactGeneralTraitView(
+                            trait: trait,
+                            preview: viewModel.selectedGeneralSkillPreview,
+                            warMeritStatus: viewModel.selectedWarMeritStatus
+                        )
                     }
                 }
             } else if let city = viewModel.selectedCity {
@@ -1219,6 +1243,7 @@ struct CompactActionsPanelView: View {
 struct CompactGeneralTraitView: View {
     var trait: GeneralTrait
     var preview: GeneralSkillPreview?
+    var warMeritStatus: WarMeritStatus?
 
     var body: some View {
         HStack(spacing: 7) {
@@ -1239,11 +1264,27 @@ struct CompactGeneralTraitView: View {
         .frame(minHeight: 28)
         .background(.black.opacity(0.18))
         .clipShape(RoundedRectangle(cornerRadius: 6))
+        if let warMeritStatus {
+            HStack(spacing: 6) {
+                Image(systemName: "chevron.up.circle.fill")
+                    .foregroundStyle(Color(red: 0.98, green: 0.82, blue: 0.36))
+                Text(warMeritStatus.summary)
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(.white.opacity(0.62))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.62)
+                Spacer(minLength: 0)
+            }
+            .padding(.horizontal, 8)
+            .frame(minHeight: 24)
+            .background(.black.opacity(0.14))
+            .clipShape(RoundedRectangle(cornerRadius: 6))
+        }
         if let preview {
             HStack(spacing: 6) {
                 Image(systemName: preview.isExecutable ? "sparkles" : "exclamationmark.triangle.fill")
                     .foregroundStyle(preview.isExecutable ? Color(red: 0.36, green: 0.86, blue: 0.92) : .orange)
-                Text(preview.blockedReason ?? preview.summary)
+                Text(preview.blockedReason ?? "\(preview.summary) · \(preview.cooldownText)")
                     .font(.caption2.weight(.semibold))
                     .foregroundStyle(.white.opacity(0.62))
                     .lineLimit(1)
@@ -1734,11 +1775,20 @@ struct SelectionPanelView: View {
                     StatRow(label: "防御", value: "\(viewModel.state.effectiveDefense(for: unit))")
                     StatRow(label: "机动", value: "\(viewModel.state.effectiveMovement(for: unit))")
                     StatRow(label: "射程", value: "\(unit.kind.range)")
-                    StatRow(label: "经验", value: "\(unit.experience)")
+                    if let status = viewModel.selectedWarMeritStatus {
+                        StatRow(label: "军阶", value: status.rankName)
+                        StatRow(label: "战功", value: "\(status.experience) · 伤害 +\(status.damageBonus)")
+                    } else {
+                        StatRow(label: "经验", value: "\(unit.experience)")
+                    }
                     StatRow(label: "姿态", value: unit.resolvedTacticalOrder.displayName)
 
                     if let trait = unit.resolvedGeneralTrait {
-                        GeneralTraitCardView(trait: trait, preview: viewModel.selectedGeneralSkillPreview)
+                        GeneralTraitCardView(
+                            trait: trait,
+                            preview: viewModel.selectedGeneralSkillPreview,
+                            warMeritStatus: viewModel.selectedWarMeritStatus
+                        )
                     }
                 }
             } else if let city = viewModel.selectedCity {
@@ -1774,6 +1824,7 @@ struct SelectionPanelView: View {
 struct GeneralTraitCardView: View {
     var trait: GeneralTrait
     var preview: GeneralSkillPreview?
+    var warMeritStatus: WarMeritStatus?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 7) {
@@ -1802,6 +1853,10 @@ struct GeneralTraitCardView: View {
                 .foregroundStyle(.white.opacity(0.56))
                 .fixedSize(horizontal: false, vertical: true)
 
+            if let warMeritStatus {
+                WarMeritProgressView(status: warMeritStatus)
+            }
+
             if let preview {
                 HStack(spacing: 7) {
                     SkillPreviewPill(symbol: "scope", text: "范围 \(preview.range)")
@@ -1810,6 +1865,10 @@ struct GeneralTraitCardView: View {
                         text: preview.trait == .siegeEngineer ?
                             "目标 \(preview.affectedCityIDs.count)" :
                             "友军 \(preview.affectedUnitIDs.count)"
+                    )
+                    SkillPreviewPill(
+                        symbol: preview.cooldownRemaining > 0 ? "hourglass" : "checkmark.seal.fill",
+                        text: preview.cooldownText
                     )
                 }
 
@@ -1836,6 +1895,47 @@ struct GeneralTraitCardView: View {
             RoundedRectangle(cornerRadius: 7)
                 .stroke(Color(red: 0.86, green: 0.68, blue: 0.34).opacity(0.22), lineWidth: 1)
         }
+    }
+}
+
+struct WarMeritProgressView: View {
+    var status: WarMeritStatus
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 5) {
+            HStack(spacing: 7) {
+                Image(systemName: "chevron.up.circle.fill")
+                    .foregroundStyle(Color(red: 0.98, green: 0.82, blue: 0.36))
+                Text(status.rankName)
+                    .font(.caption2.weight(.black))
+                    .foregroundStyle(.white)
+                Spacer(minLength: 0)
+                Text("伤害 +\(status.damageBonus)")
+                    .font(.caption2.monospacedDigit().weight(.black))
+                    .foregroundStyle(Color(red: 0.98, green: 0.82, blue: 0.36))
+            }
+
+            GeometryReader { proxy in
+                ZStack(alignment: .leading) {
+                    Capsule()
+                        .fill(.black.opacity(0.34))
+                    Capsule()
+                        .fill(Color(red: 0.98, green: 0.82, blue: 0.36))
+                        .frame(width: proxy.size.width * min(1, max(0, status.progressFraction)))
+                }
+            }
+            .frame(height: 6)
+
+            Text(status.nextRankName.map { "战功 \(status.experience)/\(status.nextRankExperience ?? status.experience) · 下一军阶 \($0)" } ?? "战功 \(status.experience) · 最高军阶")
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(.white.opacity(0.58))
+                .lineLimit(1)
+                .minimumScaleFactor(0.68)
+        }
+        .padding(.horizontal, 7)
+        .padding(.vertical, 6)
+        .background(.black.opacity(0.16))
+        .clipShape(RoundedRectangle(cornerRadius: 6))
     }
 }
 
@@ -2226,6 +2326,8 @@ struct StatRow: View {
             Spacer()
             Text(value)
                 .fontWeight(.bold)
+                .lineLimit(1)
+                .minimumScaleFactor(0.72)
         }
         .font(.caption)
     }

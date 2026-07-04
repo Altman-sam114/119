@@ -284,6 +284,66 @@ import Testing
     }
 }
 
+@Test func generalSkillStartsCooldownAndCoreBlocksReuse() throws {
+    var state = GameState.newCampaign()
+    let damagedArcherIndex = state.units.firstIndex { $0.id == "rome-archer-1" }
+    #expect(damagedArcherIndex != nil)
+    state.units[damagedArcherIndex!].position = Position(x: 4, y: 3)
+    state.units[damagedArcherIndex!].health = 30
+
+    _ = try state.useGeneralSkill(unitID: "rome-legion-1")
+
+    #expect(state.unit(withID: "rome-legion-1")?.generalSkillCooldownRemaining == GeneralTrait.eagleStandard.skillCooldownTurns)
+
+    let commanderIndex = state.units.firstIndex { $0.id == "rome-legion-1" }
+    #expect(commanderIndex != nil)
+    state.units[commanderIndex!].hasActed = false
+
+    let cooldownPreview = try state.generalSkillPreview(unitID: "rome-legion-1")
+    #expect(!cooldownPreview.isExecutable)
+    #expect(cooldownPreview.cooldownRemaining == 2)
+    #expect(cooldownPreview.blockedReason == "技能冷却中（2 回合）")
+    #expect(throws: GameRuleError.generalSkillOnCooldown) {
+        try state.useGeneralSkill(unitID: "rome-legion-1")
+    }
+}
+
+@Test func generalSkillCooldownTicksOnlyWhenOwnerStartsTurn() throws {
+    var state = GameState.newCampaign()
+    _ = try state.useGeneralSkill(unitID: "rome-legion-1")
+
+    _ = state.endTurn()
+    #expect(state.activeFaction == .carthage)
+    #expect(state.unit(withID: "rome-legion-1")?.generalSkillCooldownRemaining == 2)
+
+    _ = state.endTurn()
+    _ = state.endTurn()
+    _ = state.endTurn()
+    #expect(state.activeFaction == .rome)
+    #expect(state.unit(withID: "rome-legion-1")?.generalSkillCooldownRemaining == 1)
+
+    _ = state.endTurn()
+    _ = state.endTurn()
+    _ = state.endTurn()
+    _ = state.endTurn()
+    #expect(state.activeFaction == .rome)
+    #expect(state.unit(withID: "rome-legion-1")?.generalSkillCooldownRemaining == 0)
+}
+
+@Test func generalSkillPreviewIsReadOnlyForCooldownState() throws {
+    var state = GameState.newCampaign()
+    let commanderIndex = state.units.firstIndex { $0.id == "rome-legion-1" }
+    #expect(commanderIndex != nil)
+    state.units[commanderIndex!].generalSkillCooldownRemaining = 2
+    let before = state
+
+    let preview = try state.generalSkillPreview(unitID: "rome-legion-1")
+
+    #expect(!preview.isExecutable)
+    #expect(preview.cooldownText == "冷却 2 回合")
+    #expect(state == before)
+}
+
 @Test func aiUseSkillIntentTargetsGeneralSkillPreview() throws {
     var state = GameState.newCampaign()
     state.units = [
@@ -301,6 +361,56 @@ import Testing
     #expect(intent?.targetUnitID == "carthage-wounded")
     #expect(preview.affectedUnitIDs.contains(intent?.targetUnitID ?? ""))
     #expect(state == before)
+}
+
+@Test func aiSkillIntentAndResolutionRespectCooldown() throws {
+    var state = GameState.newCampaign()
+    state.units = [
+        ArmyUnit(id: "rome-observer", kind: .legion, faction: .rome, position: Position(x: 0, y: 0)),
+        ArmyUnit(
+            id: "carthage-quartermaster",
+            kind: .legion,
+            faction: .carthage,
+            position: Position(x: 6, y: 3),
+            generalName: "阿格里帕",
+            generalTrait: .quartermaster,
+            generalSkillCooldownRemaining: 2
+        ),
+        ArmyUnit(id: "carthage-wounded", kind: .cavalry, faction: .carthage, position: Position(x: 5, y: 3), health: 30)
+    ]
+    state.activeFaction = .rome
+    let before = state
+
+    let intent = state.aiIntents(for: .carthage, limit: 3).first { $0.unitID == "carthage-quartermaster" }
+
+    #expect(intent?.kind != .useSkill)
+    #expect(state == before)
+
+    var aiState = state
+    _ = aiState.endTurn()
+    #expect(aiState.activeFaction == .carthage)
+    #expect(aiState.unit(withID: "carthage-quartermaster")?.generalSkillCooldownRemaining == 1)
+    let beforeHealth = aiState.unit(withID: "carthage-wounded")?.health
+
+    _ = aiState.performSimpleAI(for: .carthage)
+
+    #expect(aiState.unit(withID: "carthage-wounded")?.health == beforeHealth)
+    #expect((aiState.unit(withID: "carthage-quartermaster")?.generalSkillCooldownRemaining ?? 0) > 0)
+}
+
+@Test func warMeritStatusMapsExperienceToRankDamageAndProgress() {
+    let state = GameState.newCampaign()
+    let unit = ArmyUnit(id: "veteran", kind: .legion, faction: .rome, position: Position(x: 1, y: 1), experience: 5)
+
+    let status = state.warMeritStatus(for: unit)
+
+    #expect(status.experience == 5)
+    #expect(status.rankName == "百夫长")
+    #expect(status.damageBonus == 15)
+    #expect(status.nextRankName == "副将")
+    #expect(status.nextRankExperience == 7)
+    #expect(status.progress == 1)
+    #expect(status.progressTarget == 3)
 }
 
 @Test func envoyCanCreateTreatyAndBlockAttack() throws {
@@ -603,4 +713,31 @@ import Testing
     let legacyMission = try JSONDecoder().decode(Mission.self, from: Data(legacyMissionJSON.utf8))
 
     #expect(legacyMission.requirement == nil)
+}
+
+@Test func legacyArmyUnitJSONDefaultsMissingSkillCooldownToZero() throws {
+    let legacyUnitJSON = """
+    {
+      "id": "legacy-legion",
+      "kind": "legion",
+      "faction": "rome",
+      "position": {
+        "x": 1,
+        "y": 2
+      },
+      "health": 100,
+      "experience": 4,
+      "generalName": "凯撒",
+      "generalTrait": "eagleStandard",
+      "tacticalOrder": "defensive",
+      "hasMoved": false,
+      "hasActed": false
+    }
+    """
+
+    let unit = try JSONDecoder().decode(ArmyUnit.self, from: Data(legacyUnitJSON.utf8))
+
+    #expect(unit.generalSkillCooldownRemaining == 0)
+    #expect(unit.resolvedGeneralTrait == .eagleStandard)
+    #expect(unit.resolvedTacticalOrder == .defensive)
 }

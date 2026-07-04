@@ -28,11 +28,11 @@ flowchart TD
 ```mermaid
 flowchart TD
     A["玩家点击结束回合"] --> B["GameViewModel.endTurn()"]
-    B --> C["GameState.endTurn()<br/>结算当前势力收入、重置行动、推进 activeFaction"]
+    B --> C["GameState.endTurn()<br/>结算收入、推进 activeFaction<br/>刷新新势力行动并递减其技能冷却"]
     C --> D{"当前 activeFaction 是罗马？"}
     D -->|是| E["清空选择态<br/>banner 显示新罗马回合"]
     D -->|否| F["GameState.performSimpleAI(for:)<br/>AI 招募、移动、攻击、技能、休整"]
-    F --> G["GameState.endTurn()<br/>AI 势力结束回合"]
+    F --> G["GameState.endTurn()<br/>AI 势力结束回合<br/>刷新下一势力并递减其冷却"]
     G --> D
     E --> H["BattleView 刷新<br/>玩家继续下令"]
 ```
@@ -53,14 +53,17 @@ flowchart TD
     H --> I["更新单位生命、行动标记、经验和消息"]
 
     J["敌军意图面板"] --> K["GameViewModel.enemyIntentSummaries"]
-    K --> L["GameState.aiIntents(for:limit:)<br/>只读预测攻击、接敌、夺城、固守、整备、技能<br/>攻击类预计伤害来自规划态 attackPreview"]
+    K --> L["GameState.aiIntents(for:limit:)<br/>只读预测攻击、接敌、夺城、固守、整备、技能<br/>forecast copy 刷新行动并递减该势力冷却<br/>攻击类预计伤害来自规划态 attackPreview"]
     L --> M["BattleView 显示地图徽标、顶部芯片、侧栏敌情"]
 
     N["选中有将领单位"] --> O["GameViewModel.selectedGeneralSkillPreview"]
     O --> P["GameState.generalSkillPreview<br/>只读计算范围、目标、预计恢复或削城防"]
-    P --> Q["BattleView 显示技能范围和目标叠层<br/>将领卡与军令按钮展示摘要"]
+    P --> Q["BattleView 显示技能范围、目标和冷却<br/>将领卡与军令按钮展示摘要"]
     Q --> R["玩家发动技能"]
-    R --> S["GameState.useGeneralSkill<br/>复用预览目标筛选并消耗行动"]
+    R --> S["GameState.useGeneralSkill<br/>复用预览目标筛选<br/>消耗行动并写入冷却"]
+
+    T["选中单位经验"] --> U["GameState.warMeritStatus<br/>经验转军阶、伤害加成、进度"]
+    U --> V["BattleView 情报面板和将领卡<br/>展示战功状态"]
 ```
 
 ## 4. 任务与胜负结算流

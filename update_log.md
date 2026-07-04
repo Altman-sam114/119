@@ -14,12 +14,64 @@
 
 - 项目类型：原创 SwiftUI iOS 罗马题材战棋原型。
 - 核心架构：纯 Swift `RomeLegionsCore` 负责玩法规则；`GameViewModel` 负责 UI 状态和派生数据；SwiftUI 视图负责展示和命令入口。
-- 当前玩法：六边形地图、地形、城市、阵营、军团、移动、攻击、反击、占城、招募、科技、任务 requirement、战役目标、胜负结算、结束保护、外交、城市扩建、军团训练、将领任命、主动技能、战术姿态、AI 回合、敌军意图预判、战局态势面板。
+- 当前玩法：六边形地图、地形、城市、阵营、军团、移动、攻击、反击、占城、招募、科技、任务 requirement、战役目标、胜负结算、结束保护、外交、城市扩建、军团训练、将领任命、主动技能、技能冷却、战功状态、战术姿态、AI 回合、敌军意图预判、战局态势面板。
 - 当前测试入口：Swift Testing、Gameplay Smoke、项目结构检查、SwiftUI 类型检查、战斗页预览图渲染、无签名 Xcode 构建。
 - 当前协作系统：已建立 `AGENTS.md`、`update_log.md`、`md/prompt/`、`md/test/test.md`、`md/flow/flow.md`、`md/flow/flowchart.md`，默认按 `main` 直推、GitHub Actions 云端重验证、Agent C 下载未加密结果包复判，并具备未来由 Agent X 主控调度 Agent A/B/C 多轮循环的文档基线。
 - 当前 CI 入口：`.github/workflows/ci-results.yml`，在 `main` push 和手动触发时运行结构检查、SwiftPM 测试、Gameplay Smoke 和无签名 Xcode build，并上传 CI 结果包。
 
 ## 历史记录
+
+### v0.9 / 将领技能冷却与战功状态可读化
+
+日期：2026-07-04
+
+核心变更：
+
+- `ArmyUnit` 新增 `generalSkillCooldownRemaining`，并实现自定义 Codable，旧 `ArmyUnit` JSON 缺冷却字段时默认解码为 0。
+- `GeneralTrait` 新增统一技能冷却回合数；`useGeneralSkill(unitID:)` 成功后写入冷却，核心层在冷却未归零时抛出 `generalSkillOnCooldown`。
+- `GeneralSkillPreview` 新增冷却剩余和冷却文案；预览、释放和 AI 技能判断共享可执行状态，冷却时 `isExecutable == false`。
+- 抽出所属阵营回合开始刷新 helper，让 `endTurn()` 和 `aiIntents(for:limit:)` 的 forecast copy 复用同一套行动重置、姿态清空和冷却递减逻辑；其他阵营回合不会递减冷却。
+- 新增 `WarMeritStatus`，把经验转为军阶、战功进度和 `experience * 3` 伤害加成说明，不改变既有伤害公式。
+- `GameViewModel` 暴露选中单位战功状态、技能冷却摘要和按钮 detail；`BattleView` 在完整/紧凑情报、将领卡、技能按钮和兵牌冷却徽标中展示冷却与战功。
+- AI 主动技能判断补齐 `preview.isExecutable` 检查，避免治疗类技能在冷却中仍产生 `.useSkill` 意图或实际释放。
+- Swift Testing 增加冷却写入、递减时机、核心阻止释放、预览只读、AI 遵守冷却、战功映射和旧 `ArmyUnit` JSON 兼容用例。
+- Gameplay Smoke 增加技能冷却主链路和战功状态轻量断言。
+- README、flow、flowchart、test 文档同步技能冷却、战功状态、AI 预测和 artifact 版本，并新增 v0.9 Agent A 提示词。
+
+关键文件：
+
+- `Sources/RomeLegionsCore/GameState.swift`
+- `RomeLegionsApp/App/GameViewModel.swift`
+- `RomeLegionsApp/Views/BattleView.swift`
+- `Tests/RomeLegionsCoreTests/GameStateTests.swift`
+- `Tools/GameplaySmoke/main.swift`
+- `.github/workflows/ci-results.yml`
+- `README.md`
+- `md/flow/flow.md`
+- `md/flow/flowchart.md`
+- `md/test/test.md`
+- `md/prompt/v0（玩法推进）/v0.9（将领技能冷却与战功状态可读化）.md`
+- `update_log.md`
+
+验证结果：
+
+- `env HOME=$PWD/.home CLANG_MODULE_CACHE_PATH=$PWD/.build/module-cache DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/swift test --scratch-path .build/swift-test-local --disable-sandbox`：通过，41 个 Swift Testing 用例通过；本机 SwiftPM cache 目录只读警告不影响测试结果。
+- `swiftc -swift-version 5 -module-cache-path .build/module-cache Sources/RomeLegionsCore/GameState.swift Tools/GameplaySmoke/main.swift -o .build/gameplay-smoke`：通过，无错误输出。
+- `.build/gameplay-smoke`：通过，输出 `Gameplay smoke test passed.`
+- `env HOME=$PWD/.home CLANG_MODULE_CACHE_PATH=$PWD/.build/module-cache /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/swiftc -parse-as-library -sdk /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX26.5.sdk -target arm64-apple-macosx14.0 -o .build/render-battle-preview Tools/RenderBattlePreview/main.swift Sources/RomeLegionsCore/GameState.swift RomeLegionsApp/App/GameViewModel.swift RomeLegionsApp/Views/BattleView.swift`：通过，无错误输出。
+- `.build/render-battle-preview DerivedData/battle-landscape-preview.png 932 430`：通过，短横屏预览图生成成功，冷却和战功信息在侧栏可读，地图无明显遮挡。
+- `.build/render-battle-preview DerivedData/battle-portrait-preview.png 390 844`：通过，竖屏预览图生成成功，紧凑情报面板新增战功/冷却信息后未出现明显裁切。
+- `.build/render-battle-preview DerivedData/battle-wide-preview.png 1024 768`：通过，宽屏预览图生成成功，将领卡展示军阶进度条、冷却状态和技能摘要，无明显重叠。
+- `git diff --check`：通过，无输出。
+- `node Tools/verify_project.mjs`：通过，输出 `Project structure verification passed.`
+- `ruby -e 'require "yaml"; YAML.load_file(".github/workflows/ci-results.yml"); puts "yaml ok"'`：通过，输出 `yaml ok`。
+- `plutil -lint RomeLegionsApp.xcodeproj/project.pbxproj`：通过，输出 `RomeLegionsApp.xcodeproj/project.pbxproj: OK`。
+
+遗留事项：
+
+- 本轮没有新增将领、技能种类、升级树或手动点选技能目标；后续仍可继续扩展将领成长线和更细的战略技能。
+- 本轮没有默认本机跑完整 `xcodebuild build`；按项目规则交给 `main` push 后的 GitHub Actions 重验证。
+- Agent C 必须核对最新 `origin/main` commit 对应的 v0.9 run id、run attempt 和 artifact；不能使用 v0.8 旧结果包。
 
 ### v0.8 / 将领技能范围与目标预览体验
 

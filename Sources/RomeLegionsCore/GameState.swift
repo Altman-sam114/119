@@ -472,6 +472,10 @@ public enum GeneralTrait: String, CaseIterable, Codable, Identifiable, Hashable,
         }
     }
 
+    public var skillCooldownTurns: Int {
+        2
+    }
+
     public static func defaultTrait(forName name: String?) -> GeneralTrait? {
         guard let name else { return nil }
 
@@ -501,6 +505,8 @@ public struct GeneralSkillPreview: Codable, Equatable, Sendable {
     public var affectedPositions: [Position]
     public var projectedRecoveredHealth: Int
     public var projectedFortificationReduction: Int
+    public var cooldownRemaining: Int
+    public var cooldownText: String
     public var isExecutable: Bool
     public var blockedReason: String?
     public var summary: String
@@ -517,6 +523,8 @@ public struct GeneralSkillPreview: Codable, Equatable, Sendable {
         affectedPositions: [Position],
         projectedRecoveredHealth: Int,
         projectedFortificationReduction: Int,
+        cooldownRemaining: Int,
+        cooldownText: String,
         isExecutable: Bool,
         blockedReason: String?,
         summary: String,
@@ -532,10 +540,58 @@ public struct GeneralSkillPreview: Codable, Equatable, Sendable {
         self.affectedPositions = affectedPositions
         self.projectedRecoveredHealth = projectedRecoveredHealth
         self.projectedFortificationReduction = projectedFortificationReduction
+        self.cooldownRemaining = cooldownRemaining
+        self.cooldownText = cooldownText
         self.isExecutable = isExecutable
         self.blockedReason = blockedReason
         self.summary = summary
         self.detail = detail
+    }
+}
+
+public struct WarMeritStatus: Codable, Equatable, Sendable {
+    public var experience: Int
+    public var rankName: String
+    public var damageBonus: Int
+    public var nextRankName: String?
+    public var nextRankExperience: Int?
+    public var currentRankExperience: Int
+    public var progress: Int
+    public var progressTarget: Int
+    public var progressFraction: Double
+    public var summary: String
+
+    public init(experience: Int) {
+        let normalizedExperience = max(0, experience)
+        let ranks: [(experience: Int, name: String)] = [
+            (0, "新兵"),
+            (2, "老兵"),
+            (4, "百夫长"),
+            (7, "副将"),
+            (10, "名将")
+        ]
+
+        let currentIndex = ranks.lastIndex { normalizedExperience >= $0.experience } ?? 0
+        let currentRank = ranks[currentIndex]
+        let nextRank = currentIndex + 1 < ranks.count ? ranks[currentIndex + 1] : nil
+        let progressTarget = max(1, (nextRank?.experience ?? currentRank.experience + 1) - currentRank.experience)
+        let progress = nextRank == nil ? progressTarget : min(progressTarget, normalizedExperience - currentRank.experience)
+
+        self.experience = normalizedExperience
+        self.rankName = currentRank.name
+        self.damageBonus = normalizedExperience * 3
+        self.nextRankName = nextRank?.name
+        self.nextRankExperience = nextRank?.experience
+        self.currentRankExperience = currentRank.experience
+        self.progress = progress
+        self.progressTarget = progressTarget
+        self.progressFraction = Double(progress) / Double(progressTarget)
+
+        if let nextRank {
+            self.summary = "\(currentRank.name) · 战功 \(normalizedExperience)/\(nextRank.experience) · 伤害 +\(normalizedExperience * 3)"
+        } else {
+            self.summary = "\(currentRank.name) · 战功 \(normalizedExperience) · 伤害 +\(normalizedExperience * 3)"
+        }
     }
 }
 
@@ -548,9 +604,25 @@ public struct ArmyUnit: Identifiable, Codable, Equatable, Sendable {
     public var experience: Int
     public var generalName: String?
     public var generalTrait: GeneralTrait?
+    public var generalSkillCooldownRemaining: Int
     public var tacticalOrder: TacticalOrder?
     public var hasMoved: Bool
     public var hasActed: Bool
+
+    private enum CodingKeys: String, CodingKey {
+        case id
+        case kind
+        case faction
+        case position
+        case health
+        case experience
+        case generalName
+        case generalTrait
+        case generalSkillCooldownRemaining
+        case tacticalOrder
+        case hasMoved
+        case hasActed
+    }
 
     public init(
         id: String,
@@ -561,6 +633,7 @@ public struct ArmyUnit: Identifiable, Codable, Equatable, Sendable {
         experience: Int = 0,
         generalName: String? = nil,
         generalTrait: GeneralTrait? = nil,
+        generalSkillCooldownRemaining: Int = 0,
         tacticalOrder: TacticalOrder? = nil,
         hasMoved: Bool = false,
         hasActed: Bool = false
@@ -573,9 +646,42 @@ public struct ArmyUnit: Identifiable, Codable, Equatable, Sendable {
         self.experience = experience
         self.generalName = generalName
         self.generalTrait = generalTrait
+        self.generalSkillCooldownRemaining = max(0, generalSkillCooldownRemaining)
         self.tacticalOrder = tacticalOrder
         self.hasMoved = hasMoved
         self.hasActed = hasActed
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(String.self, forKey: .id)
+        kind = try container.decode(UnitKind.self, forKey: .kind)
+        faction = try container.decode(Faction.self, forKey: .faction)
+        position = try container.decode(Position.self, forKey: .position)
+        health = try container.decode(Int.self, forKey: .health)
+        experience = try container.decode(Int.self, forKey: .experience)
+        generalName = try container.decodeIfPresent(String.self, forKey: .generalName)
+        generalTrait = try container.decodeIfPresent(GeneralTrait.self, forKey: .generalTrait)
+        generalSkillCooldownRemaining = max(0, try container.decodeIfPresent(Int.self, forKey: .generalSkillCooldownRemaining) ?? 0)
+        tacticalOrder = try container.decodeIfPresent(TacticalOrder.self, forKey: .tacticalOrder)
+        hasMoved = try container.decode(Bool.self, forKey: .hasMoved)
+        hasActed = try container.decode(Bool.self, forKey: .hasActed)
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(id, forKey: .id)
+        try container.encode(kind, forKey: .kind)
+        try container.encode(faction, forKey: .faction)
+        try container.encode(position, forKey: .position)
+        try container.encode(health, forKey: .health)
+        try container.encode(experience, forKey: .experience)
+        try container.encodeIfPresent(generalName, forKey: .generalName)
+        try container.encodeIfPresent(generalTrait, forKey: .generalTrait)
+        try container.encode(generalSkillCooldownRemaining, forKey: .generalSkillCooldownRemaining)
+        try container.encodeIfPresent(tacticalOrder, forKey: .tacticalOrder)
+        try container.encode(hasMoved, forKey: .hasMoved)
+        try container.encode(hasActed, forKey: .hasActed)
     }
 
     public var healthRatio: Double {
@@ -588,6 +694,10 @@ public struct ArmyUnit: Identifiable, Codable, Equatable, Sendable {
 
     public var resolvedTacticalOrder: TacticalOrder {
         tacticalOrder ?? .balanced
+    }
+
+    public var hasGeneralSkillOnCooldown: Bool {
+        generalSkillCooldownRemaining > 0
     }
 }
 
@@ -852,6 +962,7 @@ public enum GameRuleError: Error, Equatable, Sendable {
     case protectedByTreaty
     case noSupply
     case generalSkillUnavailable
+    case generalSkillOnCooldown
     case campaignAlreadyEnded
     case missingEntity
 
@@ -871,6 +982,7 @@ public enum GameRuleError: Error, Equatable, Sendable {
         case .protectedByTreaty: return "停战或同盟关系下不能攻击"
         case .noSupply: return "当前位置没有可用补给"
         case .generalSkillUnavailable: return "该单位没有可用将领技能"
+        case .generalSkillOnCooldown: return "将领技能仍在冷却"
         case .campaignAlreadyEnded: return "战役已结束，不能继续改变战局"
         case .missingEntity: return "目标不存在"
         }
@@ -1165,6 +1277,18 @@ public struct GameState: Codable, Equatable, Sendable {
         return max(1, value)
     }
 
+    public func warMeritStatus(for unit: ArmyUnit) -> WarMeritStatus {
+        WarMeritStatus(experience: unit.experience)
+    }
+
+    public func warMeritStatus(unitID: String) throws -> WarMeritStatus {
+        guard let unit = unit(withID: unitID) else {
+            throw GameRuleError.missingEntity
+        }
+
+        return warMeritStatus(for: unit)
+    }
+
     public func effectiveDefense(for unit: ArmyUnit) -> Int {
         max(1, unit.kind.defense + (unit.resolvedGeneralTrait?.defenseBonus ?? 0) + unit.resolvedTacticalOrder.defenseBonus)
     }
@@ -1274,11 +1398,7 @@ public struct GameState: Codable, Equatable, Sendable {
         var forecast = self
         forecast.activeFaction = faction
 
-        for index in forecast.units.indices where forecast.units[index].faction == faction {
-            forecast.units[index].hasMoved = false
-            forecast.units[index].hasActed = false
-            forecast.units[index].tacticalOrder = nil
-        }
+        forecast.refreshFactionForNewTurn(faction)
 
         return forecast.units
             .filter { $0.faction == faction }
@@ -1571,6 +1691,10 @@ public struct GameState: Codable, Equatable, Sendable {
             throw GameRuleError.generalSkillUnavailable
         }
 
+        guard units[commanderIndex].generalSkillCooldownRemaining == 0 else {
+            throw GameRuleError.generalSkillOnCooldown
+        }
+
         let preview = try generalSkillPreview(unitID: unitID)
         var messages: [String]
 
@@ -1607,6 +1731,7 @@ public struct GameState: Codable, Equatable, Sendable {
         if let updatedCommanderIndex = units.firstIndex(where: { $0.id == unitID }) {
             units[updatedCommanderIndex].hasMoved = true
             units[updatedCommanderIndex].hasActed = true
+            units[updatedCommanderIndex].generalSkillCooldownRemaining = trait.skillCooldownTurns
         }
 
         messages.append(contentsOf: evaluateCampaignProgress())
@@ -1713,11 +1838,7 @@ public struct GameState: Codable, Equatable, Sendable {
             turn += 1
         }
 
-        for index in units.indices where units[index].faction == activeFaction {
-            units[index].hasMoved = false
-            units[index].hasActed = false
-            units[index].tacticalOrder = nil
-        }
+        refreshFactionForNewTurn(activeFaction)
 
         let messages = [
             "\(previous.displayName)获得收入：金币 \(gained.gold)，粮食 \(gained.grain)，铁 \(gained.iron)，科技 \(gained.science)。",
@@ -1955,7 +2076,16 @@ public struct GameState: Codable, Equatable, Sendable {
             .neighbors(width: width, height: height)
             .contains { position in
                 city(at: position)?.owner == unit.faction
-            }
+        }
+    }
+
+    private mutating func refreshFactionForNewTurn(_ faction: Faction) {
+        for index in units.indices where units[index].faction == faction {
+            units[index].hasMoved = false
+            units[index].hasActed = false
+            units[index].tacticalOrder = nil
+            units[index].generalSkillCooldownRemaining = max(0, units[index].generalSkillCooldownRemaining - 1)
+        }
     }
 
     private func generalSkillPreview(for commander: ArmyUnit) -> GeneralSkillPreview {
@@ -1971,6 +2101,8 @@ public struct GameState: Codable, Equatable, Sendable {
                 affectedPositions: [],
                 projectedRecoveredHealth: 0,
                 projectedFortificationReduction: 0,
+                cooldownRemaining: commander.generalSkillCooldownRemaining,
+                cooldownText: "无技能",
                 isExecutable: false,
                 blockedReason: "该单位没有可用将领技能",
                 summary: "无可用技能",
@@ -1991,6 +2123,8 @@ public struct GameState: Codable, Equatable, Sendable {
         let affectedCityIDs = fortificationTargets.map { $0.id }
         let projectedRecoveredHealth = recoveryTargets.reduce(0) { $0 + $1.recoveredHealth }
         let projectedFortificationReduction = fortificationTargets.reduce(0) { $0 + $1.reduction }
+        let cooldownRemaining = commander.generalSkillCooldownRemaining
+        let cooldownText = cooldownRemaining > 0 ? "冷却 \(cooldownRemaining) 回合" : "冷却就绪"
 
         let blockedReason: String?
         if campaignStatus.isGameOver {
@@ -1999,6 +2133,8 @@ public struct GameState: Codable, Equatable, Sendable {
             blockedReason = "非当前行动势力"
         } else if commander.hasActed {
             blockedReason = "本回合已行动"
+        } else if cooldownRemaining > 0 {
+            blockedReason = "技能冷却中（\(cooldownRemaining) 回合）"
         } else if trait == .siegeEngineer && fortificationTargets.isEmpty {
             blockedReason = "范围内没有可削弱敌城"
         } else {
@@ -2025,6 +2161,7 @@ public struct GameState: Codable, Equatable, Sendable {
         let affectedPositions = sortedPositions(Array(Set(recoveryTargets.map { $0.position } + fortificationTargets.map { $0.position })))
         let detailParts = [
             "范围 \(range)",
+            cooldownText,
             summary,
             blockedReason.map { "不可用：\($0)" }
         ].compactMap { $0 }
@@ -2040,6 +2177,8 @@ public struct GameState: Codable, Equatable, Sendable {
             affectedPositions: affectedPositions,
             projectedRecoveredHealth: projectedRecoveredHealth,
             projectedFortificationReduction: projectedFortificationReduction,
+            cooldownRemaining: cooldownRemaining,
+            cooldownText: cooldownText,
             isExecutable: blockedReason == nil,
             blockedReason: blockedReason,
             summary: summary,
@@ -2391,7 +2530,7 @@ public struct GameState: Codable, Equatable, Sendable {
             return preview.isExecutable && preview.projectedFortificationReduction > 0
 
         case .quartermaster, .shieldWall, .eagleStandard:
-            return aiSkillTargetUnit(for: unit, preview: preview) != nil
+            return preview.isExecutable && aiSkillTargetUnit(for: unit, preview: preview) != nil
         }
     }
 
@@ -2432,6 +2571,7 @@ public struct GameState: Codable, Equatable, Sendable {
                 experience: unit.experience,
                 generalName: unit.generalName,
                 generalTrait: unit.generalTrait,
+                generalSkillCooldownRemaining: unit.generalSkillCooldownRemaining,
                 tacticalOrder: .assault,
                 hasMoved: unit.hasMoved,
                 hasActed: unit.hasActed
@@ -2568,6 +2708,7 @@ public struct GameState: Codable, Equatable, Sendable {
                     experience: unit.experience,
                     generalName: unit.generalName,
                     generalTrait: unit.generalTrait,
+                    generalSkillCooldownRemaining: unit.generalSkillCooldownRemaining,
                     tacticalOrder: unit.tacticalOrder,
                     hasMoved: true,
                     hasActed: unit.hasActed
@@ -2705,6 +2846,7 @@ public struct GameState: Codable, Equatable, Sendable {
             experience: unit.experience,
             generalName: unit.generalName,
             generalTrait: unit.generalTrait,
+            generalSkillCooldownRemaining: unit.generalSkillCooldownRemaining,
             tacticalOrder: (order ?? unit.resolvedTacticalOrder) == .balanced ? nil : (order ?? unit.resolvedTacticalOrder),
             hasMoved: hasMoved ?? unit.hasMoved,
             hasActed: hasActed ?? unit.hasActed
