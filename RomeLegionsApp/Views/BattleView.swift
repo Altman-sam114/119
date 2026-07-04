@@ -1297,27 +1297,9 @@ struct CompactSelectionPanelView: View {
                         CompactNoGeneralView(brief: brief)
                     }
                 }
-            } else if let city = viewModel.selectedCity {
-                VStack(alignment: .leading, spacing: 7) {
-                    HStack(spacing: 8) {
-                        CityBadgeView(city: city, compact: true)
-                        VStack(alignment: .leading, spacing: 1) {
-                            Text(city.name)
-                                .font(.subheadline.weight(.bold))
-                            Text(city.owner.displayName)
-                                .font(.caption2)
-                                .foregroundStyle(.white.opacity(0.64))
-                        }
-                        Spacer(minLength: 0)
-                    }
-
-                    HStack(spacing: 8) {
-                        CompactStat(label: "金", value: "+\(city.production.gold)")
-                        CompactStat(label: "粮", value: "+\(city.production.grain)")
-                        CompactStat(label: "铁", value: "+\(city.production.iron)")
-                        CompactStat(label: "防", value: "\(city.fortification)")
-                    }
-                }
+            } else if let city = viewModel.selectedCity,
+                      let brief = viewModel.selectedCityBrief {
+                CompactCityReadoutView(city: city, brief: brief)
             } else {
                 Text("选择军团、城市或目标。")
                     .font(.caption)
@@ -1394,14 +1376,76 @@ struct CompactActionsPanelView: View {
                     }
                 }
 
-                if let city = viewModel.commandCity, city.owner == .rome {
+                if let city = viewModel.commandCity,
+                   let brief = viewModel.commandCityBrief,
+                   city.owner == .rome {
                     Button {
                         viewModel.developCommandCity()
                     } label: {
-                        CommandButtonLabel(symbol: "building.2.crop.circle.fill", text: "扩建")
+                        CommandButtonLabel(
+                            symbol: "building.2.crop.circle.fill",
+                            text: "扩建",
+                            detail: brief.canDevelop ? brief.developmentGainLabel : brief.developmentStatusLabel
+                        )
                     }
                     .buttonStyle(SecondaryButtonStyle())
-                    .disabled(viewModel.isCampaignOver)
+                    .disabled(!brief.canDevelop || viewModel.isCampaignOver)
+
+                    CityRecruitmentButtonsView(
+                        options: brief.recruitmentOptions,
+                        isCompact: true
+                    )
+                }
+            }
+        }
+    }
+}
+
+struct CityRecruitmentButtonsView: View {
+    @EnvironmentObject private var viewModel: GameViewModel
+    var options: [CityRecruitmentOptionPreview]
+    var isCompact: Bool
+
+    var body: some View {
+        if isCompact {
+            HStack(spacing: 7) {
+                ForEach(options) { option in
+                    Button {
+                        viewModel.recruit(option.kind)
+                    } label: {
+                        VStack(spacing: 3) {
+                            Image(systemName: option.kind.tokenSystemImage)
+                                .font(.caption.weight(.heavy))
+                            Text(option.kind.shortLabel)
+                                .font(.caption.weight(.black))
+                            Text(option.canRecruit ? option.shortCostLabel : option.shortStatusLabel)
+                                .font(.caption.monospacedDigit().weight(.semibold))
+                                .foregroundStyle(option.canRecruit ? .white.opacity(0.72) : .orange.opacity(0.86))
+                                .lineLimit(1)
+                                .minimumScaleFactor(0.58)
+                        }
+                        .frame(maxWidth: .infinity, minHeight: 54)
+                    }
+                    .buttonStyle(SecondaryButtonStyle())
+                    .disabled(!option.canRecruit || viewModel.isCampaignOver)
+                    .accessibilityLabel(option.accessibilityLabel)
+                }
+            }
+        } else {
+            VStack(spacing: 7) {
+                ForEach(options) { option in
+                    Button {
+                        viewModel.recruit(option.kind)
+                    } label: {
+                        CommandButtonLabel(
+                            symbol: option.kind.tokenSystemImage,
+                            text: "招募 \(option.kind.displayName) · \(option.costLabel)",
+                            detail: option.canRecruit ? "\(option.statsLabel) · \(option.deploymentLabel)" : (option.blockedReason ?? option.deploymentLabel)
+                        )
+                    }
+                    .buttonStyle(SecondaryButtonStyle())
+                    .disabled(!option.canRecruit || viewModel.isCampaignOver)
+                    .accessibilityLabel(option.accessibilityLabel)
                 }
             }
         }
@@ -2080,26 +2124,9 @@ struct SelectionPanelView: View {
                         NoGeneralCommandView(brief: brief)
                     }
                 }
-            } else if let city = viewModel.selectedCity {
-                VStack(alignment: .leading, spacing: 8) {
-                    HStack {
-                        CityBadgeView(city: city)
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(city.name)
-                                .font(.headline.weight(.bold))
-                            Text(city.owner.displayName)
-                                .font(.caption)
-                                .foregroundStyle(.white.opacity(0.68))
-                        }
-                        Spacer()
-                    }
-
-                    StatRow(label: "金币", value: "+\(city.production.gold)")
-                    StatRow(label: "粮食", value: "+\(city.production.grain)")
-                    StatRow(label: "铁", value: "+\(city.production.iron)")
-                    StatRow(label: "科技", value: "+\(city.production.science)")
-                    StatRow(label: "城防", value: "\(city.fortification)")
-                }
+            } else if let city = viewModel.selectedCity,
+                      let brief = viewModel.selectedCityBrief {
+                CityReadoutView(city: city, brief: brief)
             } else {
                 Text("元老院令：夺取港口，切断敌军补给。")
                     .font(.subheadline)
@@ -2107,6 +2134,137 @@ struct SelectionPanelView: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
         }
+    }
+}
+
+struct CompactCityReadoutView: View {
+    var city: City
+    var brief: SelectedCityBrief
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 7) {
+            HStack(spacing: 8) {
+                CityBadgeView(city: city, compact: true)
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(brief.title)
+                        .font(.subheadline.weight(.bold))
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.72)
+                    Text("\(brief.ownerLabel) · \(brief.positionLabel)")
+                        .font(.caption)
+                        .foregroundStyle(.white.opacity(0.64))
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.7)
+                }
+                Spacer(minLength: 0)
+            }
+
+            HStack(spacing: 8) {
+                CompactStat(label: "金", value: "+\(city.production.gold)")
+                CompactStat(label: "粮", value: "+\(city.production.grain)")
+                CompactStat(label: "防", value: "\(city.fortification)")
+                CompactStat(label: "募", value: "\(brief.availableRecruitmentCount)")
+            }
+
+            Text(brief.deploymentSummary)
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(.white.opacity(0.66))
+                .lineLimit(1)
+                .minimumScaleFactor(0.68)
+
+            Text("扩建：\(brief.developmentGainLabel)")
+                .font(.caption)
+                .foregroundStyle(brief.canDevelop ? .white.opacity(0.68) : .orange.opacity(0.86))
+                .lineLimit(1)
+                .minimumScaleFactor(0.68)
+        }
+        .accessibilityLabel(brief.accessibilityLabel)
+    }
+}
+
+struct CityReadoutView: View {
+    var city: City
+    var brief: SelectedCityBrief
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                CityBadgeView(city: city)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(brief.title)
+                        .font(.headline.weight(.bold))
+                    Text("\(brief.ownerLabel) · \(brief.positionLabel)")
+                        .font(.caption)
+                        .foregroundStyle(.white.opacity(0.68))
+                }
+                Spacer()
+            }
+
+            StatRow(label: "本城产出", value: brief.productionLabel)
+            StatRow(label: "势力收入", value: brief.ownerIncomeLabel)
+            StatRow(label: "罗马库存", value: brief.romanResourceLabel)
+            StatRow(label: "城防", value: brief.fortificationLabel)
+            StatRow(label: "部署", value: brief.deploymentSummary)
+
+            VStack(alignment: .leading, spacing: 5) {
+                HStack(spacing: 6) {
+                    Image(systemName: "building.2.crop.circle.fill")
+                        .foregroundStyle(Color(red: 0.86, green: 0.68, blue: 0.34))
+                    Text("城市扩建")
+                        .font(.caption.weight(.bold))
+                    Spacer(minLength: 0)
+                    Text(brief.canDevelop ? "可执行" : "受阻")
+                        .font(.caption.weight(.bold))
+                        .foregroundStyle(brief.canDevelop ? .green : .orange)
+                }
+                Text("成本 \(brief.developmentCostLabel)")
+                    .font(.caption)
+                    .foregroundStyle(.white.opacity(0.64))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
+                Text("收益 \(brief.developmentGainLabel) · \(brief.developmentStatusLabel)")
+                    .font(.caption)
+                    .foregroundStyle(.white.opacity(0.64))
+                    .lineLimit(2)
+                    .minimumScaleFactor(0.72)
+            }
+            .padding(8)
+            .background(.black.opacity(0.18))
+            .clipShape(RoundedRectangle(cornerRadius: 7))
+
+            VStack(alignment: .leading, spacing: 5) {
+                Text("招募预览")
+                    .font(.caption.weight(.bold))
+                ForEach(brief.recruitmentOptions) { option in
+                    HStack(spacing: 7) {
+                        Image(systemName: option.kind.tokenSystemImage)
+                            .foregroundStyle(option.canRecruit ? Color(red: 0.36, green: 0.86, blue: 0.92) : .white.opacity(0.45))
+                            .frame(width: 16)
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("\(option.kind.displayName) · \(option.costLabel)")
+                                .font(.caption.weight(.semibold))
+                                .lineLimit(1)
+                                .minimumScaleFactor(0.7)
+                            Text("\(option.statsLabel) · \(option.deploymentLabel)")
+                                .font(.caption)
+                                .foregroundStyle(.white.opacity(0.58))
+                                .lineLimit(2)
+                                .minimumScaleFactor(0.7)
+                        }
+                        Spacer(minLength: 0)
+                    }
+                    .padding(.horizontal, 7)
+                    .padding(.vertical, 5)
+                    .background(option.canRecruit ? .white.opacity(0.06) : .black.opacity(0.16))
+                    .clipShape(RoundedRectangle(cornerRadius: 6))
+                    .accessibilityLabel(option.accessibilityLabel)
+                }
+            }
+            .padding(8)
+            .background(.black.opacity(0.14))
+            .clipShape(RoundedRectangle(cornerRadius: 7))
+        }
+        .accessibilityLabel(brief.accessibilityLabel)
     }
 }
 
@@ -2523,37 +2681,25 @@ struct ActionsPanelView: View {
                     }
                 }
 
-                if let city = viewModel.commandCity, city.owner == .rome {
+                if let city = viewModel.commandCity,
+                   let brief = viewModel.commandCityBrief,
+                   city.owner == .rome {
                     Button {
                         viewModel.developCommandCity()
                     } label: {
-                        CommandButtonLabel(symbol: "building.2.crop.circle.fill", text: "扩建 \(city.name)")
+                        CommandButtonLabel(
+                            symbol: "building.2.crop.circle.fill",
+                            text: "扩建 \(city.name)",
+                            detail: brief.canDevelop ? "\(brief.developmentGainLabel) · 成本 \(brief.developmentCostLabel)" : brief.developmentStatusLabel
+                        )
                     }
                     .buttonStyle(SecondaryButtonStyle())
-                    .disabled(viewModel.isCampaignOver)
+                    .disabled(!brief.canDevelop || viewModel.isCampaignOver)
 
-                    HStack(spacing: 8) {
-                        ForEach(UnitKind.allCases.filter { kind in
-                            kind != .navy || city.position.neighbors(width: viewModel.state.width, height: viewModel.state.height).contains { position in
-                                viewModel.state.tile(at: position)?.terrain == .water
-                            }
-                        }) { kind in
-                            Button {
-                                viewModel.recruit(kind)
-                            } label: {
-                                VStack(spacing: 4) {
-                                    Text(kind.shortLabel)
-                                        .font(.caption.weight(.black))
-                                    Text("\(kind.recruitmentCost.gold)")
-                                        .font(.caption2.monospacedDigit().weight(.bold))
-                                        .foregroundStyle(.white.opacity(0.72))
-                                }
-                                .frame(maxWidth: .infinity, minHeight: 48)
-                            }
-                            .buttonStyle(SecondaryButtonStyle())
-                            .disabled(viewModel.isCampaignOver)
-                        }
-                    }
+                    CityRecruitmentButtonsView(
+                        options: brief.recruitmentOptions,
+                        isCompact: false
+                    )
                 }
 
                 if let unit = viewModel.selectedUnit, unit.faction == .rome {

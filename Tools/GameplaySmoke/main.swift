@@ -14,8 +14,29 @@ do {
     var recruitmentState = GameState.newCampaign()
     recruitmentState.units.removeAll { $0.position == Position(x: 3, y: 3) }
     let beforeRecruitment = recruitmentState.units.count
+    let recruitmentPreview = try recruitmentState.recruitmentPreview(.legion, at: "rome")
+    expect(recruitmentPreview.canRecruit, "Recruitment preview should allow legion in empty Rome")
+    expect(recruitmentPreview.deploymentPosition == Position(x: 3, y: 3), "Recruitment preview should expose spawn position")
     _ = try recruitmentState.recruit(.legion, at: "rome")
     expect(recruitmentState.units.count == beforeRecruitment + 1, "Recruitment should add a unit")
+    if let deploymentPosition = recruitmentPreview.deploymentPosition {
+        expect(recruitmentState.unit(at: deploymentPosition)?.kind == .legion, "Recruitment should use previewed spawn position")
+    } else {
+        expect(false, "Recruitment preview should include a deployment position")
+    }
+
+    var cityPreviewState = GameState.newCampaign()
+    let developmentPreview = try cityPreviewState.cityDevelopmentPreview(id: "rome")
+    let beforeDevelopmentFortification = cityPreviewState.city(withID: "rome")?.fortification ?? 0
+    expect(developmentPreview.canDevelop, "City development preview should be executable")
+    expect(developmentPreview.productionIncrease.gold == 10, "City development preview should expose gold increase")
+    _ = try cityPreviewState.developCity(id: "rome")
+    expect(cityPreviewState.city(withID: "rome")?.fortification == beforeDevelopmentFortification + developmentPreview.fortificationIncrease, "City development should match preview")
+
+    let harborPreviewState = GameState.newCampaign()
+    let navyPreview = try harborPreviewState.recruitmentPreview(.navy, at: "neapolis")
+    expect(navyPreview.canRecruit, "Navy preview should find Neapolis harbor")
+    expect(navyPreview.deploymentPosition == Position(x: 4, y: 5), "Navy preview should expose adjacent harbor")
 
     var technologyState = GameState.newCampaign()
     _ = try technologyState.research(.marchingDrill)

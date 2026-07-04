@@ -11,11 +11,11 @@ flowchart TD
     A["App 启动<br/>RomeLegionsApp 创建 GameViewModel"] --> B["RootView<br/>判断是否显示菜单"]
     B -->|isShowingMenu = true| C["MainMenuView<br/>人工选择战役/征服/远征"]
     C --> D["GameViewModel.start(mode:)<br/>创建 GameState.newCampaign"]
-    B -->|isShowingMenu = false| E["BattleView<br/>展示地图、侧栏、命令面板"]
+    B -->|isShowingMenu = false| E["BattleView<br/>展示地图、城市读板、侧栏、命令面板"]
     D --> E
     E --> F["用户点击地图或命令<br/>选择单位/城市/地块/目标"]
-    F --> G["GameViewModel 命令方法<br/>selectTile / attack / recruit / endTurn"]
-    G --> H["GameState 核心规则<br/>移动、攻击、招募、科技、外交、AI"]
+    F --> G["GameViewModel 命令方法<br/>selectTile / attack / recruit / develop / endTurn"]
+    G --> H["GameState 核心规则<br/>移动、攻击、城市预览、招募、科技、外交、AI"]
     H --> I["返回中文消息或 GameRuleError<br/>说明命令结果"]
     I --> J["GameViewModel 更新 @Published 状态<br/>banner、选择态、派生数据"]
     J --> E
@@ -72,7 +72,24 @@ flowchart TD
     Z --> AA["BattleView 姿态预览与按钮<br/>展示攻防移、变化值、当前标记和不可切换原因"]
 ```
 
-## 4. 任务与胜负结算流
+## 4. 城市经营与招募预览流
+
+读图说明：这张图展示城市读板如何从核心只读预览派生到 UI。扩建和招募按钮展示的是预览状态，但真实执行仍回到 `GameState`，并复用同一成本、收益和部署来源。
+
+```mermaid
+flowchart TD
+    A["选中城市或驻城单位"] --> B["GameViewModel.commandCity / selectedCity"]
+    B --> C["GameState.cityDevelopmentPreview(id:)<br/>成本、产出增量、城防增量、阻塞原因"]
+    B --> D["GameState.recruitmentPreview(_:at:)<br/>兵种成本、预计部署位置、阻塞原因"]
+    C --> E["GameViewModel.selectedCityBrief / commandCityBrief<br/>收入、库存、扩建收益、部署摘要"]
+    D --> E
+    E --> F["BattleView 情报栏和军令面板<br/>展示城市读板、扩建按钮、招募按钮"]
+    F --> G["玩家点击扩建或招募"]
+    G --> H["GameState.developCity / recruit<br/>复用同一预览来源后修改城市或创建单位"]
+    H --> I["GameViewModel.apply<br/>展示中文结果或 GameRuleError"]
+```
+
+## 5. 任务与胜负结算流
 
 读图说明：这张图展示 v0.4 后任务 requirement、任务奖励、战役胜负和结束保护的关系。胜负只由 `GameState` 判断，SwiftUI 只读取结果和禁用入口。
 
@@ -96,7 +113,7 @@ flowchart TD
     N --> O["只读展示仍可查看<br/>状态、预览、敌军意图"]
 ```
 
-## 5. 多 Agent 云端迭代流
+## 6. 多 Agent 云端迭代流
 
 读图说明：这张图展示人工、Agent X、Agent A、Agent B、GitHub Actions 和 Agent C 的职责边界。Agent X 只做主控调度和轮次判断，不替代 A/B/C；当前默认不是 PR 流，而是 `main` 直推、云端结果包、Agent C 下载复判；失败时在 `main` 上追加修复 commit。
 
@@ -122,7 +139,7 @@ flowchart TD
     M -->|总目标完成| P["Agent X 输出最终结论<br/>列出 run、artifact 和剩余风险"]
 ```
 
-## 6. 测试选择流
+## 7. 测试选择流
 
 读图说明：这张图帮助 Agent B/C/X 判断默认验证路径。默认先跑本地轻量检查，再 push 到 `main` 触发云端重验证；只有人工明确要求时才把本机完整 Swift / Xcode 测试作为默认路径。
 

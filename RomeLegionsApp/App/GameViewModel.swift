@@ -320,6 +320,40 @@ struct SelectedTacticalOrderPreview: Identifiable {
     var id: TacticalOrder { order }
 }
 
+struct CityRecruitmentOptionPreview: Identifiable {
+    var kind: UnitKind
+    var statsLabel: String
+    var costLabel: String
+    var shortCostLabel: String
+    var deploymentLabel: String
+    var shortStatusLabel: String
+    var canRecruit: Bool
+    var blockedReason: String?
+    var accessibilityLabel: String
+
+    var id: UnitKind { kind }
+}
+
+struct SelectedCityBrief {
+    var cityID: String
+    var title: String
+    var ownerLabel: String
+    var positionLabel: String
+    var fortificationLabel: String
+    var productionLabel: String
+    var ownerIncomeLabel: String
+    var romanResourceLabel: String
+    var deploymentSummary: String
+    var developmentPreview: CityDevelopmentPreview?
+    var developmentCostLabel: String
+    var developmentGainLabel: String
+    var developmentStatusLabel: String
+    var canDevelop: Bool
+    var recruitmentOptions: [CityRecruitmentOptionPreview]
+    var availableRecruitmentCount: Int
+    var accessibilityLabel: String
+}
+
 @MainActor
 final class GameViewModel: ObservableObject {
     @Published var state = GameState.newCampaign()
@@ -375,6 +409,20 @@ final class GameViewModel: ObservableObject {
         }
 
         return state.city(at: selectedUnit.position)
+    }
+
+    var selectedCityBrief: SelectedCityBrief? {
+        guard let selectedCity else { return nil }
+        return cityBrief(for: selectedCity)
+    }
+
+    var commandCityBrief: SelectedCityBrief? {
+        guard let commandCity else { return nil }
+        return cityBrief(for: commandCity)
+    }
+
+    var commandCityRecruitmentOptions: [CityRecruitmentOptionPreview] {
+        commandCityBrief?.recruitmentOptions ?? []
     }
 
     var focusedPosition: Position? {
@@ -659,6 +707,157 @@ final class GameViewModel: ObservableObject {
                 result[targetPosition] = overlay
             }
         }
+    }
+
+    private func cityBrief(for city: City) -> SelectedCityBrief {
+        let developmentPreview = try? state.cityDevelopmentPreview(id: city.id)
+        let recruitmentOptions = UnitKind.allCases.map { kind in
+            cityRecruitmentOptionPreview(for: kind, at: city)
+        }
+        let productionLabel = resourceLabel(city.production, signed: true, includeZero: true)
+        let ownerIncomeLabel = "\(city.owner.displayName)收入 \(resourceLabel(state.income(for: city.owner), signed: true, includeZero: false))"
+        let romanResourceLabel = "罗马库存 \(resourceLabel(romanResources, signed: false, includeZero: false))"
+        let developmentCostLabel = developmentPreview.map { resourceLabel($0.cost, signed: false, includeZero: false) } ?? "无"
+        let developmentGainLabel = developmentPreview.map { preview in
+            "\(resourceLabel(preview.productionIncrease, signed: true, includeZero: false)) · 城防 +\(preview.fortificationIncrease)"
+        } ?? "无"
+        let developmentStatusLabel = developmentPreview.map { preview in
+            preview.canDevelop ? "扩建后城防 \(preview.projectedFortification)" : (preview.blockedReason ?? "不可扩建")
+        } ?? "不可扩建"
+        let deploymentSummary = cityDeploymentSummary(for: city, recruitmentOptions: recruitmentOptions)
+        let availableRecruitmentCount = recruitmentOptions.filter { $0.canRecruit }.count
+        let accessibilityParts = [
+            city.name,
+            city.owner.displayName,
+            "位置\(city.position)",
+            "城防\(city.fortification)",
+            "本城产出\(productionLabel)",
+            ownerIncomeLabel,
+            deploymentSummary,
+            "可招募\(availableRecruitmentCount)项"
+        ]
+
+        return SelectedCityBrief(
+            cityID: city.id,
+            title: city.name,
+            ownerLabel: city.owner.displayName,
+            positionLabel: "坐标 \(city.position.x),\(city.position.y)",
+            fortificationLabel: "城防 \(city.fortification)",
+            productionLabel: productionLabel,
+            ownerIncomeLabel: ownerIncomeLabel,
+            romanResourceLabel: romanResourceLabel,
+            deploymentSummary: deploymentSummary,
+            developmentPreview: developmentPreview,
+            developmentCostLabel: developmentCostLabel,
+            developmentGainLabel: developmentGainLabel,
+            developmentStatusLabel: developmentStatusLabel,
+            canDevelop: developmentPreview?.canDevelop ?? false,
+            recruitmentOptions: recruitmentOptions,
+            availableRecruitmentCount: availableRecruitmentCount,
+            accessibilityLabel: accessibilityParts.joined(separator: "，")
+        )
+    }
+
+    private func cityRecruitmentOptionPreview(for kind: UnitKind, at city: City) -> CityRecruitmentOptionPreview {
+        let corePreview = try? state.recruitmentPreview(kind, at: city.id)
+        let cost = corePreview?.cost ?? kind.recruitmentCost
+        let shortageLabel = resourceShortageLabel(for: cost)
+        let blockedReason: String?
+        if corePreview?.blockingError == .insufficientResources, let shortageLabel {
+            blockedReason = shortageLabel
+        } else {
+            blockedReason = corePreview?.blockedReason
+        }
+        let deploymentLabel = corePreview?.deploymentPosition.map { "部署 \($0)" } ?? (blockedReason ?? "不可部署")
+        let shortStatusLabel = corePreview?.canRecruit == true ? "可征召" : (blockedReason ?? "受阻")
+        let statsLabel = "攻 \(kind.attack) · 防 \(kind.defense) · 移 \(kind.movement) · 射 \(kind.range) · 兵 \(kind.maxHealth)"
+        let costLabel = resourceLabel(cost, signed: false, includeZero: false)
+        let accessibilityParts = [
+            kind.displayName,
+            statsLabel,
+            "成本\(costLabel)",
+            deploymentLabel,
+            shortStatusLabel
+        ]
+
+        return CityRecruitmentOptionPreview(
+            kind: kind,
+            statsLabel: statsLabel,
+            costLabel: costLabel,
+            shortCostLabel: shortResourceLabel(cost),
+            deploymentLabel: deploymentLabel,
+            shortStatusLabel: shortStatusLabel,
+            canRecruit: corePreview?.canRecruit ?? false,
+            blockedReason: blockedReason,
+            accessibilityLabel: accessibilityParts.joined(separator: "，")
+        )
+    }
+
+    private func cityDeploymentSummary(
+        for city: City,
+        recruitmentOptions: [CityRecruitmentOptionPreview]
+    ) -> String {
+        let cityOccupant = state.unit(at: city.position).map { "\($0.faction.displayName)\($0.kind.displayName)" } ?? "空闲"
+        let neighbors = city.position.neighbors(width: state.width, height: state.height)
+        let openLandNeighbors = neighbors.filter { position in
+            guard let tile = state.tile(at: position) else { return false }
+            return tile.terrain != .water && state.unit(at: position) == nil
+        }.count
+        let openHarbors = neighbors.filter { position in
+            state.tile(at: position)?.terrain == .water && state.unit(at: position) == nil
+        }.count
+        let canRecruitCount = recruitmentOptions.filter { $0.canRecruit }.count
+
+        return "城内\(cityOccupant) · 陆军邻格 \(openLandNeighbors) · 港口 \(openHarbors) · 可招募 \(canRecruitCount)"
+    }
+
+    private func resourceLabel(
+        _ resources: EmpireResources,
+        signed: Bool,
+        includeZero: Bool
+    ) -> String {
+        let values = resourcePairs(resources)
+            .filter { includeZero || $0.value != 0 }
+            .map { pair in
+                let value = signed ? signedValue(pair.value) : "\(pair.value)"
+                return "\(pair.label) \(value)"
+            }
+
+        return values.isEmpty ? "0" : values.joined(separator: " · ")
+    }
+
+    private func shortResourceLabel(_ resources: EmpireResources) -> String {
+        let values = resourcePairs(resources)
+            .filter { $0.value != 0 }
+            .prefix(2)
+            .map { "\($0.label)\($0.value)" }
+
+        return values.isEmpty ? "0" : values.joined(separator: " ")
+    }
+
+    private func resourceShortageLabel(for cost: EmpireResources) -> String? {
+        let pool = state.resources[state.activeFaction] ?? .zero
+        let shortages = [
+            ("金", max(0, cost.gold - pool.gold)),
+            ("粮", max(0, cost.grain - pool.grain)),
+            ("铁", max(0, cost.iron - pool.iron)),
+            ("科", max(0, cost.science - pool.science)),
+            ("威", max(0, cost.prestige - pool.prestige))
+        ]
+        .filter { $0.1 > 0 }
+        .map { "缺\($0.0) \($0.1)" }
+
+        return shortages.isEmpty ? nil : shortages.joined(separator: " · ")
+    }
+
+    private func resourcePairs(_ resources: EmpireResources) -> [(label: String, value: Int)] {
+        [
+            ("金", resources.gold),
+            ("粮", resources.grain),
+            ("铁", resources.iron),
+            ("科", resources.science),
+            ("威", resources.prestige)
+        ]
     }
 
     var selectedSupplyLabel: String {
@@ -1047,10 +1246,10 @@ final class GameViewModel: ObservableObject {
     }
 
     func recruit(_ kind: UnitKind) {
-        guard let selectedCityID = selectedCityID else { return }
+        guard let cityID = commandCity?.id else { return }
 
         apply {
-            try state.recruit(kind, at: selectedCityID)
+            try state.recruit(kind, at: cityID)
         }
     }
 

@@ -726,6 +726,80 @@ public struct City: Identifiable, Codable, Equatable, Sendable {
     }
 }
 
+public struct CityDevelopmentPreview: Equatable, Sendable {
+    public var cityID: String
+    public var cityName: String
+    public var owner: Faction
+    public var cost: EmpireResources
+    public var productionIncrease: EmpireResources
+    public var projectedProduction: EmpireResources
+    public var fortificationIncrease: Int
+    public var projectedFortification: Int
+    public var canDevelop: Bool
+    public var blockedReason: String?
+    public var blockingError: GameRuleError?
+
+    public init(
+        cityID: String,
+        cityName: String,
+        owner: Faction,
+        cost: EmpireResources,
+        productionIncrease: EmpireResources,
+        projectedProduction: EmpireResources,
+        fortificationIncrease: Int,
+        projectedFortification: Int,
+        canDevelop: Bool,
+        blockedReason: String?,
+        blockingError: GameRuleError?
+    ) {
+        self.cityID = cityID
+        self.cityName = cityName
+        self.owner = owner
+        self.cost = cost
+        self.productionIncrease = productionIncrease
+        self.projectedProduction = projectedProduction
+        self.fortificationIncrease = fortificationIncrease
+        self.projectedFortification = projectedFortification
+        self.canDevelop = canDevelop
+        self.blockedReason = blockedReason
+        self.blockingError = blockingError
+    }
+}
+
+public struct CityRecruitmentPreview: Equatable, Sendable {
+    public var cityID: String
+    public var cityName: String
+    public var owner: Faction
+    public var kind: UnitKind
+    public var cost: EmpireResources
+    public var deploymentPosition: Position?
+    public var canRecruit: Bool
+    public var blockedReason: String?
+    public var blockingError: GameRuleError?
+
+    public init(
+        cityID: String,
+        cityName: String,
+        owner: Faction,
+        kind: UnitKind,
+        cost: EmpireResources,
+        deploymentPosition: Position?,
+        canRecruit: Bool,
+        blockedReason: String?,
+        blockingError: GameRuleError?
+    ) {
+        self.cityID = cityID
+        self.cityName = cityName
+        self.owner = owner
+        self.kind = kind
+        self.cost = cost
+        self.deploymentPosition = deploymentPosition
+        self.canRecruit = canRecruit
+        self.blockedReason = blockedReason
+        self.blockingError = blockingError
+    }
+}
+
 public enum Technology: String, CaseIterable, Codable, Identifiable, Hashable, Sendable {
     case marchingDrill
     case siegeEngineering
@@ -1004,6 +1078,10 @@ public struct GameState: Codable, Equatable, Sendable {
     public var missions: [Mission]
     public var eventLog: [String]
 
+    private static let cityDevelopmentCost = EmpireResources(gold: 70, grain: 40, iron: 35, science: 0, prestige: 0)
+    private static let cityDevelopmentProductionIncrease = EmpireResources(gold: 10, grain: 8, iron: 6, science: 4, prestige: 1)
+    private static let cityDevelopmentFortificationIncrease = 3
+
     public init(
         mode: GameMode,
         turn: Int,
@@ -1200,6 +1278,87 @@ public struct GameState: Codable, Equatable, Sendable {
                 next.add(city.production)
                 return next
             }
+    }
+
+    public func cityDevelopmentPreview(id cityID: String) throws -> CityDevelopmentPreview {
+        guard let city = city(withID: cityID) else {
+            throw GameRuleError.missingEntity
+        }
+
+        let cost = Self.cityDevelopmentCost
+        var projectedProduction = city.production
+        projectedProduction.add(Self.cityDevelopmentProductionIncrease)
+        let projectedFortification = city.fortification + Self.cityDevelopmentFortificationIncrease
+        let blockingError: GameRuleError?
+
+        if campaignStatus.isGameOver {
+            blockingError = .campaignAlreadyEnded
+        } else if city.owner != activeFaction {
+            blockingError = .cityNotOwned
+        } else if !(resources[activeFaction] ?? .zero).canPay(cost) {
+            blockingError = .insufficientResources
+        } else {
+            blockingError = nil
+        }
+
+        return CityDevelopmentPreview(
+            cityID: city.id,
+            cityName: city.name,
+            owner: city.owner,
+            cost: cost,
+            productionIncrease: Self.cityDevelopmentProductionIncrease,
+            projectedProduction: projectedProduction,
+            fortificationIncrease: Self.cityDevelopmentFortificationIncrease,
+            projectedFortification: projectedFortification,
+            canDevelop: blockingError == nil,
+            blockedReason: blockingError?.displayMessage,
+            blockingError: blockingError
+        )
+    }
+
+    public func recruitmentPreview(_ kind: UnitKind, at cityID: String) throws -> CityRecruitmentPreview {
+        guard let city = city(withID: cityID) else {
+            throw GameRuleError.missingEntity
+        }
+
+        let cost = kind.recruitmentCost
+        let deploymentPosition: Position?
+        let blockingError: GameRuleError?
+
+        if campaignStatus.isGameOver {
+            deploymentPosition = nil
+            blockingError = .campaignAlreadyEnded
+        } else if city.owner != activeFaction {
+            deploymentPosition = nil
+            blockingError = .cityNotOwned
+        } else {
+            do {
+                deploymentPosition = try spawnPosition(for: kind, from: city)
+                if (resources[activeFaction] ?? .zero).canPay(cost) {
+                    blockingError = nil
+                } else {
+                    blockingError = .insufficientResources
+                }
+            } catch let error as GameRuleError {
+                deploymentPosition = nil
+                blockingError = error
+            } catch {
+                deploymentPosition = nil
+                blockingError = .invalidDestination
+            }
+        }
+
+        return CityRecruitmentPreview(
+            cityID: city.id,
+            cityName: city.name,
+            owner: city.owner,
+            kind: kind,
+            cost: cost,
+            deploymentPosition: deploymentPosition,
+            canRecruit: blockingError == nil,
+            blockedReason: recruitmentBlockedReason(for: kind, from: city, error: blockingError),
+            blockingError: blockingError
+        )
     }
 
     public func diplomaticStatus(between first: Faction, and second: Faction) -> DiplomaticStatus {
@@ -1518,17 +1677,17 @@ public struct GameState: Codable, Equatable, Sendable {
             throw GameRuleError.missingEntity
         }
 
-        guard cities[cityIndex].owner == activeFaction else {
-            throw GameRuleError.cityNotOwned
+        let preview = try cityDevelopmentPreview(id: cityID)
+        guard preview.canDevelop else {
+            throw preview.blockingError ?? GameRuleError.invalidTarget
         }
 
-        let cost = EmpireResources(gold: 70, grain: 40, iron: 35, science: 0, prestige: 0)
         var pool = resources[activeFaction] ?? .zero
-        try pool.spend(cost)
+        try pool.spend(preview.cost)
         resources[activeFaction] = pool
 
-        cities[cityIndex].production.add(EmpireResources(gold: 10, grain: 8, iron: 6, science: 4, prestige: 1))
-        cities[cityIndex].fortification += 3
+        cities[cityIndex].production.add(preview.productionIncrease)
+        cities[cityIndex].fortification += preview.fortificationIncrease
 
         let messages = ["\(cities[cityIndex].name)完成扩建，产出与城防提升。"]
         eventLog.append(contentsOf: messages)
@@ -1771,22 +1930,14 @@ public struct GameState: Codable, Equatable, Sendable {
     public mutating func recruit(_ kind: UnitKind, at cityID: String) throws -> [String] {
         try ensureCampaignCanContinue()
 
-        guard let city = city(withID: cityID) else {
-            throw GameRuleError.missingEntity
-        }
-
-        guard city.owner == activeFaction else {
-            throw GameRuleError.cityNotOwned
-        }
-
-        let spawnPosition = try spawnPosition(for: kind, from: city)
-
-        guard unit(at: spawnPosition) == nil else {
-            throw GameRuleError.occupiedTile
+        let preview = try recruitmentPreview(kind, at: cityID)
+        guard preview.canRecruit,
+              let spawnPosition = preview.deploymentPosition else {
+            throw preview.blockingError ?? GameRuleError.invalidDestination
         }
 
         var pool = resources[activeFaction] ?? .zero
-        try pool.spend(kind.recruitmentCost)
+        try pool.spend(preview.cost)
         resources[activeFaction] = pool
 
         let unit = ArmyUnit(
@@ -1797,7 +1948,7 @@ public struct GameState: Codable, Equatable, Sendable {
         )
         units.append(unit)
 
-        var messages = ["\(city.name)招募\(kind.displayName)。"]
+        var messages = ["\(preview.cityName)招募\(kind.displayName)。"]
         messages.append(contentsOf: evaluateCampaignProgress())
         eventLog.append(contentsOf: messages)
         return messages
@@ -2317,14 +2468,34 @@ public struct GameState: Codable, Equatable, Sendable {
         return ["\(faction.displayName)占领\(cities[cityIndex].name)，原属\(oldOwner.displayName)。"]
     }
 
+    private func recruitmentBlockedReason(for kind: UnitKind, from _: City, error: GameRuleError?) -> String? {
+        guard let error else { return nil }
+
+        switch error {
+        case .invalidDestination where kind == .navy:
+            return "缺少相邻空港口"
+        case .invalidDestination:
+            return "城市地形无法部署"
+        case .occupiedTile:
+            return kind == .navy ? "港口已被占用" : "城市周边无空部署格"
+        default:
+            return error.displayMessage
+        }
+    }
+
     private func spawnPosition(for kind: UnitKind, from city: City) throws -> Position {
         if kind == .navy {
-            guard let harbor = city.position
+            let harborPositions = city.position
                 .neighbors(width: width, height: height)
-                .first(where: { position in
-                    tile(at: position)?.terrain == .water && unit(at: position) == nil
-                }) else {
+                .filter { position in
+                    tile(at: position)?.terrain == .water
+                }
+            guard !harborPositions.isEmpty else {
                 throw GameRuleError.invalidDestination
+            }
+
+            guard let harbor = harborPositions.first(where: { unit(at: $0) == nil }) else {
+                throw GameRuleError.occupiedTile
             }
 
             return harbor

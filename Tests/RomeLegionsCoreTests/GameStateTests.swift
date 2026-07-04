@@ -50,6 +50,14 @@ import Testing
     var state = GameState.newCampaign()
     state.units.removeAll { $0.position == Position(x: 3, y: 3) }
     let before = state.resources[.rome]?.gold ?? 0
+    let beforePreview = state
+
+    let preview = try state.recruitmentPreview(.legion, at: "rome")
+
+    #expect(state == beforePreview)
+    #expect(preview.canRecruit)
+    #expect(preview.deploymentPosition == Position(x: 3, y: 3))
+    #expect(preview.cost == UnitKind.legion.recruitmentCost)
 
     _ = try state.recruit(.legion, at: "rome")
 
@@ -60,6 +68,11 @@ import Testing
 @Test func recruitmentUsesAdjacentTileWhenCityIsOccupied() throws {
     var state = GameState.newCampaign()
     let before = state.units.count
+    let preview = try state.recruitmentPreview(.archer, at: "rome")
+
+    #expect(preview.canRecruit)
+    #expect(preview.deploymentPosition != Position(x: 3, y: 3))
+    #expect(preview.deploymentPosition?.hexDistance(to: Position(x: 3, y: 3)) == 1)
 
     _ = try state.recruit(.archer, at: "rome")
 
@@ -68,6 +81,54 @@ import Testing
     #expect(created?.kind == .archer)
     #expect(created?.position != Position(x: 3, y: 3))
     #expect(created?.position.hexDistance(to: Position(x: 3, y: 3)) == 1)
+}
+
+@Test func recruitmentPreviewReportsResourceAndHarborBlockersWithoutMutation() throws {
+    var resourceState = GameState.newCampaign()
+    resourceState.resources[.rome] = .zero
+    let resourceBefore = resourceState
+
+    let blockedLegion = try resourceState.recruitmentPreview(.legion, at: "rome")
+
+    #expect(resourceState == resourceBefore)
+    #expect(!blockedLegion.canRecruit)
+    #expect(blockedLegion.blockingError == .insufficientResources)
+    #expect(blockedLegion.blockedReason == GameRuleError.insufficientResources.displayMessage)
+
+    let harborState = GameState.newCampaign()
+    let harborBefore = harborState
+    let blockedNavy = try harborState.recruitmentPreview(.navy, at: "rome")
+
+    #expect(harborState == harborBefore)
+    #expect(!blockedNavy.canRecruit)
+    #expect(blockedNavy.blockedReason == "缺少相邻空港口")
+}
+
+@Test func navyRecruitmentPreviewUsesAdjacentHarbor() throws {
+    var state = GameState.newCampaign()
+
+    let preview = try state.recruitmentPreview(.navy, at: "neapolis")
+
+    #expect(preview.canRecruit)
+    #expect(preview.deploymentPosition == Position(x: 4, y: 5))
+
+    _ = try state.recruit(.navy, at: "neapolis")
+
+    #expect(state.units.contains { $0.faction == .rome && $0.kind == .navy && $0.position == preview.deploymentPosition })
+}
+
+@Test func navyRecruitmentPreviewReportsOccupiedHarbor() throws {
+    var state = GameState.newCampaign()
+    state.units.append(ArmyUnit(id: "occupied-harbor-west", kind: .navy, faction: .rome, position: Position(x: 3, y: 5)))
+    state.units.append(ArmyUnit(id: "occupied-harbor-east", kind: .navy, faction: .rome, position: Position(x: 4, y: 5)))
+    let before = state
+
+    let preview = try state.recruitmentPreview(.navy, at: "neapolis")
+
+    #expect(state == before)
+    #expect(!preview.canRecruit)
+    #expect(preview.blockingError == .occupiedTile)
+    #expect(preview.blockedReason == "港口已被占用")
 }
 
 @Test func technologyCannotBeResearchedTwice() throws {
@@ -84,13 +145,35 @@ import Testing
     var state = GameState.newCampaign()
     let beforeCity = state.city(withID: "rome")
     let beforeGold = state.resources[.rome]?.gold ?? 0
+    let beforePreview = state
+
+    let preview = try state.cityDevelopmentPreview(id: "rome")
+
+    #expect(state == beforePreview)
+    #expect(preview.canDevelop)
+    #expect(preview.cost.gold == 70)
+    #expect(preview.productionIncrease.gold == 10)
+    #expect(preview.fortificationIncrease == 3)
 
     _ = try state.developCity(id: "rome")
 
     let afterCity = state.city(withID: "rome")
-    #expect((afterCity?.production.gold ?? 0) == (beforeCity?.production.gold ?? 0) + 10)
-    #expect((afterCity?.fortification ?? 0) == (beforeCity?.fortification ?? 0) + 3)
-    #expect((state.resources[.rome]?.gold ?? 0) == beforeGold - 70)
+    #expect((afterCity?.production.gold ?? 0) == (beforeCity?.production.gold ?? 0) + preview.productionIncrease.gold)
+    #expect((afterCity?.fortification ?? 0) == (beforeCity?.fortification ?? 0) + preview.fortificationIncrease)
+    #expect((state.resources[.rome]?.gold ?? 0) == beforeGold - preview.cost.gold)
+}
+
+@Test func cityDevelopmentPreviewReportsBlockersWithoutMutation() throws {
+    var state = GameState.newCampaign()
+    state.resources[.rome] = .zero
+    let before = state
+
+    let preview = try state.cityDevelopmentPreview(id: "rome")
+
+    #expect(state == before)
+    #expect(!preview.canDevelop)
+    #expect(preview.blockingError == .insufficientResources)
+    #expect(preview.blockedReason == GameRuleError.insufficientResources.displayMessage)
 }
 
 @Test func trainingUnitCostsPrestigeAndAddsExperience() throws {

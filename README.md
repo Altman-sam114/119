@@ -12,6 +12,7 @@
 - 战术姿态：均衡、突击、坚守、行军，影响移动、伤害和防御
 - 战斗修正：友军支援、包夹、将领指挥和守军支援会进入预览与结算
 - 城市收入、资源池、招募、科技、任务和简单 AI 回合
+- 城市经营与招募读板：城市情报展示本城产出、势力收入、库存、扩建收益、部署摘要和四类兵种招募成本/阻塞原因
 - 战役目标与胜负结算：任务目标可由核心规则判断，罗马完成核心目标后胜利，失去全部城市后失败
 - 战役结束保护：胜负已定后移动、攻击、招募、科技、外交、AI 推进等写状态命令不再改变战局
 - 城市扩建、军团训练、将领任命和外交派使
@@ -74,7 +75,7 @@ swiftc -swift-version 5 -module-cache-path .build/module-cache Sources/RomeLegio
 node Tools/verify_project.mjs
 ```
 
-战斗页三尺寸预览图；渲染前会断言敌军意图 ViewModel 叠层包含移动后攻击六边形邻接路径、目标格和预计伤害文案，并断言选中单位的将领详情、被动贡献、战功摘要和战术姿态预览存在：
+战斗页三尺寸预览图；渲染前会断言敌军意图 ViewModel 叠层包含移动后攻击六边形邻接路径、目标格和预计伤害文案，并断言选中单位的将领详情、被动贡献、战功摘要、战术姿态预览和城市经营/招募读板存在。每个命令会写出请求的城市场景 PNG，并额外写出同尺寸 `*-unit.png` 单位场景 PNG：
 
 ```sh
 env HOME=$PWD/.home CLANG_MODULE_CACHE_PATH=$PWD/.build/module-cache /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/swiftc -parse-as-library -sdk /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX26.5.sdk -target arm64-apple-macosx14.0 -o .build/render-battle-preview Tools/RenderBattlePreview/main.swift Sources/RomeLegionsCore/GameState.swift RomeLegionsApp/App/GameViewModel.swift RomeLegionsApp/Views/BattleView.swift

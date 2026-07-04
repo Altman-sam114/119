@@ -64,7 +64,67 @@ struct RenderBattlePreview {
               orderPreviews.contains(where: { $0.order == .forcedMarch && $0.movementDelta > 0 }) else {
             throw PreviewRenderError.missingTacticalOrderPreview
         }
+        let unitOutputPath = outputPathWithSuffix(outputPath, suffix: "unit")
+        let unitBitmap = try renderBattleView(
+            viewModel: viewModel,
+            outputPath: unitOutputPath,
+            width: width,
+            height: height
+        )
+        guard !isCompactViewport(width: width, height: height) ||
+                hasVisibleCompactCommandContent(in: unitBitmap, logicalWidth: width, logicalHeight: height) else {
+            throw PreviewRenderError.missingCompactCommandRender
+        }
 
+        guard let previewCity = viewModel.state.city(withID: "neapolis") else {
+            throw PreviewRenderError.missingCityReadout
+        }
+        viewModel.selectedUnitID = nil
+        viewModel.selectedCityID = previewCity.id
+        viewModel.selectedPosition = previewCity.position
+        viewModel.bannerMessage = "预览城市：城市经营、扩建收益和招募部署已显示。"
+
+        guard viewModel.selectedUnitID == nil,
+              viewModel.selectedCityID == "neapolis",
+              viewModel.selectedCity?.owner == .rome,
+              viewModel.selectedTile?.terrain == .city,
+              viewModel.commandCity?.id == previewCity.id,
+              let cityBrief = viewModel.selectedCityBrief,
+              cityBrief.productionLabel.contains("金 +28"),
+              cityBrief.productionLabel.contains("粮 +22"),
+              cityBrief.productionLabel.contains("铁 +12"),
+              cityBrief.developmentCostLabel.contains("金 70"),
+              cityBrief.developmentGainLabel.contains("城防 +3"),
+              cityBrief.recruitmentOptions.count == UnitKind.allCases.count,
+              cityBrief.recruitmentOptions.contains(where: { $0.kind == .legion && $0.canRecruit }),
+              cityBrief.recruitmentOptions.contains(where: { $0.kind == .navy && $0.canRecruit && $0.deploymentLabel.contains("(4,5)") }) else {
+            throw PreviewRenderError.missingCityReadout
+        }
+
+        let cityBitmap = try renderBattleView(
+            viewModel: viewModel,
+            outputPath: outputPath,
+            width: width,
+            height: height
+        )
+        guard !isCompactViewport(width: width, height: height) ||
+                hasVisibleCompactCommandContent(in: cityBitmap, logicalWidth: width, logicalHeight: height) else {
+            throw PreviewRenderError.missingCompactCommandRender
+        }
+        guard hasVisibleCityReadoutContent(in: cityBitmap, logicalWidth: width, logicalHeight: height) else {
+            throw PreviewRenderError.missingCityReadout
+        }
+
+        print(outputPath)
+        print(unitOutputPath)
+    }
+
+    private static func renderBattleView(
+        viewModel: GameViewModel,
+        outputPath: String,
+        width: Double,
+        height: Double
+    ) throws -> NSBitmapImageRep {
         let content = BattleView()
             .environmentObject(viewModel)
             .frame(width: width, height: height)
@@ -79,13 +139,20 @@ struct RenderBattlePreview {
             throw PreviewRenderError.renderFailed
         }
 
-        guard !isCompactViewport(width: width, height: height) ||
-                hasVisibleCompactCommandContent(in: bitmap, logicalWidth: width, logicalHeight: height) else {
-            throw PreviewRenderError.missingCompactCommandRender
+        try png.write(to: URL(fileURLWithPath: outputPath))
+        return bitmap
+    }
+
+    private static func outputPathWithSuffix(_ outputPath: String, suffix: String) -> String {
+        let url = URL(fileURLWithPath: outputPath)
+        let pathExtension = url.pathExtension
+        let baseURL = pathExtension.isEmpty ? url : url.deletingPathExtension()
+        let suffixedPath = "\(baseURL.path)-\(suffix)"
+        guard !pathExtension.isEmpty else {
+            return suffixedPath
         }
 
-        try png.write(to: URL(fileURLWithPath: outputPath))
-        print(outputPath)
+        return "\(suffixedPath).\(pathExtension)"
     }
 
     private static func isCompactViewport(width: Double, height: Double) -> Bool {
@@ -135,6 +202,50 @@ struct RenderBattlePreview {
 
         return visiblePixelCount > 80
     }
+
+    private static func hasVisibleCityReadoutContent(
+        in bitmap: NSBitmapImageRep,
+        logicalWidth: Double,
+        logicalHeight: Double
+    ) -> Bool {
+        let scaleX = Double(bitmap.pixelsWide) / logicalWidth
+        let scaleY = Double(bitmap.pixelsHigh) / logicalHeight
+        let region: (x: Int, y: Int, width: Int, height: Int)
+
+        if logicalWidth < 700 && logicalHeight >= logicalWidth {
+            region = (
+                x: Int(logicalWidth * 0.04),
+                y: Int(logicalHeight * 0.50),
+                width: Int(logicalWidth * 0.92),
+                height: Int(logicalHeight * 0.36)
+            )
+        } else {
+            region = (
+                x: Int(logicalWidth * 0.68),
+                y: Int(logicalHeight * 0.08),
+                width: Int(logicalWidth * 0.30),
+                height: Int(logicalHeight * 0.70)
+            )
+        }
+
+        var visiblePixelCount = 0
+        for logicalY in stride(from: region.y, to: region.y + region.height, by: 4) {
+            for logicalX in stride(from: region.x, to: region.x + region.width, by: 4) {
+                let pixelX = min(max(Int(Double(logicalX) * scaleX), 0), bitmap.pixelsWide - 1)
+                let pixelY = min(max(Int(Double(logicalY) * scaleY), 0), bitmap.pixelsHigh - 1)
+                guard let color = bitmap.colorAt(x: pixelX, y: pixelY)?.usingColorSpace(.deviceRGB) else {
+                    continue
+                }
+
+                let brightness = (color.redComponent + color.greenComponent + color.blueComponent) / 3
+                if color.alphaComponent > 0.6 && brightness > 0.40 {
+                    visiblePixelCount += 1
+                }
+            }
+        }
+
+        return visiblePixelCount > 70
+    }
 }
 
 enum PreviewRenderError: Error {
@@ -143,5 +254,6 @@ enum PreviewRenderError: Error {
     case missingHexIntentRoute
     case missingCommanderBrief
     case missingTacticalOrderPreview
+    case missingCityReadout
     case missingCompactCommandRender
 }
