@@ -12,7 +12,7 @@ struct RenderBattlePreview {
         let viewModel = GameViewModel()
         viewModel.isShowingMenu = false
         viewModel.state.units = [
-            ArmyUnit(id: "rome-legion-1", kind: .legion, faction: .rome, position: Position(x: 3, y: 3), generalName: "凯撒", generalTrait: .eagleStandard),
+            ArmyUnit(id: "rome-legion-1", kind: .legion, faction: .rome, position: Position(x: 3, y: 3), experience: 2, generalName: "凯撒", generalTrait: .eagleStandard),
             ArmyUnit(id: "carthage-hunter", kind: .cavalry, faction: .carthage, position: Position(x: 7, y: 2))
         ]
         for index in viewModel.state.cities.indices where viewModel.state.cities[index].owner != .rome {
@@ -25,7 +25,7 @@ struct RenderBattlePreview {
         viewModel.state.activeFaction = .rome
         viewModel.selectedUnitID = "rome-legion-1"
         viewModel.selectedPosition = Position(x: 3, y: 3)
-        viewModel.bannerMessage = "预览战斗：敌军路线和目标叠层已显示。"
+        viewModel.bannerMessage = "预览战斗：将领详情、姿态预览和敌军路线已显示。"
 
         let overlays = viewModel.enemyIntentMapOverlays
         guard let advanceOverlay = overlays.first(where: { $0.kind == .advanceAttack && $0.unitID == "carthage-hunter" }),
@@ -34,6 +34,21 @@ struct RenderBattlePreview {
               !advanceOverlay.routeSegments.isEmpty,
               advanceOverlay.impactLabel.contains("预计伤害") else {
             throw PreviewRenderError.missingIntentOverlay
+        }
+        guard let commanderBrief = viewModel.selectedCommanderBrief,
+              commanderBrief.traitName == GeneralTrait.eagleStandard.displayName,
+              commanderBrief.passiveContributions.contains(where: { $0.id == "attack" && $0.value == "+5" }),
+              commanderBrief.skillName == GeneralTrait.eagleStandard.skillName,
+              !commanderBrief.skillStatusLabel.isEmpty,
+              commanderBrief.warMeritSummary != nil else {
+            throw PreviewRenderError.missingCommanderBrief
+        }
+        let orderPreviews = viewModel.selectedTacticalOrderPreviews
+        guard orderPreviews.count == TacticalOrder.allCases.count,
+              orderPreviews.contains(where: { !$0.isCurrent && ($0.attackDelta != 0 || $0.defenseDelta != 0 || $0.movementDelta != 0) }),
+              orderPreviews.contains(where: { $0.order == .assault && $0.attackDelta > 0 }),
+              orderPreviews.contains(where: { $0.order == .forcedMarch && $0.movementDelta > 0 }) else {
+            throw PreviewRenderError.missingTacticalOrderPreview
         }
 
         let content = BattleView()
@@ -50,12 +65,68 @@ struct RenderBattlePreview {
             throw PreviewRenderError.renderFailed
         }
 
+        guard !isCompactViewport(width: width, height: height) ||
+                hasVisibleCompactCommandContent(in: bitmap, logicalWidth: width, logicalHeight: height) else {
+            throw PreviewRenderError.missingCompactCommandRender
+        }
+
         try png.write(to: URL(fileURLWithPath: outputPath))
         print(outputPath)
+    }
+
+    private static func isCompactViewport(width: Double, height: Double) -> Bool {
+        (width < 700 && height >= width) || (width > height && height < 560)
+    }
+
+    private static func hasVisibleCompactCommandContent(
+        in bitmap: NSBitmapImageRep,
+        logicalWidth: Double,
+        logicalHeight: Double
+    ) -> Bool {
+        let scaleX = Double(bitmap.pixelsWide) / logicalWidth
+        let scaleY = Double(bitmap.pixelsHigh) / logicalHeight
+        let region: (x: Int, y: Int, width: Int, height: Int)
+
+        if logicalWidth > logicalHeight {
+            region = (
+                x: Int(logicalWidth * 0.68),
+                y: Int(logicalHeight * 0.20),
+                width: Int(logicalWidth * 0.30),
+                height: Int(logicalHeight * 0.72)
+            )
+        } else {
+            region = (
+                x: Int(logicalWidth * 0.04),
+                y: Int(logicalHeight * 0.48),
+                width: Int(logicalWidth * 0.92),
+                height: Int(logicalHeight * 0.46)
+            )
+        }
+
+        var visiblePixelCount = 0
+        for logicalY in stride(from: region.y, to: region.y + region.height, by: 4) {
+            for logicalX in stride(from: region.x, to: region.x + region.width, by: 4) {
+                let pixelX = min(max(Int(Double(logicalX) * scaleX), 0), bitmap.pixelsWide - 1)
+                let pixelY = min(max(Int(Double(logicalY) * scaleY), 0), bitmap.pixelsHigh - 1)
+                guard let color = bitmap.colorAt(x: pixelX, y: pixelY)?.usingColorSpace(.deviceRGB) else {
+                    continue
+                }
+
+                let brightness = (color.redComponent + color.greenComponent + color.blueComponent) / 3
+                if color.alphaComponent > 0.6 && brightness > 0.42 {
+                    visiblePixelCount += 1
+                }
+            }
+        }
+
+        return visiblePixelCount > 80
     }
 }
 
 enum PreviewRenderError: Error {
     case renderFailed
     case missingIntentOverlay
+    case missingCommanderBrief
+    case missingTacticalOrderPreview
+    case missingCompactCommandRender
 }

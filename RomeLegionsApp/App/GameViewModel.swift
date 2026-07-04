@@ -274,6 +274,47 @@ struct EnemyIntentMapOverlay: Identifiable {
     }
 }
 
+struct GeneralPassiveContribution: Identifiable {
+    var id: String
+    var label: String
+    var value: String
+    var detail: String
+}
+
+struct SelectedCommanderBrief {
+    var unitID: String
+    var title: String
+    var generalName: String?
+    var traitName: String?
+    var passiveContributions: [GeneralPassiveContribution]
+    var skillName: String?
+    var skillSummary: String?
+    var skillDetail: String?
+    var skillStatusLabel: String
+    var skillBlockedReason: String?
+    var skillEffectLabel: String?
+    var warMeritSummary: String?
+    var warMeritProgressLabel: String?
+    var accessibilityLabel: String
+}
+
+struct SelectedTacticalOrderPreview: Identifiable {
+    var order: TacticalOrder
+    var attack: Int
+    var defense: Int
+    var movement: Int
+    var attackDelta: Int
+    var defenseDelta: Int
+    var movementDelta: Int
+    var isCurrent: Bool
+    var canSwitch: Bool
+    var blockedReason: String?
+    var detail: String
+    var accessibilityLabel: String
+
+    var id: TacticalOrder { order }
+}
+
 @MainActor
 final class GameViewModel: ObservableObject {
     @Published var state = GameState.newCampaign()
@@ -562,6 +603,155 @@ final class GameViewModel: ObservableObject {
         selectedGeneralSkillPreview?.cooldownText
     }
 
+    var selectedCommanderBrief: SelectedCommanderBrief? {
+        guard let selectedUnit else { return nil }
+
+        let trait = selectedUnit.resolvedGeneralTrait
+        let preview = selectedGeneralSkillPreview
+        let warMeritStatus = selectedWarMeritStatus
+        let passiveContributions = selectedGeneralPassiveContributions
+        let skillStatusLabel: String
+
+        if let preview {
+            if preview.cooldownRemaining > 0 {
+                skillStatusLabel = preview.cooldownText
+            } else if preview.isExecutable {
+                skillStatusLabel = "可发动"
+            } else {
+                skillStatusLabel = preview.blockedReason ?? "不可发动"
+            }
+        } else {
+            skillStatusLabel = "无主动技能"
+        }
+
+        let skillEffectLabel = selectedSkillEffectLabel(preview)
+        let warMeritProgressLabel = warMeritStatus.map { status in
+            if let nextRankName = status.nextRankName,
+               let nextRankExperience = status.nextRankExperience {
+                return "战功 \(status.experience)/\(nextRankExperience) · 下一军阶 \(nextRankName)"
+            }
+
+            return "战功 \(status.experience) · 最高军阶"
+        }
+
+        let generalName = selectedUnit.generalName
+        let traitName = trait?.displayName
+        let accessibilityParts = [
+            "\(selectedUnit.faction.displayName)\(selectedUnit.kind.displayName)",
+            generalName.map { "将领\($0)" },
+            traitName,
+            passiveContributions.isEmpty ? "无被动贡献" : passiveContributions.map { "\($0.label)\($0.value)" }.joined(separator: "，"),
+            preview.map { "\($0.trait.skillName)\(skillStatusLabel)" },
+            warMeritStatus?.summary
+        ].compactMap { $0 }
+
+        return SelectedCommanderBrief(
+            unitID: selectedUnit.id,
+            title: "\(selectedUnit.faction.displayName) \(selectedUnit.kind.displayName)",
+            generalName: generalName,
+            traitName: traitName,
+            passiveContributions: passiveContributions,
+            skillName: trait?.skillName,
+            skillSummary: preview?.summary,
+            skillDetail: trait?.skillDetail,
+            skillStatusLabel: skillStatusLabel,
+            skillBlockedReason: preview?.blockedReason,
+            skillEffectLabel: skillEffectLabel,
+            warMeritSummary: warMeritStatus?.summary,
+            warMeritProgressLabel: warMeritProgressLabel,
+            accessibilityLabel: accessibilityParts.joined(separator: "，")
+        )
+    }
+
+    var selectedGeneralPassiveContributions: [GeneralPassiveContribution] {
+        guard let trait = selectedUnit?.resolvedGeneralTrait else { return [] }
+        var contributions: [GeneralPassiveContribution] = []
+
+        if trait.attackBonus != 0 {
+            contributions.append(
+                GeneralPassiveContribution(
+                    id: "attack",
+                    label: "攻击",
+                    value: signedValue(trait.attackBonus),
+                    detail: "普通战斗攻击"
+                )
+            )
+        }
+
+        if trait.siegeAttackBonus != 0 {
+            contributions.append(
+                GeneralPassiveContribution(
+                    id: "siege",
+                    label: "攻城",
+                    value: signedValue(trait.siegeAttackBonus),
+                    detail: "对城市伤害"
+                )
+            )
+        }
+
+        if trait.defenseBonus != 0 {
+            contributions.append(
+                GeneralPassiveContribution(
+                    id: "defense",
+                    label: "防御",
+                    value: signedValue(trait.defenseBonus),
+                    detail: "受击减伤"
+                )
+            )
+        }
+
+        if trait.movementBonus != 0 {
+            contributions.append(
+                GeneralPassiveContribution(
+                    id: "movement",
+                    label: "机动",
+                    value: signedValue(trait.movementBonus),
+                    detail: "移动范围"
+                )
+            )
+        }
+
+        return contributions
+    }
+
+    var selectedTacticalOrderPreviews: [SelectedTacticalOrderPreview] {
+        guard let selectedUnit else { return [] }
+        let currentAttack = state.effectiveAttack(for: selectedUnit)
+        let currentDefense = state.effectiveDefense(for: selectedUnit)
+        let currentMovement = state.effectiveMovement(for: selectedUnit)
+
+        return TacticalOrder.allCases.map { order in
+            var previewUnit = selectedUnit
+            previewUnit.tacticalOrder = order == .balanced ? nil : order
+            let attack = state.effectiveAttack(for: previewUnit)
+            let defense = state.effectiveDefense(for: previewUnit)
+            let movement = state.effectiveMovement(for: previewUnit)
+            let isCurrent = order == selectedUnit.resolvedTacticalOrder
+            let blockedReason = tacticalOrderBlockedReason(order, for: selectedUnit)
+            let canSwitch = canSetSelectedTacticalOrder(order)
+            let detail = "攻 \(attack) \(deltaLabel(attack - currentAttack)) · 防 \(defense) \(deltaLabel(defense - currentDefense)) · 移 \(movement) \(deltaLabel(movement - currentMovement))"
+
+            return SelectedTacticalOrderPreview(
+                order: order,
+                attack: attack,
+                defense: defense,
+                movement: movement,
+                attackDelta: attack - currentAttack,
+                defenseDelta: defense - currentDefense,
+                movementDelta: movement - currentMovement,
+                isCurrent: isCurrent,
+                canSwitch: canSwitch,
+                blockedReason: blockedReason,
+                detail: detail,
+                accessibilityLabel: "\(order.displayName)，攻击\(attack)，防御\(defense)，机动\(movement)，\(isCurrent ? "当前姿态" : (blockedReason ?? "可切换"))"
+            )
+        }
+    }
+
+    func selectedTacticalOrderPreview(for order: TacticalOrder) -> SelectedTacticalOrderPreview? {
+        selectedTacticalOrderPreviews.first { $0.order == order }
+    }
+
     var canSkipSelectedUnit: Bool {
         guard !isCampaignOver else { return false }
         guard let selectedUnit else { return false }
@@ -582,6 +772,48 @@ final class GameViewModel: ObservableObject {
             selectedUnit.resolvedTacticalOrder != order &&
             !selectedUnit.hasMoved &&
             !selectedUnit.hasActed
+    }
+
+    private func tacticalOrderBlockedReason(_ order: TacticalOrder, for unit: ArmyUnit) -> String? {
+        if order == unit.resolvedTacticalOrder {
+            return "当前姿态"
+        }
+
+        if isCampaignOver {
+            return "战役已结束"
+        }
+
+        if unit.faction != state.activeFaction {
+            return "非当前阵营"
+        }
+
+        if unit.hasMoved || unit.hasActed {
+            return "已行动"
+        }
+
+        return nil
+    }
+
+    private func selectedSkillEffectLabel(_ preview: GeneralSkillPreview?) -> String? {
+        guard let preview else { return nil }
+
+        if preview.projectedFortificationReduction > 0 {
+            return "城防 -\(preview.projectedFortificationReduction) · 目标 \(preview.affectedCityIDs.count)"
+        }
+
+        if preview.projectedRecoveredHealth > 0 {
+            return "恢复 \(preview.projectedRecoveredHealth) · 友军 \(preview.affectedUnitIDs.count)"
+        }
+
+        return preview.summary
+    }
+
+    private func signedValue(_ value: Int) -> String {
+        value >= 0 ? "+\(value)" : "\(value)"
+    }
+
+    private func deltaLabel(_ value: Int) -> String {
+        value == 0 ? "±0" : signedValue(value)
     }
 
     func start(mode: GameMode) {

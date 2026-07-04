@@ -72,12 +72,20 @@ struct BattleView: View {
 
 struct PhoneCommandDeckView: View {
     var body: some View {
-        VStack(spacing: 8) {
-            CompactSelectionPanelView()
-            BattlefieldFocusPanelView(isCompact: true)
-            CompactActionsPanelView()
+        #if os(macOS)
+        CompactCommandContentView(includesLog: false)
+            .padding(.bottom, 10)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        #else
+        GeometryReader { proxy in
+            ScrollView(showsIndicators: false) {
+                CompactCommandContentView(includesLog: false)
+                .padding(.bottom, 10)
+                .frame(width: proxy.size.width, alignment: .top)
+            }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        #endif
     }
 }
 
@@ -1190,20 +1198,46 @@ struct CommandPanelView: View {
 
 struct CompactCommandPanelView: View {
     var body: some View {
-        VStack(spacing: 8) {
-            CompactSelectionPanelView()
-            BattlefieldFocusPanelView(isCompact: true)
-            CompactActionsPanelView()
-            CompactLogPanelView()
-            Spacer(minLength: 0)
+        #if os(macOS)
+        CompactCommandContentView(includesLog: true)
+            .padding(8)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+            .background(Color(red: 0.12, green: 0.12, blue: 0.11))
+            .overlay(alignment: .leading) {
+                Rectangle()
+                    .fill(.white.opacity(0.08))
+                    .frame(width: 1)
+            }
+        #else
+        GeometryReader { proxy in
+            ScrollView(showsIndicators: false) {
+                CompactCommandContentView(includesLog: true)
+                .padding(8)
+                .frame(width: proxy.size.width, alignment: .top)
+            }
         }
-        .padding(8)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .background(Color(red: 0.12, green: 0.12, blue: 0.11))
         .overlay(alignment: .leading) {
             Rectangle()
                 .fill(.white.opacity(0.08))
                 .frame(width: 1)
+        }
+        #endif
+    }
+}
+
+struct CompactCommandContentView: View {
+    var includesLog: Bool
+
+    var body: some View {
+        VStack(spacing: 8) {
+            CompactActionsPanelView()
+            CompactSelectionPanelView()
+            BattlefieldFocusPanelView(isCompact: true)
+            if includesLog {
+                CompactLogPanelView()
+            }
         }
     }
 }
@@ -1247,12 +1281,20 @@ struct CompactSelectionPanelView: View {
 
                     CompactOrderBadgeView(order: unit.resolvedTacticalOrder)
 
+                    TacticalOrderPreviewStripView(
+                        previews: viewModel.selectedTacticalOrderPreviews,
+                        isCompact: true
+                    )
+
                     if let trait = unit.resolvedGeneralTrait {
                         CompactGeneralTraitView(
                             trait: trait,
                             preview: viewModel.selectedGeneralSkillPreview,
-                            warMeritStatus: viewModel.selectedWarMeritStatus
+                            warMeritStatus: viewModel.selectedWarMeritStatus,
+                            commanderBrief: viewModel.selectedCommanderBrief
                         )
+                    } else if let brief = viewModel.selectedCommanderBrief {
+                        CompactNoGeneralView(brief: brief)
                     }
                 }
             } else if let city = viewModel.selectedCity {
@@ -1370,6 +1412,7 @@ struct CompactGeneralTraitView: View {
     var trait: GeneralTrait
     var preview: GeneralSkillPreview?
     var warMeritStatus: WarMeritStatus?
+    var commanderBrief: SelectedCommanderBrief?
 
     var body: some View {
         HStack(spacing: 7) {
@@ -1390,6 +1433,9 @@ struct CompactGeneralTraitView: View {
         .frame(minHeight: 28)
         .background(.black.opacity(0.18))
         .clipShape(RoundedRectangle(cornerRadius: 6))
+        if let commanderBrief, !commanderBrief.passiveContributions.isEmpty {
+            GeneralPassiveContributionStrip(contributions: commanderBrief.passiveContributions, isCompact: true)
+        }
         if let warMeritStatus {
             HStack(spacing: 6) {
                 Image(systemName: "chevron.up.circle.fill")
@@ -1406,7 +1452,9 @@ struct CompactGeneralTraitView: View {
             .background(.black.opacity(0.14))
             .clipShape(RoundedRectangle(cornerRadius: 6))
         }
-        if let preview {
+        if let commanderBrief {
+            CommanderSkillStatusRow(brief: commanderBrief, isCompact: true)
+        } else if let preview {
             HStack(spacing: 6) {
                 Image(systemName: preview.isExecutable ? "sparkles" : "exclamationmark.triangle.fill")
                     .foregroundStyle(preview.isExecutable ? Color(red: 0.36, green: 0.86, blue: 0.92) : .orange)
@@ -1422,6 +1470,28 @@ struct CompactGeneralTraitView: View {
             .background(.black.opacity(0.14))
             .clipShape(RoundedRectangle(cornerRadius: 6))
         }
+    }
+}
+
+struct CompactNoGeneralView: View {
+    var brief: SelectedCommanderBrief
+
+    var body: some View {
+        HStack(spacing: 7) {
+            Image(systemName: "person.crop.circle.badge.questionmark")
+                .foregroundStyle(.white.opacity(0.58))
+            Text(brief.generalName ?? "无将领")
+                .font(.caption.weight(.bold))
+            Spacer(minLength: 0)
+            Text("无被动贡献")
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(.white.opacity(0.56))
+        }
+        .padding(.horizontal, 8)
+        .frame(minHeight: 28)
+        .background(.black.opacity(0.16))
+        .clipShape(RoundedRectangle(cornerRadius: 6))
+        .accessibilityLabel(brief.accessibilityLabel)
     }
 }
 
@@ -1448,6 +1518,91 @@ struct CompactOrderBadgeView: View {
         .frame(minHeight: 28)
         .background(.black.opacity(0.18))
         .clipShape(RoundedRectangle(cornerRadius: 6))
+    }
+}
+
+struct TacticalOrderPreviewStripView: View {
+    var previews: [SelectedTacticalOrderPreview]
+    var isCompact: Bool
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 5) {
+            if !isCompact {
+                HStack(spacing: 6) {
+                    Image(systemName: "slider.horizontal.3")
+                        .foregroundStyle(Color(red: 0.86, green: 0.68, blue: 0.34))
+                    Text("姿态预览")
+                        .font(.caption2.weight(.bold))
+                        .foregroundStyle(.white.opacity(0.62))
+                    Spacer(minLength: 0)
+                }
+            }
+
+            HStack(spacing: 5) {
+                ForEach(previews) { preview in
+                    TacticalOrderPreviewMiniCard(preview: preview, isCompact: isCompact)
+                }
+            }
+        }
+        .padding(.horizontal, 8)
+        .padding(.vertical, isCompact ? 6 : 7)
+        .background(.black.opacity(0.14))
+        .clipShape(RoundedRectangle(cornerRadius: 6))
+    }
+}
+
+struct TacticalOrderPreviewMiniCard: View {
+    var preview: SelectedTacticalOrderPreview
+    var isCompact: Bool
+
+    var body: some View {
+        VStack(spacing: 2) {
+            HStack(spacing: 3) {
+                Image(systemName: preview.order.systemImage)
+                    .font(.caption2.weight(.heavy))
+                Text(preview.order.displayName)
+                    .font(.caption2.weight(.black))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.62)
+            }
+
+            Text("攻\(preview.attack) 防\(preview.defense)")
+                .font(.caption2.monospacedDigit().weight(.bold))
+                .lineLimit(1)
+                .minimumScaleFactor(0.48)
+
+            Text("移\(preview.movement) · \(preview.isCurrent ? "当前" : deltaSummary)")
+                .font(.caption2.monospacedDigit().weight(.semibold))
+                .foregroundStyle(preview.isCurrent ? .black.opacity(0.75) : .white.opacity(0.66))
+                .lineLimit(1)
+                .minimumScaleFactor(0.48)
+        }
+        .foregroundStyle(preview.isCurrent ? .black.opacity(0.82) : .white)
+        .frame(maxWidth: .infinity, minHeight: isCompact ? 44 : 50)
+        .padding(.horizontal, 3)
+        .background(preview.isCurrent ? preview.order.tintColor : .black.opacity(0.16))
+        .clipShape(RoundedRectangle(cornerRadius: 6))
+        .overlay {
+            RoundedRectangle(cornerRadius: 6)
+                .stroke(preview.order.tintColor.opacity(preview.isCurrent ? 0 : 0.32), lineWidth: 1)
+        }
+        .accessibilityLabel(preview.accessibilityLabel)
+    }
+
+    private var deltaSummary: String {
+        let deltas = [
+            ("攻", preview.attackDelta),
+            ("防", preview.defenseDelta),
+            ("移", preview.movementDelta)
+        ]
+            .filter { $0.1 != 0 }
+            .map { "\($0.0)\($0.1 > 0 ? "+" : "")\($0.1)" }
+
+        if deltas.isEmpty {
+            return preview.blockedReason ?? "±0"
+        }
+
+        return deltas.joined(separator: " ")
     }
 }
 
@@ -1909,12 +2064,20 @@ struct SelectionPanelView: View {
                     }
                     StatRow(label: "姿态", value: unit.resolvedTacticalOrder.displayName)
 
+                    TacticalOrderPreviewStripView(
+                        previews: viewModel.selectedTacticalOrderPreviews,
+                        isCompact: false
+                    )
+
                     if let trait = unit.resolvedGeneralTrait {
                         GeneralTraitCardView(
                             trait: trait,
                             preview: viewModel.selectedGeneralSkillPreview,
-                            warMeritStatus: viewModel.selectedWarMeritStatus
+                            warMeritStatus: viewModel.selectedWarMeritStatus,
+                            commanderBrief: viewModel.selectedCommanderBrief
                         )
+                    } else if let brief = viewModel.selectedCommanderBrief {
+                        NoGeneralCommandView(brief: brief)
                     }
                 }
             } else if let city = viewModel.selectedCity {
@@ -1951,6 +2114,7 @@ struct GeneralTraitCardView: View {
     var trait: GeneralTrait
     var preview: GeneralSkillPreview?
     var warMeritStatus: WarMeritStatus?
+    var commanderBrief: SelectedCommanderBrief?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 7) {
@@ -1974,10 +2138,18 @@ struct GeneralTraitCardView: View {
                 .foregroundStyle(.white.opacity(0.66))
                 .fixedSize(horizontal: false, vertical: true)
 
+            if let commanderBrief, !commanderBrief.passiveContributions.isEmpty {
+                GeneralPassiveContributionStrip(contributions: commanderBrief.passiveContributions, isCompact: false)
+            }
+
             Text(trait.skillDetail)
                 .font(.caption2)
                 .foregroundStyle(.white.opacity(0.56))
                 .fixedSize(horizontal: false, vertical: true)
+
+            if let commanderBrief {
+                CommanderSkillStatusRow(brief: commanderBrief, isCompact: false)
+            }
 
             if let warMeritStatus {
                 WarMeritProgressView(status: warMeritStatus)
@@ -1988,9 +2160,11 @@ struct GeneralTraitCardView: View {
                     SkillPreviewPill(symbol: "scope", text: "范围 \(preview.range)")
                     SkillPreviewPill(
                         symbol: preview.trait == .siegeEngineer ? "building.columns.fill" : "cross.case.fill",
-                        text: preview.trait == .siegeEngineer ?
-                            "目标 \(preview.affectedCityIDs.count)" :
-                            "友军 \(preview.affectedUnitIDs.count)"
+                        text: commanderBrief?.skillEffectLabel ?? (
+                            preview.trait == .siegeEngineer ?
+                                "目标 \(preview.affectedCityIDs.count)" :
+                                "友军 \(preview.affectedUnitIDs.count)"
+                        )
                     )
                     SkillPreviewPill(
                         symbol: preview.cooldownRemaining > 0 ? "hourglass" : "checkmark.seal.fill",
@@ -2021,6 +2195,87 @@ struct GeneralTraitCardView: View {
             RoundedRectangle(cornerRadius: 7)
                 .stroke(Color(red: 0.86, green: 0.68, blue: 0.34).opacity(0.22), lineWidth: 1)
         }
+    }
+}
+
+struct NoGeneralCommandView: View {
+    var brief: SelectedCommanderBrief
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "person.crop.circle.badge.questionmark")
+                .foregroundStyle(.white.opacity(0.58))
+            VStack(alignment: .leading, spacing: 2) {
+                Text("无将领")
+                    .font(.caption.weight(.bold))
+                Text("无被动贡献 · 可任命将领扩展战术能力")
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(.white.opacity(0.58))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
+            }
+            Spacer(minLength: 0)
+        }
+        .padding(8)
+        .background(.black.opacity(0.18))
+        .clipShape(RoundedRectangle(cornerRadius: 7))
+        .accessibilityLabel(brief.accessibilityLabel)
+    }
+}
+
+struct GeneralPassiveContributionStrip: View {
+    var contributions: [GeneralPassiveContribution]
+    var isCompact: Bool
+
+    var body: some View {
+        HStack(spacing: 6) {
+            ForEach(contributions) { contribution in
+                HStack(spacing: 4) {
+                    Text(contribution.label)
+                        .font(.caption2.weight(.semibold))
+                        .foregroundStyle(.white.opacity(0.58))
+                    Text(contribution.value)
+                        .font(.caption2.monospacedDigit().weight(.black))
+                        .foregroundStyle(Color(red: 0.98, green: 0.82, blue: 0.36))
+                }
+                .lineLimit(1)
+                .minimumScaleFactor(0.72)
+                .padding(.horizontal, 7)
+                .frame(height: isCompact ? 22 : 24)
+                .background(.black.opacity(0.16))
+                .clipShape(RoundedRectangle(cornerRadius: 6))
+                .accessibilityLabel("\(contribution.label)\(contribution.value)，\(contribution.detail)")
+            }
+            Spacer(minLength: 0)
+        }
+    }
+}
+
+struct CommanderSkillStatusRow: View {
+    var brief: SelectedCommanderBrief
+    var isCompact: Bool
+
+    var body: some View {
+        HStack(spacing: 6) {
+            Image(systemName: brief.skillBlockedReason == nil && brief.skillStatusLabel == "可发动" ? "sparkles" : "exclamationmark.triangle.fill")
+                .foregroundStyle(brief.skillBlockedReason == nil && brief.skillStatusLabel == "可发动" ? Color(red: 0.36, green: 0.86, blue: 0.92) : .orange)
+            Text(brief.skillStatusLabel)
+                .font(.caption2.weight(.black))
+                .foregroundStyle(.white)
+            if let effect = brief.skillEffectLabel {
+                Text(effect)
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(.white.opacity(0.62))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.68)
+            }
+            Spacer(minLength: 0)
+        }
+        .padding(.horizontal, 8)
+        .frame(minHeight: isCompact ? 24 : 28)
+        .background(.black.opacity(0.14))
+        .clipShape(RoundedRectangle(cornerRadius: 6))
+        .accessibilityLabel(brief.accessibilityLabel)
     }
 }
 
@@ -2112,42 +2367,125 @@ struct TacticalOrderControlView: View {
 
             HStack(spacing: 6) {
                 ForEach(TacticalOrder.allCases) { order in
+                    let preview = viewModel.selectedTacticalOrderPreview(for: order)
                     Button {
                         viewModel.setSelectedTacticalOrder(order)
                     } label: {
-                        VStack(spacing: 3) {
-                            Image(systemName: order.systemImage)
-                                .font(.caption.weight(.heavy))
-                            Text(order.displayName)
-                                .font(.caption2.weight(.black))
-                                .lineLimit(1)
-                                .minimumScaleFactor(0.7)
-                        }
-                        .foregroundStyle(order == unit.resolvedTacticalOrder ? .black.opacity(0.80) : .white)
-                        .frame(maxWidth: .infinity, minHeight: isCompact ? 38 : 44)
-                        .background(order == unit.resolvedTacticalOrder ? order.tintColor : .black.opacity(0.20))
-                        .clipShape(RoundedRectangle(cornerRadius: 7))
-                        .overlay {
-                            RoundedRectangle(cornerRadius: 7)
-                                .stroke(order.tintColor.opacity(order == unit.resolvedTacticalOrder ? 0 : 0.32), lineWidth: 1)
-                        }
+                        TacticalOrderPreviewButtonContent(
+                            order: order,
+                            preview: preview,
+                            isCompact: isCompact
+                        )
                     }
                     .buttonStyle(.plain)
-                    .disabled(!viewModel.canSetSelectedTacticalOrder(order))
+                    .disabled(!(preview?.canSwitch ?? viewModel.canSetSelectedTacticalOrder(order)))
+                    .accessibilityLabel(preview?.accessibilityLabel ?? order.detail)
                 }
             }
 
             if !isCompact {
-                Text(unit.resolvedTacticalOrder.detail)
-                    .font(.caption2.weight(.semibold))
-                    .foregroundStyle(.white.opacity(0.58))
-                    .lineLimit(2)
-                    .minimumScaleFactor(0.75)
+                if let currentPreview = viewModel.selectedTacticalOrderPreview(for: unit.resolvedTacticalOrder) {
+                    Text("\(unit.resolvedTacticalOrder.detail) · 当前 \(currentPreview.detail)")
+                        .font(.caption2.weight(.semibold))
+                        .foregroundStyle(.white.opacity(0.58))
+                        .lineLimit(2)
+                        .minimumScaleFactor(0.75)
+                } else {
+                    Text(unit.resolvedTacticalOrder.detail)
+                        .font(.caption2.weight(.semibold))
+                        .foregroundStyle(.white.opacity(0.58))
+                        .lineLimit(2)
+                        .minimumScaleFactor(0.75)
+                }
+
+                if let blockedReason = viewModel.selectedTacticalOrderPreviews.first(where: { !$0.isCurrent && !$0.canSwitch })?.blockedReason {
+                    Text("切换限制：\(blockedReason)")
+                        .font(.caption2.weight(.semibold))
+                        .foregroundStyle(.orange.opacity(0.86))
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.72)
+                }
             }
         }
         .padding(isCompact ? 0 : 8)
         .background(isCompact ? Color.clear : .black.opacity(0.18))
         .clipShape(RoundedRectangle(cornerRadius: 7))
+    }
+}
+
+struct TacticalOrderPreviewButtonContent: View {
+    var order: TacticalOrder
+    var preview: SelectedTacticalOrderPreview?
+    var isCompact: Bool
+
+    var body: some View {
+        VStack(spacing: isCompact ? 2 : 4) {
+            HStack(spacing: 4) {
+                Image(systemName: order.systemImage)
+                    .font(.caption.weight(.heavy))
+                Text(order.displayName)
+                    .font(.caption2.weight(.black))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
+            }
+
+            if let preview {
+                Text("攻 \(preview.attack) 防 \(preview.defense) 移 \(preview.movement)")
+                    .font(.caption2.monospacedDigit().weight(.bold))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.54)
+
+                HStack(spacing: 3) {
+                    TacticalDeltaText(prefix: "攻", value: preview.attackDelta)
+                    TacticalDeltaText(prefix: "防", value: preview.defenseDelta)
+                    TacticalDeltaText(prefix: "移", value: preview.movementDelta)
+                }
+                .lineLimit(1)
+                .minimumScaleFactor(0.52)
+
+                Text(preview.isCurrent ? "当前" : (preview.blockedReason ?? "可切换"))
+                    .font(.caption2.weight(.black))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.62)
+            } else {
+                Text(order.detail)
+                    .font(.caption2.weight(.semibold))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.54)
+            }
+        }
+        .foregroundStyle(preview?.isCurrent == true ? .black.opacity(0.80) : .white)
+        .frame(maxWidth: .infinity, minHeight: isCompact ? 54 : 66)
+        .padding(.horizontal, 4)
+        .background(preview?.isCurrent == true ? order.tintColor : .black.opacity(0.20))
+        .clipShape(RoundedRectangle(cornerRadius: 7))
+        .overlay {
+            RoundedRectangle(cornerRadius: 7)
+                .stroke(order.tintColor.opacity(preview?.isCurrent == true ? 0 : 0.32), lineWidth: 1)
+        }
+        .opacity(preview?.canSwitch == false && preview?.isCurrent == false ? 0.76 : 1)
+    }
+}
+
+struct TacticalDeltaText: View {
+    var prefix: String
+    var value: Int
+
+    var body: some View {
+        Text("\(prefix) \(formattedValue)")
+            .font(.caption2.monospacedDigit().weight(.heavy))
+            .foregroundStyle(color)
+    }
+
+    private var formattedValue: String {
+        if value == 0 { return "±0" }
+        return value > 0 ? "+\(value)" : "\(value)"
+    }
+
+    private var color: Color {
+        if value > 0 { return Color(red: 0.58, green: 0.92, blue: 0.54) }
+        if value < 0 { return Color(red: 1.0, green: 0.58, blue: 0.46) }
+        return .white.opacity(0.62)
     }
 }
 

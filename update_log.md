@@ -14,12 +14,57 @@
 
 - 项目类型：原创 SwiftUI iOS 罗马题材战棋原型。
 - 核心架构：纯 Swift `RomeLegionsCore` 负责玩法规则；`GameViewModel` 负责 UI 状态和派生数据；SwiftUI 视图负责展示和命令入口。
-- 当前玩法：六边形地图、地形、城市、阵营、军团、移动、攻击、反击、占城、招募、科技、任务 requirement、战役目标、胜负结算、结束保护、外交、城市扩建、军团训练、将领任命、主动技能、技能冷却、战功状态、战术姿态、AI 回合、敌军意图预判、敌军意图路线/目标叠层、战局态势面板。
+- 当前玩法：六边形地图、地形、城市、阵营、军团、移动、攻击、反击、占城、招募、科技、任务 requirement、战役目标、胜负结算、结束保护、外交、城市扩建、军团训练、将领任命、主动技能、技能冷却、将领详情读板、被动贡献、战功状态、战术姿态与姿态预览、AI 回合、敌军意图预判、敌军意图路线/目标叠层、战局态势面板。
 - 当前测试入口：Swift Testing、Gameplay Smoke、项目结构检查、SwiftUI 类型检查、战斗页预览图渲染、无签名 Xcode 构建。
 - 当前协作系统：已建立 `AGENTS.md`、`update_log.md`、`md/prompt/`、`md/test/test.md`、`md/flow/flow.md`、`md/flow/flowchart.md`，默认按 `main` 直推、GitHub Actions 云端重验证、Agent C 下载未加密结果包复判，并具备未来由 Agent X 主控调度 Agent A/B/C 多轮循环的文档基线。
 - 当前 CI 入口：`.github/workflows/ci-results.yml`，在 `main` push 和手动触发时运行结构检查、SwiftPM 测试、Gameplay Smoke 和无签名 Xcode build，并上传 CI 结果包。
 
 ## 历史记录
+
+### v0.11 / 将领详情与战术指挥可读化
+
+日期：2026-07-04
+
+核心变更：
+
+- `GameViewModel` 新增选中单位指挥派生模型：`SelectedCommanderBrief`、`GeneralPassiveContribution` 和 `SelectedTacticalOrderPreview`，集中提供将领名、特性、被动贡献、技能状态、预计效果、战功摘要、各姿态攻防移、变化值和阻塞原因。
+- 战术姿态预览通过局部复制选中单位并替换 `tacticalOrder`，再调用 `GameState.effectiveAttack/Defense/Movement` 计算，不写回 `GameState`，不改变核心数值、AI、结算或存档字段。
+- `BattleView` 在完整侧栏、紧凑情报栏和战术姿态按钮中展示将领被动贡献、技能可用/冷却/阻塞状态、战功信息、均衡/突击/坚守/行军的攻防移预览和不可切换原因。
+- 无将领单位会明确显示“无将领 / 无被动贡献”，避免把空状态伪装成加成。
+- 紧凑命令栈在 iOS 上改为可滚动，并将“军令”置于手机竖屏和短横屏首屏，避免新增将领读板后挤掉攻击、姿态、技能、休整和跳过入口；macOS 预览渲染路径继续使用固定栈，规避 `ImageRenderer` 对紧凑 `ScrollView` 的空白渲染问题。
+- `Tools/RenderBattlePreview` 的确定性场景加入凯撒鹰旗和非零经验，渲染前断言敌军意图路线仍存在，同时断言将领详情、鹰旗攻击被动、技能状态、战功摘要和完整战术姿态预览存在；渲染后对紧凑视口命令区域做轻量像素检查，防止命令区空白仍误判通过。
+- README、flow、flowchart、test 文档同步选中单位指挥读板、姿态预览数据流和 v0.11 artifact 版本，并新增 v0.11 Agent A 提示词。
+
+关键文件：
+
+- `RomeLegionsApp/App/GameViewModel.swift`
+- `RomeLegionsApp/Views/BattleView.swift`
+- `Tools/RenderBattlePreview/main.swift`
+- `.github/workflows/ci-results.yml`
+- `README.md`
+- `md/flow/flow.md`
+- `md/flow/flowchart.md`
+- `md/test/test.md`
+- `md/prompt/v0（玩法推进）/v0.11（将领详情与战术指挥可读化）.md`
+- `update_log.md`
+
+验证结果：
+
+- `git diff --check`：通过，无输出。
+- `node Tools/verify_project.mjs`：通过，输出 `Project structure verification passed.`
+- `ruby -e 'require "yaml"; YAML.load_file(".github/workflows/ci-results.yml"); puts "yaml ok"'`：通过，输出 `yaml ok`。
+- `plutil -lint RomeLegionsApp.xcodeproj/project.pbxproj`：通过，输出 `RomeLegionsApp.xcodeproj/project.pbxproj: OK`。
+- `env HOME=$PWD/.home CLANG_MODULE_CACHE_PATH=$PWD/.build/module-cache /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/swiftc -parse-as-library -sdk /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX26.5.sdk -target arm64-apple-macosx14.0 -o .build/render-battle-preview Tools/RenderBattlePreview/main.swift Sources/RomeLegionsCore/GameState.swift RomeLegionsApp/App/GameViewModel.swift RomeLegionsApp/Views/BattleView.swift`：通过，无错误输出。
+- `.build/render-battle-preview DerivedData/battle-landscape-preview.png 932 430`：通过，短横屏预览图生成成功；右侧首屏显示军令、姿态预览、技能、休整和跳过，敌军路线可读，情报可继续向下查看。
+- `.build/render-battle-preview DerivedData/battle-portrait-preview.png 390 844`：通过，竖屏预览图生成成功；地图下方首屏显示军令、姿态预览、技能、休整和跳过，情报与将领读板可继续向下查看，无明显重叠或裁切。
+- `.build/render-battle-preview DerivedData/battle-wide-preview.png 1024 768`：通过，宽屏预览图生成成功；完整侧栏显示姿态预览、鹰旗被动、技能效果、战功和冷却状态。
+- `/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/swiftc -typecheck -swift-version 5 -sdk /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS26.5.sdk -target arm64-apple-ios17.0 -module-cache-path DerivedData/ManualModuleCache Sources/RomeLegionsCore/GameState.swift RomeLegionsApp/App/RomeLegionsApp.swift RomeLegionsApp/App/GameViewModel.swift RomeLegionsApp/Views/RootView.swift RomeLegionsApp/Views/MainMenuView.swift RomeLegionsApp/Views/BattleView.swift`：通过，无错误输出。
+
+遗留事项：
+
+- 本轮没有改变 `GameState` 核心数值、`TacticalOrder` / `GeneralTrait` 加成、AI 决策、敌军意图排序、战斗结算、Codable 存档字段或 Swift Testing 用例数量；Swift Testing 基线仍为 41 个用例，由 `main` push 后 GitHub Actions 重验证。
+- 本轮没有默认本机跑完整 SwiftPM `swift test`、Gameplay Smoke 或 `xcodebuild build`；按项目规则交给 `origin/main` 最新 commit 的 GitHub Actions 结果包验收。
+- Agent C 必须核对最新 `origin/main` commit 对应的 v0.11 run id、run attempt 和 artifact；不能使用 v0.10 旧结果包。
 
 ### v0.10 / 敌军意图路线与目标地图叠层
 

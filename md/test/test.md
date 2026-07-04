@@ -119,7 +119,7 @@ on:
 artifact 命名规则：
 
 ```text
-RomeLegions-ci-v0.10-main-<short_sha>-run<run_id>-attempt<run_attempt>
+RomeLegions-ci-v0.11-main-<short_sha>-run<run_id>-attempt<run_attempt>
 ```
 
 `ci-artifact-manifest.json` 必须至少包含：
@@ -237,6 +237,28 @@ swiftc -swift-version 5 -module-cache-path .build/module-cache Sources/RomeLegio
 - 应输出 `Gameplay smoke test passed.`
 - 覆盖占城、招募、科技、训练、将领、战术姿态、战斗修正、AI 意图 projectedDamage 与移动后攻击预览一致性、直接攻击/移动后攻击/夺城意图供 UI 使用的目的地和目标字段、主动技能预览与结算一致性、主动技能冷却递减、战功状态、外交、回合推进、战役胜利、战役失败和结束后回合保护。
 
+### UI Preview / RenderBattlePreview
+
+触发条件：
+
+- `BattleView`、`GameViewModel` UI 派生数据、地图叠层、将领卡、战术姿态按钮或战斗页布局变化。
+
+命令：
+
+```sh
+env HOME=$PWD/.home CLANG_MODULE_CACHE_PATH=$PWD/.build/module-cache /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/swiftc -parse-as-library -sdk /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX26.5.sdk -target arm64-apple-macosx14.0 -o .build/render-battle-preview Tools/RenderBattlePreview/main.swift Sources/RomeLegionsCore/GameState.swift RomeLegionsApp/App/GameViewModel.swift RomeLegionsApp/Views/BattleView.swift
+.build/render-battle-preview DerivedData/battle-landscape-preview.png 932 430
+.build/render-battle-preview DerivedData/battle-portrait-preview.png 390 844
+.build/render-battle-preview DerivedData/battle-wide-preview.png 1024 768
+```
+
+当前基线：
+
+- 渲染前应断言敌军意图路线/目标叠层包含移动后攻击起点、目的地、目标格和预计伤害文案。
+- 渲染前应断言选中单位存在 `selectedCommanderBrief`、鹰旗被动攻击贡献、主动技能状态、战功摘要和完整 `selectedTacticalOrderPreviews`。
+- 渲染后应对紧凑视口命令区域做轻量像素检查，防止短横屏或竖屏命令区空白仍误判通过。
+- 三尺寸 PNG 只用于本地目视检查，确认将领读板、战功、姿态预览、敌军路线、目标叠层、攻击按钮和命令入口没有明显裁切、重叠或遮挡；PNG 不提交版本库。
+
 ### Stage Regression
 
 覆盖当前阶段核心模块。
@@ -298,7 +320,10 @@ env HOME=$PWD/.home DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer xco
 当前基线：
 
 - Full 应同时证明结构、核心规则、核心冒烟、SwiftUI 类型检查和战斗页预览图链路可用。
-- `Tools/RenderBattlePreview/main.swift` 渲染前会断言 `GameViewModel.enemyIntentMapOverlays` 至少包含一个移动后攻击意图叠层，且具备起点、目的地、目标格、路线段和预计伤害文案；三尺寸图中应能看到敌军意图路线、目的地和目标叠层。
+- `Tools/RenderBattlePreview/main.swift` 渲染前会断言 `GameViewModel.enemyIntentMapOverlays` 至少包含一个移动后攻击意图叠层，且具备起点、目的地、目标格、路线段和预计伤害文案。
+- `Tools/RenderBattlePreview/main.swift` 渲染前还会断言 `selectedCommanderBrief` 存在、鹰旗被动攻击贡献存在、技能状态非空、战功摘要存在、`selectedTacticalOrderPreviews` 覆盖全部 `TacticalOrder`，且突击/行军等非当前姿态有有效攻防移变化；断言失败会抛出 `missingCommanderBrief` 或 `missingTacticalOrderPreview`。
+- `Tools/RenderBattlePreview/main.swift` 渲染后会检查短横屏/竖屏紧凑命令区域存在足够可见像素，避免命令面板空白仍通过；失败会抛出 `missingCompactCommandRender`。
+- 三尺寸图中应能看到敌军意图路线、目的地、目标叠层、将领详情读板、被动贡献、战功状态和战术姿态预览。
 - 若因本地 Xcode SDK 版本不同导致命令路径或 SDK 路径变化，应先核对本机 `/Applications/Xcode.app`，再更新本文件和 README。
 
 ## 规则

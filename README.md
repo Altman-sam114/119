@@ -17,7 +17,9 @@
 - 城市扩建、军团训练、将领任命和外交派使
 - 将领特性与主动技能：鹰旗鼓舞、攻城布阵、战地补给、盾墙号令
 - 将领技能范围、目标与冷却预览：地图叠层、将领卡和军令按钮展示预计恢复、削城防、冷却和不可用原因
+- 将领详情读板：选中单位展示将领名、特性、被动贡献、技能状态、预计效果和战功摘要；无将领单位显示“无被动贡献”
 - 战功状态：经验转为军阶、伤害加成和下一军阶进度，在兵牌、情报面板和将领卡中可读
+- 战术姿态预览：均衡、突击、坚守、行军会展示切换后的攻、防、移、变化值、当前标记和不可切换原因
 - 手机横屏紧凑战斗栏、可攻击目标头顶徽标、选中单位待机/跳过
 - AI 招募、休整、战术姿态、将领技能冷却判断、移动后攻击和目标优先级评估
 - 敌军意图预判：地图徽标、路线线段、目的地/目标格叠层、顶部敌情芯片和侧栏敌情面板展示攻击、接敌、夺城、固守等倾向，预计伤害与规划态战斗预览一致
@@ -72,7 +74,7 @@ swiftc -swift-version 5 -module-cache-path .build/module-cache Sources/RomeLegio
 node Tools/verify_project.mjs
 ```
 
-战斗页三尺寸预览图；渲染前会断言敌军意图 ViewModel 叠层包含移动后攻击路线、目标格和预计伤害文案：
+战斗页三尺寸预览图；渲染前会断言敌军意图 ViewModel 叠层包含移动后攻击路线、目标格和预计伤害文案，并断言选中单位的将领详情、被动贡献、战功摘要和战术姿态预览存在：
 
 ```sh
 env HOME=$PWD/.home CLANG_MODULE_CACHE_PATH=$PWD/.build/module-cache /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/swiftc -parse-as-library -sdk /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX26.5.sdk -target arm64-apple-macosx14.0 -o .build/render-battle-preview Tools/RenderBattlePreview/main.swift Sources/RomeLegionsCore/GameState.swift RomeLegionsApp/App/GameViewModel.swift RomeLegionsApp/Views/BattleView.swift

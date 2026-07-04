@@ -60,12 +60,16 @@ flowchart TD
 
     N["选中有将领单位"] --> O["GameViewModel.selectedGeneralSkillPreview"]
     O --> P["GameState.generalSkillPreview<br/>只读计算范围、目标、预计恢复或削城防"]
-    P --> Q["BattleView 显示技能范围、目标和冷却<br/>将领卡与军令按钮展示摘要"]
-    Q --> R["玩家发动技能"]
+    P --> Q["GameViewModel.selectedCommanderBrief<br/>整合将领名、被动贡献、技能状态、冷却原因和战功摘要"]
+    Q --> X["BattleView 将领读板<br/>完整/紧凑情报展示被动、技能效果和战功"]
+    X --> R["玩家发动技能"]
     R --> S["GameState.useGeneralSkill<br/>复用预览目标筛选<br/>消耗行动并写入冷却"]
 
     T["选中单位经验"] --> U["GameState.warMeritStatus<br/>经验转军阶、伤害加成、进度"]
-    U --> V["BattleView 情报面板和将领卡<br/>展示战功状态"]
+    U --> Q
+
+    Y["选中单位当前姿态"] --> Z["GameViewModel.selectedTacticalOrderPreviews<br/>局部复制单位替换姿态<br/>调用 effectiveAttack/Defense/Movement 计算攻防移预览"]
+    Z --> AA["BattleView 姿态预览与按钮<br/>展示攻防移、变化值、当前标记和不可切换原因"]
 ```
 
 ## 4. 任务与胜负结算流
