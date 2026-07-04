@@ -1010,6 +1010,152 @@ public struct AIIntent: Identifiable, Codable, Equatable, Sendable {
     public var id: String { unitID }
 }
 
+public enum FrontlinePressureTargetKind: String, Hashable, Sendable {
+    case unit
+    case city
+
+    public var displayName: String {
+        switch self {
+        case .unit: return "部队"
+        case .city: return "城市"
+        }
+    }
+}
+
+public enum FrontlinePressureLevel: String, CaseIterable, Identifiable, Equatable, Sendable {
+    case watch
+    case contested
+    case threatened
+    case critical
+
+    public var id: String { rawValue }
+
+    public var displayName: String {
+        switch self {
+        case .watch: return "监视"
+        case .contested: return "争夺"
+        case .threatened: return "受威胁"
+        case .critical: return "危急"
+        }
+    }
+}
+
+public struct FrontlinePressureReport: Identifiable, Equatable, Sendable {
+    public var targetID: String
+    public var targetKind: FrontlinePressureTargetKind
+    public var targetFaction: Faction
+    public var targetPosition: Position
+    public var sourceFactions: [Faction]
+    public var sourceUnitIDs: [String]
+    public var intentKinds: [AIIntentKind]
+    public var intentCount: Int
+    public var attackIntentCount: Int
+    public var captureIntentCount: Int
+    public var projectedDamageTotal: Int
+    public var maxThreatScore: Int
+    public var pressureScore: Int
+    public var level: FrontlinePressureLevel
+
+    public var id: String { "\(targetKind.rawValue)-\(targetID)" }
+}
+
+private struct FrontlinePressureTargetKey: Hashable {
+    var kind: FrontlinePressureTargetKind
+    var id: String
+}
+
+private struct FrontlinePressureTarget {
+    var key: FrontlinePressureTargetKey
+    var faction: Faction
+    var position: Position
+    var health: Int?
+}
+
+private struct FrontlinePressureAccumulator {
+    var target: FrontlinePressureTarget
+    var sourceFactions: [Faction] = []
+    var sourceUnitIDs: [String] = []
+    var intentKinds: [AIIntentKind] = []
+    var intentCount = 0
+    var attackIntentCount = 0
+    var captureIntentCount = 0
+    var projectedDamageTotal = 0
+    var maxThreatScore = 0
+
+    mutating func add(_ intent: AIIntent) {
+        intentCount += 1
+        if !sourceFactions.contains(intent.faction) {
+            sourceFactions.append(intent.faction)
+        }
+        if !sourceUnitIDs.contains(intent.unitID) {
+            sourceUnitIDs.append(intent.unitID)
+        }
+        intentKinds.append(intent.kind)
+        if intent.kind.isAttackPressure {
+            attackIntentCount += 1
+        }
+        if intent.kind == .captureCity {
+            captureIntentCount += 1
+        }
+        projectedDamageTotal += intent.projectedDamage ?? 0
+        maxThreatScore = max(maxThreatScore, intent.threatScore)
+    }
+
+    var pressureScore: Int {
+        maxThreatScore +
+            projectedDamageTotal * 4 +
+            attackIntentCount * 80 +
+            captureIntentCount * 140 +
+            max(0, intentCount - 1) * 60
+    }
+
+    var level: FrontlinePressureLevel {
+        if captureIntentCount > 0 ||
+            attackIntentCount >= 2 ||
+            target.health.map({ projectedDamageTotal >= $0 }) == true {
+            return .critical
+        }
+
+        if attackIntentCount > 0 ||
+            maxThreatScore >= 420 ||
+            pressureScore >= 620 {
+            return .threatened
+        }
+
+        if intentKinds.contains(where: { $0 == .advance || $0 == .useSkill }) ||
+            maxThreatScore >= 240 {
+            return .contested
+        }
+
+        return .watch
+    }
+
+    var report: FrontlinePressureReport {
+        FrontlinePressureReport(
+            targetID: target.key.id,
+            targetKind: target.key.kind,
+            targetFaction: target.faction,
+            targetPosition: target.position,
+            sourceFactions: sourceFactions,
+            sourceUnitIDs: sourceUnitIDs,
+            intentKinds: intentKinds,
+            intentCount: intentCount,
+            attackIntentCount: attackIntentCount,
+            captureIntentCount: captureIntentCount,
+            projectedDamageTotal: projectedDamageTotal,
+            maxThreatScore: maxThreatScore,
+            pressureScore: pressureScore,
+            level: level
+        )
+    }
+}
+
+private extension AIIntentKind {
+    var isAttackPressure: Bool {
+        self == .attack || self == .advanceAttack
+    }
+}
+
 private struct CombatModifiers {
     var supportBonus: Int
     var flankingBonus: Int
@@ -1570,6 +1716,73 @@ public struct GameState: Codable, Equatable, Sendable {
             }
             .prefix(max(0, limit))
             .map { $0 }
+    }
+
+    public func frontlinePressureReports(
+        against defendingFaction: Faction = .rome,
+        perFactionLimit: Int = 4,
+        limit: Int = 6
+    ) -> [FrontlinePressureReport] {
+        guard defendingFaction != .neutral,
+              perFactionLimit > 0,
+              limit > 0 else {
+            return []
+        }
+
+        var accumulators: [FrontlinePressureTargetKey: FrontlinePressureAccumulator] = [:]
+
+        for faction in Faction.turnOrder where faction != defendingFaction && faction != .neutral {
+            guard diplomaticStatus(between: defendingFaction, and: faction) == .war else {
+                continue
+            }
+
+            for intent in aiIntents(for: faction, limit: perFactionLimit) {
+                guard let target = frontlinePressureTarget(for: intent, against: defendingFaction) else {
+                    continue
+                }
+
+                var accumulator = accumulators[target.key] ?? FrontlinePressureAccumulator(target: target)
+                accumulator.add(intent)
+                accumulators[target.key] = accumulator
+            }
+        }
+
+        return accumulators.values
+            .map(\.report)
+            .sorted { left, right in
+                if left.pressureScore == right.pressureScore {
+                    return left.id < right.id
+                }
+                return left.pressureScore > right.pressureScore
+            }
+            .prefix(limit)
+            .map { $0 }
+    }
+
+    private func frontlinePressureTarget(for intent: AIIntent, against defendingFaction: Faction) -> FrontlinePressureTarget? {
+        if let targetUnitID = intent.targetUnitID,
+           let targetUnit = unit(withID: targetUnitID),
+           targetUnit.faction == defendingFaction {
+            return FrontlinePressureTarget(
+                key: FrontlinePressureTargetKey(kind: .unit, id: targetUnit.id),
+                faction: targetUnit.faction,
+                position: targetUnit.position,
+                health: targetUnit.health
+            )
+        }
+
+        if let targetCityID = intent.targetCityID,
+           let targetCity = city(withID: targetCityID),
+           targetCity.owner == defendingFaction {
+            return FrontlinePressureTarget(
+                key: FrontlinePressureTargetKey(kind: .city, id: targetCity.id),
+                faction: targetCity.owner,
+                position: targetCity.position,
+                health: nil
+            )
+        }
+
+        return nil
     }
 
     public mutating func moveUnit(id unitID: String, to destination: Position) throws -> [String] {

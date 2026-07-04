@@ -35,6 +35,15 @@ struct RenderBattlePreview {
               advanceOverlay.impactLabel.contains("预计伤害") else {
             throw PreviewRenderError.missingIntentOverlay
         }
+        guard let frontlinePressure = viewModel.primaryFrontlinePressureSummary,
+              frontlinePressure.report.targetID == "rome-legion-1",
+              frontlinePressure.targetPosition == Position(x: 3, y: 3),
+              frontlinePressure.report.attackIntentCount > 0,
+              frontlinePressure.report.projectedDamageTotal > 0,
+              !frontlinePressure.detail.isEmpty,
+              !frontlinePressure.impactLabel.isEmpty else {
+            throw PreviewRenderError.missingFrontlinePressure
+        }
         let movementSegments = advanceOverlay.routeSegments.filter { !$0.isTargetLeg }
         guard movementSegments.count > 1,
               movementSegments.allSatisfy({ segment in
@@ -252,6 +261,7 @@ enum PreviewRenderError: Error {
     case renderFailed
     case missingIntentOverlay
     case missingHexIntentRoute
+    case missingFrontlinePressure
     case missingCommanderBrief
     case missingTacticalOrderPreview
     case missingCityReadout

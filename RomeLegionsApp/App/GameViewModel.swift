@@ -279,6 +279,119 @@ struct EnemyIntentMapOverlay: Identifiable {
     }
 }
 
+struct FrontlinePressureSummary: Identifiable {
+    var report: FrontlinePressureReport
+    var targetUnit: ArmyUnit?
+    var targetCity: City?
+    var sourceUnits: [ArmyUnit]
+
+    var id: String { report.id }
+    var level: FrontlinePressureLevel { report.level }
+    var targetPosition: Position { report.targetPosition }
+
+    var targetLabel: String {
+        if let targetUnit {
+            return "\(targetUnit.faction.displayName)\(targetUnit.kind.displayName)"
+        }
+
+        if let targetCity {
+            return targetCity.name
+        }
+
+        return "\(report.targetKind.displayName)\(report.targetID)"
+    }
+
+    var shortLabel: String {
+        if let targetCity {
+            return targetCity.name
+        }
+
+        if let targetUnit {
+            return targetUnit.kind.displayName
+        }
+
+        return report.targetKind.displayName
+    }
+
+    var pressureLabel: String {
+        level.displayName
+    }
+
+    var sourceLabel: String {
+        guard !sourceUnits.isEmpty else {
+            return report.sourceFactions.map(\.displayName).joined(separator: "、")
+        }
+
+        let labels = sourceUnits.prefix(3).map { "\($0.faction.displayName)\($0.kind.displayName)" }
+        if sourceUnits.count > 3 {
+            return "\(labels.joined(separator: "、"))等 \(sourceUnits.count) 支"
+        }
+
+        return labels.joined(separator: "、")
+    }
+
+    var intentMixLabel: String {
+        var parts: [String] = []
+        if report.attackIntentCount > 0 {
+            parts.append("\(report.attackIntentCount) 路攻击")
+        }
+        if report.captureIntentCount > 0 {
+            parts.append("\(report.captureIntentCount) 路夺城")
+        }
+
+        let skillCount = report.intentKinds.filter { $0 == .useSkill }.count
+        if skillCount > 0 {
+            parts.append("\(skillCount) 路技能")
+        }
+
+        let regroupCount = report.intentKinds.filter { $0 == .regroup }.count
+        if regroupCount > 0 {
+            parts.append("\(regroupCount) 路整备")
+        }
+
+        let defendCount = report.intentKinds.filter { $0 == .defend }.count
+        if defendCount > 0 {
+            parts.append("\(defendCount) 路固守")
+        }
+
+        let counted = report.attackIntentCount + report.captureIntentCount + skillCount + regroupCount + defendCount
+        let advanceCount = max(0, report.intentCount - counted)
+        if advanceCount > 0 {
+            parts.append("\(advanceCount) 路推进")
+        }
+
+        return parts.isEmpty ? "\(report.intentCount) 路动向" : parts.joined(separator: " · ")
+    }
+
+    var impactLabel: String {
+        if report.captureIntentCount > 0 {
+            return "夺城压力"
+        }
+
+        if report.projectedDamageTotal > 0 {
+            return "预计伤害 \(report.projectedDamageTotal)"
+        }
+
+        return "威胁 \(report.maxThreatScore)"
+    }
+
+    var title: String {
+        "\(targetLabel) \(pressureLabel)"
+    }
+
+    var compactTitle: String {
+        "\(shortLabel) \(pressureLabel)"
+    }
+
+    var detail: String {
+        "\(sourceLabel) · \(intentMixLabel) · \(impactLabel)"
+    }
+
+    var accessibilityLabel: String {
+        "\(targetLabel)，战线压力\(pressureLabel)，来源\(sourceLabel)，\(intentMixLabel)，\(impactLabel)"
+    }
+}
+
 struct GeneralPassiveContribution: Identifiable {
     var id: String
     var label: String
@@ -547,6 +660,25 @@ final class GameViewModel: ObservableObject {
 
     var primaryEnemyIntent: EnemyIntentSummary? {
         enemyIntentSummaries.first
+    }
+
+    var frontlinePressureSummaries: [FrontlinePressureSummary] {
+        state.frontlinePressureReports(against: .rome, perFactionLimit: 4, limit: 4)
+            .map { report in
+                let targetUnit = report.targetKind == .unit ? state.unit(withID: report.targetID) : nil
+                let targetCity = report.targetKind == .city ? state.city(withID: report.targetID) : nil
+                let sourceUnits = report.sourceUnitIDs.compactMap { state.unit(withID: $0) }
+                return FrontlinePressureSummary(
+                    report: report,
+                    targetUnit: targetUnit,
+                    targetCity: targetCity,
+                    sourceUnits: sourceUnits
+                )
+            }
+    }
+
+    var primaryFrontlinePressureSummary: FrontlinePressureSummary? {
+        frontlinePressureSummaries.first
     }
 
     func enemyIntentSummary(for unitID: String) -> EnemyIntentSummary? {

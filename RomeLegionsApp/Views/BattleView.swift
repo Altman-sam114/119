@@ -433,6 +433,16 @@ struct TacticalStatusStripView: View {
                 compact: compact
             )
         }
+
+        if let pressure = viewModel.primaryFrontlinePressureSummary {
+            TacticalChipView(
+                symbol: pressure.level.systemImage,
+                label: "战线",
+                value: pressure.compactTitle,
+                tint: pressure.level.tintColor,
+                compact: compact
+            )
+        }
     }
 }
 
@@ -1700,11 +1710,22 @@ struct BattlefieldFocusPanelView: View {
                 let totalDefense = tile.terrain.defenseBonus + (city?.fortification ?? 0)
 
                 if isCompact {
-                    HStack(spacing: 7) {
-                        CompactStat(label: "地形", value: tile.terrain.displayName)
-                        CompactStat(label: "移", value: "\(tile.terrain.movementCost)")
-                        CompactStat(label: "防", value: "+\(totalDefense)")
-                        CompactStat(label: "补", value: viewModel.selectedSupplyLabel)
+                    VStack(alignment: .leading, spacing: 6) {
+                        HStack(spacing: 7) {
+                            CompactStat(label: "地形", value: tile.terrain.displayName)
+                            CompactStat(label: "移", value: "\(tile.terrain.movementCost)")
+                            CompactStat(label: "防", value: "+\(totalDefense)")
+                            CompactStat(label: "补", value: viewModel.selectedSupplyLabel)
+                        }
+
+                        if let pressure = viewModel.primaryFrontlinePressureSummary {
+                            Label("\(pressure.compactTitle) · \(pressure.impactLabel)", systemImage: pressure.level.systemImage)
+                                .font(.caption2.weight(.heavy))
+                                .foregroundStyle(pressure.level.tintColor)
+                                .lineLimit(1)
+                                .minimumScaleFactor(0.72)
+                                .accessibilityLabel(pressure.accessibilityLabel)
+                        }
                     }
                 } else {
                     VStack(alignment: .leading, spacing: 9) {
@@ -1892,6 +1913,7 @@ struct StrategicBalancePanelView: View {
 
     var body: some View {
         PanelView(title: "战局", symbol: "chart.bar.xaxis") {
+            let pressureSummaries = viewModel.frontlinePressureSummaries
             VStack(alignment: .leading, spacing: 9) {
                 HStack(spacing: 8) {
                     StrategicScorePill(
@@ -1921,6 +1943,19 @@ struct StrategicBalancePanelView: View {
                     ResourceDeltaView(symbol: "shield.fill", value: income.iron, tint: .gray)
                     ResourceDeltaView(symbol: "sparkle.magnifyingglass", value: income.science, tint: .cyan)
                     Spacer(minLength: 0)
+                }
+
+                VStack(alignment: .leading, spacing: 6) {
+                    if pressureSummaries.isEmpty {
+                        Text("暂无集中战线压力。")
+                            .font(.caption)
+                            .foregroundStyle(.white.opacity(0.62))
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    } else {
+                        ForEach(pressureSummaries.prefix(3)) { summary in
+                            FrontlinePressureRowView(summary: summary)
+                        }
+                    }
                 }
 
                 VStack(spacing: 6) {
@@ -2009,6 +2044,50 @@ struct FactionSituationRowView: View {
                 .clipShape(RoundedRectangle(cornerRadius: 5))
         }
         .frame(minHeight: 28)
+    }
+}
+
+struct FrontlinePressureRowView: View {
+    var summary: FrontlinePressureSummary
+
+    var body: some View {
+        HStack(spacing: 8) {
+            ZStack {
+                RoundedRectangle(cornerRadius: 5)
+                    .fill(summary.level.tintColor.opacity(0.92))
+                    .frame(width: 28, height: 28)
+                Image(systemName: summary.level.systemImage)
+                    .font(.caption.weight(.black))
+                    .foregroundStyle(.white)
+            }
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(summary.title)
+                    .font(.caption.weight(.heavy))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.72)
+                Text(summary.detail)
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(.white.opacity(0.62))
+                    .lineLimit(2)
+                    .minimumScaleFactor(0.70)
+            }
+
+            Spacer(minLength: 0)
+
+            Text(summary.impactLabel)
+                .font(.caption2.weight(.black))
+                .foregroundStyle(.black.opacity(0.78))
+                .padding(.horizontal, 6)
+                .frame(height: 20)
+                .background(.white.opacity(0.78))
+                .clipShape(RoundedRectangle(cornerRadius: 5))
+        }
+        .padding(.horizontal, 8)
+        .frame(minHeight: 44)
+        .background(.black.opacity(0.18))
+        .clipShape(RoundedRectangle(cornerRadius: 7))
+        .accessibilityLabel(summary.accessibilityLabel)
     }
 }
 
@@ -3133,6 +3212,26 @@ extension CampaignStatusKind {
         case .ongoing: return Color(red: 0.84, green: 0.66, blue: 0.32)
         case .romanVictory: return Color(red: 0.24, green: 0.72, blue: 0.38)
         case .romanDefeat: return Color(red: 0.86, green: 0.24, blue: 0.18)
+        }
+    }
+}
+
+extension FrontlinePressureLevel {
+    var systemImage: String {
+        switch self {
+        case .watch: return "eye.fill"
+        case .contested: return "flag.2.crossed.fill"
+        case .threatened: return "exclamationmark.shield.fill"
+        case .critical: return "flame.fill"
+        }
+    }
+
+    var tintColor: Color {
+        switch self {
+        case .watch: return Color(red: 0.52, green: 0.70, blue: 0.86)
+        case .contested: return Color(red: 0.86, green: 0.68, blue: 0.34)
+        case .threatened: return Color(red: 0.92, green: 0.42, blue: 0.14)
+        case .critical: return Color(red: 0.84, green: 0.16, blue: 0.12)
         }
     }
 }

@@ -665,6 +665,77 @@ import Testing
     #expect(state == before)
 }
 
+@Test func frontlinePressureAggregatesMultipleAttackIntentsWithoutMutation() {
+    var state = GameState.newCampaign()
+    state.units = [
+        ArmyUnit(id: "rome-target", kind: .legion, faction: .rome, position: Position(x: 3, y: 3)),
+        ArmyUnit(id: "carthage-east", kind: .cavalry, faction: .carthage, position: Position(x: 4, y: 3)),
+        ArmyUnit(id: "carthage-north", kind: .legion, faction: .carthage, position: Position(x: 3, y: 2))
+    ]
+    state.activeFaction = .rome
+    let before = state
+
+    let intents = state.aiIntents(for: .carthage, limit: 4)
+    let expectedDamage = intents
+        .filter { $0.targetUnitID == "rome-target" }
+        .reduce(0) { partial, intent in partial + (intent.projectedDamage ?? 0) }
+    let reports = state.frontlinePressureReports(against: .rome, perFactionLimit: 4, limit: 3)
+    let report = reports.first { $0.targetID == "rome-target" }
+
+    #expect(report?.targetKind == .unit)
+    #expect(report?.targetPosition == Position(x: 3, y: 3))
+    #expect(Set(report?.sourceUnitIDs ?? []) == Set(["carthage-east", "carthage-north"]))
+    #expect(report?.sourceFactions == [.carthage])
+    #expect(report?.intentCount == 2)
+    #expect(report?.attackIntentCount == 2)
+    #expect(report?.captureIntentCount == 0)
+    #expect(report?.projectedDamageTotal == expectedDamage)
+    #expect((report?.maxThreatScore ?? 0) > 0)
+    #expect(report?.level == .critical)
+    #expect(state == before)
+}
+
+@Test func frontlinePressureReportsRomanCityCaptureThreat() {
+    var state = GameState.newCampaign()
+    state.units = [
+        ArmyUnit(id: "carthage-capturer", kind: .cavalry, faction: .carthage, position: Position(x: 6, y: 2))
+    ]
+    for index in state.cities.indices where state.cities[index].id != "massilia" {
+        state.cities[index].owner = .carthage
+    }
+    if let massiliaIndex = state.cities.firstIndex(where: { $0.id == "massilia" }) {
+        state.cities[massiliaIndex].owner = .rome
+    }
+    let before = state
+
+    let reports = state.frontlinePressureReports(against: .rome, perFactionLimit: 3, limit: 2)
+    let report = reports.first { $0.targetID == "massilia" }
+
+    #expect(report?.targetKind == .city)
+    #expect(report?.targetFaction == .rome)
+    #expect(report?.targetPosition == Position(x: 5, y: 2))
+    #expect(report?.sourceUnitIDs == ["carthage-capturer"])
+    #expect(report?.intentKinds == [.captureCity])
+    #expect(report?.captureIntentCount == 1)
+    #expect(report?.level == .critical)
+    #expect(state == before)
+}
+
+@Test func frontlinePressureIgnoresTreatyProtectedFactions() throws {
+    var state = GameState.newCampaign()
+    state.units = [
+        ArmyUnit(id: "rome-target", kind: .legion, faction: .rome, position: Position(x: 3, y: 3)),
+        ArmyUnit(id: "carthage-hunter", kind: .cavalry, faction: .carthage, position: Position(x: 4, y: 3))
+    ]
+    _ = try state.sendEnvoy(to: .carthage)
+    let before = state
+
+    let reports = state.frontlinePressureReports(against: .rome, perFactionLimit: 4, limit: 3)
+
+    #expect(reports.isEmpty)
+    #expect(state == before)
+}
+
 @Test func aiRecruitsWhenBelowTargetForce() {
     var state = GameState.newCampaign()
     state.activeFaction = .gaul

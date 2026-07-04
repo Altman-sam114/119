@@ -14,12 +14,65 @@
 
 - 项目类型：原创 SwiftUI iOS 罗马题材战棋原型。
 - 核心架构：纯 Swift `RomeLegionsCore` 负责玩法规则；`GameViewModel` 负责 UI 状态和派生数据；SwiftUI 视图负责展示和命令入口。
-- 当前玩法：六边形地图、地形、城市、阵营、军团、移动、攻击、反击、占城、招募、科技、任务 requirement、战役目标、胜负结算、结束保护、外交、城市扩建、城市经营与招募读板、军团训练、将领任命、主动技能、技能冷却、将领详情读板、被动贡献、战功状态、战术姿态与姿态预览、AI 回合、敌军意图预判、敌军意图六边形路径/目标叠层、战局态势面板。
+- 当前玩法：六边形地图、地形、城市、阵营、军团、移动、攻击、反击、占城、招募、科技、任务 requirement、战役目标、胜负结算、结束保护、外交、城市扩建、城市经营与招募读板、军团训练、将领任命、主动技能、技能冷却、将领详情读板、被动贡献、战功状态、战术姿态与姿态预览、AI 回合、敌军意图预判、敌军意图六边形路径/目标叠层、战线压力读板、战局态势面板。
 - 当前测试入口：Swift Testing、Gameplay Smoke、项目结构检查、SwiftUI 类型检查、战斗页预览图渲染、无签名 Xcode 构建。
 - 当前协作系统：已建立 `AGENTS.md`、`update_log.md`、`md/prompt/`、`md/test/test.md`、`md/flow/flow.md`、`md/flow/flowchart.md`，默认按 `main` 直推、GitHub Actions 云端重验证、Agent C 下载未加密结果包复判，并具备未来由 Agent X 主控调度 Agent A/B/C 多轮循环的文档基线。
 - 当前 CI 入口：`.github/workflows/ci-results.yml`，在 `main` push 和手动触发时运行结构检查、SwiftPM 测试、Gameplay Smoke 和无签名 Xcode build，并上传 CI 结果包。
 
 ## 历史记录
+
+### v0.14 / 战线压力与 AI 战略意图读板
+
+日期：2026-07-05
+
+核心变更：
+
+- `GameState` 新增 `FrontlinePressureLevel`、`FrontlinePressureTargetKind` 和 `FrontlinePressureReport`，通过 `frontlinePressureReports(against:perFactionLimit:limit:)` 只读聚合交战敌军 `AIIntent`，按罗马单位或城市展示来源单位、来源阵营、意图数量、攻击/夺城数量、预计伤害合计、最高威胁值、压力分和压力等级。
+- 战线压力报告不新增 `AIIntent` 存储字段，不改变 `performSimpleAI(for:)`、AI 权重、真实移动、战斗结算或 Codable 存档结构；压力等级只用于 UI 读板。
+- `GameViewModel` 新增 `FrontlinePressureSummary`、`frontlinePressureSummaries` 和 `primaryFrontlinePressureSummary`，把核心报告整理成目标、来源、压力标签、影响文案和无障碍说明。
+- `BattleView` 在地图顶部状态条显示首要“战线”chip，在完整战局面板展示最多三条战线压力行，在紧凑战场面板只显示一条短摘要，避免挤占手机竖屏和短横屏军令入口。
+- Swift Testing 增加多路敌军集火同一罗马单位、敌军夺取罗马城市、停战势力过滤和只读不变性覆盖；Gameplay Smoke 增加多路压力主链路断言。
+- `Tools/RenderBattlePreview` 在既有敌军路径、将领、姿态和城市读板断言基础上，新增首要战线压力摘要断言，并继续输出城市场景 PNG 和 `*-unit.png` 单位场景 PNG。
+- README、flow、flowchart、test 文档同步战线压力边界、UI 展示和 v0.14 artifact 版本，并新增 v0.14 Agent A 提示词。
+
+关键文件：
+
+- `Sources/RomeLegionsCore/GameState.swift`
+- `RomeLegionsApp/App/GameViewModel.swift`
+- `RomeLegionsApp/Views/BattleView.swift`
+- `Tests/RomeLegionsCoreTests/GameStateTests.swift`
+- `Tools/GameplaySmoke/main.swift`
+- `Tools/RenderBattlePreview/main.swift`
+- `.github/workflows/ci-results.yml`
+- `README.md`
+- `md/flow/flow.md`
+- `md/flow/flowchart.md`
+- `md/test/test.md`
+- `md/prompt/v0（玩法推进）/v0.14（战线压力与AI战略意图读板）.md`
+- `update_log.md`
+
+验证结果：
+
+- `env HOME=$PWD/.home CLANG_MODULE_CACHE_PATH=$PWD/.build/module-cache DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/swift test --scratch-path .build/swift-test-local --disable-sandbox`：通过，48 个 Swift Testing 用例通过；本机 SwiftPM cache 目录只读警告不影响测试结果。
+- `swiftc -swift-version 5 -module-cache-path .build/module-cache Sources/RomeLegionsCore/GameState.swift Tools/GameplaySmoke/main.swift -o .build/gameplay-smoke`：通过，无错误输出。
+- `.build/gameplay-smoke`：通过，输出 `Gameplay smoke test passed.`
+- `/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/swiftc -typecheck -swift-version 5 -sdk /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS26.5.sdk -target arm64-apple-ios17.0 -module-cache-path DerivedData/ManualModuleCache Sources/RomeLegionsCore/GameState.swift RomeLegionsApp/App/RomeLegionsApp.swift RomeLegionsApp/App/GameViewModel.swift RomeLegionsApp/Views/RootView.swift RomeLegionsApp/Views/MainMenuView.swift RomeLegionsApp/Views/BattleView.swift`：通过，无错误输出。
+- `env HOME=$PWD/.home CLANG_MODULE_CACHE_PATH=$PWD/.build/module-cache /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/swiftc -parse-as-library -sdk /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX26.5.sdk -target arm64-apple-macosx14.0 -o .build/render-battle-preview Tools/RenderBattlePreview/main.swift Sources/RomeLegionsCore/GameState.swift RomeLegionsApp/App/GameViewModel.swift RomeLegionsApp/Views/BattleView.swift`：通过，无错误输出。
+- `.build/render-battle-preview DerivedData/battle-landscape-preview.png 932 430`：通过，短横屏城市场景和 `DerivedData/battle-landscape-preview-unit.png` 单位场景生成成功；单位场景顶部显示战线 chip，军令入口仍在首屏。
+- `.build/render-battle-preview DerivedData/battle-portrait-preview.png 390 844`：通过，竖屏城市场景和 `DerivedData/battle-portrait-preview-unit.png` 单位场景生成成功；地图、战线 chip、军令和情报面板无明显裁切或重叠。
+- `.build/render-battle-preview DerivedData/battle-wide-preview.png 1024 768`：通过，宽屏城市场景和 `DerivedData/battle-wide-preview-unit.png` 单位场景生成成功；单位场景显示战线压力、敌军路线、目标叠层、将领详情和姿态预览。
+- `git diff --check`：通过，无输出。
+- `node Tools/verify_project.mjs`：通过，输出 `Project structure verification passed.`
+- `ruby -e 'require "yaml"; YAML.load_file(".github/workflows/ci-results.yml"); puts "yaml ok"'`：通过，输出 `yaml ok`。
+- `plutil -lint RomeLegionsApp.xcodeproj/project.pbxproj`：通过，输出 `RomeLegionsApp.xcodeproj/project.pbxproj: OK`。
+
+遗留事项：
+
+- 本轮没有实现多回合 AI 搜索、战略路线规划、AI 权重调整、建筑树、人口、军团编制、存档 UI 或外交界面。
+- 完整战局面板里的压力列表只展示核心只读报告，不参与招募、扩建、攻击或 AI 决策。
+- 本轮没有默认本机跑完整 `xcodebuild build`；按项目规则交给 `origin/main` 最新 commit 的 GitHub Actions 重验证。
+- CI 仍只上传必要 manifest、JUnit、日志和 xcresult，不上传本地 PNG；三尺寸城市场景 PNG 与 `*-unit.png` 单位场景 PNG 只用于本地目视检查，不提交版本库。
+- Agent C 必须核对最新 `origin/main` commit 对应的 v0.14 run id、run attempt 和 artifact；不能使用 v0.13 旧结果包。
 
 ### v0.13 / 城市经营与招募预览读板
 

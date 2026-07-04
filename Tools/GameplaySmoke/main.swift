@@ -153,6 +153,25 @@ do {
     expect(captureIntent?.destination == Position(x: 5, y: 2), "Capture intent should expose destination for UI route overlays")
     expect(captureIntentState == captureBefore, "Capture intent forecast should not mutate state")
 
+    var pressureState = GameState.newCampaign()
+    pressureState.units = [
+        ArmyUnit(id: "rome-target", kind: .legion, faction: .rome, position: Position(x: 3, y: 3)),
+        ArmyUnit(id: "carthage-east", kind: .cavalry, faction: .carthage, position: Position(x: 4, y: 3)),
+        ArmyUnit(id: "carthage-north", kind: .legion, faction: .carthage, position: Position(x: 3, y: 2))
+    ]
+    let pressureBefore = pressureState
+    let pressureIntents = pressureState.aiIntents(for: .carthage, limit: 4)
+    let pressureExpectedDamage = pressureIntents
+        .filter { $0.targetUnitID == "rome-target" }
+        .reduce(0) { partial, intent in partial + (intent.projectedDamage ?? 0) }
+    let pressureReport = pressureState.frontlinePressureReports(against: .rome, perFactionLimit: 4, limit: 2).first
+    expect(pressureReport?.targetID == "rome-target", "Frontline pressure should identify the focused Roman target")
+    expect(Set(pressureReport?.sourceUnitIDs ?? []) == Set(["carthage-east", "carthage-north"]), "Frontline pressure should aggregate multiple source units")
+    expect(pressureReport?.attackIntentCount == 2, "Frontline pressure should count incoming attack intents")
+    expect(pressureReport?.projectedDamageTotal == pressureExpectedDamage, "Frontline pressure damage should sum AI intent damage")
+    expect(pressureReport?.level == .critical, "Multiple incoming attacks should mark critical pressure")
+    expect(pressureState == pressureBefore, "Frontline pressure forecast should not mutate state")
+
     var skillState = GameState.newCampaign()
     let damagedArcherIndex = skillState.units.firstIndex { $0.id == "rome-archer-1" }
     expect(damagedArcherIndex != nil, "Damaged ally should exist")
