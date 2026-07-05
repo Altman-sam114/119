@@ -1818,7 +1818,7 @@ final class GameViewModel: ObservableObject {
             statusLabel = report.blockedReason ?? "暂不可用"
         }
 
-        UnitDevelopmentRecommendationSummary(
+        return UnitDevelopmentRecommendationSummary(
             report: report,
             unit: state.unit(withID: report.unitID),
             statusLabel: statusLabel
