@@ -37,9 +37,9 @@ flowchart TD
     E --> H["BattleView 刷新<br/>玩家继续下令"]
 ```
 
-## 3. 战斗、敌军意图与战术建议流
+## 3. 战斗、敌军意图、战术建议与战场焦点流
 
-读图说明：这张图展示战斗预览、实际攻击、敌军意图、战线压力和玩家侧战术建议之间的关系。关键铁律是预览与结算必须一致，敌军意图、战线压力和战术建议只能读取和预测，地图路线只是只读报告的可视化，不能改变状态、结算或 AI 决策。
+读图说明：这张图展示战斗预览、实际攻击、敌军意图、战线压力、玩家侧战术建议和战场焦点之间的关系。关键铁律是预览与结算必须一致，敌军意图、战线压力、战术建议和战场焦点只能读取和预测，地图路线和焦点卡只是只读报告的可视化，不能改变状态、结算或 AI 决策。
 
 ```mermaid
 flowchart TD
@@ -64,6 +64,12 @@ flowchart TD
     AH["选中本方单位"] --> AI["GameState.tacticalRecommendation(unitID:)<br/>只读派生攻击、补线、推进、坚守或整备建议<br/>目标、目的地、路径、推荐姿态、风险和命令文案"]
     AI --> AJ["GameViewModel.selectedTacticalRecommendationSummary<br/>转成军议 chip、建议卡、路径线段和目标位置"]
     AJ --> AK["BattleView 地图本方建议路径/目标叠层<br/>选中单位情报展示建议理由和风险"]
+    AI --> AL["GameState.battlefieldFocusReports<br/>综合压力、建议、编制和将领机会<br/>输出救线、打击、补线、推进、整编或将领焦点"]
+    AB --> AL
+    AF --> AL
+    P --> AL
+    AL --> AM["GameViewModel.battlefieldFocusSummaries<br/>标题、严重度、目标、单位、姿态和详情"]
+    AM --> AN["BattleView 焦点 chip、战场焦点卡、战局焦点行<br/>只展示核心报告，不重新评分"]
 
     N["选中有将领单位"] --> O["GameViewModel.selectedGeneralSkillPreview"]
     O --> P["GameState.generalSkillPreview<br/>只读计算范围、目标、预计恢复或削城防"]

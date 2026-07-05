@@ -854,6 +854,54 @@ import Testing
     #expect(state == before)
 }
 
+@Test func battlefieldFocusPrioritizesCriticalFrontlinePressureWithoutMutation() {
+    var state = GameState.newCampaign()
+    state.units = [
+        ArmyUnit(id: "rome-target", kind: .legion, faction: .rome, position: Position(x: 3, y: 3)),
+        ArmyUnit(id: "rome-reserve", kind: .legion, faction: .rome, position: Position(x: 1, y: 3)),
+        ArmyUnit(id: "carthage-east", kind: .cavalry, faction: .carthage, position: Position(x: 4, y: 3)),
+        ArmyUnit(id: "carthage-north", kind: .legion, faction: .carthage, position: Position(x: 3, y: 2))
+    ]
+    state.activeFaction = .rome
+    let before = state
+
+    let reports = state.battlefieldFocusReports(for: .rome, limit: 5)
+    let report = reports.first { $0.kind == .defense && $0.targetUnitID == "rome-target" }
+
+    #expect(report?.severity == .critical)
+    #expect(report?.position == Position(x: 3, y: 3))
+    #expect(report?.unitID == "rome-target")
+    #expect(Set(report?.relatedUnitIDs ?? []) == Set(["carthage-east", "carthage-north"]))
+    #expect(report?.recommendedOrder == .defensive)
+    #expect((report?.score ?? 0) > 0)
+    #expect(report?.title.contains("危急") == true)
+    #expect(report?.detail.contains("预计伤害") == true)
+    #expect(state == before)
+}
+
+@Test func battlefieldFocusSurfacesReadyGeneralSkillWithoutMutation() {
+    var state = GameState.newCampaign()
+    state.units = [
+        ArmyUnit(id: "rome-commander", kind: .legion, faction: .rome, position: Position(x: 3, y: 3), experience: 4, generalName: "凯撒", generalTrait: .eagleStandard),
+        ArmyUnit(id: "rome-wounded", kind: .archer, faction: .rome, position: Position(x: 4, y: 3), health: 30),
+        ArmyUnit(id: "carthage-near", kind: .cavalry, faction: .carthage, position: Position(x: 3, y: 2))
+    ]
+    state.activeFaction = .rome
+    let before = state
+
+    let reports = state.battlefieldFocusReports(for: .rome, limit: 5)
+    let report = reports.first { $0.kind == .generalOpportunity && $0.unitID == "rome-commander" }
+
+    #expect(report?.severity == .urgent)
+    #expect(report?.position == Position(x: 3, y: 3))
+    #expect(report?.relatedUnitIDs == ["rome-commander"])
+    #expect(report?.recommendedOrder == .balanced)
+    #expect(report?.title.contains("凯撒") == true)
+    #expect(report?.summary.contains("将领") == true)
+    #expect(report?.detail.isEmpty == false)
+    #expect(state == before)
+}
+
 @Test func aiRecruitsWhenBelowTargetForce() {
     var state = GameState.newCampaign()
     state.activeFaction = .gaul

@@ -456,6 +456,16 @@ struct TacticalStatusStripView: View {
             )
         }
 
+        if let focus = viewModel.primaryBattlefieldFocusSummary {
+            TacticalChipView(
+                symbol: focus.kind.systemImage,
+                label: "焦点",
+                value: focus.compactTitle,
+                tint: focus.severity.tintColor,
+                compact: compact
+            )
+        }
+
         if let formation = viewModel.primaryLegionFormationSummary {
             TacticalChipView(
                 symbol: formation.report.readiness.systemImage,
@@ -1854,6 +1864,7 @@ struct BattlefieldFocusPanelView: View {
 
     var body: some View {
         PanelView(title: "战场", symbol: "map.fill") {
+            let focus = viewModel.primaryBattlefieldFocusSummary
             if let tile = viewModel.selectedTile {
                 let city = viewModel.state.city(at: tile.position)
                 let totalDefense = tile.terrain.defenseBonus + (city?.fortification ?? 0)
@@ -1865,6 +1876,15 @@ struct BattlefieldFocusPanelView: View {
                             CompactStat(label: "移", value: "\(tile.terrain.movementCost)")
                             CompactStat(label: "防", value: "+\(totalDefense)")
                             CompactStat(label: "补", value: viewModel.selectedSupplyLabel)
+                        }
+
+                        if let focus {
+                            Label("\(focus.title) · \(focus.severityLabel)", systemImage: focus.kind.systemImage)
+                                .font(.caption2.weight(.heavy))
+                                .foregroundStyle(focus.severity.tintColor)
+                                .lineLimit(1)
+                                .minimumScaleFactor(0.72)
+                                .accessibilityLabel(focus.accessibilityLabel)
                         }
 
                         if let pressure = viewModel.primaryFrontlinePressureSummary {
@@ -1900,6 +1920,10 @@ struct BattlefieldFocusPanelView: View {
                             BattlefieldStatPill(label: "移动", value: "\(tile.terrain.movementCost)")
                             BattlefieldStatPill(label: "防御", value: "+\(totalDefense)")
                             BattlefieldStatPill(label: "补给", value: viewModel.selectedSupplyLabel)
+                        }
+
+                        if let focus {
+                            BattlefieldFocusCardView(summary: focus, isCompact: false)
                         }
 
                         if let city {
@@ -1945,6 +1969,8 @@ struct BattlefieldFocusPanelView: View {
                         }
                     }
                 }
+            } else if let focus {
+                BattlefieldFocusCardView(summary: focus, isCompact: isCompact)
             } else {
                 Text("尚未标定战场焦点。")
                     .font(.caption)
@@ -2062,6 +2088,7 @@ struct StrategicBalancePanelView: View {
 
     var body: some View {
         PanelView(title: "战局", symbol: "chart.bar.xaxis") {
+            let focusSummaries = viewModel.battlefieldFocusSummaries
             let pressureSummaries = viewModel.frontlinePressureSummaries
             let formationSummaries = viewModel.legionFormationSummaries
             VStack(alignment: .leading, spacing: 9) {
@@ -2093,6 +2120,19 @@ struct StrategicBalancePanelView: View {
                     ResourceDeltaView(symbol: "shield.fill", value: income.iron, tint: .gray)
                     ResourceDeltaView(symbol: "sparkle.magnifyingglass", value: income.science, tint: .cyan)
                     Spacer(minLength: 0)
+                }
+
+                VStack(alignment: .leading, spacing: 6) {
+                    if focusSummaries.isEmpty {
+                        Text("暂无战场焦点。")
+                            .font(.caption)
+                            .foregroundStyle(.white.opacity(0.62))
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    } else {
+                        ForEach(focusSummaries.prefix(2)) { summary in
+                            BattlefieldFocusRowView(summary: summary)
+                        }
+                    }
                 }
 
                 VStack(alignment: .leading, spacing: 6) {
@@ -2207,6 +2247,117 @@ struct FactionSituationRowView: View {
                 .clipShape(RoundedRectangle(cornerRadius: 5))
         }
         .frame(minHeight: 28)
+    }
+}
+
+struct BattlefieldFocusRowView: View {
+    var summary: BattlefieldFocusSummary
+
+    var body: some View {
+        HStack(spacing: 8) {
+            ZStack {
+                RoundedRectangle(cornerRadius: 5)
+                    .fill(summary.severity.tintColor.opacity(0.92))
+                    .frame(width: 28, height: 28)
+                Image(systemName: summary.kind.systemImage)
+                    .font(.caption.weight(.black))
+                    .foregroundStyle(.white)
+            }
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(summary.title)
+                    .font(.caption.weight(.heavy))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.72)
+                Text(summary.detail)
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(.white.opacity(0.62))
+                    .lineLimit(2)
+                    .minimumScaleFactor(0.70)
+            }
+
+            Spacer(minLength: 0)
+
+            VStack(alignment: .trailing, spacing: 3) {
+                Text(summary.severityLabel)
+                    .font(.caption2.weight(.black))
+                    .foregroundStyle(.black.opacity(0.78))
+                    .padding(.horizontal, 6)
+                    .frame(height: 20)
+                    .background(summary.severity.tintColor)
+                    .clipShape(RoundedRectangle(cornerRadius: 5))
+                Text(summary.scoreLabel)
+                    .font(.caption2.monospacedDigit().weight(.semibold))
+                    .foregroundStyle(.white.opacity(0.58))
+            }
+        }
+        .padding(.horizontal, 8)
+        .frame(minHeight: 46)
+        .background(.black.opacity(0.18))
+        .clipShape(RoundedRectangle(cornerRadius: 7))
+        .accessibilityLabel(summary.accessibilityLabel)
+    }
+}
+
+struct BattlefieldFocusCardView: View {
+    var summary: BattlefieldFocusSummary
+    var isCompact: Bool
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: isCompact ? 5 : 7) {
+            HStack(spacing: 7) {
+                Image(systemName: summary.kind.systemImage)
+                    .foregroundStyle(summary.severity.tintColor)
+                Text("焦点")
+                    .font(.caption2.weight(.bold))
+                    .foregroundStyle(.white.opacity(0.58))
+                Text(summary.title)
+                    .font(.caption.weight(.heavy))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.70)
+                Spacer(minLength: 0)
+                Text(summary.severityLabel)
+                    .font(.caption2.weight(.black))
+                    .foregroundStyle(.black.opacity(0.78))
+                    .padding(.horizontal, 6)
+                    .frame(height: 20)
+                    .background(summary.severity.tintColor)
+                    .clipShape(RoundedRectangle(cornerRadius: 5))
+            }
+
+            if !isCompact {
+                Text(summary.report.summary)
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(.white.opacity(0.62))
+                    .lineLimit(2)
+                    .minimumScaleFactor(0.72)
+            }
+
+            HStack(spacing: 6) {
+                Label(summary.targetLabel, systemImage: "scope")
+                Spacer(minLength: 0)
+                Label(summary.report.recommendedOrder.displayName, systemImage: summary.report.recommendedOrder.systemImage)
+            }
+            .font(.caption2.weight(.semibold))
+            .foregroundStyle(.white.opacity(0.66))
+            .lineLimit(1)
+            .minimumScaleFactor(0.70)
+
+            Text(summary.detail)
+                .font(.caption2.weight(.bold))
+                .foregroundStyle(summary.severity.tintColor)
+                .lineLimit(isCompact ? 1 : 2)
+                .minimumScaleFactor(0.70)
+        }
+        .padding(8)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(summary.severity.tintColor.opacity(0.12))
+        .overlay {
+            RoundedRectangle(cornerRadius: 7)
+                .stroke(summary.severity.tintColor.opacity(0.38), lineWidth: 1)
+        }
+        .clipShape(RoundedRectangle(cornerRadius: 7))
+        .accessibilityLabel(summary.accessibilityLabel)
     }
 }
 
@@ -3576,6 +3727,30 @@ extension FrontlinePressureLevel {
         case .watch: return Color(red: 0.52, green: 0.70, blue: 0.86)
         case .contested: return Color(red: 0.86, green: 0.68, blue: 0.34)
         case .threatened: return Color(red: 0.92, green: 0.42, blue: 0.14)
+        case .critical: return Color(red: 0.84, green: 0.16, blue: 0.12)
+        }
+    }
+}
+
+extension BattlefieldFocusKind {
+    var systemImage: String {
+        switch self {
+        case .defense: return "exclamationmark.shield.fill"
+        case .generalOpportunity: return "sparkles"
+        case .attackOpportunity: return "bolt.fill"
+        case .reinforce: return "arrow.triangle.branch"
+        case .advance: return "arrow.up.right.circle.fill"
+        case .recover: return "cross.case.fill"
+        }
+    }
+}
+
+extension BattlefieldFocusSeverity {
+    var tintColor: Color {
+        switch self {
+        case .watch: return Color(red: 0.52, green: 0.70, blue: 0.86)
+        case .important: return Color(red: 0.86, green: 0.68, blue: 0.34)
+        case .urgent: return Color(red: 0.92, green: 0.42, blue: 0.14)
         case .critical: return Color(red: 0.84, green: 0.16, blue: 0.12)
         }
     }

@@ -1163,6 +1163,72 @@ public struct TacticalRecommendationReport: Identifiable, Equatable, Sendable {
     public var id: String { unitID }
 }
 
+public enum BattlefieldFocusKind: String, CaseIterable, Identifiable, Equatable, Sendable {
+    case defense
+    case generalOpportunity
+    case attackOpportunity
+    case reinforce
+    case advance
+    case recover
+
+    public var id: String { rawValue }
+
+    public var displayName: String {
+        switch self {
+        case .defense: return "救线"
+        case .generalOpportunity: return "将领"
+        case .attackOpportunity: return "打击"
+        case .reinforce: return "补线"
+        case .advance: return "推进"
+        case .recover: return "整编"
+        }
+    }
+}
+
+public enum BattlefieldFocusSeverity: String, CaseIterable, Identifiable, Equatable, Sendable {
+    case watch
+    case important
+    case urgent
+    case critical
+
+    public var id: String { rawValue }
+
+    public var displayName: String {
+        switch self {
+        case .watch: return "观察"
+        case .important: return "重要"
+        case .urgent: return "紧急"
+        case .critical: return "危急"
+        }
+    }
+
+    fileprivate var priority: Int {
+        switch self {
+        case .critical: return 4
+        case .urgent: return 3
+        case .important: return 2
+        case .watch: return 1
+        }
+    }
+}
+
+public struct BattlefieldFocusReport: Identifiable, Equatable, Sendable {
+    public var id: String
+    public var faction: Faction
+    public var kind: BattlefieldFocusKind
+    public var severity: BattlefieldFocusSeverity
+    public var position: Position
+    public var unitID: String?
+    public var targetUnitID: String?
+    public var targetCityID: String?
+    public var relatedUnitIDs: [String]
+    public var recommendedOrder: TacticalOrder
+    public var score: Int
+    public var title: String
+    public var summary: String
+    public var detail: String
+}
+
 public enum FrontlinePressureTargetKind: String, Hashable, Sendable {
     case unit
     case city
@@ -1787,6 +1853,44 @@ public struct GameState: Codable, Equatable, Sendable {
         return tacticalRecommendation(for: unit)
     }
 
+    public func battlefieldFocusReports(
+        for faction: Faction = .rome,
+        limit: Int = 5
+    ) -> [BattlefieldFocusReport] {
+        guard faction != .neutral,
+              limit > 0 else {
+            return []
+        }
+
+        let formationReports = units
+            .filter { $0.faction == faction }
+            .map { legionFormationReport(for: $0) }
+
+        var reports: [BattlefieldFocusReport] = []
+        reports.append(contentsOf: battlefieldPressureFocusReports(for: faction))
+        reports.append(contentsOf: formationReports.compactMap(battlefieldGeneralOpportunityFocus(for:)))
+        reports.append(contentsOf: formationReports.compactMap(battlefieldRecoveryFocus(for:)))
+
+        let recommendations = units
+            .filter { $0.faction == faction }
+            .map { tacticalRecommendation(for: $0) }
+        reports.append(contentsOf: recommendations.compactMap(battlefieldTacticalFocus(for:)))
+
+        return reports
+            .sorted { left, right in
+                if left.score == right.score {
+                    return left.id < right.id
+                }
+                return left.score > right.score
+            }
+            .prefix(limit)
+            .map { $0 }
+    }
+
+    public func battlefieldFocusReport(for faction: Faction = .rome) -> BattlefieldFocusReport? {
+        battlefieldFocusReports(for: faction, limit: 1).first
+    }
+
     public func effectiveDefense(for unit: ArmyUnit) -> Int {
         max(1, unit.kind.defense + (unit.resolvedGeneralTrait?.defenseBonus ?? 0) + unit.resolvedTacticalOrder.defenseBonus)
     }
@@ -1993,6 +2097,184 @@ public struct GameState: Codable, Equatable, Sendable {
             reason: formation.commandSuggestion,
             command: command
         )
+    }
+
+    private func battlefieldPressureFocusReports(for faction: Faction) -> [BattlefieldFocusReport] {
+        frontlinePressureReports(against: faction, perFactionLimit: 4, limit: 4).map { pressure in
+            let severity = battlefieldSeverity(for: pressure.level)
+            let kind: BattlefieldFocusKind = pressure.level == .critical || pressure.level == .threatened ? .defense : .reinforce
+            let targetUnitID = pressure.targetKind == .unit ? pressure.targetID : nil
+            let targetCityID = pressure.targetKind == .city ? pressure.targetID : nil
+            let impact = pressure.captureIntentCount > 0
+                ? "\(pressure.captureIntentCount) 路夺城"
+                : "预计伤害 \(pressure.projectedDamageTotal)"
+            let targetName = battlefieldTargetName(unitID: targetUnitID, cityID: targetCityID, fallback: pressure.targetKind.displayName)
+            let score = 800 + pressure.pressureScore + severity.priority * 90 + pressure.attackIntentCount * 25 + pressure.captureIntentCount * 40
+
+            return BattlefieldFocusReport(
+                id: "pressure-\(pressure.id)",
+                faction: faction,
+                kind: kind,
+                severity: severity,
+                position: pressure.targetPosition,
+                unitID: targetUnitID,
+                targetUnitID: targetUnitID,
+                targetCityID: targetCityID,
+                relatedUnitIDs: pressure.sourceUnitIDs,
+                recommendedOrder: .defensive,
+                score: score,
+                title: "\(targetName) \(pressure.level.displayName)",
+                summary: "\(kind.displayName) · \(impact)",
+                detail: "\(pressure.sourceFactions.map(\.displayName).joined(separator: "、")) \(pressure.intentCount) 路动向，\(impact)，优先稳住 \(pressure.targetPosition.description)。"
+            )
+        }
+    }
+
+    private func battlefieldTacticalFocus(for recommendation: TacticalRecommendationReport) -> BattlefieldFocusReport? {
+        let kind: BattlefieldFocusKind
+        switch recommendation.kind {
+        case .attack:
+            kind = .attackOpportunity
+        case .reinforce:
+            kind = .reinforce
+        case .advance:
+            kind = .advance
+        case .hold:
+            guard recommendation.risk != .low else { return nil }
+            kind = .defense
+        case .recover:
+            kind = .recover
+        }
+
+        let severity = battlefieldSeverity(for: recommendation.risk)
+        let targetName = battlefieldTargetName(
+            unitID: recommendation.targetUnitID,
+            cityID: recommendation.targetCityID,
+            fallback: recommendation.targetPosition.description
+        )
+        let score = 420 + recommendation.priority + severity.priority * 55
+        let relatedUnitIDs = [recommendation.unitID, recommendation.targetUnitID].compactMap { $0 }
+
+        return BattlefieldFocusReport(
+            id: "tactical-\(recommendation.id)-\(recommendation.kind.rawValue)",
+            faction: recommendation.faction,
+            kind: kind,
+            severity: severity,
+            position: recommendation.targetPosition,
+            unitID: recommendation.unitID,
+            targetUnitID: recommendation.targetUnitID,
+            targetCityID: recommendation.targetCityID,
+            relatedUnitIDs: relatedUnitIDs,
+            recommendedOrder: recommendation.recommendedOrder,
+            score: score,
+            title: "\(kind.displayName)：\(targetName)",
+            summary: "\(recommendation.kind.displayName) · \(recommendation.risk.displayName)",
+            detail: "\(recommendation.reason) \(recommendation.command)"
+        )
+    }
+
+    private func battlefieldGeneralOpportunityFocus(for formation: LegionFormationReport) -> BattlefieldFocusReport? {
+        guard formation.hasGeneral,
+              formation.skillReady else {
+            return nil
+        }
+
+        let severity: BattlefieldFocusSeverity = formation.readiness == .critical ? .critical : .urgent
+        let generalName = formation.generalName ?? "将领"
+        let skillName = formation.generalTrait?.skillName ?? "主动技能"
+        let score = 760 + severity.priority * 80 + max(0, 100 - formation.formationIntegrityScore) + formation.nearbyEnemyCount * 35
+
+        return BattlefieldFocusReport(
+            id: "general-\(formation.unitID)",
+            faction: formation.faction,
+            kind: .generalOpportunity,
+            severity: severity,
+            position: formation.position,
+            unitID: formation.unitID,
+            targetUnitID: nil,
+            targetCityID: nil,
+            relatedUnitIDs: [formation.unitID],
+            recommendedOrder: formation.recommendedOrder,
+            score: score,
+            title: "\(generalName) 可发动\(skillName)",
+            summary: "将领机会 · \(formation.readiness.displayName)",
+            detail: formation.skillSummary ?? formation.commandSuggestion
+        )
+    }
+
+    private func battlefieldRecoveryFocus(for formation: LegionFormationReport) -> BattlefieldFocusReport? {
+        guard formation.readiness == .critical || formation.readiness == .strained else {
+            return nil
+        }
+
+        let severity = battlefieldSeverity(for: formation.readiness)
+        let unitName = battlefieldUnitName(unitID: formation.unitID, fallback: formation.kind.displayName)
+        let score = 500 + severity.priority * 90 + max(0, 100 - formation.formationIntegrityScore) + formation.nearbyEnemyCount * 20
+
+        return BattlefieldFocusReport(
+            id: "formation-\(formation.unitID)-recover",
+            faction: formation.faction,
+            kind: .recover,
+            severity: severity,
+            position: formation.position,
+            unitID: formation.unitID,
+            targetUnitID: formation.unitID,
+            targetCityID: nil,
+            relatedUnitIDs: [formation.unitID],
+            recommendedOrder: formation.recommendedOrder,
+            score: score,
+            title: "\(unitName) 需要整编",
+            summary: "整编 · \(formation.readiness.displayName)",
+            detail: formation.commandSuggestion
+        )
+    }
+
+    private func battlefieldSeverity(for level: FrontlinePressureLevel) -> BattlefieldFocusSeverity {
+        switch level {
+        case .critical: return .critical
+        case .threatened: return .urgent
+        case .contested: return .important
+        case .watch: return .watch
+        }
+    }
+
+    private func battlefieldSeverity(for risk: TacticalRecommendationRisk) -> BattlefieldFocusSeverity {
+        switch risk {
+        case .critical: return .critical
+        case .high: return .urgent
+        case .guarded: return .important
+        case .low: return .watch
+        }
+    }
+
+    private func battlefieldSeverity(for readiness: LegionFormationReadiness) -> BattlefieldFocusSeverity {
+        switch readiness {
+        case .critical: return .critical
+        case .strained: return .urgent
+        case .engaged: return .important
+        case .steady, .fresh: return .watch
+        }
+    }
+
+    private func battlefieldTargetName(unitID: String?, cityID: String?, fallback: String) -> String {
+        if let unitID {
+            return battlefieldUnitName(unitID: unitID, fallback: fallback)
+        }
+
+        if let cityID,
+           let city = city(withID: cityID) {
+            return city.name
+        }
+
+        return fallback
+    }
+
+    private func battlefieldUnitName(unitID: String, fallback: String) -> String {
+        guard let unit = unit(withID: unitID) else {
+            return fallback
+        }
+
+        return "\(unit.faction.displayName)\(unit.kind.displayName)"
     }
 
     private func tacticalReachableDestinations(for unit: ArmyUnit) -> Set<Position> {

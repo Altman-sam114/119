@@ -386,6 +386,80 @@ struct TacticalRecommendationSummary: Identifiable {
     }
 }
 
+struct BattlefieldFocusSummary: Identifiable {
+    var report: BattlefieldFocusReport
+    var unit: ArmyUnit?
+    var targetUnit: ArmyUnit?
+    var targetCity: City?
+    var relatedUnits: [ArmyUnit]
+
+    var id: String { report.id }
+    var kind: BattlefieldFocusKind { report.kind }
+    var severity: BattlefieldFocusSeverity { report.severity }
+    var targetPosition: Position { report.position }
+
+    var title: String {
+        report.title
+    }
+
+    var compactTitle: String {
+        "\(kindLabel) \(severityLabel)"
+    }
+
+    var kindLabel: String {
+        report.kind.displayName
+    }
+
+    var severityLabel: String {
+        report.severity.displayName
+    }
+
+    var targetLabel: String {
+        if let targetUnit {
+            return "\(targetUnit.faction.displayName)\(targetUnit.kind.displayName)"
+        }
+
+        if let targetCity {
+            return targetCity.name
+        }
+
+        return "坐标 \(report.position.description)"
+    }
+
+    var unitLabel: String {
+        if let unit {
+            return "\(unit.faction.displayName)\(unit.kind.displayName)"
+        }
+
+        return "未指定军团"
+    }
+
+    var scoreLabel: String {
+        "焦点 \(report.score)"
+    }
+
+    var relatedLabel: String {
+        guard !relatedUnits.isEmpty else {
+            return "相关 \(report.relatedUnitIDs.count) 支"
+        }
+
+        let labels = relatedUnits.prefix(3).map { "\($0.faction.displayName)\($0.kind.displayName)" }
+        if relatedUnits.count > 3 {
+            return "\(labels.joined(separator: "、"))等 \(relatedUnits.count) 支"
+        }
+
+        return labels.joined(separator: "、")
+    }
+
+    var detail: String {
+        report.detail
+    }
+
+    var accessibilityLabel: String {
+        "\(title)，\(kindLabel)，\(severityLabel)，目标\(targetLabel)，执行单位\(unitLabel)，建议\(report.recommendedOrder.displayName)，\(detail)"
+    }
+}
+
 struct FrontlinePressureSummary: Identifiable {
     var report: FrontlinePressureReport
     var targetUnit: ArmyUnit?
@@ -852,6 +926,15 @@ final class GameViewModel: ObservableObject {
         enemyIntentSummaries.first
     }
 
+    var battlefieldFocusSummaries: [BattlefieldFocusSummary] {
+        state.battlefieldFocusReports(for: .rome, limit: 5)
+            .map(battlefieldFocusSummary(for:))
+    }
+
+    var primaryBattlefieldFocusSummary: BattlefieldFocusSummary? {
+        battlefieldFocusSummaries.first
+    }
+
     var frontlinePressureSummaries: [FrontlinePressureSummary] {
         state.frontlinePressureReports(against: .rome, perFactionLimit: 4, limit: 4)
             .map { report in
@@ -916,6 +999,16 @@ final class GameViewModel: ObservableObject {
         LegionFormationSummary(
             report: report,
             unit: state.unit(withID: report.unitID)
+        )
+    }
+
+    private func battlefieldFocusSummary(for report: BattlefieldFocusReport) -> BattlefieldFocusSummary {
+        BattlefieldFocusSummary(
+            report: report,
+            unit: report.unitID.flatMap { state.unit(withID: $0) },
+            targetUnit: report.targetUnitID.flatMap { state.unit(withID: $0) },
+            targetCity: report.targetCityID.flatMap { state.city(withID: $0) },
+            relatedUnits: report.relatedUnitIDs.compactMap { state.unit(withID: $0) }
         )
     }
 

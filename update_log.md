@@ -14,12 +14,54 @@
 
 - 项目类型：原创 SwiftUI iOS 罗马题材战棋原型。
 - 核心架构：纯 Swift `RomeLegionsCore` 负责玩法规则；`GameViewModel` 负责 UI 状态和派生数据；SwiftUI 视图负责展示和命令入口。
-- 当前玩法：六边形地图、地形、城市、阵营、军团、移动、攻击、反击、占城、招募、科技、任务 requirement、战役目标、胜负结算、结束保护、外交、城市扩建、城市经营与招募读板、军团训练、将领任命、主动技能、技能冷却、将领详情读板、被动贡献、战功状态、军团编制与成长读板、战术命令建议与补线路径读板、战术姿态与姿态预览、AI 回合、敌军意图预判、敌军意图六边形路径/目标叠层、战线压力读板、战局态势面板。
+- 当前玩法：六边形地图、地形、城市、阵营、军团、移动、攻击、反击、占城、招募、科技、任务 requirement、战役目标、胜负结算、结束保护、外交、城市扩建、城市经营与招募读板、军团训练、将领任命、主动技能、技能冷却、将领详情读板、被动贡献、战功状态、军团编制与成长读板、战术命令建议与补线路径读板、战场焦点与将领机会读板、战术姿态与姿态预览、AI 回合、敌军意图预判、敌军意图六边形路径/目标叠层、战线压力读板、战局态势面板。
 - 当前测试入口：Swift Testing、Gameplay Smoke、项目结构检查、SwiftUI 类型检查、战斗页预览图渲染、无签名 Xcode 构建。
 - 当前协作系统：已建立 `AGENTS.md`、`update_log.md`、`md/prompt/`、`md/test/test.md`、`md/flow/flow.md`、`md/flow/flowchart.md`，默认按 `main` 直推、GitHub Actions 云端重验证、Agent C 下载未加密结果包复判，并具备未来由 Agent X 主控调度 Agent A/B/C 多轮循环的文档基线。
 - 当前 CI 入口：`.github/workflows/ci-results.yml`，在 `main` push 和手动触发时运行结构检查、SwiftPM 测试、Gameplay Smoke 和无签名 Xcode build，并上传 CI 结果包。
 
 ## 历史记录
+
+### v0.17 / 战场焦点与将领机会读板
+
+日期：2026-07-05
+
+核心变更：
+
+- `GameState` 新增 `BattlefieldFocusKind`、`BattlefieldFocusSeverity` 和 `BattlefieldFocusReport`，通过 `battlefieldFocusReports(for:limit:)` 与 `battlefieldFocusReport(for:)` 只读综合战线压力、战术建议、军团编制和将领技能机会。
+- 战场焦点覆盖救线、将领机会、打击、补线、推进和整编恢复，输出阵营、严重度、位置、执行单位、目标单位/城市、相关单位、建议姿态、评分、标题、摘要和详情。
+- 焦点报告不新增 Codable 存档字段，不改变真实移动、攻击、姿态切换、将领技能、AI 评分、AI 决策、招募、城市扩建或胜负结算。
+- `GameViewModel` 新增 `BattlefieldFocusSummary`、`battlefieldFocusSummaries` 和 `primaryBattlefieldFocusSummary`，把核心报告转成焦点 chip、战场卡、战局行和无障碍文案。
+- `BattleView` 新增顶部“焦点”chip、战场面板焦点卡和完整战局面板前两条焦点行；紧凑界面只显示一行焦点摘要，继续保持军令入口优先。
+- Swift Testing 增加压力驱动焦点和将领技能机会焦点两类核心只读测试；Gameplay Smoke 增加战场焦点主链路断言；RenderBattlePreview 增加首要战场焦点摘要断言。
+- README、flow、flowchart、test、prompt README 文档同步战场焦点读板和 v0.17 artifact 版本，并新增 v0.17 Agent A 提示词。
+
+关键文件：
+
+- `Sources/RomeLegionsCore/GameState.swift`
+- `RomeLegionsApp/App/GameViewModel.swift`
+- `RomeLegionsApp/Views/BattleView.swift`
+- `Tests/RomeLegionsCoreTests/GameStateTests.swift`
+- `Tools/GameplaySmoke/main.swift`
+- `Tools/RenderBattlePreview/main.swift`
+- `.github/workflows/ci-results.yml`
+- `README.md`
+- `md/flow/flow.md`
+- `md/flow/flowchart.md`
+- `md/test/test.md`
+- `md/prompt/README.md`
+- `md/prompt/v0（玩法推进）/v0.17（战场焦点与将领机会读板）.md`
+- `update_log.md`
+
+验证结果：
+
+- 按人工最新要求，本轮未运行任何本地测试、build、typecheck、RenderBattlePreview、`Tools/verify_project.mjs`、`git diff --check`、YAML/Plist 解析或脚本语法检查。
+- 本轮完整验证必须在 push 到 `origin/main` 后由 GitHub Actions 执行，并由 Agent C 下载最新 v0.17 artifact 复判 manifest、JUnit、主日志和失败摘要。
+
+遗留事项：
+
+- 本轮没有实现自动执行焦点命令、多回合规划、真实战略 AI 搜索、外交界面、建筑树或装备系统。
+- 战场焦点只用于读板和 UI 解释，不自动执行命令，也不改变 AI 决策。
+- Agent C 必须核对最新 `origin/main` commit 对应的 v0.17 run id、run attempt 和 artifact；不能使用 v0.16 旧结果包。
 
 ### v0.16 / 战术命令建议与补线路径读板
 

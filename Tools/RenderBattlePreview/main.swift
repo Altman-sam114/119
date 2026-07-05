@@ -44,6 +44,16 @@ struct RenderBattlePreview {
               !frontlinePressure.impactLabel.isEmpty else {
             throw PreviewRenderError.missingFrontlinePressure
         }
+        guard let battlefieldFocus = viewModel.primaryBattlefieldFocusSummary,
+              battlefieldFocus.report.targetUnitID == "rome-legion-1",
+              battlefieldFocus.targetPosition == Position(x: 3, y: 3),
+              !battlefieldFocus.kindLabel.isEmpty,
+              !battlefieldFocus.severityLabel.isEmpty,
+              !battlefieldFocus.targetLabel.isEmpty,
+              !battlefieldFocus.detail.isEmpty,
+              !battlefieldFocus.accessibilityLabel.isEmpty else {
+            throw PreviewRenderError.missingBattlefieldFocus
+        }
         let movementSegments = advanceOverlay.routeSegments.filter { !$0.isTargetLeg }
         guard movementSegments.count > 1,
               movementSegments.allSatisfy({ segment in
@@ -283,6 +293,7 @@ enum PreviewRenderError: Error {
     case missingIntentOverlay
     case missingHexIntentRoute
     case missingFrontlinePressure
+    case missingBattlefieldFocus
     case missingCommanderBrief
     case missingLegionFormationSummary
     case missingTacticalRecommendationSummary

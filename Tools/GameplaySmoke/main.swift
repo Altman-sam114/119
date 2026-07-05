@@ -237,6 +237,21 @@ do {
     expect(!recommendation.command.isEmpty, "Tactical recommendation should expose a command sentence")
     expect(recommendationState == recommendationBefore, "Tactical recommendation should not mutate state")
 
+    let focusBefore = recommendationState
+    let focusReports = recommendationState.battlefieldFocusReports(for: .rome, limit: 5)
+    let pressureFocus = focusReports.first { $0.kind == .defense && $0.targetUnitID == "rome-line" }
+    expect(pressureFocus?.severity == .critical, "Battlefield focus should surface critical defensive pressure")
+    expect(pressureFocus?.position == Position(x: 3, y: 3), "Battlefield focus should expose a map position")
+    expect(pressureFocus?.recommendedOrder == .defensive, "Battlefield focus should expose a recommended posture")
+    expect((pressureFocus?.score ?? 0) > 0, "Battlefield focus should expose a positive score")
+    expect(!(pressureFocus?.title ?? "").isEmpty, "Battlefield focus should expose a readable title")
+    expect(!(pressureFocus?.detail ?? "").isEmpty, "Battlefield focus should expose a readable detail")
+    expect(recommendationState == focusBefore, "Battlefield focus reports should not mutate state")
+
+    let generalFocus = formationState.battlefieldFocusReports(for: .rome, limit: 5).first { $0.kind == .generalOpportunity && $0.unitID == "rome-commander" }
+    expect(generalFocus?.severity == .urgent, "Battlefield focus should surface ready general skill opportunities")
+    expect(generalFocus?.summary.contains("将领") == true, "General focus should expose a commander summary")
+
     var siegeSkillState = GameState.newCampaign()
     siegeSkillState.units = [
         ArmyUnit(id: "test-siege", kind: .legion, faction: .rome, position: Position(x: 7, y: 2), generalName: "苏拉", generalTrait: .siegeEngineer)
