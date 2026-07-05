@@ -252,6 +252,19 @@ do {
     expect(generalFocus?.severity == .urgent, "Battlefield focus should surface ready general skill opportunities")
     expect(generalFocus?.summary.contains("将领") == true, "General focus should expose a commander summary")
 
+    let mapControlBefore = recommendationState
+    let mapControlReports = recommendationState.mapControlReports(for: .rome)
+    let lineControl = mapControlReports.first { $0.position == Position(x: 3, y: 3) }
+    let heatReport = recommendationState.threatHeatZoneReports(for: .rome, limit: 5).first
+    expect(mapControlReports.count == recommendationState.tiles.count, "Map control should expose one report per tile")
+    expect((lineControl?.enemyInfluence ?? 0) > 0, "Map control should include enemy influence near the line")
+    expect(!(lineControl?.summary ?? "").isEmpty, "Map control should expose a readable summary")
+    expect(heatReport?.center == Position(x: 3, y: 3), "Threat heat should focus the pressured Roman line")
+    expect(Set(heatReport?.sourceUnitIDs ?? []) == Set(["carthage-east", "carthage-north"]), "Threat heat should expose hostile sources")
+    expect((heatReport?.projectedDamageTotal ?? 0) > 0, "Threat heat should expose projected damage")
+    expect(heatReport?.threatLevel == .critical, "Threat heat should flag critical pressure")
+    expect(recommendationState == mapControlBefore, "Map control and threat heat reports should not mutate state")
+
     var siegeSkillState = GameState.newCampaign()
     siegeSkillState.units = [
         ArmyUnit(id: "test-siege", kind: .legion, faction: .rome, position: Position(x: 7, y: 2), generalName: "苏拉", generalTrait: .siegeEngineer)

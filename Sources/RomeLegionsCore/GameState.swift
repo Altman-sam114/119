@@ -1229,6 +1229,94 @@ public struct BattlefieldFocusReport: Identifiable, Equatable, Sendable {
     public var detail: String
 }
 
+public enum MapControlState: String, CaseIterable, Identifiable, Equatable, Sendable {
+    case friendlyControlled
+    case enemyControlled
+    case contested
+    case neutral
+
+    public var id: String { rawValue }
+
+    public var displayName: String {
+        switch self {
+        case .friendlyControlled: return "友军控制"
+        case .enemyControlled: return "敌军控制"
+        case .contested: return "争夺"
+        case .neutral: return "中立"
+        }
+    }
+}
+
+public enum ThreatHeatLevel: String, CaseIterable, Identifiable, Equatable, Sendable {
+    case quiet
+    case watched
+    case contested
+    case danger
+    case critical
+
+    public var id: String { rawValue }
+
+    public var displayName: String {
+        switch self {
+        case .quiet: return "安静"
+        case .watched: return "监视"
+        case .contested: return "争夺"
+        case .danger: return "危险"
+        case .critical: return "危急"
+        }
+    }
+
+    fileprivate var priority: Int {
+        switch self {
+        case .critical: return 5
+        case .danger: return 4
+        case .contested: return 3
+        case .watched: return 2
+        case .quiet: return 1
+        }
+    }
+}
+
+public struct MapControlReport: Identifiable, Equatable, Sendable {
+    public var position: Position
+    public var terrain: TerrainType
+    public var perspectiveFaction: Faction
+    public var cityID: String?
+    public var cityOwner: Faction?
+    public var occupantUnitID: String?
+    public var occupantFaction: Faction?
+    public var friendlyInfluence: Int
+    public var enemyInfluence: Int
+    public var controlState: MapControlState
+    public var threatLevel: ThreatHeatLevel
+    public var friendlyUnitIDs: [String]
+    public var enemyUnitIDs: [String]
+    public var pressureScore: Int
+    public var summary: String
+    public var detail: String
+
+    public var id: String { "\(position.x)-\(position.y)" }
+}
+
+public struct ThreatHeatZoneReport: Identifiable, Equatable, Sendable {
+    public var id: String
+    public var perspectiveFaction: Faction
+    public var center: Position
+    public var positions: [Position]
+    public var controlState: MapControlState
+    public var threatLevel: ThreatHeatLevel
+    public var friendlyInfluence: Int
+    public var enemyInfluence: Int
+    public var sourceUnitIDs: [String]
+    public var cityIDs: [String]
+    public var attackIntentCount: Int
+    public var captureIntentCount: Int
+    public var projectedDamageTotal: Int
+    public var score: Int
+    public var title: String
+    public var detail: String
+}
+
 public enum FrontlinePressureTargetKind: String, Hashable, Sendable {
     case unit
     case city
@@ -1891,6 +1979,72 @@ public struct GameState: Codable, Equatable, Sendable {
         battlefieldFocusReports(for: faction, limit: 1).first
     }
 
+    public func mapControlReport(at position: Position, for faction: Faction = .rome) -> MapControlReport? {
+        guard faction != .neutral,
+              tile(at: position) != nil else {
+            return nil
+        }
+
+        let pressureByPosition = frontlinePressureByPosition(against: faction)
+        return mapControlReport(at: position, for: faction, pressure: pressureByPosition[position])
+    }
+
+    public func mapControlReports(for faction: Faction = .rome) -> [MapControlReport] {
+        guard faction != .neutral else {
+            return []
+        }
+
+        let pressureByPosition = frontlinePressureByPosition(against: faction)
+
+        return tiles
+            .sorted { left, right in
+                if left.position.y == right.position.y {
+                    return left.position.x < right.position.x
+                }
+                return left.position.y < right.position.y
+            }
+            .map { tile in
+                mapControlReport(at: tile.position, for: faction, pressure: pressureByPosition[tile.position])
+            }
+    }
+
+    public func threatHeatZoneReports(
+        for faction: Faction = .rome,
+        limit: Int = 5
+    ) -> [ThreatHeatZoneReport] {
+        guard faction != .neutral,
+              limit > 0 else {
+            return []
+        }
+
+        let controlReports = mapControlReports(for: faction)
+        let pressureByPosition = frontlinePressureByPosition(against: faction)
+
+        return controlReports
+            .compactMap { report -> ThreatHeatZoneReport? in
+                guard report.threatLevel != .quiet,
+                      report.enemyInfluence > 0 || report.pressureScore > 0 else {
+                    return nil
+                }
+
+                return threatHeatZoneReport(from: report, pressure: pressureByPosition[report.position])
+            }
+            .sorted { left, right in
+                if left.score == right.score {
+                    if left.center.y == right.center.y {
+                        if left.center.x == right.center.x {
+                            return left.id < right.id
+                        }
+                        return left.center.x < right.center.x
+                    }
+                    return left.center.y < right.center.y
+                }
+                return left.score > right.score
+            }
+            .prefix(limit)
+            .map { $0 }
+    }
+
     public func effectiveDefense(for unit: ArmyUnit) -> Int {
         max(1, unit.kind.defense + (unit.resolvedGeneralTrait?.defenseBonus ?? 0) + unit.resolvedTacticalOrder.defenseBonus)
     }
@@ -2097,6 +2251,300 @@ public struct GameState: Codable, Equatable, Sendable {
             reason: formation.commandSuggestion,
             command: command
         )
+    }
+
+    private func mapControlReport(
+        at position: Position,
+        for faction: Faction,
+        pressure: FrontlinePressureReport?
+    ) -> MapControlReport {
+        let tile = tile(at: position)!
+        let city = city(at: position)
+        let occupant = unit(at: position)
+        var friendlyInfluence = 0
+        var enemyInfluence = 0
+        var friendlyUnitIDs: [String] = []
+        var enemyUnitIDs: [String] = []
+
+        if let city,
+           city.owner != .neutral {
+            if city.owner == faction {
+                friendlyInfluence += 22 + city.fortification
+            } else if diplomaticStatus(between: faction, and: city.owner) == .war {
+                enemyInfluence += 22 + city.fortification
+            }
+        }
+
+        for unit in units where unit.faction != .neutral {
+            let relation = mapControlRelation(of: unit.faction, to: faction)
+            guard relation != .ignored else { continue }
+
+            let influence = mapControlInfluence(from: unit, to: position)
+            guard influence > 0 else { continue }
+
+            if relation == .friendly {
+                friendlyInfluence += influence
+                if !friendlyUnitIDs.contains(unit.id) {
+                    friendlyUnitIDs.append(unit.id)
+                }
+            } else {
+                enemyInfluence += influence
+                if !enemyUnitIDs.contains(unit.id) {
+                    enemyUnitIDs.append(unit.id)
+                }
+            }
+        }
+
+        friendlyUnitIDs.sort()
+        enemyUnitIDs.sort()
+
+        let pressureScore = pressure?.pressureScore ?? max(0, enemyInfluence - friendlyInfluence)
+        let controlState = mapControlState(friendlyInfluence: friendlyInfluence, enemyInfluence: enemyInfluence)
+        let threatLevel = threatHeatLevel(
+            friendlyInfluence: friendlyInfluence,
+            enemyInfluence: enemyInfluence,
+            pressure: pressure
+        )
+        let summary = "\(controlState.displayName) · \(threatLevel.displayName)"
+        let detail = mapControlDetail(
+            friendlyInfluence: friendlyInfluence,
+            enemyInfluence: enemyInfluence,
+            pressure: pressure,
+            city: city,
+            occupant: occupant
+        )
+
+        return MapControlReport(
+            position: position,
+            terrain: tile.terrain,
+            perspectiveFaction: faction,
+            cityID: city?.id,
+            cityOwner: city?.owner,
+            occupantUnitID: occupant?.id,
+            occupantFaction: occupant?.faction,
+            friendlyInfluence: friendlyInfluence,
+            enemyInfluence: enemyInfluence,
+            controlState: controlState,
+            threatLevel: threatLevel,
+            friendlyUnitIDs: friendlyUnitIDs,
+            enemyUnitIDs: enemyUnitIDs,
+            pressureScore: pressureScore,
+            summary: summary,
+            detail: detail
+        )
+    }
+
+    private func threatHeatZoneReport(
+        from report: MapControlReport,
+        pressure: FrontlinePressureReport?
+    ) -> ThreatHeatZoneReport {
+        let sourceUnitIDs = Array(Set((pressure?.sourceUnitIDs ?? []) + report.enemyUnitIDs)).sorted()
+        let positions = Set(
+            [report.position] +
+                report.position.neighbors(width: width, height: height) +
+                sourceUnitIDs.compactMap { unit(withID: $0)?.position }
+        )
+            .sorted { left, right in
+                if left.y == right.y { return left.x < right.x }
+                return left.y < right.y
+            }
+        let cityIDs = positions.compactMap { city(at: $0)?.id }
+        let attackIntentCount = pressure?.attackIntentCount ?? 0
+        let captureIntentCount = pressure?.captureIntentCount ?? 0
+        let projectedDamageTotal = pressure?.projectedDamageTotal ?? 0
+        let score = report.pressureScore +
+            report.enemyInfluence * 4 -
+            report.friendlyInfluence * 2 +
+            report.threatLevel.priority * 90 +
+            attackIntentCount * 35 +
+            captureIntentCount * 60
+        let title = threatHeatTitle(for: report, pressure: pressure)
+        let detail = threatHeatDetail(for: report, pressure: pressure)
+
+        return ThreatHeatZoneReport(
+            id: "heat-\(report.id)",
+            perspectiveFaction: report.perspectiveFaction,
+            center: report.position,
+            positions: positions,
+            controlState: report.controlState,
+            threatLevel: report.threatLevel,
+            friendlyInfluence: report.friendlyInfluence,
+            enemyInfluence: report.enemyInfluence,
+            sourceUnitIDs: sourceUnitIDs,
+            cityIDs: cityIDs,
+            attackIntentCount: attackIntentCount,
+            captureIntentCount: captureIntentCount,
+            projectedDamageTotal: projectedDamageTotal,
+            score: max(1, score),
+            title: title,
+            detail: detail
+        )
+    }
+
+    private enum MapControlRelation {
+        case friendly
+        case enemy
+        case ignored
+    }
+
+    private func mapControlRelation(of faction: Faction, to perspective: Faction) -> MapControlRelation {
+        if faction == perspective {
+            return .friendly
+        }
+
+        guard faction != .neutral,
+              perspective != .neutral,
+              diplomaticStatus(between: perspective, and: faction) == .war else {
+            return .ignored
+        }
+
+        return .enemy
+    }
+
+    private func mapControlInfluence(from unit: ArmyUnit, to position: Position) -> Int {
+        var influence = 0
+        let distance = unit.position.hexDistance(to: position)
+
+        if unit.position == position {
+            influence += 48
+        }
+
+        if distance <= unit.kind.range {
+            influence += 24 + max(0, effectiveAttack(for: unit) / 4)
+        } else if distance == unit.kind.range + 1 {
+            influence += 8
+        }
+
+        let reachable = reachablePositions(for: unit)
+        if reachable.contains(position) {
+            influence += 14
+        }
+
+        if reachable.contains(where: { $0.hexDistance(to: position) <= unit.kind.range }) {
+            influence += 10
+        }
+
+        return influence
+    }
+
+    private func mapControlState(
+        friendlyInfluence: Int,
+        enemyInfluence: Int
+    ) -> MapControlState {
+        if friendlyInfluence == 0 && enemyInfluence == 0 {
+            return .neutral
+        }
+
+        if friendlyInfluence > 0 && enemyInfluence > 0 {
+            if abs(friendlyInfluence - enemyInfluence) <= 18 {
+                return .contested
+            }
+            return friendlyInfluence > enemyInfluence ? .friendlyControlled : .enemyControlled
+        }
+
+        return friendlyInfluence > 0 ? .friendlyControlled : .enemyControlled
+    }
+
+    private func threatHeatLevel(
+        friendlyInfluence: Int,
+        enemyInfluence: Int,
+        pressure: FrontlinePressureReport?
+    ) -> ThreatHeatLevel {
+        let delta = enemyInfluence - friendlyInfluence
+
+        if pressure?.level == .critical ||
+            (pressure?.captureIntentCount ?? 0) > 0 ||
+            delta >= 36 {
+            return .critical
+        }
+
+        if pressure?.level == .threatened ||
+            delta >= 18 {
+            return .danger
+        }
+
+        if pressure?.level == .contested ||
+            (friendlyInfluence > 0 && enemyInfluence > 0) {
+            return .contested
+        }
+
+        if enemyInfluence > 0 {
+            return .watched
+        }
+
+        return .quiet
+    }
+
+    private func frontlinePressureByPosition(against faction: Faction) -> [Position: FrontlinePressureReport] {
+        var values: [Position: FrontlinePressureReport] = [:]
+        for report in frontlinePressureReports(against: faction, perFactionLimit: 4, limit: 8) {
+            let current = values[report.targetPosition]
+            if current == nil || report.pressureScore > (current?.pressureScore ?? 0) {
+                values[report.targetPosition] = report
+            }
+        }
+        return values
+    }
+
+    private func mapControlDetail(
+        friendlyInfluence: Int,
+        enemyInfluence: Int,
+        pressure: FrontlinePressureReport?,
+        city: City?,
+        occupant: ArmyUnit?
+    ) -> String {
+        var parts = [
+            "友 \(friendlyInfluence)",
+            "敌 \(enemyInfluence)"
+        ]
+
+        if let pressure {
+            if pressure.captureIntentCount > 0 {
+                parts.append("\(pressure.captureIntentCount) 路夺城")
+            }
+            if pressure.attackIntentCount > 0 {
+                parts.append("\(pressure.attackIntentCount) 路攻击")
+            }
+            if pressure.projectedDamageTotal > 0 {
+                parts.append("预计伤害 \(pressure.projectedDamageTotal)")
+            }
+        }
+
+        if let city {
+            parts.append("\(city.name) \(city.owner.displayName)")
+        }
+
+        if let occupant {
+            parts.append("\(occupant.faction.displayName)\(occupant.kind.displayName)")
+        }
+
+        return parts.joined(separator: " · ")
+    }
+
+    private func threatHeatTitle(for report: MapControlReport, pressure: FrontlinePressureReport?) -> String {
+        if let cityID = pressure?.targetKind == .city ? pressure?.targetID : nil,
+           let city = city(withID: cityID) {
+            return "\(city.name) \(report.threatLevel.displayName)"
+        }
+
+        if let unitID = pressure?.targetKind == .unit ? pressure?.targetID : nil,
+           let unit = unit(withID: unitID) {
+            return "\(unit.faction.displayName)\(unit.kind.displayName) \(report.threatLevel.displayName)"
+        }
+
+        return "\(report.position.description) \(report.threatLevel.displayName)"
+    }
+
+    private func threatHeatDetail(for report: MapControlReport, pressure: FrontlinePressureReport?) -> String {
+        if let pressure {
+            let source = pressure.sourceFactions.map(\.displayName).joined(separator: "、")
+            let impact = pressure.captureIntentCount > 0
+                ? "\(pressure.captureIntentCount) 路夺城"
+                : "预计伤害 \(pressure.projectedDamageTotal)"
+            return "\(source) \(pressure.intentCount) 路动向 · \(impact) · 控制差 \(report.enemyInfluence - report.friendlyInfluence)"
+        }
+
+        return "\(report.controlState.displayName) · 友 \(report.friendlyInfluence) / 敌 \(report.enemyInfluence)"
     }
 
     private func battlefieldPressureFocusReports(for faction: Faction) -> [BattlefieldFocusReport] {

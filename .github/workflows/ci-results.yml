@@ -10,7 +10,7 @@ permissions:
   contents: read
 
 env:
-  CI_VERSION: v0.17
+  CI_VERSION: v0.18
   PROJECT_NAME: RomeLegions
   XCODE_PROJECT: RomeLegionsApp.xcodeproj
   XCODE_SCHEME: RomeLegions
@@ -75,6 +75,32 @@ jobs:
             .build/gameplay-smoke
           } 2>&1 | tee ci-results/gameplay-smoke.log
 
+      - name: Render battle preview
+        id: render_preview
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -o pipefail
+          {
+            mkdir -p ci-results/render-previews
+            mkdir -p .home .build/module-cache
+            MACOS_SDK="$(xcrun --sdk macosx --show-sdk-path)"
+            ARCH="$(uname -m)"
+            env HOME="$PWD/.home" CLANG_MODULE_CACHE_PATH="$PWD/.build/module-cache" swiftc -parse-as-library \
+              -swift-version 5 \
+              -sdk "$MACOS_SDK" \
+              -target "${ARCH}-apple-macosx14.0" \
+              -module-cache-path .build/module-cache \
+              -o .build/render-battle-preview \
+              Tools/RenderBattlePreview/main.swift \
+              Sources/RomeLegionsCore/GameState.swift \
+              RomeLegionsApp/App/GameViewModel.swift \
+              RomeLegionsApp/Views/BattleView.swift
+            .build/render-battle-preview ci-results/render-previews/battle-landscape-preview.png 932 430
+            .build/render-battle-preview ci-results/render-previews/battle-portrait-preview.png 390 844
+            .build/render-battle-preview ci-results/render-previews/battle-wide-preview.png 1024 768
+          } 2>&1 | tee ci-results/render-battle-preview.log
+
       - name: Xcode build
         id: xcode_build
         continue-on-error: true
@@ -100,6 +126,7 @@ jobs:
           STATIC_OUTCOME: ${{ steps.static_checks.outcome }}
           SWIFT_TESTS_OUTCOME: ${{ steps.swift_tests.outcome }}
           GAMEPLAY_SMOKE_OUTCOME: ${{ steps.gameplay_smoke.outcome }}
+          RENDER_PREVIEW_OUTCOME: ${{ steps.render_preview.outcome }}
           XCODE_BUILD_OUTCOME: ${{ steps.xcode_build.outcome }}
         run: |
           node <<'NODE'
@@ -111,11 +138,12 @@ jobs:
           const shortSha = (env.GITHUB_SHA || "").slice(0, 7);
           const branchSlug = branch.replace(/[^A-Za-z0-9._-]+/g, "-");
           const artifactName = `${env.PROJECT_NAME}-ci-${env.CI_VERSION}-${branchSlug}-${shortSha}-run${env.GITHUB_RUN_ID}-attempt${env.GITHUB_RUN_ATTEMPT}`;
-          const testOutcome = env.SWIFT_TESTS_OUTCOME === "success" && env.GAMEPLAY_SMOKE_OUTCOME === "success" ? "success" : "failure";
+          const testOutcome = env.SWIFT_TESTS_OUTCOME === "success" && env.GAMEPLAY_SMOKE_OUTCOME === "success" && env.RENDER_PREVIEW_OUTCOME === "success" ? "success" : "failure";
           const outcomes = {
             staticChecksOutcome: env.STATIC_OUTCOME || "skipped",
             swiftTestsOutcome: env.SWIFT_TESTS_OUTCOME || "skipped",
             gameplaySmokeOutcome: env.GAMEPLAY_SMOKE_OUTCOME || "skipped",
+            renderPreviewOutcome: env.RENDER_PREVIEW_OUTCOME || "skipped",
             buildOutcome: env.XCODE_BUILD_OUTCOME || "skipped",
             testOutcome
           };
@@ -134,15 +162,28 @@ jobs:
             resultBundlePath: env.RESULT_BUNDLE_PATH,
             junitPath: "ci-results/junit.xml",
             buildLogPath: "ci-results/xcodebuild.log",
+            renderPreviewLogPath: "ci-results/render-battle-preview.log",
             failureSummaryPath: "ci-results/ci-failure-summary.md",
             staticChecksOutcome: outcomes.staticChecksOutcome,
+            swiftTestsOutcome: outcomes.swiftTestsOutcome,
+            gameplaySmokeOutcome: outcomes.gameplaySmokeOutcome,
+            renderPreviewOutcome: outcomes.renderPreviewOutcome,
             buildOutcome: outcomes.buildOutcome,
             testOutcome: outcomes.testOutcome,
             projectSpecificReports: [
               "ci-results/static-checks.log",
               "ci-results/swift-test.log",
               "ci-results/gameplay-smoke.log",
+              "ci-results/render-battle-preview.log",
               "ci-results/xcodebuild.log"
+            ],
+            renderPreviewPaths: [
+              "ci-results/render-previews/battle-landscape-preview.png",
+              "ci-results/render-previews/battle-landscape-preview-unit.png",
+              "ci-results/render-previews/battle-portrait-preview.png",
+              "ci-results/render-previews/battle-portrait-preview-unit.png",
+              "ci-results/render-previews/battle-wide-preview.png",
+              "ci-results/render-previews/battle-wide-preview-unit.png"
             ]
           };
           fs.writeFileSync("ci-results/ci-artifact-manifest.json", JSON.stringify(manifest, null, 2) + "\n");
@@ -158,6 +199,7 @@ jobs:
             ["static-checks", outcomes.staticChecksOutcome, "ci-results/static-checks.log"],
             ["swift-tests", outcomes.swiftTestsOutcome, "ci-results/swift-test.log"],
             ["gameplay-smoke", outcomes.gameplaySmokeOutcome, "ci-results/gameplay-smoke.log"],
+            ["render-battle-preview", outcomes.renderPreviewOutcome, "ci-results/render-battle-preview.log"],
             ["xcode-build", outcomes.buildOutcome, "ci-results/xcodebuild.log"]
           ];
           const failures = checks.filter(([, outcome]) => outcome !== "success");
@@ -179,6 +221,7 @@ jobs:
             `- staticChecksOutcome: ${outcomes.staticChecksOutcome}`,
             `- swiftTestsOutcome: ${outcomes.swiftTestsOutcome}`,
             `- gameplaySmokeOutcome: ${outcomes.gameplaySmokeOutcome}`,
+            `- renderPreviewOutcome: ${outcomes.renderPreviewOutcome}`,
             `- buildOutcome: ${outcomes.buildOutcome}`,
             "",
             failures.length === 0 ? "All configured CI checks passed." : "One or more CI checks failed. Inspect the log paths listed in `ci-artifact-manifest.json`.",
@@ -204,11 +247,13 @@ jobs:
           STATIC_OUTCOME: ${{ steps.static_checks.outcome }}
           SWIFT_TESTS_OUTCOME: ${{ steps.swift_tests.outcome }}
           GAMEPLAY_SMOKE_OUTCOME: ${{ steps.gameplay_smoke.outcome }}
+          RENDER_PREVIEW_OUTCOME: ${{ steps.render_preview.outcome }}
           XCODE_BUILD_OUTCOME: ${{ steps.xcode_build.outcome }}
         run: |
           if [ "$STATIC_OUTCOME" != "success" ] || \
              [ "$SWIFT_TESTS_OUTCOME" != "success" ] || \
              [ "$GAMEPLAY_SMOKE_OUTCOME" != "success" ] || \
+             [ "$RENDER_PREVIEW_OUTCOME" != "success" ] || \
              [ "$XCODE_BUILD_OUTCOME" != "success" ]; then
             echo "One or more CI checks failed. Artifact was uploaded for Agent C review."
             exit 1

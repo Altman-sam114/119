@@ -54,6 +54,30 @@ struct RenderBattlePreview {
               !battlefieldFocus.accessibilityLabel.isEmpty else {
             throw PreviewRenderError.missingBattlefieldFocus
         }
+        guard let threatHeat = viewModel.primaryThreatHeatZoneSummary,
+              threatHeat.targetPosition == Position(x: 3, y: 3),
+              threatHeat.report.projectedDamageTotal > 0,
+              threatHeat.report.sourceUnitIDs.contains("carthage-hunter"),
+              !viewModel.threatHeatZoneSummaries.isEmpty,
+              !viewModel.threatHeatOverlayPositions.isEmpty,
+              viewModel.threatHeatOverlayPositions.contains(Position(x: 3, y: 3)),
+              !threatHeat.levelLabel.isEmpty,
+              !threatHeat.sourceLabel.isEmpty,
+              !threatHeat.impactLabel.isEmpty,
+              !threatHeat.detail.isEmpty,
+              !threatHeat.accessibilityLabel.isEmpty else {
+            throw PreviewRenderError.missingThreatHeatSummary
+        }
+        guard let mapControl = viewModel.primaryMapControlSummary,
+              !viewModel.mapControlSummaries.isEmpty,
+              !viewModel.mapControlOverlayPositions.isEmpty,
+              !mapControl.controlLabel.isEmpty,
+              !mapControl.levelLabel.isEmpty,
+              !mapControl.sourceLabel.isEmpty,
+              !mapControl.detail.isEmpty,
+              !mapControl.accessibilityLabel.isEmpty else {
+            throw PreviewRenderError.missingMapControlSummary
+        }
         let movementSegments = advanceOverlay.routeSegments.filter { !$0.isTargetLeg }
         guard movementSegments.count > 1,
               movementSegments.allSatisfy({ segment in
@@ -294,6 +318,8 @@ enum PreviewRenderError: Error {
     case missingHexIntentRoute
     case missingFrontlinePressure
     case missingBattlefieldFocus
+    case missingThreatHeatSummary
+    case missingMapControlSummary
     case missingCommanderBrief
     case missingLegionFormationSummary
     case missingTacticalRecommendationSummary

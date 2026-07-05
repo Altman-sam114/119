@@ -52,7 +52,7 @@
 - 存档层：`SaveStore` 用 SQLite 存取编码后的 `GameState`，不得绕过核心状态结构写散落状态。
 - 工具层：`Tools/GameplaySmoke`、`Tools/RenderBattlePreview`、`Tools/verify_project.mjs` 分别负责核心冒烟、战斗页截图和结构检查。
 - 测试层：`Tests/RomeLegionsCoreTests/GameStateTests.swift` 锁定核心规则，不用 UI 测试替代核心规则测试。
-- CI 层：`.github/workflows/ci-results.yml` 在 `main` push 或手动触发时运行，上传未加密 CI 结果包供 Agent C 复判。
+- CI 层：`.github/workflows/ci-results.yml` 在 `main` push 或手动触发时运行结构检查、SwiftPM 测试、Gameplay Smoke、RenderBattlePreview 和无签名 Xcode build，并上传未加密 CI 结果包供 Agent C 复判。
 
 ## 5. main 直推和云端验证规则
 

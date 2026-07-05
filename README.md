@@ -28,6 +28,7 @@
 - 敌军意图预判：地图徽标、贴合六边形邻接的路径线段、目的地/目标格叠层、顶部敌情芯片和侧栏敌情面板展示攻击、接敌、夺城、固守等倾向，预计伤害与规划态战斗预览一致
 - 战线压力读板：核心层聚合敌军意图，展示罗马单位或城市被多路攻击、夺城或推进的压力等级、来源和预计伤害
 - 战场焦点与将领机会读板：核心层综合战线压力、战术建议、军团编制和将领技能状态，提示救线、打击、补线、推进、整编或将领技能机会
+- 地图控制与威胁热区读板：核心层只读派生每格友军/敌军影响、控制状态和威胁热度，地图低透明叠层、顶部热区 chip、战场卡和战局行均可读
 - Codex 后续协作规范：`AGENTS.md`、`update_log.md`、`md/test/test.md`、`md/flow/flow.md`、`md/flow/flowchart.md` 和 `md/prompt/` 组成长期多 Agent 迭代文档系统，支持未来用 `agentx:` 主控调度 A/B/C 多轮循环
 - GitHub Actions 云端验证：`.github/workflows/ci-results.yml` 在 `main` push 时生成未加密 CI 结果包
 - 核心规则测试：`Tests/RomeLegionsCoreTests/GameStateTests.swift`
@@ -58,7 +59,7 @@
 
 ## 协作与云端验证
 
-默认协作流固定为 `main` 直推。当前按人工要求从 v0.15 起不在本地运行测试、build、typecheck、RenderBattlePreview 或结构验证；Agent B 只做读取、编辑、只读 diff/status 检查、提交并 push 到 `origin/main`。GitHub Actions 运行结构检查、SwiftPM 测试、Gameplay Smoke 和无签名 Xcode build，并上传未加密结果包。Agent C 使用 `gh auth login` 后下载最新 run artifact，核对 manifest、JUnit、日志和 `origin/main` 最新 commit；失败时退回 Agent B 在 `main` 上追加修复 commit。
+默认协作流固定为 `main` 直推。当前按人工要求从 v0.15 起不在本地运行测试、build、typecheck、RenderBattlePreview 或结构验证；Agent B 只做读取、编辑、只读 diff/status 检查、提交并 push 到 `origin/main`。GitHub Actions 运行结构检查、SwiftPM 测试、Gameplay Smoke、RenderBattlePreview 和无签名 Xcode build，并上传未加密结果包。Agent C 使用 `gh auth login` 后下载最新 run artifact，核对 manifest、JUnit、日志、预览产物和 `origin/main` 最新 commit；失败时退回 Agent B 在 `main` 上追加修复 commit。
 
 `agentx:` 用于未来启动主控循环。Agent X 接收人工总目标后拆分轮次，并调度 Agent A 写提示词、Agent B 实现 push、Agent C 下载 artifact 验收；Agent X 不直接替代 A/B/C，也不能跳过 Agent C 的最新云端结果包复判。
 
@@ -79,7 +80,7 @@ swiftc -swift-version 5 -module-cache-path .build/module-cache Sources/RomeLegio
 node Tools/verify_project.mjs
 ```
 
-战斗页三尺寸预览图；渲染前会断言敌军意图 ViewModel 叠层包含移动后攻击六边形邻接路径、目标格和预计伤害文案，并断言战线压力读板、战场焦点摘要、选中单位的军团编制摘要、战术建议摘要/路径/目标、将领详情、被动贡献、战功摘要、战术姿态预览和城市经营/招募读板存在。每个命令会写出请求的城市场景 PNG，并额外写出同尺寸 `*-unit.png` 单位场景 PNG：
+战斗页三尺寸预览图；渲染前会断言敌军意图 ViewModel 叠层包含移动后攻击六边形邻接路径、目标格和预计伤害文案，并断言战线压力读板、战场焦点摘要、地图控制摘要、威胁热区摘要、选中单位的军团编制摘要、战术建议摘要/路径/目标、将领详情、被动贡献、战功摘要、战术姿态预览和城市经营/招募读板存在。每个命令会写出请求的城市场景 PNG，并额外写出同尺寸 `*-unit.png` 单位场景 PNG：
 
 ```sh
 env HOME=$PWD/.home CLANG_MODULE_CACHE_PATH=$PWD/.build/module-cache /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/swiftc -parse-as-library -sdk /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX26.5.sdk -target arm64-apple-macosx14.0 -o .build/render-battle-preview Tools/RenderBattlePreview/main.swift Sources/RomeLegionsCore/GameState.swift RomeLegionsApp/App/GameViewModel.swift RomeLegionsApp/Views/BattleView.swift

@@ -37,9 +37,9 @@ flowchart TD
     E --> H["BattleView 刷新<br/>玩家继续下令"]
 ```
 
-## 3. 战斗、敌军意图、战术建议与战场焦点流
+## 3. 战斗、敌军意图、战术建议、战场焦点与地图热区流
 
-读图说明：这张图展示战斗预览、实际攻击、敌军意图、战线压力、玩家侧战术建议和战场焦点之间的关系。关键铁律是预览与结算必须一致，敌军意图、战线压力、战术建议和战场焦点只能读取和预测，地图路线和焦点卡只是只读报告的可视化，不能改变状态、结算或 AI 决策。
+读图说明：这张图展示战斗预览、实际攻击、敌军意图、战线压力、玩家侧战术建议、战场焦点、地图控制和威胁热区之间的关系。关键铁律是预览与结算必须一致，敌军意图、战线压力、战术建议、战场焦点和地图热区只能读取和预测，地图路线、热区叠层和焦点卡只是只读报告的可视化，不能改变状态、结算或 AI 决策。
 
 ```mermaid
 flowchart TD
@@ -70,6 +70,10 @@ flowchart TD
     P --> AL
     AL --> AM["GameViewModel.battlefieldFocusSummaries<br/>标题、严重度、目标、单位、姿态和详情"]
     AM --> AN["BattleView 焦点 chip、战场焦点卡、战局焦点行<br/>只展示核心报告，不重新评分"]
+    L --> AO["GameState.mapControlReports / threatHeatZoneReports<br/>按地形、单位、城市、外交、意图和压力派生控区与热区<br/>不写状态，不改变 AI 评分"]
+    AB --> AO
+    AO --> AP["GameViewModel.mapControlSummaries / threatHeatZoneSummaries<br/>控区、热区、来源、影响和 overlay positions"]
+    AP --> AQ["BattleView 地图低透明热区叠层、热区 chip、战场卡、战局行<br/>不在 SwiftUI 重新算射程或路径"]
 
     N["选中有将领单位"] --> O["GameViewModel.selectedGeneralSkillPreview"]
     O --> P["GameState.generalSkillPreview<br/>只读计算范围、目标、预计恢复或削城防"]
@@ -166,8 +170,8 @@ flowchart TD
     B --> F{"是否可推送 origin/main？"}
     F -->|否| G["报告阻塞<br/>缺 origin、权限或网络"]
     F -->|是| H["main commit/push<br/>触发 GitHub Actions"]
-    H --> I["云端重验证<br/>Swift Testing / Smoke / Xcode build"]
-    I --> J["上传结果包<br/>manifest / junit / logs / xcresult"]
+    H --> I["云端重验证<br/>Swift Testing / Smoke / RenderBattlePreview / Xcode build"]
+    I --> J["上传结果包<br/>manifest / junit / logs / preview PNG / xcresult"]
     J --> K["Agent C 下载并核对<br/>/private/tmp/romelegions-c-review-run_id"]
     K --> L{"云端是否通过？"}
     L -->|是| M["验收通过<br/>记录 run 和 artifact"]

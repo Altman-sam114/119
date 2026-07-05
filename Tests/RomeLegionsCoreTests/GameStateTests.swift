@@ -902,6 +902,185 @@ import Testing
     #expect(state == before)
 }
 
+@Test func mapControlReportsAggregateFriendlyUnitsAndCitiesWithoutMutation() {
+    var state = GameState.newCampaign()
+    state.units = [
+        ArmyUnit(id: "rome-line", kind: .legion, faction: .rome, position: Position(x: 3, y: 3)),
+        ArmyUnit(id: "rome-support", kind: .archer, faction: .rome, position: Position(x: 4, y: 3)),
+        ArmyUnit(id: "carthage-far", kind: .legion, faction: .carthage, position: Position(x: 9, y: 6))
+    ]
+    state.activeFaction = .rome
+    let before = state
+
+    let reports = state.mapControlReports(for: .rome)
+    let report = reports.first { $0.position == Position(x: 3, y: 3) }
+
+    #expect(reports.count == state.tiles.count)
+    #expect(reports.first?.position == Position(x: 0, y: 0))
+    #expect(report?.cityID == "rome")
+    #expect(report?.occupantUnitID == "rome-line")
+    #expect((report?.friendlyInfluence ?? 0) > (report?.enemyInfluence ?? 0))
+    #expect(report?.controlState == .friendlyControlled)
+    #expect(report?.friendlyUnitIDs.contains("rome-line") == true)
+    #expect(report?.summary.isEmpty == false)
+    #expect(report?.detail.isEmpty == false)
+    #expect(state == before)
+}
+
+@Test func mapControlReportsCoverControlStatesAndNonCriticalHeatWithoutMutation() {
+    func makeState(
+        cities: [City] = [],
+        units: [ArmyUnit] = [],
+        waterPositions: Set<Position> = []
+    ) -> GameState {
+        let width = 5
+        let height = 5
+        let tiles = (0..<height).flatMap { y in
+            (0..<width).map { x in
+                let position = Position(x: x, y: y)
+                return Tile(position: position, terrain: waterPositions.contains(position) ? .water : .plains)
+            }
+        }
+
+        return GameState(
+            mode: .campaign,
+            turn: 1,
+            activeFaction: .rome,
+            width: width,
+            height: height,
+            tiles: tiles,
+            cities: cities,
+            units: units,
+            resources: [:],
+            researchedTechnologies: [:],
+            diplomaticRelations: [],
+            missions: []
+        )
+    }
+
+    let target = Position(x: 2, y: 2)
+    let production = EmpireResources.zero
+    let neutralState = makeState()
+    let friendlyState = makeState(cities: [
+        City(id: "friendly", name: "据点", position: target, owner: .rome, production: production, fortification: 0)
+    ])
+    let enemyState = makeState(cities: [
+        City(id: "enemy", name: "敌垒", position: target, owner: .carthage, production: production, fortification: 0)
+    ])
+    let contestedState = makeState(
+        cities: [
+            City(id: "front", name: "前线", position: target, owner: .rome, production: production, fortification: 0)
+        ],
+        units: [
+            ArmyUnit(id: "carthage-pressure", kind: .legion, faction: .carthage, position: Position(x: 4, y: 2))
+        ]
+    )
+    let watchedState = makeState(
+        units: [
+            ArmyUnit(id: "carthage-watch", kind: .navy, faction: .carthage, position: Position(x: 4, y: 2))
+        ],
+        waterPositions: [Position(x: 4, y: 2)]
+    )
+    let before = [
+        neutralState,
+        friendlyState,
+        enemyState,
+        contestedState,
+        watchedState
+    ]
+
+    let neutral = neutralState.mapControlReport(at: target, for: .rome)
+    let friendly = friendlyState.mapControlReport(at: target, for: .rome)
+    let enemy = enemyState.mapControlReport(at: target, for: .rome)
+    let contested = contestedState.mapControlReport(at: target, for: .rome)
+    let watched = watchedState.mapControlReport(at: Position(x: 1, y: 2), for: .rome)
+
+    #expect(neutral?.controlState == .neutral)
+    #expect(neutral?.threatLevel == .quiet)
+    #expect(friendly?.controlState == .friendlyControlled)
+    #expect(friendly?.threatLevel == .quiet)
+    #expect(enemy?.controlState == .enemyControlled)
+    #expect(enemy?.threatLevel == .danger)
+    #expect(contested?.controlState == .contested)
+    #expect(contested?.threatLevel == .contested)
+    #expect(watched?.controlState == .enemyControlled)
+    #expect(watched?.threatLevel == .watched)
+    #expect(before == [neutralState, friendlyState, enemyState, contestedState, watchedState])
+}
+
+@Test func threatHeatReportsSurfaceDirectAndAdvanceAttackThreatsWithoutMutation() {
+    var state = GameState.newCampaign()
+    state.units = [
+        ArmyUnit(id: "rome-target", kind: .legion, faction: .rome, position: Position(x: 3, y: 3)),
+        ArmyUnit(id: "carthage-east", kind: .cavalry, faction: .carthage, position: Position(x: 4, y: 3)),
+        ArmyUnit(id: "carthage-hunter", kind: .cavalry, faction: .carthage, position: Position(x: 7, y: 2))
+    ]
+    state.activeFaction = .rome
+    let before = state
+
+    let intents = state.aiIntents(for: .carthage, limit: 4)
+    let expectedDamage = intents
+        .filter { $0.targetUnitID == "rome-target" }
+        .reduce(0) { partial, intent in partial + (intent.projectedDamage ?? 0) }
+    let reports = state.threatHeatZoneReports(for: .rome, limit: 5)
+    let report = reports.first { $0.center == Position(x: 3, y: 3) }
+
+    #expect(report?.threatLevel == .critical)
+    #expect(report?.sourceUnitIDs.contains("carthage-east") == true)
+    #expect(report?.sourceUnitIDs.contains("carthage-hunter") == true)
+    #expect((report?.attackIntentCount ?? 0) >= 2)
+    #expect(report?.projectedDamageTotal == expectedDamage)
+    #expect(report?.positions.contains(Position(x: 3, y: 3)) == true)
+    #expect(report?.title.isEmpty == false)
+    #expect(report?.detail.isEmpty == false)
+    #expect(state == before)
+}
+
+@Test func threatHeatReportsIncludeCityCaptureHotspot() {
+    var state = GameState.newCampaign()
+    state.units = [
+        ArmyUnit(id: "carthage-capturer", kind: .cavalry, faction: .carthage, position: Position(x: 6, y: 2))
+    ]
+    for index in state.cities.indices where state.cities[index].id != "massilia" {
+        state.cities[index].owner = .carthage
+    }
+    if let massiliaIndex = state.cities.firstIndex(where: { $0.id == "massilia" }) {
+        state.cities[massiliaIndex].owner = .rome
+    }
+    let before = state
+
+    let reports = state.threatHeatZoneReports(for: .rome, limit: 5)
+    let report = reports.first { $0.center == Position(x: 5, y: 2) }
+
+    #expect(report?.threatLevel == .critical)
+    #expect(report?.cityIDs.contains("massilia") == true)
+    #expect(report?.sourceUnitIDs == ["carthage-capturer"])
+    #expect(report?.captureIntentCount == 1)
+    #expect(report?.title.contains("马赛") == true)
+    #expect(state == before)
+}
+
+@Test func mapControlAndThreatHeatIgnoreTreatyProtectedFactions() throws {
+    var state = GameState.newCampaign()
+    state.units = [
+        ArmyUnit(id: "rome-target", kind: .legion, faction: .rome, position: Position(x: 3, y: 3)),
+        ArmyUnit(id: "carthage-hunter", kind: .cavalry, faction: .carthage, position: Position(x: 4, y: 3))
+    ]
+    for index in state.cities.indices {
+        state.cities[index].owner = state.cities[index].id == "rome" ? .rome : .neutral
+    }
+    _ = try state.sendEnvoy(to: .carthage)
+    let before = state
+
+    let mapReport = state.mapControlReport(at: Position(x: 3, y: 3), for: .rome)
+    let heatReports = state.threatHeatZoneReports(for: .rome, limit: 5)
+
+    #expect(mapReport?.enemyInfluence == 0)
+    #expect(mapReport?.enemyUnitIDs.isEmpty == true)
+    #expect(!heatReports.contains { $0.sourceUnitIDs.contains("carthage-hunter") })
+    #expect(state == before)
+}
+
 @Test func aiRecruitsWhenBelowTargetForce() {
     var state = GameState.newCampaign()
     state.activeFaction = .gaul

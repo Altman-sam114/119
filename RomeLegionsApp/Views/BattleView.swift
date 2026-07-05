@@ -222,6 +222,9 @@ struct WarMapView: View {
             let skillTargetPositions = viewModel.selectedGeneralSkillTargetPositions
             let skillTargetUnitIDs = viewModel.selectedGeneralSkillTargetUnitIDs
             let skillTargetCityIDs = viewModel.selectedGeneralSkillTargetCityIDs
+            let threatHeatOverlaysByPosition = viewModel.threatHeatZoneOverlaysByPosition
+            let mapControlSummaries = Dictionary(uniqueKeysWithValues: viewModel.mapControlSummaries.map { ($0.position, $0) })
+            let mapControlOverlayPositions = viewModel.mapControlOverlayPositions
 
             ZStack {
                 MapBackdropView()
@@ -248,6 +251,9 @@ struct WarMapView: View {
                         enemyIntentDestination: enemyIntentDestinations[tile.position],
                         enemyIntentTarget: enemyIntentTargets[tile.position],
                         tacticalRecommendation: tacticalRecommendation,
+                        mapControlSummary: mapControlSummaries[tile.position],
+                        threatHeatZoneSummary: threatHeatOverlaysByPosition[tile.position],
+                        isMapControlOverlay: mapControlOverlayPositions.contains(tile.position),
                         isTacticalRecommendationPath: tacticalRecommendationPathPositions.contains(tile.position),
                         isTacticalRecommendationTarget: tacticalRecommendationTargetPosition == tile.position,
                         isSelected: selectedPosition == tile.position,
@@ -456,6 +462,16 @@ struct TacticalStatusStripView: View {
             )
         }
 
+        if let heat = viewModel.primaryThreatHeatZoneSummary {
+            TacticalChipView(
+                symbol: heat.threatLevel.systemImage,
+                label: "热区",
+                value: heat.compactTitle,
+                tint: heat.threatLevel.tintColor,
+                compact: compact
+            )
+        }
+
         if let focus = viewModel.primaryBattlefieldFocusSummary {
             TacticalChipView(
                 symbol: focus.kind.systemImage,
@@ -567,6 +583,9 @@ struct HexTileView: View {
     var enemyIntentDestination: EnemyIntentMapOverlay?
     var enemyIntentTarget: EnemyIntentMapOverlay?
     var tacticalRecommendation: TacticalRecommendationSummary?
+    var mapControlSummary: MapControlSummary?
+    var threatHeatZoneSummary: ThreatHeatZoneSummary?
+    var isMapControlOverlay: Bool
     var isTacticalRecommendationPath: Bool
     var isTacticalRecommendationTarget: Bool
     var isSelected: Bool
@@ -598,6 +617,15 @@ struct HexTileView: View {
             TerrainGlyphView(terrain: tile.terrain)
                 .scaleEffect(scale)
                 .opacity(city == nil && unit == nil ? 0.42 : 0.20)
+
+            if let threatHeatZoneSummary {
+                ThreatHeatTileOverlay(summary: threatHeatZoneSummary, scale: scale)
+                    .allowsHitTesting(false)
+            } else if let mapControlSummary,
+                      isMapControlOverlay {
+                MapControlTileOverlay(summary: mapControlSummary, scale: scale)
+                    .allowsHitTesting(false)
+            }
 
             if isSkillRange && !isAttackTarget {
                 SkillRangeOverlay(scale: scale)
@@ -719,6 +747,12 @@ struct HexTileView: View {
            let tacticalRecommendation {
             parts.append("战术建议目标\(tacticalRecommendation.targetLabel)")
         }
+        if let mapControlSummary {
+            parts.append("控区\(mapControlSummary.controlLabel)")
+        }
+        if let threatHeatZoneSummary {
+            parts.append("热区\(threatHeatZoneSummary.levelLabel)，\(threatHeatZoneSummary.impactLabel)")
+        }
         if let enemyIntentDestination {
             parts.append("敌军意图目的地\(enemyIntentDestination.summary.destinationLabel)")
         }
@@ -772,6 +806,49 @@ struct ReachableTileOverlay: View {
                 .frame(width: 7 * scale, height: 7 * scale)
                 .shadow(color: .black.opacity(0.35), radius: 2, y: 1)
         }
+    }
+}
+
+struct ThreatHeatTileOverlay: View {
+    var summary: ThreatHeatZoneSummary
+    var scale: CGFloat
+
+    var body: some View {
+        ZStack {
+            Hexagon()
+                .fill(summary.threatLevel.tintColor.opacity(0.18))
+            Hexagon()
+                .stroke(
+                    summary.threatLevel.tintColor.opacity(0.78),
+                    style: StrokeStyle(lineWidth: max(1.1, 1.6 * scale), lineCap: .round, dash: [5 * scale, 4 * scale])
+                )
+                .padding(6 * scale)
+            Image(systemName: summary.threatLevel.systemImage)
+                .font(.system(size: 10 * scale, weight: .black))
+                .foregroundStyle(summary.threatLevel.tintColor)
+                .shadow(color: .black.opacity(0.38), radius: 2, y: 1)
+                .offset(y: 22 * scale)
+        }
+        .accessibilityHidden(true)
+    }
+}
+
+struct MapControlTileOverlay: View {
+    var summary: MapControlSummary
+    var scale: CGFloat
+
+    var body: some View {
+        ZStack {
+            Hexagon()
+                .fill(summary.controlState.tintColor.opacity(0.10))
+            Hexagon()
+                .stroke(
+                    summary.controlState.tintColor.opacity(0.64),
+                    style: StrokeStyle(lineWidth: max(1, 1.35 * scale), lineCap: .round, dash: [3 * scale, 5 * scale])
+                )
+                .padding(9 * scale)
+        }
+        .accessibilityHidden(true)
     }
 }
 
@@ -1865,6 +1942,8 @@ struct BattlefieldFocusPanelView: View {
     var body: some View {
         PanelView(title: "战场", symbol: "map.fill") {
             let focus = viewModel.primaryBattlefieldFocusSummary
+            let heat = viewModel.primaryThreatHeatZoneSummary
+            let mapControl = viewModel.selectedMapControlSummary ?? viewModel.primaryMapControlSummary
             if let tile = viewModel.selectedTile {
                 let city = viewModel.state.city(at: tile.position)
                 let totalDefense = tile.terrain.defenseBonus + (city?.fortification ?? 0)
@@ -1885,6 +1964,15 @@ struct BattlefieldFocusPanelView: View {
                                 .lineLimit(1)
                                 .minimumScaleFactor(0.72)
                                 .accessibilityLabel(focus.accessibilityLabel)
+                        }
+
+                        if let heat {
+                            Label("\(heat.title) · \(heat.impactLabel)", systemImage: heat.threatLevel.systemImage)
+                                .font(.caption2.weight(.heavy))
+                                .foregroundStyle(heat.threatLevel.tintColor)
+                                .lineLimit(1)
+                                .minimumScaleFactor(0.72)
+                                .accessibilityLabel(heat.accessibilityLabel)
                         }
 
                         if let pressure = viewModel.primaryFrontlinePressureSummary {
@@ -1924,6 +2012,12 @@ struct BattlefieldFocusPanelView: View {
 
                         if let focus {
                             BattlefieldFocusCardView(summary: focus, isCompact: false)
+                        }
+
+                        if let heat {
+                            ThreatHeatCardView(summary: heat, isCompact: false)
+                        } else if let mapControl {
+                            MapControlCardView(summary: mapControl, isCompact: false)
                         }
 
                         if let city {
@@ -1969,8 +2063,12 @@ struct BattlefieldFocusPanelView: View {
                         }
                     }
                 }
+            } else if let heat {
+                ThreatHeatCardView(summary: heat, isCompact: isCompact)
             } else if let focus {
                 BattlefieldFocusCardView(summary: focus, isCompact: isCompact)
+            } else if let mapControl {
+                MapControlCardView(summary: mapControl, isCompact: isCompact)
             } else {
                 Text("尚未标定战场焦点。")
                     .font(.caption)
@@ -2089,6 +2187,7 @@ struct StrategicBalancePanelView: View {
     var body: some View {
         PanelView(title: "战局", symbol: "chart.bar.xaxis") {
             let focusSummaries = viewModel.battlefieldFocusSummaries
+            let heatSummaries = viewModel.threatHeatZoneSummaries
             let pressureSummaries = viewModel.frontlinePressureSummaries
             let formationSummaries = viewModel.legionFormationSummaries
             VStack(alignment: .leading, spacing: 9) {
@@ -2131,6 +2230,19 @@ struct StrategicBalancePanelView: View {
                     } else {
                         ForEach(focusSummaries.prefix(2)) { summary in
                             BattlefieldFocusRowView(summary: summary)
+                        }
+                    }
+                }
+
+                VStack(alignment: .leading, spacing: 6) {
+                    if heatSummaries.isEmpty {
+                        Text("暂无威胁热区。")
+                            .font(.caption)
+                            .foregroundStyle(.white.opacity(0.62))
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    } else {
+                        ForEach(heatSummaries.prefix(2)) { summary in
+                            ThreatHeatRowView(summary: summary)
                         }
                     }
                 }
@@ -2299,6 +2411,57 @@ struct BattlefieldFocusRowView: View {
     }
 }
 
+struct ThreatHeatRowView: View {
+    var summary: ThreatHeatZoneSummary
+
+    var body: some View {
+        HStack(spacing: 8) {
+            ZStack {
+                RoundedRectangle(cornerRadius: 5)
+                    .fill(summary.threatLevel.tintColor.opacity(0.92))
+                    .frame(width: 28, height: 28)
+                Image(systemName: summary.threatLevel.systemImage)
+                    .font(.caption.weight(.black))
+                    .foregroundStyle(.white)
+            }
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(summary.title)
+                    .font(.caption.weight(.heavy))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.72)
+                Text(summary.detail)
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(.white.opacity(0.62))
+                    .lineLimit(2)
+                    .minimumScaleFactor(0.70)
+            }
+
+            Spacer(minLength: 0)
+
+            VStack(alignment: .trailing, spacing: 3) {
+                Text(summary.levelLabel)
+                    .font(.caption2.weight(.black))
+                    .foregroundStyle(.black.opacity(0.78))
+                    .padding(.horizontal, 6)
+                    .frame(height: 20)
+                    .background(summary.threatLevel.tintColor)
+                    .clipShape(RoundedRectangle(cornerRadius: 5))
+                Text(summary.impactLabel)
+                    .font(.caption2.monospacedDigit().weight(.semibold))
+                    .foregroundStyle(.white.opacity(0.58))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.72)
+            }
+        }
+        .padding(.horizontal, 8)
+        .frame(minHeight: 46)
+        .background(.black.opacity(0.18))
+        .clipShape(RoundedRectangle(cornerRadius: 7))
+        .accessibilityLabel(summary.accessibilityLabel)
+    }
+}
+
 struct BattlefieldFocusCardView: View {
     var summary: BattlefieldFocusSummary
     var isCompact: Bool
@@ -2355,6 +2518,130 @@ struct BattlefieldFocusCardView: View {
         .overlay {
             RoundedRectangle(cornerRadius: 7)
                 .stroke(summary.severity.tintColor.opacity(0.38), lineWidth: 1)
+        }
+        .clipShape(RoundedRectangle(cornerRadius: 7))
+        .accessibilityLabel(summary.accessibilityLabel)
+    }
+}
+
+struct ThreatHeatCardView: View {
+    var summary: ThreatHeatZoneSummary
+    var isCompact: Bool
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: isCompact ? 5 : 7) {
+            HStack(spacing: 7) {
+                Image(systemName: summary.threatLevel.systemImage)
+                    .foregroundStyle(summary.threatLevel.tintColor)
+                Text("热区")
+                    .font(.caption2.weight(.bold))
+                    .foregroundStyle(.white.opacity(0.58))
+                Text(summary.title)
+                    .font(.caption.weight(.heavy))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.70)
+                Spacer(minLength: 0)
+                Text(summary.levelLabel)
+                    .font(.caption2.weight(.black))
+                    .foregroundStyle(.black.opacity(0.78))
+                    .padding(.horizontal, 6)
+                    .frame(height: 20)
+                    .background(summary.threatLevel.tintColor)
+                    .clipShape(RoundedRectangle(cornerRadius: 5))
+            }
+
+            if !isCompact {
+                Text(summary.sourceLabel)
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(.white.opacity(0.62))
+                    .lineLimit(2)
+                    .minimumScaleFactor(0.72)
+            }
+
+            HStack(spacing: 6) {
+                Label(summary.impactLabel, systemImage: "scope")
+                Spacer(minLength: 0)
+                Label(summary.controlLabel, systemImage: "flag.2.crossed.fill")
+            }
+            .font(.caption2.weight(.semibold))
+            .foregroundStyle(.white.opacity(0.66))
+            .lineLimit(1)
+            .minimumScaleFactor(0.70)
+
+            Text(summary.detail)
+                .font(.caption2.weight(.bold))
+                .foregroundStyle(summary.threatLevel.tintColor)
+                .lineLimit(isCompact ? 1 : 2)
+                .minimumScaleFactor(0.70)
+        }
+        .padding(8)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(summary.threatLevel.tintColor.opacity(0.12))
+        .overlay {
+            RoundedRectangle(cornerRadius: 7)
+                .stroke(summary.threatLevel.tintColor.opacity(0.38), lineWidth: 1)
+        }
+        .clipShape(RoundedRectangle(cornerRadius: 7))
+        .accessibilityLabel(summary.accessibilityLabel)
+    }
+}
+
+struct MapControlCardView: View {
+    var summary: MapControlSummary
+    var isCompact: Bool
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: isCompact ? 5 : 7) {
+            HStack(spacing: 7) {
+                Image(systemName: "map.fill")
+                    .foregroundStyle(summary.controlState.tintColor)
+                Text("控区")
+                    .font(.caption2.weight(.bold))
+                    .foregroundStyle(.white.opacity(0.58))
+                Text(summary.title)
+                    .font(.caption.weight(.heavy))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.70)
+                Spacer(minLength: 0)
+                Text(summary.levelLabel)
+                    .font(.caption2.weight(.black))
+                    .foregroundStyle(.black.opacity(0.78))
+                    .padding(.horizontal, 6)
+                    .frame(height: 20)
+                    .background(summary.threatLevel.tintColor)
+                    .clipShape(RoundedRectangle(cornerRadius: 5))
+            }
+
+            if !isCompact {
+                Text(summary.sourceLabel)
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(.white.opacity(0.62))
+                    .lineLimit(2)
+                    .minimumScaleFactor(0.72)
+            }
+
+            HStack(spacing: 6) {
+                Label(summary.impactLabel, systemImage: "flag.2.crossed.fill")
+                Spacer(minLength: 0)
+                Label(summary.position.description, systemImage: "location.fill")
+            }
+            .font(.caption2.weight(.semibold))
+            .foregroundStyle(.white.opacity(0.66))
+            .lineLimit(1)
+            .minimumScaleFactor(0.70)
+
+            Text(summary.detail)
+                .font(.caption2.weight(.bold))
+                .foregroundStyle(summary.threatLevel.tintColor)
+                .lineLimit(isCompact ? 1 : 2)
+                .minimumScaleFactor(0.70)
+        }
+        .padding(8)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(summary.controlState.tintColor.opacity(0.10))
+        .overlay {
+            RoundedRectangle(cornerRadius: 7)
+                .stroke(summary.controlState.tintColor.opacity(0.34), lineWidth: 1)
         }
         .clipShape(RoundedRectangle(cornerRadius: 7))
         .accessibilityLabel(summary.accessibilityLabel)
@@ -3752,6 +4039,39 @@ extension BattlefieldFocusSeverity {
         case .important: return Color(red: 0.86, green: 0.68, blue: 0.34)
         case .urgent: return Color(red: 0.92, green: 0.42, blue: 0.14)
         case .critical: return Color(red: 0.84, green: 0.16, blue: 0.12)
+        }
+    }
+}
+
+extension ThreatHeatLevel {
+    var systemImage: String {
+        switch self {
+        case .quiet: return "checkmark.seal.fill"
+        case .watched: return "eye.fill"
+        case .contested: return "flag.2.crossed.fill"
+        case .danger: return "exclamationmark.shield.fill"
+        case .critical: return "flame.fill"
+        }
+    }
+
+    var tintColor: Color {
+        switch self {
+        case .quiet: return Color(red: 0.36, green: 0.70, blue: 0.44)
+        case .watched: return Color(red: 0.52, green: 0.70, blue: 0.86)
+        case .contested: return Color(red: 0.86, green: 0.68, blue: 0.34)
+        case .danger: return Color(red: 0.92, green: 0.42, blue: 0.14)
+        case .critical: return Color(red: 0.84, green: 0.16, blue: 0.12)
+        }
+    }
+}
+
+extension MapControlState {
+    var tintColor: Color {
+        switch self {
+        case .friendlyControlled: return Color(red: 0.32, green: 0.68, blue: 0.42)
+        case .enemyControlled: return Color(red: 0.84, green: 0.16, blue: 0.12)
+        case .contested: return Color(red: 0.86, green: 0.68, blue: 0.34)
+        case .neutral: return Color(red: 0.52, green: 0.56, blue: 0.54)
         }
     }
 }

@@ -460,6 +460,128 @@ struct BattlefieldFocusSummary: Identifiable {
     }
 }
 
+struct MapControlSummary: Identifiable {
+    var report: MapControlReport
+    var city: City?
+    var occupant: ArmyUnit?
+    var friendlyUnits: [ArmyUnit]
+    var enemyUnits: [ArmyUnit]
+
+    var id: String { report.id }
+    var position: Position { report.position }
+    var controlState: MapControlState { report.controlState }
+    var threatLevel: ThreatHeatLevel { report.threatLevel }
+
+    var title: String {
+        if let city {
+            return "\(city.name) \(controlLabel)"
+        }
+
+        if let occupant {
+            return "\(occupant.faction.displayName)\(occupant.kind.displayName) \(controlLabel)"
+        }
+
+        return "\(position.description) \(controlLabel)"
+    }
+
+    var compactTitle: String {
+        "\(controlLabel) \(levelLabel)"
+    }
+
+    var controlLabel: String {
+        report.controlState.displayName
+    }
+
+    var levelLabel: String {
+        report.threatLevel.displayName
+    }
+
+    var sourceLabel: String {
+        if !enemyUnits.isEmpty {
+            let labels = enemyUnits.prefix(3).map { "\($0.faction.displayName)\($0.kind.displayName)" }
+            return enemyUnits.count > 3 ? "\(labels.joined(separator: "、"))等 \(enemyUnits.count) 支" : labels.joined(separator: "、")
+        }
+
+        if !friendlyUnits.isEmpty {
+            let labels = friendlyUnits.prefix(3).map { "\($0.faction.displayName)\($0.kind.displayName)" }
+            return friendlyUnits.count > 3 ? "\(labels.joined(separator: "、"))等 \(friendlyUnits.count) 支" : labels.joined(separator: "、")
+        }
+
+        return city?.name ?? "无单位覆盖"
+    }
+
+    var impactLabel: String {
+        if report.pressureScore > 0 {
+            return "压力 \(report.pressureScore)"
+        }
+
+        return "友\(report.friendlyInfluence)/敌\(report.enemyInfluence)"
+    }
+
+    var detail: String {
+        report.detail
+    }
+
+    var accessibilityLabel: String {
+        "\(title)，\(levelLabel)，来源\(sourceLabel)，\(detail)"
+    }
+}
+
+struct ThreatHeatZoneSummary: Identifiable {
+    var report: ThreatHeatZoneReport
+    var sourceUnits: [ArmyUnit]
+    var cities: [City]
+
+    var id: String { report.id }
+    var targetPosition: Position { report.center }
+    var threatLevel: ThreatHeatLevel { report.threatLevel }
+
+    var title: String {
+        report.title
+    }
+
+    var compactTitle: String {
+        "\(levelLabel) \(impactLabel)"
+    }
+
+    var levelLabel: String {
+        report.threatLevel.displayName
+    }
+
+    var controlLabel: String {
+        report.controlState.displayName
+    }
+
+    var sourceLabel: String {
+        guard !sourceUnits.isEmpty else {
+            return cities.first?.name ?? "敌方覆盖"
+        }
+
+        let labels = sourceUnits.prefix(3).map { "\($0.faction.displayName)\($0.kind.displayName)" }
+        return sourceUnits.count > 3 ? "\(labels.joined(separator: "、"))等 \(sourceUnits.count) 支" : labels.joined(separator: "、")
+    }
+
+    var impactLabel: String {
+        if report.captureIntentCount > 0 {
+            return "\(report.captureIntentCount) 路夺城"
+        }
+
+        if report.projectedDamageTotal > 0 {
+            return "预计伤害 \(report.projectedDamageTotal)"
+        }
+
+        return "威胁 \(report.score)"
+    }
+
+    var detail: String {
+        report.detail
+    }
+
+    var accessibilityLabel: String {
+        "\(title)，热区\(levelLabel)，\(controlLabel)，来源\(sourceLabel)，\(impactLabel)，\(detail)"
+    }
+}
+
 struct FrontlinePressureSummary: Identifiable {
     var report: FrontlinePressureReport
     var targetUnit: ArmyUnit?
@@ -926,6 +1048,56 @@ final class GameViewModel: ObservableObject {
         enemyIntentSummaries.first
     }
 
+    var mapControlSummaries: [MapControlSummary] {
+        state.mapControlReports(for: .rome)
+            .map(mapControlSummary(for:))
+    }
+
+    var primaryMapControlSummary: MapControlSummary? {
+        mapControlSummaries.first { $0.threatLevel != .quiet && $0.report.enemyInfluence > 0 } ??
+            selectedMapControlSummary ??
+            mapControlSummaries.first
+    }
+
+    var selectedMapControlSummary: MapControlSummary? {
+        guard let position = focusedPosition,
+              let report = state.mapControlReport(at: position, for: .rome) else {
+            return nil
+        }
+
+        return mapControlSummary(for: report)
+    }
+
+    var threatHeatZoneSummaries: [ThreatHeatZoneSummary] {
+        state.threatHeatZoneReports(for: .rome, limit: 5)
+            .map(threatHeatZoneSummary(for:))
+    }
+
+    var primaryThreatHeatZoneSummary: ThreatHeatZoneSummary? {
+        threatHeatZoneSummaries.first
+    }
+
+    var threatHeatZoneOverlaysByPosition: [Position: ThreatHeatZoneSummary] {
+        var values: [Position: ThreatHeatZoneSummary] = [:]
+        for summary in threatHeatZoneSummaries {
+            for position in summary.report.positions {
+                let current = values[position]
+                if current == nil || summary.report.score > (current?.report.score ?? 0) {
+                    values[position] = summary
+                }
+            }
+        }
+        return values
+    }
+
+    var threatHeatOverlayPositions: Set<Position> {
+        Set(threatHeatZoneOverlaysByPosition.keys)
+    }
+
+    var mapControlOverlayPositions: Set<Position> {
+        Set(mapControlSummaries.filter { $0.controlState == .contested || $0.threatLevel != .quiet }.map(\.position))
+    }
+
     var battlefieldFocusSummaries: [BattlefieldFocusSummary] {
         state.battlefieldFocusReports(for: .rome, limit: 5)
             .map(battlefieldFocusSummary(for:))
@@ -1009,6 +1181,24 @@ final class GameViewModel: ObservableObject {
             targetUnit: report.targetUnitID.flatMap { state.unit(withID: $0) },
             targetCity: report.targetCityID.flatMap { state.city(withID: $0) },
             relatedUnits: report.relatedUnitIDs.compactMap { state.unit(withID: $0) }
+        )
+    }
+
+    private func mapControlSummary(for report: MapControlReport) -> MapControlSummary {
+        MapControlSummary(
+            report: report,
+            city: report.cityID.flatMap { state.city(withID: $0) },
+            occupant: report.occupantUnitID.flatMap { state.unit(withID: $0) },
+            friendlyUnits: report.friendlyUnitIDs.compactMap { state.unit(withID: $0) },
+            enemyUnits: report.enemyUnitIDs.compactMap { state.unit(withID: $0) }
+        )
+    }
+
+    private func threatHeatZoneSummary(for report: ThreatHeatZoneReport) -> ThreatHeatZoneSummary {
+        ThreatHeatZoneSummary(
+            report: report,
+            sourceUnits: report.sourceUnitIDs.compactMap { state.unit(withID: $0) },
+            cities: report.cityIDs.compactMap { state.city(withID: $0) }
         )
     }
 
