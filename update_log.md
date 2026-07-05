@@ -14,12 +14,55 @@
 
 - 项目类型：原创 SwiftUI iOS 罗马题材战棋原型。
 - 核心架构：纯 Swift `RomeLegionsCore` 负责玩法规则；`GameViewModel` 负责 UI 状态和派生数据；SwiftUI 视图负责展示和命令入口。
-- 当前玩法：六边形地图、地形、城市、阵营、军团、移动、攻击、反击、占城、招募、科技、任务 requirement、战役目标、胜负结算、结束保护、外交、城市扩建、城市经营与招募读板、军团训练、将领任命、军团成长决策读板、主动技能、技能冷却、将领详情读板、被动贡献、战功状态、军团编制与成长读板、战术命令建议与补线路径读板、本方将领协同与战术连携读板、机动落点与地图风险读板、战场焦点与将领机会读板、地图控制与威胁热区读板、主动地图叠层图例、AI 作战计划与敌方将领协同读板、战术姿态与姿态预览、AI 回合、AI 主攻优先执行、敌军意图预判、敌军意图六边形路径/目标叠层、战线压力读板、战局态势面板。
+- 当前玩法：六边形地图、地形、城市、阵营、军团、移动、攻击、反击、占城、招募、科技、任务 requirement、战役目标、胜负结算、结束保护、外交、城市扩建、城市经营与招募读板、军团训练、将领任命、军团成长决策读板、军团成长优先级读板、主动技能、技能冷却、将领详情读板、被动贡献、战功状态、军团编制与成长读板、战术命令建议与补线路径读板、本方将领协同与战术连携读板、机动落点与地图风险读板、战场焦点与将领机会读板、地图控制与威胁热区读板、主动地图叠层图例、AI 作战计划与敌方将领协同读板、战术姿态与姿态预览、AI 回合、AI 主攻优先执行、敌军意图预判、敌军意图六边形路径/目标叠层、战线压力读板、战局态势面板。
 - 当前测试入口：Swift Testing、Gameplay Smoke、项目结构检查、SwiftUI 类型检查、战斗页预览图渲染、无签名 Xcode 构建。
 - 当前协作系统：已建立 `AGENTS.md`、`update_log.md`、`md/prompt/`、`md/test/test.md`、`md/flow/flow.md`、`md/flow/flowchart.md`，默认按 `main` 直推、GitHub Actions 云端重验证、Agent C 下载未加密结果包复判，并具备未来由 Agent X 主控调度 Agent A/B/C 多轮循环的文档基线。
 - 当前 CI 入口：`.github/workflows/ci-results.yml`，在 `main` push 和手动触发时运行结构检查、SwiftPM 测试、Gameplay Smoke、RenderBattlePreview 和无签名 Xcode build，并上传 CI 结果包。
 
 ## 历史记录
+
+### v0.25 / 军团成长优先级读板
+
+日期：2026-07-05
+
+核心变更：
+
+- `GameState` 新增 `UnitDevelopmentRecommendationKind`、`UnitDevelopmentRecommendationPriority` 和 `UnitDevelopmentRecommendationReport`，通过 `unitDevelopmentRecommendationReports(for:limit:)` 与 `unitDevelopmentRecommendationReport(unitID:)` 只读汇总训练/任命成长推荐。
+- 成长推荐复用 `TrainingPreview`、`GeneralAppointmentPreview` 和 `LegionFormationReport`，按生命损失、训练恢复、升阶/伤害收益、缺将领、近敌、战备、候选 trait 和阻塞状态生成优先级、评分、理由和影响。
+- `GameViewModel` 新增 `UnitDevelopmentRecommendationSummary`、`unitDevelopmentRecommendationSummaries` 和 `primaryUnitDevelopmentRecommendationSummary`，把核心推荐转成全局成长 chip、战局成长行、状态和无障碍文案。
+- `BattleView` 在顶部态势加入“成长”chip，并在完整战局面板展示前三条成长推荐；SwiftUI 只展示 ViewModel 摘要，不重新计算推荐分。
+- Swift Testing 增加成长推荐只读、训练/任命预览复用、已有将领阻塞和资源不足可读断言。
+- Gameplay Smoke 增加成长推荐主链路断言；RenderBattlePreview 增加 `primaryUnitDevelopmentRecommendationSummary` / `unitDevelopmentRecommendationSummaries` 断言，失败抛出 `missingUnitDevelopmentRecommendationSummary`。
+- `.github/workflows/ci-results.yml` artifact 版本更新到 v0.25。
+- README、flow、flowchart、test、prompt README 文档同步军团成长优先级读板和 v0.25 Agent A 提示词。
+
+关键文件：
+
+- `Sources/RomeLegionsCore/GameState.swift`
+- `RomeLegionsApp/App/GameViewModel.swift`
+- `RomeLegionsApp/Views/BattleView.swift`
+- `Tests/RomeLegionsCoreTests/GameStateTests.swift`
+- `Tools/GameplaySmoke/main.swift`
+- `Tools/RenderBattlePreview/main.swift`
+- `.github/workflows/ci-results.yml`
+- `README.md`
+- `md/flow/flow.md`
+- `md/flow/flowchart.md`
+- `md/test/test.md`
+- `md/prompt/README.md`
+- `md/prompt/v0（玩法推进）/v0.25（军团成长优先级读板）.md`
+- `update_log.md`
+
+验证结果：
+
+- 按人工最新要求，本轮未运行任何本地测试、build、typecheck、RenderBattlePreview、`Tools/verify_project.mjs`、`git diff --check`、YAML/JSON/Plist 解析或脚本语法检查。
+- 本轮完整验证必须在 push 到 `origin/main` 后由 GitHub Actions 执行，并由 Agent C 下载最新 v0.25 artifact 复判 manifest、JUnit、主日志、render 日志、预览 PNG 和失败摘要。
+
+遗留事项：
+
+- 本轮没有实现自动训练、自动任命、升级树、装备、兵种转职、将领池 UI、将领改名、技能选择、真实补给线、建筑树、人口、外交界面或存档 UI。
+- 军团成长优先级读板只用于解释和排序训练/任命建议，不改变既有训练/任命结算、AI、移动、攻击、技能、城市或胜负规则。
+- Agent C 必须核对最新 `origin/main` commit 对应的 v0.25 run id、run attempt 和 artifact；不能使用 v0.24 旧结果包。
 
 ### v0.24 / 军团成长决策读板
 
@@ -56,13 +99,13 @@
 验证结果：
 
 - 按人工最新要求，本轮未运行任何本地测试、build、typecheck、RenderBattlePreview、`Tools/verify_project.mjs`、`git diff --check`、YAML/JSON/Plist 解析或脚本语法检查。
-- 本轮完整验证必须在 push 到 `origin/main` 后由 GitHub Actions 执行，并由 Agent C 下载最新 v0.24 artifact 复判 manifest、JUnit、主日志、render 日志、预览 PNG 和失败摘要。
+- GitHub Actions run `28740275512` attempt `1` 通过，artifact 为 `RomeLegions-ci-v0.24-main-85db5c6-run28740275512-attempt1`。
+- Agent C 复判已核对 manifest `version=v0.24`、`branch=main`、`commitSha=85db5c621e615e03dd63400792b128361babb460`、`runId=28740275512`、`runAttempt=1`，JUnit `failures=0`，static checks、Swift Testing、Gameplay Smoke、RenderBattlePreview 和 Xcode build 均为 success。
 
 遗留事项：
 
 - 本轮没有实现升级树、装备、兵种转职、将领池 UI、将领改名、技能选择、自动训练、真实补给线、建筑树、人口、外交界面或存档 UI。
 - 军团成长决策读板只解释训练/任命成本、收益和阻塞，不改变既有训练/任命数值、候选顺序、trait 映射、AI、移动、攻击、技能、城市或胜负结算。
-- Agent C 必须核对最新 `origin/main` commit 对应的 v0.24 run id、run attempt 和 artifact；不能使用 v0.23 旧结果包。
 
 ### v0.23 / 主动地图叠层图例
 

@@ -919,6 +919,119 @@ public struct GeneralAppointmentPreview: Equatable, Sendable {
     }
 }
 
+public enum UnitDevelopmentRecommendationKind: String, CaseIterable, Identifiable, Equatable, Sendable {
+    case training
+    case appointment
+
+    public var id: String { rawValue }
+
+    public var displayName: String {
+        switch self {
+        case .training: return "训练"
+        case .appointment: return "任命"
+        }
+    }
+}
+
+public enum UnitDevelopmentRecommendationPriority: String, CaseIterable, Identifiable, Equatable, Sendable {
+    case low
+    case medium
+    case high
+    case urgent
+
+    public var id: String { rawValue }
+
+    public var displayName: String {
+        switch self {
+        case .low: return "观察"
+        case .medium: return "可排入"
+        case .high: return "优先"
+        case .urgent: return "急需"
+        }
+    }
+
+    fileprivate var sortValue: Int {
+        switch self {
+        case .urgent: return 4
+        case .high: return 3
+        case .medium: return 2
+        case .low: return 1
+        }
+    }
+}
+
+public struct UnitDevelopmentRecommendationReport: Identifiable, Equatable, Sendable {
+    public var unitID: String
+    public var faction: Faction
+    public var kind: UnitDevelopmentRecommendationKind
+    public var unitKind: UnitKind
+    public var position: Position
+    public var priority: UnitDevelopmentRecommendationPriority
+    public var score: Int
+    public var cost: EmpireResources
+    public var canExecute: Bool
+    public var blockedReason: String?
+    public var currentRankName: String
+    public var projectedRankName: String
+    public var projectedDamageBonus: Int
+    public var projectedHealth: Int?
+    public var candidateName: String?
+    public var candidateTrait: GeneralTrait?
+    public var title: String
+    public var summary: String
+    public var detail: String
+    public var reasons: [String]
+    public var impact: String
+
+    public var id: String { "\(unitID)-\(kind.rawValue)" }
+
+    public init(
+        unitID: String,
+        faction: Faction,
+        kind: UnitDevelopmentRecommendationKind,
+        unitKind: UnitKind,
+        position: Position,
+        priority: UnitDevelopmentRecommendationPriority,
+        score: Int,
+        cost: EmpireResources,
+        canExecute: Bool,
+        blockedReason: String?,
+        currentRankName: String,
+        projectedRankName: String,
+        projectedDamageBonus: Int,
+        projectedHealth: Int?,
+        candidateName: String?,
+        candidateTrait: GeneralTrait?,
+        title: String,
+        summary: String,
+        detail: String,
+        reasons: [String],
+        impact: String
+    ) {
+        self.unitID = unitID
+        self.faction = faction
+        self.kind = kind
+        self.unitKind = unitKind
+        self.position = position
+        self.priority = priority
+        self.score = score
+        self.cost = cost
+        self.canExecute = canExecute
+        self.blockedReason = blockedReason
+        self.currentRankName = currentRankName
+        self.projectedRankName = projectedRankName
+        self.projectedDamageBonus = projectedDamageBonus
+        self.projectedHealth = projectedHealth
+        self.candidateName = candidateName
+        self.candidateTrait = candidateTrait
+        self.title = title
+        self.summary = summary
+        self.detail = detail
+        self.reasons = reasons
+        self.impact = impact
+    }
+}
+
 public enum Technology: String, CaseIterable, Codable, Identifiable, Hashable, Sendable {
     case marchingDrill
     case siegeEngineering
@@ -2294,6 +2407,56 @@ public struct GameState: Codable, Equatable, Sendable {
             summary: summary,
             detail: detail
         )
+    }
+
+    public func unitDevelopmentRecommendationReports(
+        for faction: Faction = .rome,
+        limit: Int = 5
+    ) -> [UnitDevelopmentRecommendationReport] {
+        guard limit > 0 else { return [] }
+
+        let reports = units
+            .filter { $0.faction == faction }
+            .flatMap { unit -> [UnitDevelopmentRecommendationReport] in
+                let formation = try? legionFormationReport(unitID: unit.id)
+                var values: [UnitDevelopmentRecommendationReport] = []
+
+                if let trainingPreview = try? trainingPreview(unitID: unit.id) {
+                    values.append(trainingRecommendationReport(for: unit, preview: trainingPreview, formation: formation))
+                }
+
+                if let appointmentPreview = try? generalAppointmentPreview(unitID: unit.id) {
+                    values.append(appointmentRecommendationReport(for: unit, preview: appointmentPreview, formation: formation))
+                }
+
+                return values
+            }
+            .sorted(by: sortDevelopmentRecommendations)
+
+        return Array(reports.prefix(limit))
+    }
+
+    public func unitDevelopmentRecommendationReport(unitID: String) throws -> UnitDevelopmentRecommendationReport {
+        guard let unit = unit(withID: unitID) else {
+            throw GameRuleError.missingEntity
+        }
+
+        let formation = try? legionFormationReport(unitID: unit.id)
+        var reports: [UnitDevelopmentRecommendationReport] = []
+
+        if let trainingPreview = try? trainingPreview(unitID: unit.id) {
+            reports.append(trainingRecommendationReport(for: unit, preview: trainingPreview, formation: formation))
+        }
+
+        if let appointmentPreview = try? generalAppointmentPreview(unitID: unit.id) {
+            reports.append(appointmentRecommendationReport(for: unit, preview: appointmentPreview, formation: formation))
+        }
+
+        guard let best = reports.sorted(by: sortDevelopmentRecommendations).first else {
+            throw GameRuleError.invalidTarget
+        }
+
+        return best
     }
 
     public func diplomaticStatus(between first: Faction, and second: Faction) -> DiplomaticStatus {
@@ -5951,6 +6114,218 @@ public struct GameState: Codable, Equatable, Sendable {
         let name = Self.generalCandidateNames.first { !usedNames.contains($0) } ?? "罗马将领 \(unit.experience + 1)"
         let trait = GeneralTrait.defaultTrait(forName: name) ?? .eagleStandard
         return (name, trait)
+    }
+
+    private func trainingRecommendationReport(
+        for unit: ArmyUnit,
+        preview: TrainingPreview,
+        formation: LegionFormationReport?
+    ) -> UnitDevelopmentRecommendationReport {
+        let missingHealth = max(0, unit.kind.maxHealth - unit.health)
+        let readinessScore = formation?.readiness.priority ?? 1
+        let nearbyEnemyCount = formation?.nearbyEnemyCount ?? 0
+        let rankImproves = preview.currentRankName != preview.projectedRankName
+        let damageIncrease = max(0, preview.projectedDamageBonus - preview.currentDamageBonus)
+        var score = preview.canTrain ? 108 : 34
+        score += min(34, missingHealth)
+        score += preview.projectedRecoveredHealth > 0 ? min(18, preview.projectedRecoveredHealth) : 0
+        score += rankImproves ? 28 : min(14, damageIncrease * 2)
+        score += readinessScore * 8
+        score += min(24, nearbyEnemyCount * 8)
+        score += unit.generalName == nil ? 6 : 0
+        score += unit.hasActed ? -8 : 6
+        if !preview.canTrain {
+            score -= 42
+        }
+
+        let reasons = developmentReasons(
+            formation: formation,
+            base: [
+                missingHealth > 0 ? "缺 \(missingHealth) 生命，训练可恢复 \(preview.projectedRecoveredHealth)" : nil,
+                rankImproves ? "可升为\(preview.projectedRankName)" : "伤害提升至 +\(preview.projectedDamageBonus)",
+                unit.generalName == nil ? "尚无将领，训练可先补战功" : nil,
+                unit.hasActed ? "本回合已行动，训练仍按既有规则可读" : nil
+            ],
+            fallback: preview.canTrain ? "常规训练可提升战功" : (preview.blockedReason ?? "训练暂不可执行")
+        )
+        let priority = developmentPriority(score: score, canExecute: preview.canTrain)
+        let impact = "\(preview.summary) · \(preview.detail)"
+        let detail = reasons.joined(separator: " · ")
+
+        return UnitDevelopmentRecommendationReport(
+            unitID: unit.id,
+            faction: unit.faction,
+            kind: .training,
+            unitKind: unit.kind,
+            position: unit.position,
+            priority: priority,
+            score: score,
+            cost: preview.cost,
+            canExecute: preview.canTrain,
+            blockedReason: preview.blockedReason,
+            currentRankName: preview.currentRankName,
+            projectedRankName: preview.projectedRankName,
+            projectedDamageBonus: preview.projectedDamageBonus,
+            projectedHealth: preview.projectedHealth,
+            candidateName: nil,
+            candidateTrait: nil,
+            title: "\(unit.kind.displayName)训练",
+            summary: "\(priority.displayName) · \(preview.summary)",
+            detail: detail,
+            reasons: reasons,
+            impact: impact
+        )
+    }
+
+    private func appointmentRecommendationReport(
+        for unit: ArmyUnit,
+        preview: GeneralAppointmentPreview,
+        formation: LegionFormationReport?
+    ) -> UnitDevelopmentRecommendationReport {
+        let readinessScore = formation?.readiness.priority ?? 1
+        let nearbyEnemyCount = formation?.nearbyEnemyCount ?? 0
+        let missingHealth = max(0, unit.kind.maxHealth - unit.health)
+        var score = preview.canAppoint ? 112 : 30
+        score += unit.generalName == nil ? 48 : -28
+        score += developmentUnitKindCommandWeight(unit.kind)
+        score += readinessScore * 8
+        score += min(24, nearbyEnemyCount * 8)
+        score += appointmentTraitWeight(preview.candidateTrait, unit: unit, formation: formation, missingHealth: missingHealth)
+        if !preview.canAppoint {
+            score -= 44
+        }
+
+        let candidate = preview.candidateName.flatMap { name -> String? in
+            guard let trait = preview.candidateTrait else { return name }
+            return "\(name) · \(trait.displayName)"
+        } ?? "暂无候选"
+        let reasons = developmentReasons(
+            formation: formation,
+            base: [
+                unit.generalName == nil ? "缺将领指挥" : "已有\(unit.generalName ?? "将领")",
+                nearbyEnemyCount > 0 ? "近敌 \(nearbyEnemyCount) 支，适合补指挥" : nil,
+                preview.candidateTrait.map { "候选特性：\($0.displayName)" },
+                unit.kind == .cavalry || unit.kind == .legion ? "\(unit.kind.displayName)适合承担主攻/战列" : nil
+            ],
+            fallback: preview.canAppoint ? "可任命\(candidate)" : (preview.blockedReason ?? "任命暂不可执行")
+        )
+        let priority = developmentPriority(score: score, canExecute: preview.canAppoint)
+        let impact = "\(candidate) · \(preview.detail)"
+        let detail = reasons.joined(separator: " · ")
+
+        return UnitDevelopmentRecommendationReport(
+            unitID: unit.id,
+            faction: unit.faction,
+            kind: .appointment,
+            unitKind: unit.kind,
+            position: unit.position,
+            priority: priority,
+            score: score,
+            cost: preview.cost,
+            canExecute: preview.canAppoint,
+            blockedReason: preview.blockedReason,
+            currentRankName: preview.currentRankName,
+            projectedRankName: preview.projectedRankName,
+            projectedDamageBonus: preview.projectedDamageBonus,
+            projectedHealth: nil,
+            candidateName: preview.candidateName,
+            candidateTrait: preview.candidateTrait,
+            title: "\(unit.kind.displayName)任命",
+            summary: "\(priority.displayName) · 任命\(candidate)",
+            detail: detail,
+            reasons: reasons,
+            impact: impact
+        )
+    }
+
+    private func developmentReasons(
+        formation: LegionFormationReport?,
+        base: [String?],
+        fallback: String
+    ) -> [String] {
+        var reasons = base.compactMap { $0 }
+
+        if let formation {
+            if formation.readiness == .critical || formation.readiness == .strained {
+                reasons.append("战备\(formation.readiness.displayName)")
+            }
+            if formation.nearbyEnemyCount > 0 {
+                reasons.append("近敌 \(formation.nearbyEnemyCount)")
+            }
+            if formation.formationIntegrityScore < 55 {
+                reasons.append("完整度 \(formation.formationIntegrityScore)")
+            }
+        }
+
+        if reasons.isEmpty {
+            reasons.append(fallback)
+        }
+
+        return Array(reasons.prefix(4))
+    }
+
+    private func developmentPriority(
+        score: Int,
+        canExecute: Bool
+    ) -> UnitDevelopmentRecommendationPriority {
+        guard canExecute else { return .low }
+
+        if score >= 180 { return .urgent }
+        if score >= 145 { return .high }
+        if score >= 105 { return .medium }
+        return .low
+    }
+
+    private func developmentUnitKindCommandWeight(_ kind: UnitKind) -> Int {
+        switch kind {
+        case .legion: return 16
+        case .cavalry: return 18
+        case .archer: return 10
+        case .navy: return 8
+        }
+    }
+
+    private func appointmentTraitWeight(
+        _ trait: GeneralTrait?,
+        unit: ArmyUnit,
+        formation: LegionFormationReport?,
+        missingHealth: Int
+    ) -> Int {
+        guard let trait else { return 0 }
+
+        switch trait {
+        case .eagleStandard:
+            return (formation?.nearbyAllyCount ?? 0) > 0 ? 18 : 10
+        case .siegeEngineer:
+            return unit.kind == .legion || unit.kind == .archer ? 16 : 8
+        case .quartermaster:
+            return missingHealth > 16 ? 18 : 10
+        case .shieldWall:
+            return (formation?.nearbyEnemyCount ?? 0) > 0 ? 18 : 9
+        }
+    }
+
+    private func sortDevelopmentRecommendations(
+        _ left: UnitDevelopmentRecommendationReport,
+        _ right: UnitDevelopmentRecommendationReport
+    ) -> Bool {
+        if left.priority.sortValue != right.priority.sortValue {
+            return left.priority.sortValue > right.priority.sortValue
+        }
+
+        if left.canExecute != right.canExecute {
+            return left.canExecute && !right.canExecute
+        }
+
+        if left.score != right.score {
+            return left.score > right.score
+        }
+
+        if left.unitID != right.unitID {
+            return left.unitID < right.unitID
+        }
+
+        return left.kind.rawValue < right.kind.rawValue
     }
 
     private func spawnPosition(for kind: UnitKind, from city: City) throws -> Position {

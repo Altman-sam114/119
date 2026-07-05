@@ -67,6 +67,21 @@ do {
     expect(generalState.unit(withID: "rome-archer-1")?.generalName == appointmentPreview.candidateName, "General should match appointment preview")
     expect(generalState.unit(withID: "rome-archer-1")?.resolvedGeneralTrait == appointmentPreview.candidateTrait, "General trait should match appointment preview")
 
+    var developmentState = GameState.newCampaign()
+    let developmentBeforeReports = developmentState
+    let developmentReports = developmentState.unitDevelopmentRecommendationReports(for: .rome, limit: 10)
+    expect(developmentState == developmentBeforeReports, "Development recommendations should not mutate state")
+    expect(developmentReports.contains { $0.kind == .training }, "Development recommendations should include training")
+    expect(developmentReports.contains { $0.kind == .appointment }, "Development recommendations should include appointment")
+    let developmentTrainingPreview = try developmentState.trainingPreview(unitID: "rome-archer-1")
+    let developmentAppointmentPreview = try developmentState.generalAppointmentPreview(unitID: "rome-archer-1")
+    let archerTrainingReport = developmentReports.first { $0.unitID == "rome-archer-1" && $0.kind == .training }
+    expect(archerTrainingReport?.cost == developmentTrainingPreview.cost, "Training recommendation should reuse training preview cost")
+    let archerAppointmentReport = developmentReports.first { $0.unitID == "rome-archer-1" && $0.kind == .appointment }
+    expect(archerAppointmentReport?.candidateName == developmentAppointmentPreview.candidateName, "Appointment recommendation should reuse appointment preview candidate")
+    let selectedDevelopmentReport = try developmentState.unitDevelopmentRecommendationReport(unitID: "rome-archer-1")
+    expect(selectedDevelopmentReport.unitID == "rome-archer-1", "Selected development recommendation should target requested unit")
+
     var orderState = GameState.newCampaign()
     orderState.units.append(ArmyUnit(id: "near-carthage", kind: .archer, faction: .carthage, position: Position(x: 4, y: 3), health: 60))
     let balancedPreview = try orderState.attackPreview(attackerID: "rome-legion-1", defenderID: "near-carthage")

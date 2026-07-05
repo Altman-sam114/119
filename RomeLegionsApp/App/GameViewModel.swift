@@ -1196,6 +1196,68 @@ struct UnitDevelopmentDecisionSummary: Identifiable {
     }
 }
 
+struct UnitDevelopmentRecommendationSummary: Identifiable {
+    var report: UnitDevelopmentRecommendationReport
+    var unit: ArmyUnit?
+    var statusLabel: String
+
+    var id: String { report.id }
+    var kind: UnitDevelopmentRecommendationKind { report.kind }
+    var priority: UnitDevelopmentRecommendationPriority { report.priority }
+
+    var title: String {
+        report.title
+    }
+
+    var compactTitle: String {
+        "\(kindLabel) \(priorityLabel)"
+    }
+
+    var kindLabel: String {
+        report.kind.displayName
+    }
+
+    var priorityLabel: String {
+        report.priority.displayName
+    }
+
+    var unitLabel: String {
+        if let unit {
+            return "\(unit.faction.displayName)\(unit.kind.displayName)"
+        }
+
+        return "\(report.faction.displayName)\(report.unitKind.displayName)"
+    }
+
+    var rankLabel: String {
+        if report.currentRankName == report.projectedRankName {
+            return "\(report.projectedRankName) · 伤害 +\(report.projectedDamageBonus)"
+        }
+
+        return "\(report.currentRankName)→\(report.projectedRankName)"
+    }
+
+    var reasonLabel: String {
+        report.reasons.prefix(2).joined(separator: " · ")
+    }
+
+    var impactLabel: String {
+        report.impact
+    }
+
+    var scoreLabel: String {
+        "成长 \(report.score)"
+    }
+
+    var detail: String {
+        report.detail
+    }
+
+    var accessibilityLabel: String {
+        "\(title)，\(kindLabel)，\(priorityLabel)，单位\(unitLabel)，\(statusLabel)，\(rankLabel)，\(impactLabel)，理由\(detail)"
+    }
+}
+
 struct GeneralPassiveContribution: Identifiable {
     var id: String
     var label: String
@@ -1585,6 +1647,15 @@ final class GameViewModel: ObservableObject {
         return unitDevelopmentDecisionSummary(for: selectedUnit)
     }
 
+    var unitDevelopmentRecommendationSummaries: [UnitDevelopmentRecommendationSummary] {
+        state.unitDevelopmentRecommendationReports(for: .rome, limit: 6)
+            .map(unitDevelopmentRecommendationSummary(for:))
+    }
+
+    var primaryUnitDevelopmentRecommendationSummary: UnitDevelopmentRecommendationSummary? {
+        unitDevelopmentRecommendationSummaries.first
+    }
+
     var selectedCommanderSynergySummary: CommanderSynergySummary? {
         guard let selectedUnitID,
               let report = try? state.commanderSynergyReport(unitID: selectedUnitID) else {
@@ -1731,6 +1802,26 @@ final class GameViewModel: ObservableObject {
             appointmentPreview: appointmentPreview,
             trainingOption: trainingPreview.map(trainingDecisionOption(for:)),
             appointmentOption: appointmentPreview.map(appointmentDecisionOption(for:))
+        )
+    }
+
+    private func unitDevelopmentRecommendationSummary(
+        for report: UnitDevelopmentRecommendationReport
+    ) -> UnitDevelopmentRecommendationSummary {
+        let statusLabel: String
+        if report.canExecute {
+            statusLabel = "可执行"
+        } else if report.blockedReason == GameRuleError.insufficientResources.displayMessage,
+                  let shortageLabel = resourceShortageLabel(for: report.cost) {
+            statusLabel = shortageLabel
+        } else {
+            statusLabel = report.blockedReason ?? "暂不可用"
+        }
+
+        UnitDevelopmentRecommendationSummary(
+            report: report,
+            unit: state.unit(withID: report.unitID),
+            statusLabel: statusLabel
         )
     }
 

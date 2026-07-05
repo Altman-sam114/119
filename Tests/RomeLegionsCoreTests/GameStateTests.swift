@@ -257,6 +257,51 @@ private func riskTestPriority(_ risk: TacticalRecommendationRisk) -> Int {
     #expect(blockedPreview.blockingError == .insufficientResources)
 }
 
+@Test func unitDevelopmentRecommendationsReusePreviewsWithoutMutation() throws {
+    var state = GameState.newCampaign()
+    let archerIndex = try #require(state.units.firstIndex { $0.id == "rome-archer-1" })
+    state.units[archerIndex].health = 44
+    let before = state
+
+    let reports = state.unitDevelopmentRecommendationReports(for: .rome, limit: 10)
+
+    #expect(state == before)
+    #expect(!reports.isEmpty)
+
+    let trainingReport = try #require(reports.first { $0.unitID == "rome-archer-1" && $0.kind == .training })
+    let trainingPreview = try state.trainingPreview(unitID: "rome-archer-1")
+    #expect(trainingReport.cost == trainingPreview.cost)
+    #expect(trainingReport.projectedRankName == trainingPreview.projectedRankName)
+    #expect(trainingReport.projectedDamageBonus == trainingPreview.projectedDamageBonus)
+    #expect(trainingReport.projectedHealth == trainingPreview.projectedHealth)
+    #expect(!trainingReport.reasons.isEmpty)
+    #expect(!trainingReport.impact.isEmpty)
+
+    let appointmentReport = try #require(reports.first { $0.unitID == "rome-archer-1" && $0.kind == .appointment })
+    let appointmentPreview = try state.generalAppointmentPreview(unitID: "rome-archer-1")
+    #expect(appointmentReport.cost == appointmentPreview.cost)
+    #expect(appointmentReport.candidateName == appointmentPreview.candidateName)
+    #expect(appointmentReport.candidateTrait == appointmentPreview.candidateTrait)
+    #expect(appointmentReport.projectedRankName == appointmentPreview.projectedRankName)
+    #expect(!appointmentReport.detail.isEmpty)
+
+    let selectedReport = try state.unitDevelopmentRecommendationReport(unitID: "rome-archer-1")
+    #expect(selectedReport.unitID == "rome-archer-1")
+    #expect(!selectedReport.summary.isEmpty)
+
+    let assignedReport = try #require(reports.first { $0.unitID == "rome-legion-1" && $0.kind == .appointment })
+    #expect(!assignedReport.canExecute)
+    #expect(assignedReport.blockedReason == GameRuleError.generalAlreadyAssigned.displayMessage)
+
+    var poorState = GameState.newCampaign()
+    poorState.resources[.rome] = .zero
+    let poorReports = poorState.unitDevelopmentRecommendationReports(for: .rome, limit: 10)
+    let blockedTraining = try #require(poorReports.first { $0.kind == .training })
+    #expect(!blockedTraining.canExecute)
+    #expect(blockedTraining.blockedReason == GameRuleError.insufficientResources.displayMessage)
+    #expect(!blockedTraining.summary.isEmpty)
+}
+
 @Test func generalTraitChangesEffectiveStats() {
     let state = GameState.newCampaign()
     let cavalry = state.unit(withID: "rome-cavalry-1")!

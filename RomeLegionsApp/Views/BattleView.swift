@@ -516,6 +516,17 @@ struct TacticalStatusStripView: View {
             )
         }
 
+        if let development = viewModel.primaryUnitDevelopmentRecommendationSummary {
+            TacticalChipView(
+                symbol: development.kind.systemImage,
+                label: "成长",
+                value: development.compactTitle,
+                tint: development.priority.tintColor,
+                compact: compact,
+                accessibilityLabel: development.accessibilityLabel
+            )
+        }
+
         if let recommendation = viewModel.selectedTacticalRecommendationSummary {
             TacticalChipView(
                 symbol: recommendation.kind.systemImage,
@@ -2279,6 +2290,7 @@ struct StrategicBalancePanelView: View {
             let heatSummaries = viewModel.threatHeatZoneSummaries
             let pressureSummaries = viewModel.frontlinePressureSummaries
             let formationSummaries = viewModel.legionFormationSummaries
+            let developmentSummaries = viewModel.unitDevelopmentRecommendationSummaries
             VStack(alignment: .leading, spacing: 9) {
                 HStack(spacing: 8) {
                     StrategicScorePill(
@@ -2308,6 +2320,19 @@ struct StrategicBalancePanelView: View {
                     ResourceDeltaView(symbol: "shield.fill", value: income.iron, tint: .gray)
                     ResourceDeltaView(symbol: "sparkle.magnifyingglass", value: income.science, tint: .cyan)
                     Spacer(minLength: 0)
+                }
+
+                VStack(alignment: .leading, spacing: 6) {
+                    if developmentSummaries.isEmpty {
+                        Text("暂无成长推荐。")
+                            .font(.caption)
+                            .foregroundStyle(.white.opacity(0.62))
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    } else {
+                        ForEach(developmentSummaries.prefix(3)) { summary in
+                            UnitDevelopmentRecommendationRowView(summary: summary)
+                        }
+                    }
                 }
 
                 VStack(alignment: .leading, spacing: 6) {
@@ -2487,6 +2512,67 @@ struct FactionSituationRowView: View {
                 .clipShape(RoundedRectangle(cornerRadius: 5))
         }
         .frame(minHeight: 28)
+    }
+}
+
+struct UnitDevelopmentRecommendationRowView: View {
+    var summary: UnitDevelopmentRecommendationSummary
+
+    var body: some View {
+        HStack(spacing: 8) {
+            ZStack {
+                RoundedRectangle(cornerRadius: 5)
+                    .fill(summary.priority.tintColor.opacity(0.92))
+                    .frame(width: 28, height: 28)
+                Image(systemName: summary.kind.systemImage)
+                    .font(.caption.weight(.black))
+                    .foregroundStyle(.white)
+            }
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(summary.title)
+                    .font(.caption.weight(.heavy))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.72)
+                Text(summary.reasonLabel.isEmpty ? summary.detail : summary.reasonLabel)
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(.white.opacity(0.62))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.70)
+                Text(summary.impactLabel)
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(.white.opacity(0.48))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.70)
+            }
+
+            Spacer(minLength: 0)
+
+            VStack(alignment: .trailing, spacing: 3) {
+                Text(summary.priorityLabel)
+                    .font(.caption2.weight(.black))
+                    .foregroundStyle(.black.opacity(0.78))
+                    .padding(.horizontal, 6)
+                    .frame(height: 20)
+                    .background(summary.priority.tintColor)
+                    .clipShape(RoundedRectangle(cornerRadius: 5))
+                Text(summary.statusLabel)
+                    .font(.caption2.monospacedDigit().weight(.semibold))
+                    .foregroundStyle(.white.opacity(0.58))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.72)
+                Text(summary.scoreLabel)
+                    .font(.caption2.monospacedDigit().weight(.semibold))
+                    .foregroundStyle(.white.opacity(0.44))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.72)
+            }
+        }
+        .padding(.horizontal, 8)
+        .frame(minHeight: 54)
+        .background(.black.opacity(0.18))
+        .clipShape(RoundedRectangle(cornerRadius: 7))
+        .accessibilityLabel(summary.accessibilityLabel)
     }
 }
 
@@ -4631,6 +4717,32 @@ extension UnitDevelopmentDecisionKind {
             return Color(red: 0.86, green: 0.68, blue: 0.34)
         case .appointment:
             return Color(red: 0.36, green: 0.86, blue: 0.92)
+        }
+    }
+}
+
+extension UnitDevelopmentRecommendationKind {
+    var systemImage: String {
+        switch self {
+        case .training:
+            return "figure.walk"
+        case .appointment:
+            return "person.crop.circle.badge.plus"
+        }
+    }
+}
+
+extension UnitDevelopmentRecommendationPriority {
+    var tintColor: Color {
+        switch self {
+        case .low:
+            return Color(red: 0.52, green: 0.70, blue: 0.86)
+        case .medium:
+            return Color(red: 0.86, green: 0.68, blue: 0.34)
+        case .high:
+            return Color(red: 0.92, green: 0.42, blue: 0.14)
+        case .urgent:
+            return Color(red: 0.84, green: 0.16, blue: 0.12)
         }
     }
 }

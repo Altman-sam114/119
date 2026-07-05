@@ -150,6 +150,20 @@ struct RenderBattlePreview {
               !appointmentOption.accessibilityLabel.isEmpty else {
             throw PreviewRenderError.missingUnitDevelopmentDecisionSummary
         }
+        let developmentRecommendations = viewModel.unitDevelopmentRecommendationSummaries
+        guard let primaryDevelopmentRecommendation = viewModel.primaryUnitDevelopmentRecommendationSummary,
+              !developmentRecommendations.isEmpty,
+              developmentRecommendations.contains(where: { $0.kind == .training }),
+              developmentRecommendations.contains(where: { $0.kind == .appointment }),
+              !primaryDevelopmentRecommendation.title.isEmpty,
+              !primaryDevelopmentRecommendation.compactTitle.isEmpty,
+              !primaryDevelopmentRecommendation.priorityLabel.isEmpty,
+              !primaryDevelopmentRecommendation.reasonLabel.isEmpty,
+              !primaryDevelopmentRecommendation.impactLabel.isEmpty,
+              !primaryDevelopmentRecommendation.statusLabel.isEmpty,
+              !primaryDevelopmentRecommendation.accessibilityLabel.isEmpty else {
+            throw PreviewRenderError.missingUnitDevelopmentRecommendationSummary
+        }
         guard let selectedSynergySummary = viewModel.selectedCommanderSynergySummary,
               let primarySynergySummary = viewModel.primaryCommanderSynergySummary,
               !viewModel.commanderSynergySummaries.isEmpty,
@@ -411,6 +425,7 @@ enum PreviewRenderError: Error {
     case missingCommanderBrief
     case missingLegionFormationSummary
     case missingUnitDevelopmentDecisionSummary
+    case missingUnitDevelopmentRecommendationSummary
     case missingCommanderSynergySummary
     case missingTacticalRecommendationSummary
     case missingManeuverOptionSummary
