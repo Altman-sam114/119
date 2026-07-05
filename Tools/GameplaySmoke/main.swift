@@ -203,6 +203,23 @@ do {
     expect(warMerit.damageBonus == warMerit.experience * 3, "War merit damage bonus should match experience formula")
     expect(!warMerit.rankName.isEmpty, "War merit should expose a readable rank")
 
+    var formationState = GameState.newCampaign()
+    formationState.units = [
+        ArmyUnit(id: "rome-commander", kind: .legion, faction: .rome, position: Position(x: 3, y: 3), experience: 4, generalName: "凯撒", generalTrait: .eagleStandard),
+        ArmyUnit(id: "rome-support", kind: .archer, faction: .rome, position: Position(x: 4, y: 3), health: 50),
+        ArmyUnit(id: "carthage-near", kind: .cavalry, faction: .carthage, position: Position(x: 3, y: 2))
+    ]
+    let formationBefore = formationState
+    let formationReport = try formationState.legionFormationReport(unitID: "rome-commander")
+    expect(formationReport.role == .command, "Formation report should identify commander role")
+    expect(formationReport.readiness == .engaged, "Formation report should expose readiness")
+    expect(formationReport.rankName == "百夫长", "Formation report should expose war merit rank")
+    expect(formationReport.adjacentAllyCount == 1, "Formation report should count adjacent allies")
+    expect(formationReport.nearbyEnemyCount == 1, "Formation report should count nearby enemies")
+    expect(formationReport.skillReady, "Formation report should detect useful ready skill")
+    expect(!formationReport.commandSuggestion.isEmpty, "Formation report should expose a command suggestion")
+    expect(formationState == formationBefore, "Formation report should not mutate state")
+
     var siegeSkillState = GameState.newCampaign()
     siegeSkillState.units = [
         ArmyUnit(id: "test-siege", kind: .legion, faction: .rome, position: Position(x: 7, y: 2), generalName: "苏拉", generalTrait: .siegeEngineer)

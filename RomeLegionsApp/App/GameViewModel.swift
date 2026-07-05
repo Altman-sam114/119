@@ -392,6 +392,89 @@ struct FrontlinePressureSummary: Identifiable {
     }
 }
 
+struct LegionFormationSummary: Identifiable {
+    var report: LegionFormationReport
+    var unit: ArmyUnit?
+
+    var id: String { report.id }
+
+    var title: String {
+        if let unit {
+            return "\(unit.faction.displayName)\(unit.kind.displayName)"
+        }
+
+        return "\(report.faction.displayName)\(report.kind.displayName)"
+    }
+
+    var shortUnitLabel: String {
+        unit?.kind.displayName ?? report.kind.displayName
+    }
+
+    var roleLabel: String {
+        report.role.displayName
+    }
+
+    var readinessLabel: String {
+        report.readiness.displayName
+    }
+
+    var compactTitle: String {
+        "\(shortUnitLabel) \(readinessLabel)"
+    }
+
+    var commandLabel: String {
+        if let generalName = report.generalName {
+            return "\(generalName) · \(report.rankName)"
+        }
+
+        return "\(report.rankName) · 无将领"
+    }
+
+    var statsLabel: String {
+        "攻 \(report.attack) · 防 \(report.defense) · 移 \(report.movement)"
+    }
+
+    var supportLabel: String {
+        "友军 \(report.adjacentAllyCount)/\(report.nearbyAllyCount) · 近敌 \(report.nearbyEnemyCount)"
+    }
+
+    var integrityLabel: String {
+        "完整度 \(report.formationIntegrityScore)"
+    }
+
+    var orderLabel: String {
+        if report.recommendedOrder == report.tacticalOrder {
+            return "维持\(report.tacticalOrder.displayName)"
+        }
+
+        return "建议\(report.recommendedOrder.displayName)"
+    }
+
+    var skillLabel: String {
+        if report.skillReady {
+            return report.skillSummary.map { "技能就绪 · \($0)" } ?? "技能就绪"
+        }
+
+        if report.hasGeneral {
+            return report.skillSummary.map { "技能观察 · \($0)" } ?? "技能观察"
+        }
+
+        return "无将领技能"
+    }
+
+    var detail: String {
+        "\(roleLabel) · \(commandLabel) · \(statsLabel) · \(supportLabel)"
+    }
+
+    var recommendationLabel: String {
+        "\(orderLabel) · \(report.commandSuggestion)"
+    }
+
+    var accessibilityLabel: String {
+        "\(title)，编制职责\(roleLabel)，战备\(readinessLabel)，\(commandLabel)，\(statsLabel)，\(supportLabel)，\(recommendationLabel)"
+    }
+}
+
 struct GeneralPassiveContribution: Identifiable {
     var id: String
     var label: String
@@ -679,6 +762,31 @@ final class GameViewModel: ObservableObject {
 
     var primaryFrontlinePressureSummary: FrontlinePressureSummary? {
         frontlinePressureSummaries.first
+    }
+
+    var legionFormationSummaries: [LegionFormationSummary] {
+        state.legionFormationReports(for: .rome, limit: 5)
+            .map(legionFormationSummary(for:))
+    }
+
+    var primaryLegionFormationSummary: LegionFormationSummary? {
+        legionFormationSummaries.first
+    }
+
+    var selectedLegionFormationSummary: LegionFormationSummary? {
+        guard let selectedUnitID,
+              let report = try? state.legionFormationReport(unitID: selectedUnitID) else {
+            return nil
+        }
+
+        return legionFormationSummary(for: report)
+    }
+
+    private func legionFormationSummary(for report: LegionFormationReport) -> LegionFormationSummary {
+        LegionFormationSummary(
+            report: report,
+            unit: state.unit(withID: report.unitID)
+        )
     }
 
     func enemyIntentSummary(for unitID: String) -> EnemyIntentSummary? {

@@ -21,6 +21,7 @@
 - 将领详情读板：选中单位展示将领名、特性、被动贡献、技能状态、预计效果和战功摘要；无将领单位显示“无被动贡献”
 - 战功状态：经验转为军阶、伤害加成和下一军阶进度，在兵牌、情报面板和将领卡中可读
 - 战术姿态预览：均衡、突击、坚守、行军会展示切换后的攻、防、移、变化值、当前标记和不可切换原因
+- 军团编制与成长读板：核心层只读派生军团职责、战备等级、相邻/两格友军、近敌、有效攻防移、建议姿态和命令建议，顶部态势、战局面板和选中单位情报均可读
 - 手机横屏紧凑战斗栏、可攻击目标头顶徽标、选中单位待机/跳过
 - AI 招募、休整、战术姿态、将领技能冷却判断、移动后攻击和目标优先级评估
 - 敌军意图预判：地图徽标、贴合六边形邻接的路径线段、目的地/目标格叠层、顶部敌情芯片和侧栏敌情面板展示攻击、接敌、夺城、固守等倾向，预计伤害与规划态战斗预览一致
@@ -55,13 +56,13 @@
 
 ## 协作与云端验证
 
-默认协作流固定为 `main` 直推：Agent B 本地跑轻量检查后提交并 push 到 `origin/main`，GitHub Actions 运行 SwiftPM 测试、Gameplay Smoke 和无签名 Xcode build，并上传未加密结果包。Agent C 使用 `gh auth login` 后下载最新 run artifact，核对 manifest、JUnit、日志和 `origin/main` 最新 commit；失败时退回 Agent B 在 `main` 上追加修复 commit。
+默认协作流固定为 `main` 直推。当前按人工要求从 v0.15 起不在本地运行测试、build、typecheck、RenderBattlePreview 或结构验证；Agent B 只做读取、编辑、只读 diff/status 检查、提交并 push 到 `origin/main`。GitHub Actions 运行结构检查、SwiftPM 测试、Gameplay Smoke 和无签名 Xcode build，并上传未加密结果包。Agent C 使用 `gh auth login` 后下载最新 run artifact，核对 manifest、JUnit、日志和 `origin/main` 最新 commit；失败时退回 Agent B 在 `main` 上追加修复 commit。
 
 `agentx:` 用于未来启动主控循环。Agent X 接收人工总目标后拆分轮次，并调度 Agent A 写提示词、Agent B 实现 push、Agent C 下载 artifact 验收；Agent X 不直接替代 A/B/C，也不能跳过 Agent C 的最新云端结果包复判。
 
 ## 本地验证
 
-默认完整验证在云端运行；以下本机命令用于人工明确要求本地验证、定位失败或快速检查。
+默认完整验证在云端运行。当前人工已明确要求不做本地测试；以下本机命令只在人工以后重新明确允许本地验证、定位失败或快速检查时使用。
 
 不依赖 SwiftPM 的核心玩法冒烟测试：
 
@@ -76,7 +77,7 @@ swiftc -swift-version 5 -module-cache-path .build/module-cache Sources/RomeLegio
 node Tools/verify_project.mjs
 ```
 
-战斗页三尺寸预览图；渲染前会断言敌军意图 ViewModel 叠层包含移动后攻击六边形邻接路径、目标格和预计伤害文案，并断言战线压力读板、选中单位的将领详情、被动贡献、战功摘要、战术姿态预览和城市经营/招募读板存在。每个命令会写出请求的城市场景 PNG，并额外写出同尺寸 `*-unit.png` 单位场景 PNG：
+战斗页三尺寸预览图；渲染前会断言敌军意图 ViewModel 叠层包含移动后攻击六边形邻接路径、目标格和预计伤害文案，并断言战线压力读板、选中单位的军团编制摘要、将领详情、被动贡献、战功摘要、战术姿态预览和城市经营/招募读板存在。每个命令会写出请求的城市场景 PNG，并额外写出同尺寸 `*-unit.png` 单位场景 PNG：
 
 ```sh
 env HOME=$PWD/.home CLANG_MODULE_CACHE_PATH=$PWD/.build/module-cache /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/swiftc -parse-as-library -sdk /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX26.5.sdk -target arm64-apple-macosx14.0 -o .build/render-battle-preview Tools/RenderBattlePreview/main.swift Sources/RomeLegionsCore/GameState.swift RomeLegionsApp/App/GameViewModel.swift RomeLegionsApp/Views/BattleView.swift

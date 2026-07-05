@@ -66,6 +66,16 @@ struct RenderBattlePreview {
               commanderBrief.warMeritSummary != nil else {
             throw PreviewRenderError.missingCommanderBrief
         }
+        guard let formationSummary = viewModel.selectedLegionFormationSummary,
+              let primaryFormationSummary = viewModel.primaryLegionFormationSummary,
+              formationSummary.report.unitID == "rome-legion-1",
+              primaryFormationSummary.report.unitID == "rome-legion-1",
+              !formationSummary.roleLabel.isEmpty,
+              !formationSummary.readinessLabel.isEmpty,
+              !formationSummary.recommendationLabel.isEmpty,
+              !formationSummary.accessibilityLabel.isEmpty else {
+            throw PreviewRenderError.missingLegionFormationSummary
+        }
         let orderPreviews = viewModel.selectedTacticalOrderPreviews
         guard orderPreviews.count == TacticalOrder.allCases.count,
               orderPreviews.contains(where: { !$0.isCurrent && ($0.attackDelta != 0 || $0.defenseDelta != 0 || $0.movementDelta != 0) }),
@@ -263,6 +273,7 @@ enum PreviewRenderError: Error {
     case missingHexIntentRoute
     case missingFrontlinePressure
     case missingCommanderBrief
+    case missingLegionFormationSummary
     case missingTacticalOrderPreview
     case missingCityReadout
     case missingCompactCommandRender

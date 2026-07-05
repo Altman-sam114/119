@@ -443,6 +443,16 @@ struct TacticalStatusStripView: View {
                 compact: compact
             )
         }
+
+        if let formation = viewModel.primaryLegionFormationSummary {
+            TacticalChipView(
+                symbol: formation.report.readiness.systemImage,
+                label: "军团",
+                value: formation.compactTitle,
+                tint: formation.report.readiness.tintColor,
+                compact: compact
+            )
+        }
     }
 }
 
@@ -1291,6 +1301,10 @@ struct CompactSelectionPanelView: View {
 
                     CompactOrderBadgeView(order: unit.resolvedTacticalOrder)
 
+                    if let formation = viewModel.selectedLegionFormationSummary {
+                        LegionFormationCardView(summary: formation, isCompact: true)
+                    }
+
                     TacticalOrderPreviewStripView(
                         previews: viewModel.selectedTacticalOrderPreviews,
                         isCompact: true
@@ -1914,6 +1928,7 @@ struct StrategicBalancePanelView: View {
     var body: some View {
         PanelView(title: "战局", symbol: "chart.bar.xaxis") {
             let pressureSummaries = viewModel.frontlinePressureSummaries
+            let formationSummaries = viewModel.legionFormationSummaries
             VStack(alignment: .leading, spacing: 9) {
                 HStack(spacing: 8) {
                     StrategicScorePill(
@@ -1954,6 +1969,19 @@ struct StrategicBalancePanelView: View {
                     } else {
                         ForEach(pressureSummaries.prefix(3)) { summary in
                             FrontlinePressureRowView(summary: summary)
+                        }
+                    }
+                }
+
+                VStack(alignment: .leading, spacing: 6) {
+                    if formationSummaries.isEmpty {
+                        Text("暂无可读军团编制。")
+                            .font(.caption)
+                            .foregroundStyle(.white.opacity(0.62))
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    } else {
+                        ForEach(formationSummaries.prefix(3)) { summary in
+                            LegionFormationRowView(summary: summary)
                         }
                     }
                 }
@@ -2091,6 +2119,118 @@ struct FrontlinePressureRowView: View {
     }
 }
 
+struct LegionFormationRowView: View {
+    var summary: LegionFormationSummary
+
+    var body: some View {
+        HStack(spacing: 8) {
+            ZStack {
+                RoundedRectangle(cornerRadius: 5)
+                    .fill(summary.report.readiness.tintColor.opacity(0.92))
+                    .frame(width: 28, height: 28)
+                Image(systemName: summary.report.role.systemImage)
+                    .font(.caption.weight(.black))
+                    .foregroundStyle(.white)
+            }
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text("\(summary.title) · \(summary.roleLabel)")
+                    .font(.caption.weight(.heavy))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.72)
+                Text(summary.detail)
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(.white.opacity(0.62))
+                    .lineLimit(2)
+                    .minimumScaleFactor(0.70)
+            }
+
+            Spacer(minLength: 0)
+
+            VStack(alignment: .trailing, spacing: 3) {
+                Text(summary.readinessLabel)
+                    .font(.caption2.weight(.black))
+                    .foregroundStyle(.black.opacity(0.78))
+                    .padding(.horizontal, 6)
+                    .frame(height: 20)
+                    .background(summary.report.readiness.tintColor)
+                    .clipShape(RoundedRectangle(cornerRadius: 5))
+                Text(summary.integrityLabel)
+                    .font(.caption2.monospacedDigit().weight(.semibold))
+                    .foregroundStyle(.white.opacity(0.58))
+            }
+        }
+        .padding(.horizontal, 8)
+        .frame(minHeight: 46)
+        .background(.black.opacity(0.18))
+        .clipShape(RoundedRectangle(cornerRadius: 7))
+        .accessibilityLabel(summary.accessibilityLabel)
+    }
+}
+
+struct LegionFormationCardView: View {
+    var summary: LegionFormationSummary
+    var isCompact: Bool
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: isCompact ? 5 : 7) {
+            HStack(spacing: 7) {
+                Image(systemName: summary.report.role.systemImage)
+                    .foregroundStyle(summary.report.readiness.tintColor)
+                Text("编制")
+                    .font(.caption2.weight(.bold))
+                    .foregroundStyle(.white.opacity(0.58))
+                Text("\(summary.roleLabel) · \(summary.readinessLabel)")
+                    .font(.caption.weight(.heavy))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.72)
+                Spacer(minLength: 0)
+                Text(summary.integrityLabel)
+                    .font(.caption2.monospacedDigit().weight(.black))
+                    .foregroundStyle(.black.opacity(0.78))
+                    .padding(.horizontal, 6)
+                    .frame(height: 20)
+                    .background(summary.report.readiness.tintColor)
+                    .clipShape(RoundedRectangle(cornerRadius: 5))
+            }
+
+            if !isCompact {
+                Text(summary.detail)
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(.white.opacity(0.62))
+                    .lineLimit(2)
+                    .minimumScaleFactor(0.72)
+            }
+
+            HStack(spacing: 6) {
+                Label(summary.supportLabel, systemImage: "person.3.fill")
+                Spacer(minLength: 0)
+                Label(summary.orderLabel, systemImage: summary.report.recommendedOrder.systemImage)
+            }
+            .font(.caption2.weight(.semibold))
+            .foregroundStyle(.white.opacity(0.66))
+            .lineLimit(1)
+            .minimumScaleFactor(0.70)
+
+            HStack(spacing: 6) {
+                Image(systemName: summary.report.skillReady ? "sparkles" : "scope")
+                    .foregroundStyle(summary.report.skillReady ? Color(red: 0.36, green: 0.86, blue: 0.92) : .white.opacity(0.58))
+                Text(summary.recommendationLabel)
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(.white.opacity(0.66))
+                    .lineLimit(isCompact ? 1 : 2)
+                    .minimumScaleFactor(0.68)
+                Spacer(minLength: 0)
+            }
+        }
+        .padding(.horizontal, 8)
+        .padding(.vertical, isCompact ? 7 : 8)
+        .background(.black.opacity(0.16))
+        .clipShape(RoundedRectangle(cornerRadius: 7))
+        .accessibilityLabel(summary.accessibilityLabel)
+    }
+}
+
 struct EnemyIntentPanelView: View {
     @EnvironmentObject private var viewModel: GameViewModel
 
@@ -2186,6 +2326,10 @@ struct SelectionPanelView: View {
                         StatRow(label: "经验", value: "\(unit.experience)")
                     }
                     StatRow(label: "姿态", value: unit.resolvedTacticalOrder.displayName)
+
+                    if let formation = viewModel.selectedLegionFormationSummary {
+                        LegionFormationCardView(summary: formation, isCompact: false)
+                    }
 
                     TacticalOrderPreviewStripView(
                         previews: viewModel.selectedTacticalOrderPreviews,
@@ -3231,6 +3375,42 @@ extension FrontlinePressureLevel {
         case .watch: return Color(red: 0.52, green: 0.70, blue: 0.86)
         case .contested: return Color(red: 0.86, green: 0.68, blue: 0.34)
         case .threatened: return Color(red: 0.92, green: 0.42, blue: 0.14)
+        case .critical: return Color(red: 0.84, green: 0.16, blue: 0.12)
+        }
+    }
+}
+
+extension LegionFormationRole {
+    var systemImage: String {
+        switch self {
+        case .vanguard: return "chevron.up.circle.fill"
+        case .line: return "shield.lefthalf.filled"
+        case .command: return "flag.2.crossed.fill"
+        case .support: return "scope"
+        case .siege: return "hammer.fill"
+        case .reserve: return "tray.full.fill"
+        case .fleet: return "sailboat.fill"
+        }
+    }
+}
+
+extension LegionFormationReadiness {
+    var systemImage: String {
+        switch self {
+        case .fresh: return "checkmark.seal.fill"
+        case .steady: return "shield.fill"
+        case .engaged: return "flag.2.crossed.fill"
+        case .strained: return "exclamationmark.shield.fill"
+        case .critical: return "flame.fill"
+        }
+    }
+
+    var tintColor: Color {
+        switch self {
+        case .fresh: return Color(red: 0.28, green: 0.72, blue: 0.42)
+        case .steady: return Color(red: 0.52, green: 0.70, blue: 0.86)
+        case .engaged: return Color(red: 0.86, green: 0.68, blue: 0.34)
+        case .strained: return Color(red: 0.92, green: 0.42, blue: 0.14)
         case .critical: return Color(red: 0.84, green: 0.16, blue: 0.12)
         }
     }

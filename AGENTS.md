@@ -41,8 +41,8 @@
 - 用户或其他 Agent 的未提交改动默认受保护，不得回滚。
 - 不引入第三方框架，除非人工明确同意。
 - 不做无关重构，不把文档整理伪装成功能版本。
-- 默认验证策略是本地轻量检查 + `main` 直推后 GitHub Actions 云端重验证。
-- 除非人工明确要求“本机测试”“本地 build”“本地 xcodebuild”等，不把本机完整构建作为默认验收路径。
+- 当前验证策略按人工最新要求从 v0.15 起改为云端-only：本地只允许读取、编辑、`git status` / `git diff` 等只读检查和 git 同步/提交/推送；不得运行本地测试、build、typecheck、RenderBattlePreview、`Tools/verify_project.mjs` 或 `git diff --check`，除非人工以后重新明确允许。
+- 完整 Swift Testing、Gameplay Smoke、结构检查、SwiftUI / Xcode build 和战斗页渲染相关验收交给 `main` push 后的 GitHub Actions 与 Agent C artifact 复判。
 
 ## 4. 核心架构边界
 
@@ -60,7 +60,7 @@
 - 暂不设计 `smalldata_test`、`develop`、`codeb/...` 或其他长期/候选分支；若远端已有其他分支，只记录现状，不纳入默认流程。
 - 不创建 PR，不等待 PR merge；默认是 `main` 直接 push 触发 GitHub Actions。
 - Agent B 每轮开始前必须同步最新 `origin/main`，确认当前分支是 `main`，确认工作区没有无关改动，再实现。
-- Agent B 完成本地轻量检查后，在 `main` 上提交本轮相关文件，并直接 `git push origin main`。
+- Agent B 完成实现和只读 diff/status 检查后，在 `main` 上提交本轮相关文件，并直接 `git push origin main`；当前云端-only 约束下不得用本地轻量检查替代云端结果包。
 - 任何 Agent 在 `git push origin main` 或改变远端 `main` 前，都必须确认当前分支是 `main`，目标远端是 `origin/main`，且提交范围只包含本轮相关文件。
 - Agent C 只验收 `origin/main` 最新 commit 对应的 run id、run attempt 和 artifact；不能验收旧 run 或旧 artifact。
 - Agent C 必须用 `gh auth login` 后下载未加密结果包，默认缓存目录为 `/private/tmp/romelegions-c-review-<run_id>/`。
@@ -132,11 +132,11 @@ Agent A 必须：
 4. 设计实现方案，包括模块、数据流、状态流、接口、测试和必须保持不变的旧行为。
 5. 分配版本号：人工指定则按人工指定；未指定则从现有版本继续递增。
 6. 写入 `md/prompt/v0（简要标题）/v0.3（简要说明）.md` 这类版本目录。
-7. 在提示词中写清本地轻量检查、`main` commit/push、GitHub Actions 结果包、Agent C 下载复判要求。
+7. 在提示词中写清当前云端-only 验证限制、`main` commit/push、GitHub Actions 结果包、Agent C 下载复判要求。
 
 Agent A 提示词必须包含：版本号、版本分配依据、背景、目标、非目标、当前架构依据、实现步骤、关键文件、测试要求、CI / main push 要求、文档更新要求、验收标准、风险和禁止项。
 
-### Agent B：实现、轻量检查与 main push
+### Agent B：实现、云端验证与 main push
 
 Agent B 按 Agent A 提示词实现。
 
@@ -147,11 +147,11 @@ Agent B 必须：
 3. 阅读相关源码和测试。
 4. 小步实现，不做无关重构。
 5. 根据任务新增或修改测试。
-6. 默认只跑本地轻量检查；人工明确要求时再跑本机完整 build / Swift Testing / 模拟器验证。
-7. 记录具体命令和结果，不得用“已验证”代替测试输出。
+6. 当前按人工要求不得运行本地测试、build、typecheck、RenderBattlePreview、`Tools/verify_project.mjs` 或 `git diff --check`；只允许读文件、编辑、只读 `git diff` / `git status`、同步、提交和推送。
+7. 记录具体执行过的只读/同步/提交/推送命令；不得把未运行的本地命令写成“已验证”。
 8. 更新必要文档。
 9. 提交本轮相关文件并 push 到 `origin/main`，触发 GitHub Actions。
-10. 输出改动摘要、关键文件、本地轻量检查结果、commit SHA、push 结果、云端 run 链接或等待状态、未跑测试原因、已知风险和后续建议。
+10. 输出改动摘要、关键文件、本轮未跑本地验证的原因、commit SHA、push 结果、云端 run 链接或等待状态、已知风险和后续建议。
 
 Agent B 不得绕过核心规则直接改 UI 状态，不得擅自扩大范围，不得删除旧实现，不得伪造测试通过，不得回滚用户或其他 Agent 改动。
 
@@ -174,13 +174,13 @@ Agent C 必须：
 ## 7. 测试规则
 
 - 每次实现前先读 `md/test/test.md`。
-- 默认从本地轻量检查开始，然后通过 `main` push 触发云端重验证。
-- 文档-only 修改本地至少跑 `git diff --check`、`node Tools/verify_project.mjs` 和相关 YAML/JSON/Plist 解析。
+- 当前从 v0.15 起按人工要求不运行本地验证命令，直接通过 `main` push 触发云端重验证；本地只做读取、编辑和只读 diff/status 检查。
+- 文档-only 修改也不得默认本地跑 `git diff --check`、`node Tools/verify_project.mjs` 或相关解析，除非人工以后重新明确允许本地验证。
 - 核心规则变更必须由 GitHub Actions 跑 Swift Testing；人工要求本机测试时再本地跑 Swift Testing。
 - 核心集成路径变更必须由 GitHub Actions 跑 Gameplay Smoke。
-- 工程结构或文档入口变更必须跑 `node Tools/verify_project.mjs`。
+- 工程结构或文档入口变更必须由 GitHub Actions 跑 `node Tools/verify_project.mjs`。
 - SwiftUI、ViewModel 或 UI 派生数据变更必须接受云端 Xcode build；人工要求本机检查时再跑 SwiftUI 类型检查。
-- 战斗页布局变更必须按 `md/test/test.md` 渲染预览图并检查竖屏、短横屏、宽屏；若云端暂不支持对应产物，manifest 和失败摘要必须写明 skipped 原因。
+- 战斗页布局变更必须通过云端流程覆盖 `md/test/test.md` 中的预览断言；若云端暂不支持对应产物，manifest 和失败摘要必须写明 skipped 原因。
 - 不得伪造、概括或美化测试结果。
 
 ## 8. 文档规则
@@ -203,13 +203,13 @@ Agent A 交付：
 - 版本号和版本分配依据。
 - 本轮目标、非目标、验收标准摘要。
 - 需要 Agent B 重点读取的文件。
-- 本轮本地轻量检查、main push、CI artifact 和 Agent C 复判要求。
+- 本轮云端-only 验证、main push、CI artifact 和 Agent C 复判要求。
 
 Agent B 交付：
 
 - 改了什么。
 - 关键文件。
-- 本地轻量检查命令和结果。
+- 本轮未跑本地验证的原因，以及执行过的只读/同步/提交/推送命令结果。
 - commit SHA、是否已 push 到 `origin/main`、云端 run 状态或链接。
 - 未跑本机完整测试及原因。
 - 已知风险。

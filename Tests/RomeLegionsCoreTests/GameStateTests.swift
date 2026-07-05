@@ -496,6 +496,59 @@ import Testing
     #expect(status.progressTarget == 3)
 }
 
+@Test func legionFormationReportSummarizesCommanderReadinessWithoutMutation() throws {
+    var state = GameState.newCampaign()
+    state.units = [
+        ArmyUnit(id: "rome-commander", kind: .legion, faction: .rome, position: Position(x: 3, y: 3), experience: 4, generalName: "凯撒", generalTrait: .eagleStandard),
+        ArmyUnit(id: "rome-support", kind: .archer, faction: .rome, position: Position(x: 4, y: 3)),
+        ArmyUnit(id: "carthage-near", kind: .cavalry, faction: .carthage, position: Position(x: 3, y: 2))
+    ]
+    let before = state
+
+    let report = try state.legionFormationReport(unitID: "rome-commander")
+
+    #expect(report.unitID == "rome-commander")
+    #expect(report.role == .command)
+    #expect(report.readiness == .engaged)
+    #expect(report.rankName == "百夫长")
+    #expect(report.hasGeneral)
+    #expect(report.generalTrait == .eagleStandard)
+    #expect(report.adjacentAllyCount == 1)
+    #expect(report.nearbyAllyCount == 1)
+    #expect(report.nearbyEnemyCount == 1)
+    #expect(report.nearbyEnemyFactionCount == 1)
+    #expect(report.attack == state.effectiveAttack(for: state.unit(withID: "rome-commander")!))
+    #expect(report.defense == state.effectiveDefense(for: state.unit(withID: "rome-commander")!))
+    #expect(report.movement == state.effectiveMovement(for: state.unit(withID: "rome-commander")!))
+    #expect(report.recommendedOrder == .balanced)
+    #expect(report.formationIntegrityScore == 73)
+    #expect(report.commandSuggestion.contains("指挥圈"))
+    #expect(state == before)
+}
+
+@Test func legionFormationReportMarksDamagedIsolatedUnitCriticalWithoutMutation() throws {
+    var state = GameState.newCampaign()
+    state.units = [
+        ArmyUnit(id: "rome-isolated", kind: .cavalry, faction: .rome, position: Position(x: 3, y: 3), health: 22),
+        ArmyUnit(id: "carthage-east", kind: .legion, faction: .carthage, position: Position(x: 4, y: 3)),
+        ArmyUnit(id: "carthage-north", kind: .archer, faction: .carthage, position: Position(x: 3, y: 2))
+    ]
+    let before = state
+
+    let reports = state.legionFormationReports(for: .rome, limit: 1)
+    let report = reports.first
+
+    #expect(report?.unitID == "rome-isolated")
+    #expect(report?.role == .line)
+    #expect(report?.readiness == .critical)
+    #expect(report?.adjacentAllyCount == 0)
+    #expect(report?.nearbyEnemyCount == 2)
+    #expect(report?.recommendedOrder == .defensive)
+    #expect((report?.formationIntegrityScore ?? 100) < 35)
+    #expect(report?.commandSuggestion.contains("危急") == true)
+    #expect(state == before)
+}
+
 @Test func envoyCanCreateTreatyAndBlockAttack() throws {
     var state = GameState.newCampaign()
     state.units.append(ArmyUnit(id: "near-carthage", kind: .archer, faction: .carthage, position: Position(x: 4, y: 3)))

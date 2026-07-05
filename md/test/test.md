@@ -23,17 +23,19 @@ env HOME=$PWD/.home CLANG_MODULE_CACHE_PATH=$PWD/.build/module-cache DEVELOPER_D
 
 ## 默认验证策略
 
-- 默认云端重验证，本机只跑轻量检查。
-- 只有人工明确说“本机测试”“本地 build”“本地跑探针”“本地 xcodebuild”等，Agent 才把本机完整构建或模拟器验证作为默认路径。
-- 文档-only 修改仍可本地跑 `git diff --check`、`node Tools/verify_project.mjs`、YAML/JSON/Plist 解析和脚本语法检查。
+- 当前按人工最新要求从 v0.15 起使用云端-only 验证：本地不得运行测试、build、typecheck、RenderBattlePreview、`node Tools/verify_project.mjs`、`git diff --check`、YAML/JSON/Plist 解析或脚本语法检查。
+- 本地允许读取文件、编辑、只读 `rg` / `sed` / `git diff` / `git status`、git 同步、提交和推送。
+- 只有人工以后重新明确允许“本机测试”“本地 build”“本地跑探针”“本地 xcodebuild”或“恢复本地轻量检查”，Agent 才能把对应本机命令作为默认路径。
 - Swift / Xcode / ViewModel / 核心规则 / 工具相关改动完成后，默认 commit 并 push 到 `origin/main`，由 GitHub Actions 运行重验证。
 - 云端失败时，Agent B 根据结果包中的失败摘要、日志路径和 manifest 修复后继续在 `main` 上追加 commit 并 push。
 - 云端环境缺依赖时，必须说明哪个测试没跑、缺什么依赖、是否影响验收、需要人工提供什么。
 - 仓库没有 `origin` 或没有 GitHub Actions 权限时，必须明确报告阻塞，不能声称云端已验证。
-- Agent X 主控循环下，每一轮仍以 Agent B 本地轻量检查、GitHub Actions artifact 和 Agent C 下载复判为准。
+- Agent X 主控循环下，每一轮仍以 Agent B main push、GitHub Actions artifact 和 Agent C 下载复判为准。
 - Agent X 不得跳过 Agent C artifact 验收，不得在云端失败或验收不通过时继续下一轮并伪装成功。
 
 ## 本地轻量检查
+
+当前 v0.15 起不默认执行本节命令；仅在人工以后重新明确允许本地验证时使用。
 
 ### 1. 文档 / 结构 / workflow
 
@@ -119,7 +121,7 @@ on:
 artifact 命名规则：
 
 ```text
-RomeLegions-ci-v0.14-main-<short_sha>-run<run_id>-attempt<run_attempt>
+RomeLegions-ci-v0.15-main-<short_sha>-run<run_id>-attempt<run_attempt>
 ```
 
 `ci-artifact-manifest.json` 必须至少包含：
@@ -183,11 +185,11 @@ Agent C 必须核对：
 
 ## Agent X 循环验证规则
 
-Agent X 只调度验证链路，不替代 Agent B 的本地轻量检查，也不替代 Agent C 的云端 artifact 验收。
+Agent X 只调度验证链路，不替代 Agent B 的云端-only push 约束，也不替代 Agent C 的云端 artifact 验收。
 
-- 每轮开始前，Agent X 必须确认本轮目标可被本地轻量检查、GitHub Actions 和 Agent C 结果包复判验证。
-- 每轮 Agent A 提示词必须写清本轮验证命令、`main` push、CI artifact 和 Agent C 验收要求。
-- Agent B 未完成本地轻量检查、未 push 到 `origin/main`，或 GitHub Actions 未产出最新 artifact 时，Agent X 不能宣布该轮完成。
+- 每轮开始前，Agent X 必须确认本轮目标可被 GitHub Actions 和 Agent C 结果包复判验证。
+- 每轮 Agent A 提示词必须写清本轮云端-only 验证限制、`main` push、CI artifact 和 Agent C 验收要求。
+- Agent B 未 push 到 `origin/main`，或 GitHub Actions 未产出最新 artifact 时，Agent X 不能宣布该轮完成。
 - Agent C 未核对最新 run 的 manifest、JUnit、主日志、失败摘要、run id、run attempt 和 `origin/main` 最新 commit 时，Agent X 不能进入下一轮。
 - 若 Agent C 验收不通过，Agent X 只能退回 Agent B 修复、暂停等待人工确认，或因停止条件结束；不能继续下一轮伪装成功。
 - 若连续 3 轮遇到同一阻塞、连续 2 轮没有有效 diff、CI 连续失败且原因相同，Agent X 必须暂停并说明阻塞。
@@ -235,7 +237,7 @@ swiftc -swift-version 5 -module-cache-path .build/module-cache Sources/RomeLegio
 当前基线：
 
 - 应输出 `Gameplay smoke test passed.`
-- 覆盖占城、城市扩建预览、招募部署预览、招募、科技、训练、将领、战术姿态、战斗修正、AI 意图 projectedDamage 与移动后攻击预览一致性、直接攻击/移动后攻击/夺城意图供 UI 使用的目的地和目标字段、战线压力聚合、主动技能预览与结算一致性、主动技能冷却递减、战功状态、外交、回合推进、战役胜利、战役失败和结束后回合保护。
+- 覆盖占城、城市扩建预览、招募部署预览、招募、科技、训练、将领、战术姿态、战斗修正、AI 意图 projectedDamage 与移动后攻击预览一致性、直接攻击/移动后攻击/夺城意图供 UI 使用的目的地和目标字段、战线压力聚合、军团编制与成长报告、主动技能预览与结算一致性、主动技能冷却递减、战功状态、外交、回合推进、战役胜利、战役失败和结束后回合保护。
 
 ### UI Preview / RenderBattlePreview
 
@@ -257,10 +259,10 @@ env HOME=$PWD/.home CLANG_MODULE_CACHE_PATH=$PWD/.build/module-cache /Applicatio
 - 渲染前应断言敌军意图路线/目标叠层包含移动后攻击起点、目的地、目标格和预计伤害文案。
 - 渲染前应断言首要战线压力摘要存在，目标位置、攻击意图数量、预计伤害和影响文案可供 UI 展示；失败会抛出 `missingFrontlinePressure`。
 - 移动后攻击的移动路线应包含多个非 targetLeg 路线段；每个移动段的 `from` / `to` 必须互为 `Position.neighbors(width:height:)`，最后一段必须到达 `AIIntent.destination`，目标段继续从 destination 指向目标格。
-- 渲染前应断言选中单位存在 `selectedCommanderBrief`、鹰旗被动攻击贡献、主动技能状态、战功摘要和完整 `selectedTacticalOrderPreviews`。
+- 渲染前应断言选中单位存在 `selectedLegionFormationSummary`、`selectedCommanderBrief`、鹰旗被动攻击贡献、主动技能状态、战功摘要和完整 `selectedTacticalOrderPreviews`。
 - 渲染前应切换到罗马城市并断言 `selectedCityBrief` 存在，扩建成本/收益、四类兵种招募预览、至少一个陆军招募选项和舰队港口部署预览存在；失败会抛出 `missingCityReadout`。
 - 每个命令会生成请求路径的城市场景 PNG，并额外生成同尺寸 `*-unit.png` 单位场景 PNG；两套图都会对紧凑视口命令区域做轻量像素检查，防止短横屏或竖屏命令区空白仍误判通过。
-- 三尺寸 PNG 和对应 `*-unit.png` 只用于本地目视检查，确认战线压力 chip、城市读板、扩建预览、招募按钮、将领读板、战功、姿态预览、敌军路线、目标叠层、攻击按钮和命令入口没有明显裁切、重叠或遮挡；PNG 不提交版本库。
+- 三尺寸 PNG 和对应 `*-unit.png` 只用于本地目视检查，确认战线压力 chip、军团编制 chip、城市读板、扩建预览、招募按钮、军团编制卡、将领读板、战功、姿态预览、敌军路线、目标叠层、攻击按钮和命令入口没有明显裁切、重叠或遮挡；PNG 不提交版本库。
 
 ### Stage Regression
 
@@ -280,8 +282,8 @@ env HOME=$PWD/.home CLANG_MODULE_CACHE_PATH=$PWD/.build/module-cache DEVELOPER_D
 
 当前基线：
 
-- `Tests/RomeLegionsCoreTests/GameStateTests.swift` 当前包含 48 个 Swift Testing 用例。
-- 基线覆盖地形移动、占城、攻击、预览结算一致性、招募预览、招募部署位置、舰队港口预览、舰队港口被占阻塞、资源/港口阻塞、科技重复保护、城市扩建预览、城市扩建、训练、将领、战术姿态、支援/包夹/指挥/守军支援、主动技能预览与释放一致性、技能冷却写入/递减/阻止释放/预览只读、攻城无目标预览、AI 技能意图目标、AI 技能冷却保护、战功状态、旧 `ArmyUnit` JSON 冷却字段兼容、外交保护、回合收入、跳过单位、AI 攻击、AI 意图、AI 移动后攻击 projectedDamage 与规划态预览一致性、直接攻击/移动后攻击/夺城意图供 UI 叠层使用的目的地和目标字段、战线压力聚合、城市夺取压力、停战势力过滤、AI 招募、任务 requirement、奖励幂等、战役胜利、战役失败、结束保护、AI 结束后停止和 Codable 兼容。
+- `Tests/RomeLegionsCoreTests/GameStateTests.swift` 当前包含 50 个 Swift Testing 用例。
+- 基线覆盖地形移动、占城、攻击、预览结算一致性、招募预览、招募部署位置、舰队港口预览、舰队港口被占阻塞、资源/港口阻塞、科技重复保护、城市扩建预览、城市扩建、训练、将领、战术姿态、支援/包夹/指挥/守军支援、主动技能预览与释放一致性、技能冷却写入/递减/阻止释放/预览只读、攻城无目标预览、AI 技能意图目标、AI 技能冷却保护、战功状态、军团编制与成长报告、旧 `ArmyUnit` JSON 冷却字段兼容、外交保护、回合收入、跳过单位、AI 攻击、AI 意图、AI 移动后攻击 projectedDamage 与规划态预览一致性、直接攻击/移动后攻击/夺城意图供 UI 叠层使用的目的地和目标字段、战线压力聚合、城市夺取压力、停战势力过滤、AI 招募、任务 requirement、奖励幂等、战役胜利、战役失败、结束保护、AI 结束后停止和 Codable 兼容。
 
 ### Full
 
@@ -325,19 +327,20 @@ env HOME=$PWD/.home DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer xco
 - Full 应同时证明结构、核心规则、核心冒烟、SwiftUI 类型检查和战斗页预览图链路可用。
 - `Tools/RenderBattlePreview/main.swift` 渲染前会断言 `GameViewModel.enemyIntentMapOverlays` 至少包含一个移动后攻击意图叠层，且具备起点、目的地、目标格、六边形相邻路线段和预计伤害文案；路径断言失败会抛出 `missingHexIntentRoute`。
 - `Tools/RenderBattlePreview/main.swift` 渲染前还会断言 `primaryFrontlinePressureSummary` 存在，且目标、位置、攻击意图数量、预计伤害和文案可用；断言失败会抛出 `missingFrontlinePressure`。
+- `Tools/RenderBattlePreview/main.swift` 渲染前还会断言 `selectedLegionFormationSummary` 和 `primaryLegionFormationSummary` 存在，军团职责、战备和建议文案可读；断言失败会抛出 `missingLegionFormationSummary`。
 - `Tools/RenderBattlePreview/main.swift` 渲染前还会断言 `selectedCommanderBrief` 存在、鹰旗被动攻击贡献存在、技能状态非空、战功摘要存在、`selectedTacticalOrderPreviews` 覆盖全部 `TacticalOrder`，且突击/行军等非当前姿态有有效攻防移变化；断言失败会抛出 `missingCommanderBrief` 或 `missingTacticalOrderPreview`。
 - `Tools/RenderBattlePreview/main.swift` 渲染前还会切换到罗马城市并断言城市经营/招募读板存在，包含本城产出、扩建成本/收益、四类招募选项和舰队港口部署；断言失败会抛出 `missingCityReadout`。
 - `Tools/RenderBattlePreview/main.swift` 会为每个尺寸输出城市场景 PNG 和 `*-unit.png` 单位场景 PNG，并检查两套图在短横屏/竖屏紧凑命令区域存在足够可见像素；失败会抛出 `missingCompactCommandRender`。
-- 三尺寸城市场景图中应能看到城市经营读板、扩建收益和招募按钮；三尺寸单位场景 `*-unit.png` 中应能看到战线压力 chip、敌军意图路线、目的地、目标叠层、将领详情读板、被动贡献、战功状态和战术姿态预览。
+- 三尺寸城市场景图中应能看到城市经营读板、扩建收益和招募按钮；三尺寸单位场景 `*-unit.png` 中应能看到战线压力 chip、军团编制 chip、敌军意图路线、目的地、目标叠层、军团编制卡、将领详情读板、被动贡献、战功状态和战术姿态预览。
 - 若因本地 Xcode SDK 版本不同导致命令路径或 SDK 路径变化，应先核对本机 `/Applications/Xcode.app`，再更新本文件和 README。
 
 ## 规则
 
 - 每次实现前先读本文件。
-- 默认从本地轻量检查开始，然后通过 `main` push 触发云端重验证。
+- 当前默认不得运行本地验证命令，直接通过 `main` push 触发云端重验证。
 - 测试命令必须原样记录到最终回复或 Agent B 输出。
 - 不得伪造测试结果。
 - 失败测试要记录失败摘要和下一步处理，不得只写“失败”。
-- 文档-only 修改可只跑本地轻量检查，但必须说明未跑完整 Swift 测试的原因。
+- 文档-only 修改当前也不得默认运行本地轻量检查；必须通过 `main` push 后的 GitHub Actions 和 Agent C artifact 复判验收，除非人工以后重新明确允许本地验证。
 - 修改测试命令、触发条件或当前基线后，必须同步更新 `README.md`、`AGENTS.md` 和 `update_log.md`。
 - Agent C 验收通过必须基于最新 `origin/main` 的 run 和结果包；验收不通过时只输出退回 Agent B 的修正项。

@@ -71,6 +71,10 @@ flowchart TD
     T["选中单位经验"] --> U["GameState.warMeritStatus<br/>经验转军阶、伤害加成、进度"]
     U --> Q
 
+    AE["选中单位或罗马军团列表"] --> AF["GameState.legionFormationReports / legionFormationReport<br/>只读派生职责、战备、友军支援、近敌、建议姿态和命令建议"]
+    AF --> AG["GameViewModel.legionFormationSummaries<br/>顶部军团 chip、战局行、选中单位编制卡"]
+    AG --> X
+
     Y["选中单位当前姿态"] --> Z["GameViewModel.selectedTacticalOrderPreviews<br/>局部复制单位替换姿态<br/>调用 effectiveAttack/Defense/Movement 计算攻防移预览"]
     Z --> AA["BattleView 姿态预览与按钮<br/>展示攻防移、变化值、当前标记和不可切换原因"]
 ```
@@ -126,7 +130,7 @@ flowchart TD
     B --> C["Agent A<br/>读取文档和源码，设计本轮提示词"]
     C --> D["写入 md/prompt/vX/...md<br/>目标、非目标、步骤、CI、artifact、Agent C 要求"]
     D --> E["Agent B<br/>同步 origin/main，在 main 小步实现"]
-    E --> F["本地轻量检查<br/>git diff --check / verify_project / YAML / Plist"]
+    E --> F["云端-only 约束<br/>本地不跑测试/build/typecheck/Render/verify<br/>只做只读 diff/status 检查"]
     F --> G["main commit/push<br/>git push origin main"]
     G --> H["GitHub Actions<br/>RomeLegions CI Results"]
     H --> I["未加密必要 CI 结果包<br/>manifest / junit / logs / xcresult"]
@@ -144,16 +148,12 @@ flowchart TD
 
 ## 7. 测试选择流
 
-读图说明：这张图帮助 Agent B/C/X 判断默认验证路径。默认先跑本地轻量检查，再 push 到 `main` 触发云端重验证；只有人工明确要求时才把本机完整 Swift / Xcode 测试作为默认路径。
+读图说明：这张图帮助 Agent B/C/X 判断当前验证路径。按人工最新要求，从 v0.15 起本地不运行测试、build、typecheck、RenderBattlePreview、`verify_project` 或 `git diff --check`；默认直接 push 到 `main` 触发云端重验证，并由 Agent C 下载结果包复判。
 
 ```mermaid
 flowchart TD
-    A["本轮改动完成"] --> B["本地轻量检查<br/>git diff --check / verify_project"]
-    B --> C{"是否修改 workflow / project / 文档入口？"}
-    C -->|是| D["本地解析<br/>plutil / YAML / JSON"]
-    C -->|否| E["记录轻量检查结果"]
-    D --> E
-    E --> F{"是否可推送 origin/main？"}
+    A["本轮改动完成"] --> B["云端-only 约束<br/>本地只读 diff/status<br/>不跑 git diff --check / verify_project / build / test"]
+    B --> F{"是否可推送 origin/main？"}
     F -->|否| G["报告阻塞<br/>缺 origin、权限或网络"]
     F -->|是| H["main commit/push<br/>触发 GitHub Actions"]
     H --> I["云端重验证<br/>Swift Testing / Smoke / Xcode build"]
@@ -163,7 +163,5 @@ flowchart TD
     L -->|是| M["验收通过<br/>记录 run 和 artifact"]
     L -->|否| N["退回 Agent B<br/>main 追加修复 commit"]
     N --> H
-    G --> O{"人工是否明确要求本机完整测试？"}
-    O -->|是| P["运行本机 Swift / Xcode / 预览命令"]
-    O -->|否| Q["说明未跑完整测试原因"]
+    G --> Q["说明无法触发云端验证<br/>不得用本地测试伪装通过"]
 ```

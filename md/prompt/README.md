@@ -58,7 +58,7 @@ Agent X 要求 Agent A 生成每轮提示词时，必须明确：
 - 本轮非目标和不得扩大的范围。
 - 需要读取的源码、测试、文档和历史提示词。
 - 本轮实现步骤、关键文件和必须保持不变的旧行为。
-- 本轮本地轻量检查命令。
+- 本轮云端-only 验证限制；当前不得要求 Agent B 运行本地测试、build、typecheck、RenderBattlePreview、`verify_project` 或 `git diff --check`。
 - `main` commit/push 要求。
 - GitHub Actions artifact 要求。
 - Agent C 下载、核对和复判要求。
@@ -72,7 +72,7 @@ Agent A 写提示词时必须明确：
 
 - 本轮固定使用 `main` 作为唯一上传、提交、推送和云端验证分支。
 - Agent B 开始前同步最新 `origin/main`，完成后在 `main` 上 commit 并 `git push origin main`。
-- 默认本地只跑轻量检查；完整 SwiftPM、Gameplay Smoke 和 Xcode build 由 GitHub Actions 重验证。
+- 当前按人工要求默认不跑本地验证命令；完整结构检查、SwiftPM、Gameplay Smoke 和 Xcode build 由 GitHub Actions 重验证。
 - `.github/workflows/ci-results.yml` 的结果包必须可供 Agent C 下载，且不得加密。
 - Agent C 必须用 `gh auth login` 后下载最新 run artifact 到 `/private/tmp/romelegions-c-review-<run_id>/`。
 - Agent C 必须核对 manifest 的 `branch=main`、`commitSha`、`runId`、`runAttempt` 与 `origin/main` 最新状态一致。

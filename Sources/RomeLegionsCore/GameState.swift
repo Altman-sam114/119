@@ -1010,6 +1010,92 @@ public struct AIIntent: Identifiable, Codable, Equatable, Sendable {
     public var id: String { unitID }
 }
 
+public enum LegionFormationRole: String, CaseIterable, Identifiable, Equatable, Sendable {
+    case vanguard
+    case line
+    case command
+    case support
+    case siege
+    case reserve
+    case fleet
+
+    public var id: String { rawValue }
+
+    public var displayName: String {
+        switch self {
+        case .vanguard: return "先锋"
+        case .line: return "战列"
+        case .command: return "指挥"
+        case .support: return "支援"
+        case .siege: return "攻城"
+        case .reserve: return "预备"
+        case .fleet: return "舰队"
+        }
+    }
+}
+
+public enum LegionFormationReadiness: String, CaseIterable, Identifiable, Equatable, Sendable {
+    case fresh
+    case steady
+    case engaged
+    case strained
+    case critical
+
+    public var id: String { rawValue }
+
+    public var displayName: String {
+        switch self {
+        case .fresh: return "整编"
+        case .steady: return "稳固"
+        case .engaged: return "接战"
+        case .strained: return "吃紧"
+        case .critical: return "危急"
+        }
+    }
+
+    fileprivate var priority: Int {
+        switch self {
+        case .critical: return 5
+        case .strained: return 4
+        case .engaged: return 3
+        case .steady: return 2
+        case .fresh: return 1
+        }
+    }
+}
+
+public struct LegionFormationReport: Identifiable, Equatable, Sendable {
+    public var unitID: String
+    public var faction: Faction
+    public var kind: UnitKind
+    public var position: Position
+    public var role: LegionFormationRole
+    public var readiness: LegionFormationReadiness
+    public var health: Int
+    public var maxHealth: Int
+    public var experience: Int
+    public var rankName: String
+    public var hasGeneral: Bool
+    public var generalName: String?
+    public var generalTrait: GeneralTrait?
+    public var tacticalOrder: TacticalOrder
+    public var recommendedOrder: TacticalOrder
+    public var attack: Int
+    public var defense: Int
+    public var movement: Int
+    public var adjacentAllyCount: Int
+    public var nearbyAllyCount: Int
+    public var nearbyEnemyCount: Int
+    public var nearbyEnemyFactionCount: Int
+    public var skillReady: Bool
+    public var skillSummary: String?
+    public var formationIntegrityScore: Int
+    public var commandSuggestion: String
+    public var detail: String
+
+    public var id: String { unitID }
+}
+
 public enum FrontlinePressureTargetKind: String, Hashable, Sendable {
     case unit
     case city
@@ -1594,8 +1680,322 @@ public struct GameState: Codable, Equatable, Sendable {
         return warMeritStatus(for: unit)
     }
 
+    public func legionFormationReport(unitID: String) throws -> LegionFormationReport {
+        guard let unit = unit(withID: unitID) else {
+            throw GameRuleError.missingEntity
+        }
+
+        return legionFormationReport(for: unit)
+    }
+
+    public func legionFormationReports(
+        for faction: Faction = .rome,
+        limit: Int = 6
+    ) -> [LegionFormationReport] {
+        guard faction != .neutral,
+              limit > 0 else {
+            return []
+        }
+
+        return units
+            .filter { $0.faction == faction }
+            .map { legionFormationReport(for: $0) }
+            .sorted { left, right in
+                let leftPriority = legionFormationPriority(for: left)
+                let rightPriority = legionFormationPriority(for: right)
+                if leftPriority == rightPriority {
+                    return left.unitID < right.unitID
+                }
+                return leftPriority > rightPriority
+            }
+            .prefix(limit)
+            .map { $0 }
+    }
+
     public func effectiveDefense(for unit: ArmyUnit) -> Int {
         max(1, unit.kind.defense + (unit.resolvedGeneralTrait?.defenseBonus ?? 0) + unit.resolvedTacticalOrder.defenseBonus)
+    }
+
+    private func legionFormationReport(for unit: ArmyUnit) -> LegionFormationReport {
+        let adjacentAllies = nearbyAlliedUnits(for: unit, range: 1)
+        let nearbyAllies = nearbyAlliedUnits(for: unit, range: 2)
+        let nearbyEnemies = nearbyEnemyUnits(for: unit, range: 2)
+        let nearbyEnemyFactionCount = Set(nearbyEnemies.map(\.faction)).count
+        let warMerit = warMeritStatus(for: unit)
+        let skillPreview = unit.generalName == nil ? nil : generalSkillPreview(for: unit)
+        let role = legionFormationRole(
+            for: unit,
+            adjacentAllyCount: adjacentAllies.count,
+            nearbyAllyCount: nearbyAllies.count,
+            nearbyEnemyCount: nearbyEnemies.count
+        )
+        let integrityScore = legionFormationIntegrityScore(
+            for: unit,
+            adjacentAllyCount: adjacentAllies.count,
+            nearbyAllyCount: nearbyAllies.count,
+            nearbyEnemyCount: nearbyEnemies.count
+        )
+        let readiness = legionFormationReadiness(
+            for: unit,
+            integrityScore: integrityScore,
+            nearbyEnemyCount: nearbyEnemies.count
+        )
+        let recommendedOrder = recommendedFormationOrder(
+            for: unit,
+            role: role,
+            readiness: readiness,
+            adjacentAllyCount: adjacentAllies.count,
+            nearbyEnemyCount: nearbyEnemies.count,
+            skillPreview: skillPreview
+        )
+        let commandSuggestion = legionFormationSuggestion(
+            for: unit,
+            role: role,
+            readiness: readiness,
+            recommendedOrder: recommendedOrder,
+            adjacentAllyCount: adjacentAllies.count,
+            nearbyEnemyCount: nearbyEnemies.count,
+            skillPreview: skillPreview
+        )
+        let detail = [
+            "攻 \(effectiveAttack(for: unit))",
+            "防 \(effectiveDefense(for: unit))",
+            "移 \(effectiveMovement(for: unit))",
+            "友军 \(adjacentAllies.count)/\(nearbyAllies.count)",
+            "近敌 \(nearbyEnemies.count)",
+            "完整度 \(integrityScore)"
+        ].joined(separator: " · ")
+
+        return LegionFormationReport(
+            unitID: unit.id,
+            faction: unit.faction,
+            kind: unit.kind,
+            position: unit.position,
+            role: role,
+            readiness: readiness,
+            health: unit.health,
+            maxHealth: unit.kind.maxHealth,
+            experience: unit.experience,
+            rankName: warMerit.rankName,
+            hasGeneral: unit.generalName != nil,
+            generalName: unit.generalName,
+            generalTrait: unit.resolvedGeneralTrait,
+            tacticalOrder: unit.resolvedTacticalOrder,
+            recommendedOrder: recommendedOrder,
+            attack: effectiveAttack(for: unit),
+            defense: effectiveDefense(for: unit),
+            movement: effectiveMovement(for: unit),
+            adjacentAllyCount: adjacentAllies.count,
+            nearbyAllyCount: nearbyAllies.count,
+            nearbyEnemyCount: nearbyEnemies.count,
+            nearbyEnemyFactionCount: nearbyEnemyFactionCount,
+            skillReady: isFormationSkillUseful(skillPreview),
+            skillSummary: skillPreview?.summary,
+            formationIntegrityScore: integrityScore,
+            commandSuggestion: commandSuggestion,
+            detail: detail
+        )
+    }
+
+    private func nearbyAlliedUnits(for unit: ArmyUnit, range: Int) -> [ArmyUnit] {
+        units
+            .filter { ally in
+                ally.id != unit.id &&
+                    ally.faction == unit.faction &&
+                    unit.position.hexDistance(to: ally.position) <= range
+            }
+            .sorted { left, right in
+                if left.position.hexDistance(to: unit.position) == right.position.hexDistance(to: unit.position) {
+                    return left.id < right.id
+                }
+                return left.position.hexDistance(to: unit.position) < right.position.hexDistance(to: unit.position)
+            }
+    }
+
+    private func nearbyEnemyUnits(for unit: ArmyUnit, range: Int) -> [ArmyUnit] {
+        units
+            .filter { enemy in
+                enemy.faction != unit.faction &&
+                    enemy.faction != .neutral &&
+                    diplomaticStatus(between: unit.faction, and: enemy.faction) == .war &&
+                    unit.position.hexDistance(to: enemy.position) <= range
+            }
+            .sorted { left, right in
+                if left.position.hexDistance(to: unit.position) == right.position.hexDistance(to: unit.position) {
+                    return left.id < right.id
+                }
+                return left.position.hexDistance(to: unit.position) < right.position.hexDistance(to: unit.position)
+            }
+    }
+
+    private func legionFormationRole(
+        for unit: ArmyUnit,
+        adjacentAllyCount: Int,
+        nearbyAllyCount: Int,
+        nearbyEnemyCount: Int
+    ) -> LegionFormationRole {
+        if unit.kind == .navy {
+            return .fleet
+        }
+
+        if unit.resolvedGeneralTrait == .siegeEngineer {
+            return .siege
+        }
+
+        if unit.kind == .archer || unit.resolvedGeneralTrait == .quartermaster {
+            return .support
+        }
+
+        if unit.generalName != nil && nearbyAllyCount > 0 {
+            return .command
+        }
+
+        if nearbyEnemyCount > 0 && unit.healthRatio >= 0.55 {
+            return .vanguard
+        }
+
+        if adjacentAllyCount == 0 && nearbyEnemyCount == 0 {
+            return .reserve
+        }
+
+        return .line
+    }
+
+    private func legionFormationIntegrityScore(
+        for unit: ArmyUnit,
+        adjacentAllyCount: Int,
+        nearbyAllyCount: Int,
+        nearbyEnemyCount: Int
+    ) -> Int {
+        let healthScore = Int((unit.healthRatio * 55).rounded())
+        let adjacentSupportScore = min(16, adjacentAllyCount * 8)
+        let depthSupportScore = min(10, max(0, nearbyAllyCount - adjacentAllyCount) * 5)
+        let commanderScore = unit.generalName == nil ? 0 : 10
+        let actionScore = (unit.hasMoved ? 0 : 4) + (unit.hasActed ? 0 : 5)
+        let postureScore = unit.resolvedTacticalOrder == .defensive && nearbyEnemyCount > 0 ? 6 : 0
+        let enemyPenalty = min(28, nearbyEnemyCount * 9)
+        return max(0, min(100, healthScore + adjacentSupportScore + depthSupportScore + commanderScore + actionScore + postureScore - enemyPenalty))
+    }
+
+    private func legionFormationReadiness(
+        for unit: ArmyUnit,
+        integrityScore: Int,
+        nearbyEnemyCount: Int
+    ) -> LegionFormationReadiness {
+        if unit.healthRatio <= 0.30 ||
+            (integrityScore < 35 && nearbyEnemyCount > 0) {
+            return .critical
+        }
+
+        if unit.healthRatio <= 0.55 ||
+            integrityScore < 50 {
+            return .strained
+        }
+
+        if nearbyEnemyCount > 0 ||
+            unit.hasMoved ||
+            unit.hasActed {
+            return .engaged
+        }
+
+        if integrityScore >= 75 {
+            return .fresh
+        }
+
+        return .steady
+    }
+
+    private func recommendedFormationOrder(
+        for unit: ArmyUnit,
+        role: LegionFormationRole,
+        readiness: LegionFormationReadiness,
+        adjacentAllyCount: Int,
+        nearbyEnemyCount: Int,
+        skillPreview: GeneralSkillPreview?
+    ) -> TacticalOrder {
+        if isFormationSkillUseful(skillPreview) {
+            return unit.resolvedTacticalOrder
+        }
+
+        if readiness == .critical ||
+            readiness == .strained ||
+            nearbyEnemyCount > adjacentAllyCount + 1 {
+            return .defensive
+        }
+
+        if nearbyEnemyCount == 0 && !unit.hasMoved {
+            return .forcedMarch
+        }
+
+        if role == .vanguard && unit.healthRatio >= 0.70 {
+            return .assault
+        }
+
+        return .balanced
+    }
+
+    private func legionFormationSuggestion(
+        for unit: ArmyUnit,
+        role: LegionFormationRole,
+        readiness: LegionFormationReadiness,
+        recommendedOrder: TacticalOrder,
+        adjacentAllyCount: Int,
+        nearbyEnemyCount: Int,
+        skillPreview: GeneralSkillPreview?
+    ) -> String {
+        if isFormationSkillUseful(skillPreview),
+           let skillPreview = skillPreview,
+           let trait = unit.resolvedGeneralTrait {
+            return "优先发动\(trait.skillName)：\(skillPreview.summary)"
+        }
+
+        if readiness == .critical {
+            return "危急：切换坚守并靠拢友军或城市补给。"
+        }
+
+        if readiness == .strained {
+            return "吃紧：建议\(TacticalOrder.defensive.displayName)，等待支援后再接战。"
+        }
+
+        if nearbyEnemyCount > 0 && adjacentAllyCount == 0 {
+            return "孤军接敌：先补齐相邻友军支援。"
+        }
+
+        if recommendedOrder == .assault {
+            return "战线完整：可转突击压制近敌。"
+        }
+
+        if recommendedOrder == .forcedMarch {
+            return "暂无近敌：可行军补线或抢占道路城市。"
+        }
+
+        if role == .support {
+            return "保持二线支援，覆盖前排军团。"
+        }
+
+        if role == .command {
+            return "维持指挥圈，保护将领并覆盖友军。"
+        }
+
+        return "保持战列，等待更明确目标。"
+    }
+
+    private func isFormationSkillUseful(_ preview: GeneralSkillPreview?) -> Bool {
+        guard let preview,
+              preview.isExecutable else {
+            return false
+        }
+
+        return preview.projectedRecoveredHealth > 0 ||
+            preview.projectedFortificationReduction > 0
+    }
+
+    private func legionFormationPriority(for report: LegionFormationReport) -> Int {
+        report.readiness.priority * 1_000 +
+            report.nearbyEnemyCount * 80 +
+            (report.hasGeneral ? 60 : 0) +
+            report.experience * 8 +
+            max(0, 100 - report.formationIntegrityScore)
     }
 
     public func attackTargets(for unitID: String) -> [ArmyUnit] {
