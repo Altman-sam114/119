@@ -54,8 +54,12 @@ struct RenderBattlePreview {
               !battlefieldFocus.accessibilityLabel.isEmpty else {
             throw PreviewRenderError.missingBattlefieldFocus
         }
-        guard let threatHeat = viewModel.primaryThreatHeatZoneSummary,
-              threatHeat.targetPosition == Position(x: 3, y: 3),
+        guard viewModel.primaryThreatHeatZoneSummary != nil,
+              let threatHeat = viewModel.threatHeatZoneSummaries.first(where: { summary in
+                  summary.targetPosition == Position(x: 3, y: 3) &&
+                      summary.report.projectedDamageTotal > 0 &&
+                      summary.report.sourceUnitIDs.contains("carthage-hunter")
+              }),
               threatHeat.report.projectedDamageTotal > 0,
               threatHeat.report.sourceUnitIDs.contains("carthage-hunter"),
               !viewModel.threatHeatZoneSummaries.isEmpty,

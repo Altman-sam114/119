@@ -968,10 +968,8 @@ import Testing
         City(id: "enemy", name: "敌垒", position: target, owner: .carthage, production: production, fortification: 0)
     ])
     let contestedState = makeState(
-        cities: [
-            City(id: "front", name: "前线", position: target, owner: .rome, production: production, fortification: 0)
-        ],
         units: [
+            ArmyUnit(id: "rome-pressure", kind: .legion, faction: .rome, position: Position(x: 0, y: 2)),
             ArmyUnit(id: "carthage-pressure", kind: .legion, faction: .carthage, position: Position(x: 4, y: 2))
         ]
     )
