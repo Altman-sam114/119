@@ -72,6 +72,17 @@ struct RenderBattlePreview {
               !threatHeat.accessibilityLabel.isEmpty else {
             throw PreviewRenderError.missingThreatHeatSummary
         }
+        guard let operationalPlan = viewModel.primaryAIOperationalPlanSummary,
+              !viewModel.aiOperationalPlanSummaries.isEmpty,
+              operationalPlan.report.sourceUnitIDs.contains("carthage-hunter"),
+              !operationalPlan.title.isEmpty,
+              !operationalPlan.kindLabel.isEmpty,
+              !operationalPlan.sourceLabel.isEmpty,
+              !operationalPlan.impactLabel.isEmpty,
+              !operationalPlan.detail.isEmpty,
+              !operationalPlan.accessibilityLabel.isEmpty else {
+            throw PreviewRenderError.missingAIOperationalPlanSummary
+        }
         guard let mapControl = viewModel.primaryMapControlSummary,
               !viewModel.mapControlSummaries.isEmpty,
               !viewModel.mapControlOverlayPositions.isEmpty,
@@ -323,6 +334,7 @@ enum PreviewRenderError: Error {
     case missingFrontlinePressure
     case missingBattlefieldFocus
     case missingThreatHeatSummary
+    case missingAIOperationalPlanSummary
     case missingMapControlSummary
     case missingCommanderBrief
     case missingLegionFormationSummary

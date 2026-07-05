@@ -452,6 +452,17 @@ struct TacticalStatusStripView: View {
             )
         }
 
+        if let plan = viewModel.primaryAIOperationalPlanSummary {
+            TacticalChipView(
+                symbol: plan.kind.systemImage,
+                label: "计划",
+                value: plan.compactTitle,
+                tint: plan.kind.tintColor,
+                compact: compact,
+                accessibilityLabel: plan.accessibilityLabel
+            )
+        }
+
         if let pressure = viewModel.primaryFrontlinePressureSummary {
             TacticalChipView(
                 symbol: pressure.level.systemImage,
@@ -510,6 +521,7 @@ struct TacticalChipView: View {
     var value: String
     var tint: Color
     var compact = false
+    var accessibilityLabel: String? = nil
 
     var body: some View {
         HStack(spacing: 5) {
@@ -530,6 +542,7 @@ struct TacticalChipView: View {
         .frame(height: 24)
         .background(.white.opacity(0.08))
         .clipShape(RoundedRectangle(cornerRadius: 6))
+        .accessibilityLabel(accessibilityLabel ?? "\(label)，\(value)")
     }
 }
 
@@ -2186,6 +2199,7 @@ struct StrategicBalancePanelView: View {
 
     var body: some View {
         PanelView(title: "战局", symbol: "chart.bar.xaxis") {
+            let planSummaries = viewModel.aiOperationalPlanSummaries
             let focusSummaries = viewModel.battlefieldFocusSummaries
             let heatSummaries = viewModel.threatHeatZoneSummaries
             let pressureSummaries = viewModel.frontlinePressureSummaries
@@ -2219,6 +2233,19 @@ struct StrategicBalancePanelView: View {
                     ResourceDeltaView(symbol: "shield.fill", value: income.iron, tint: .gray)
                     ResourceDeltaView(symbol: "sparkle.magnifyingglass", value: income.science, tint: .cyan)
                     Spacer(minLength: 0)
+                }
+
+                VStack(alignment: .leading, spacing: 6) {
+                    if planSummaries.isEmpty {
+                        Text("暂无敌军作战计划。")
+                            .font(.caption)
+                            .foregroundStyle(.white.opacity(0.62))
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    } else {
+                        ForEach(planSummaries.prefix(2)) { summary in
+                            AIOperationalPlanRowView(summary: summary)
+                        }
+                    }
                 }
 
                 VStack(alignment: .leading, spacing: 6) {
@@ -2401,6 +2428,57 @@ struct BattlefieldFocusRowView: View {
                 Text(summary.scoreLabel)
                     .font(.caption2.monospacedDigit().weight(.semibold))
                     .foregroundStyle(.white.opacity(0.58))
+            }
+        }
+        .padding(.horizontal, 8)
+        .frame(minHeight: 46)
+        .background(.black.opacity(0.18))
+        .clipShape(RoundedRectangle(cornerRadius: 7))
+        .accessibilityLabel(summary.accessibilityLabel)
+    }
+}
+
+struct AIOperationalPlanRowView: View {
+    var summary: AIOperationalPlanSummary
+
+    var body: some View {
+        HStack(spacing: 8) {
+            ZStack {
+                RoundedRectangle(cornerRadius: 5)
+                    .fill(summary.kind.tintColor.opacity(0.92))
+                    .frame(width: 28, height: 28)
+                Image(systemName: summary.kind.systemImage)
+                    .font(.caption.weight(.black))
+                    .foregroundStyle(.white)
+            }
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(summary.title)
+                    .font(.caption.weight(.heavy))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.72)
+                Text(summary.detail)
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(.white.opacity(0.62))
+                    .lineLimit(2)
+                    .minimumScaleFactor(0.70)
+            }
+
+            Spacer(minLength: 0)
+
+            VStack(alignment: .trailing, spacing: 3) {
+                Text(summary.kindLabel)
+                    .font(.caption2.weight(.black))
+                    .foregroundStyle(.black.opacity(0.78))
+                    .padding(.horizontal, 6)
+                    .frame(height: 20)
+                    .background(summary.kind.tintColor)
+                    .clipShape(RoundedRectangle(cornerRadius: 5))
+                Text(summary.impactLabel)
+                    .font(.caption2.monospacedDigit().weight(.semibold))
+                    .foregroundStyle(.white.opacity(0.58))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.72)
             }
         }
         .padding(.horizontal, 8)
@@ -2871,19 +2949,82 @@ struct EnemyIntentPanelView: View {
 
     var body: some View {
         PanelView(title: "敌情", symbol: "eye.trianglebadge.exclamationmark.fill") {
-            if viewModel.enemyIntentSummaries.isEmpty {
-                Text("暂无明确敌军动向。")
-                    .font(.caption)
-                    .foregroundStyle(.white.opacity(0.62))
-                    .frame(maxWidth: .infinity, alignment: .leading)
-            } else {
-                VStack(spacing: 7) {
+            VStack(spacing: 7) {
+                if let plan = viewModel.primaryAIOperationalPlanSummary {
+                    AIOperationalPlanCardView(summary: plan)
+                }
+
+                if viewModel.enemyIntentSummaries.isEmpty {
+                    Text("暂无明确敌军动向。")
+                        .font(.caption)
+                        .foregroundStyle(.white.opacity(0.62))
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                } else {
                     ForEach(viewModel.enemyIntentSummaries.prefix(4)) { summary in
                         EnemyIntentRowView(summary: summary)
                     }
                 }
             }
         }
+    }
+}
+
+struct AIOperationalPlanCardView: View {
+    var summary: AIOperationalPlanSummary
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 7) {
+            HStack(spacing: 7) {
+                Image(systemName: summary.kind.systemImage)
+                    .foregroundStyle(summary.kind.tintColor)
+                Text("计划")
+                    .font(.caption2.weight(.bold))
+                    .foregroundStyle(.white.opacity(0.58))
+                Text(summary.title)
+                    .font(.caption.weight(.heavy))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.70)
+                Spacer(minLength: 0)
+                Text(summary.kindLabel)
+                    .font(.caption2.weight(.black))
+                    .foregroundStyle(.black.opacity(0.78))
+                    .padding(.horizontal, 6)
+                    .frame(height: 20)
+                    .background(summary.kind.tintColor)
+                    .clipShape(RoundedRectangle(cornerRadius: 5))
+            }
+
+            Text(summary.sourceLabel)
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(.white.opacity(0.62))
+                .lineLimit(2)
+                .minimumScaleFactor(0.72)
+
+            HStack(spacing: 6) {
+                Label(summary.impactLabel, systemImage: "scope")
+                Spacer(minLength: 0)
+                Label(summary.heatLabel, systemImage: "flame.fill")
+            }
+            .font(.caption2.weight(.semibold))
+            .foregroundStyle(.white.opacity(0.66))
+            .lineLimit(1)
+            .minimumScaleFactor(0.70)
+
+            Text(summary.stepLabel.isEmpty ? summary.detail : "\(summary.stepLabel) · \(summary.detail)")
+                .font(.caption2.weight(.bold))
+                .foregroundStyle(summary.kind.tintColor)
+                .lineLimit(2)
+                .minimumScaleFactor(0.70)
+        }
+        .padding(8)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(summary.kind.tintColor.opacity(0.12))
+        .overlay {
+            RoundedRectangle(cornerRadius: 7)
+                .stroke(summary.kind.tintColor.opacity(0.38), lineWidth: 1)
+        }
+        .clipShape(RoundedRectangle(cornerRadius: 7))
+        .accessibilityLabel(summary.accessibilityLabel)
     }
 }
 
@@ -4072,6 +4213,30 @@ extension MapControlState {
         case .enemyControlled: return Color(red: 0.84, green: 0.16, blue: 0.12)
         case .contested: return Color(red: 0.86, green: 0.68, blue: 0.34)
         case .neutral: return Color(red: 0.52, green: 0.56, blue: 0.54)
+        }
+    }
+}
+
+extension AIOperationalPlanKind {
+    var systemImage: String {
+        switch self {
+        case .focusedAttack: return "scope"
+        case .cityCapture: return "building.columns.fill"
+        case .commanderSkill: return "sparkles"
+        case .advance: return "arrow.up.right.circle.fill"
+        case .defend: return "shield.lefthalf.filled"
+        case .regroup: return "cross.case.fill"
+        }
+    }
+
+    var tintColor: Color {
+        switch self {
+        case .focusedAttack: return Color(red: 0.84, green: 0.16, blue: 0.12)
+        case .cityCapture: return Color(red: 0.92, green: 0.42, blue: 0.14)
+        case .commanderSkill: return Color(red: 0.72, green: 0.48, blue: 0.92)
+        case .advance: return Color(red: 0.86, green: 0.68, blue: 0.34)
+        case .defend: return Color(red: 0.52, green: 0.70, blue: 0.86)
+        case .regroup: return Color(red: 0.36, green: 0.70, blue: 0.44)
         }
     }
 }

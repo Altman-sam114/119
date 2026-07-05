@@ -1317,6 +1317,108 @@ public struct ThreatHeatZoneReport: Identifiable, Equatable, Sendable {
     public var detail: String
 }
 
+public enum AIOperationalPlanKind: String, CaseIterable, Identifiable, Equatable, Sendable {
+    case focusedAttack
+    case cityCapture
+    case commanderSkill
+    case advance
+    case defend
+    case regroup
+
+    public var id: String { rawValue }
+
+    public var displayName: String {
+        switch self {
+        case .focusedAttack: return "集火"
+        case .cityCapture: return "夺城"
+        case .commanderSkill: return "将领"
+        case .advance: return "推进"
+        case .defend: return "固守"
+        case .regroup: return "整备"
+        }
+    }
+
+    fileprivate var priority: Int {
+        switch self {
+        case .focusedAttack: return 6
+        case .cityCapture: return 5
+        case .commanderSkill: return 4
+        case .advance: return 3
+        case .defend: return 2
+        case .regroup: return 1
+        }
+    }
+}
+
+public enum AIPlanCoordinationRole: String, CaseIterable, Identifiable, Equatable, Sendable {
+    case mainEffort
+    case support
+    case commander
+    case reserve
+
+    public var id: String { rawValue }
+
+    public var displayName: String {
+        switch self {
+        case .mainEffort: return "主攻"
+        case .support: return "支援"
+        case .commander: return "将领"
+        case .reserve: return "预备"
+        }
+    }
+
+    fileprivate var priority: Int {
+        switch self {
+        case .mainEffort: return 4
+        case .commander: return 3
+        case .support: return 2
+        case .reserve: return 1
+        }
+    }
+}
+
+public struct AIPlanStepReport: Identifiable, Equatable, Sendable {
+    public var unitID: String
+    public var faction: Faction
+    public var intentKind: AIIntentKind
+    public var coordinationRole: AIPlanCoordinationRole
+    public var origin: Position
+    public var destination: Position
+    public var targetPosition: Position
+    public var targetUnitID: String?
+    public var targetCityID: String?
+    public var tacticalOrder: TacticalOrder
+    public var projectedDamage: Int?
+    public var threatScore: Int
+    public var formationRole: LegionFormationRole?
+    public var formationReadiness: LegionFormationReadiness?
+    public var generalName: String?
+    public var skillSummary: String?
+    public var detail: String
+
+    public var id: String { unitID }
+}
+
+public struct AIOperationalPlanReport: Identifiable, Equatable, Sendable {
+    public var id: String
+    public var faction: Faction
+    public var kind: AIOperationalPlanKind
+    public var targetPosition: Position
+    public var targetUnitID: String?
+    public var targetCityID: String?
+    public var sourceUnitIDs: [String]
+    public var commanderUnitIDs: [String]
+    public var intentKinds: [AIIntentKind]
+    public var pressureLevel: FrontlinePressureLevel?
+    public var threatHeatLevel: ThreatHeatLevel?
+    public var projectedDamageTotal: Int
+    public var score: Int
+    public var title: String
+    public var summary: String
+    public var detail: String
+    public var steps: [AIPlanStepReport]
+}
+
 public enum FrontlinePressureTargetKind: String, Hashable, Sendable {
     case unit
     case city
@@ -1369,6 +1471,14 @@ public struct FrontlinePressureReport: Identifiable, Equatable, Sendable {
 private struct FrontlinePressureTargetKey: Hashable {
     var kind: FrontlinePressureTargetKind
     var id: String
+}
+
+private struct AIOperationalPlanKey: Hashable {
+    var faction: Faction
+    var kind: AIOperationalPlanKind
+    var targetPosition: Position
+    var targetUnitID: String?
+    var targetCityID: String?
 }
 
 private struct FrontlinePressureTarget {
@@ -2045,6 +2155,71 @@ public struct GameState: Codable, Equatable, Sendable {
             .map { $0 }
     }
 
+    public func aiOperationalPlanReports(
+        against defendingFaction: Faction = .rome,
+        perFactionLimit: Int = 4,
+        limit: Int = 5
+    ) -> [AIOperationalPlanReport] {
+        guard defendingFaction != .neutral,
+              perFactionLimit > 0,
+              limit > 0 else {
+            return []
+        }
+
+        let candidateLimit = max(perFactionLimit * 2, limit * 3, 8)
+        let pressureReports = frontlinePressureReports(
+            against: defendingFaction,
+            perFactionLimit: candidateLimit,
+            limit: max(limit * 2, 6)
+        )
+        let heatReports = threatHeatZoneReports(for: defendingFaction, limit: max(limit * 2, 6))
+        var stepsByKey: [AIOperationalPlanKey: [AIPlanStepReport]] = [:]
+
+        for faction in Faction.turnOrder where faction != defendingFaction && faction != .neutral {
+            guard diplomaticStatus(between: defendingFaction, and: faction) == .war else {
+                continue
+            }
+
+            let forecast = aiPlanningForecast(for: faction)
+            for intent in forecast.aiIntentReports(for: faction, limit: candidateLimit) {
+                guard let unit = forecast.unit(withID: intent.unitID) else {
+                    continue
+                }
+
+                let targetPosition = aiOperationalTargetPosition(for: intent, fallback: unit.position)
+                let kind = aiOperationalPlanKind(for: intent)
+                let key = AIOperationalPlanKey(
+                    faction: faction,
+                    kind: kind,
+                    targetPosition: targetPosition,
+                    targetUnitID: intent.targetUnitID,
+                    targetCityID: intent.targetCityID
+                )
+                let step = forecast.aiPlanStepReport(for: intent, unit: unit, targetPosition: targetPosition)
+                stepsByKey[key, default: []].append(step)
+            }
+        }
+
+        return stepsByKey
+            .map { key, steps in
+                let pressure = aiOperationalPressure(for: key, in: pressureReports)
+                let heat = aiOperationalHeat(for: key.targetPosition, in: heatReports)
+                return aiOperationalPlanReport(for: key, steps: steps, pressure: pressure, heat: heat)
+            }
+            .sorted { left, right in
+                if left.score == right.score {
+                    return left.id < right.id
+                }
+                return left.score > right.score
+            }
+            .prefix(limit)
+            .map { $0 }
+    }
+
+    public func aiOperationalPlanReport(against defendingFaction: Faction = .rome) -> AIOperationalPlanReport? {
+        aiOperationalPlanReports(against: defendingFaction, perFactionLimit: 4, limit: 1).first
+    }
+
     public func effectiveDefense(for unit: ArmyUnit) -> Int {
         max(1, unit.kind.defense + (unit.resolvedGeneralTrait?.defenseBonus ?? 0) + unit.resolvedTacticalOrder.defenseBonus)
     }
@@ -2545,6 +2720,251 @@ public struct GameState: Codable, Equatable, Sendable {
         }
 
         return "\(report.controlState.displayName) · 友 \(report.friendlyInfluence) / 敌 \(report.enemyInfluence)"
+    }
+
+    private func aiOperationalPlanKind(for intent: AIIntent) -> AIOperationalPlanKind {
+        switch intent.kind {
+        case .attack, .advanceAttack:
+            return .focusedAttack
+        case .captureCity:
+            return .cityCapture
+        case .useSkill:
+            return .commanderSkill
+        case .advance:
+            return .advance
+        case .defend:
+            return .defend
+        case .regroup:
+            return .regroup
+        }
+    }
+
+    private func aiOperationalTargetPosition(for intent: AIIntent, fallback: Position) -> Position {
+        if let targetUnitID = intent.targetUnitID,
+           let targetUnit = unit(withID: targetUnitID) {
+            return targetUnit.position
+        }
+
+        if let targetCityID = intent.targetCityID,
+           let targetCity = city(withID: targetCityID) {
+            return targetCity.position
+        }
+
+        return intent.destination ?? fallback
+    }
+
+    private func aiPlanStepReport(
+        for intent: AIIntent,
+        unit: ArmyUnit,
+        targetPosition: Position
+    ) -> AIPlanStepReport {
+        let formation = legionFormationReport(for: unit)
+        let destination = intent.destination ?? unit.position
+        let role: AIPlanCoordinationRole
+        switch intent.kind {
+        case .useSkill:
+            role = .commander
+        case .defend, .regroup:
+            role = .reserve
+        case .attack, .advanceAttack, .captureCity, .advance:
+            role = .support
+        }
+
+        return AIPlanStepReport(
+            unitID: intent.unitID,
+            faction: intent.faction,
+            intentKind: intent.kind,
+            coordinationRole: role,
+            origin: unit.position,
+            destination: destination,
+            targetPosition: targetPosition,
+            targetUnitID: intent.targetUnitID,
+            targetCityID: intent.targetCityID,
+            tacticalOrder: intent.tacticalOrder,
+            projectedDamage: intent.projectedDamage,
+            threatScore: intent.threatScore,
+            formationRole: formation.role,
+            formationReadiness: formation.readiness,
+            generalName: formation.generalName,
+            skillSummary: intent.kind == .useSkill ? formation.skillSummary : nil,
+            detail: aiPlanStepDetail(for: intent, unit: unit, formation: formation, targetPosition: targetPosition)
+        )
+    }
+
+    private func aiPlanStepDetail(
+        for intent: AIIntent,
+        unit: ArmyUnit,
+        formation: LegionFormationReport,
+        targetPosition: Position
+    ) -> String {
+        let unitLabel = "\(unit.faction.displayName)\(unit.kind.displayName)"
+        let target = battlefieldTargetName(
+            unitID: intent.targetUnitID,
+            cityID: intent.targetCityID,
+            fallback: targetPosition.description
+        )
+
+        switch intent.kind {
+        case .attack, .advanceAttack:
+            return "\(unitLabel) 指向 \(target) · 预计伤害 \(intent.projectedDamage ?? 0)"
+        case .captureCity:
+            return "\(unitLabel) 试图夺取 \(target)"
+        case .useSkill:
+            let general = formation.generalName ?? "敌方将领"
+            return "\(general) \(formation.skillSummary ?? "准备发动主动技能")"
+        case .advance:
+            return "\(unitLabel) 推进至 \(intent.destination?.description ?? targetPosition.description)"
+        case .defend:
+            return "\(unitLabel) 固守 \(target)"
+        case .regroup:
+            return "\(unitLabel) 整备恢复战力"
+        }
+    }
+
+    private func aiOperationalPressure(
+        for key: AIOperationalPlanKey,
+        in reports: [FrontlinePressureReport]
+    ) -> FrontlinePressureReport? {
+        if let targetUnitID = key.targetUnitID,
+           let report = reports.first(where: { $0.targetKind == .unit && $0.targetID == targetUnitID }) {
+            return report
+        }
+
+        if let targetCityID = key.targetCityID,
+           let report = reports.first(where: { $0.targetKind == .city && $0.targetID == targetCityID }) {
+            return report
+        }
+
+        return reports.first { $0.targetPosition == key.targetPosition }
+    }
+
+    private func aiOperationalHeat(
+        for targetPosition: Position,
+        in reports: [ThreatHeatZoneReport]
+    ) -> ThreatHeatZoneReport? {
+        reports.first { $0.center == targetPosition } ??
+            reports.first { $0.positions.contains(targetPosition) }
+    }
+
+    private func aiOperationalPlanReport(
+        for key: AIOperationalPlanKey,
+        steps rawSteps: [AIPlanStepReport],
+        pressure: FrontlinePressureReport?,
+        heat: ThreatHeatZoneReport?
+    ) -> AIOperationalPlanReport {
+        let steps = aiOperationalStepsWithRoles(rawSteps)
+        let sourceUnitIDs = steps.map(\.unitID)
+        let commanderUnitIDs = steps
+            .filter { $0.coordinationRole == .commander }
+            .map(\.unitID)
+        let intentKinds = steps
+            .map(\.intentKind)
+            .reduce(into: [AIIntentKind]()) { unique, kind in
+                guard !unique.contains(kind) else {
+                    return
+                }
+                unique.append(kind)
+            }
+            .sorted { $0.rawValue < $1.rawValue }
+        let projectedDamageTotal = steps.reduce(0) { partial, step in
+            partial + (step.projectedDamage ?? 0)
+        }
+        let targetName = battlefieldTargetName(
+            unitID: key.targetUnitID,
+            cityID: key.targetCityID,
+            fallback: key.targetPosition.description
+        )
+        let pressureScore = pressure?.pressureScore ?? 0
+        let heatScore = (heat?.threatLevel.priority ?? 0) * 80
+        let maxThreatScore = steps.map(\.threatScore).max() ?? 0
+        let score = key.kind.priority * 200 +
+            maxThreatScore +
+            projectedDamageTotal * 2 +
+            pressureScore +
+            heatScore +
+            commanderUnitIDs.count * 70 +
+            steps.count * 25
+        let pressureLabel = pressure?.level.displayName ?? "无集中压力"
+        let heatLabel = heat?.threatLevel.displayName ?? "无热区"
+        let impact = projectedDamageTotal > 0 ? "预计伤害 \(projectedDamageTotal)" : "\(steps.count) 步协同"
+        let title = "\(key.faction.displayName)\(key.kind.displayName)：\(targetName)"
+        let summary = "\(steps.count) 支 · \(pressureLabel) · \(heatLabel)"
+        let detail = aiOperationalPlanDetail(
+            kind: key.kind,
+            targetName: targetName,
+            impact: impact,
+            steps: steps,
+            commanders: commanderUnitIDs
+        )
+
+        return AIOperationalPlanReport(
+            id: "\(key.faction.rawValue)-\(key.kind.rawValue)-\(key.targetPosition.x)-\(key.targetPosition.y)-\(key.targetUnitID ?? key.targetCityID ?? "position")",
+            faction: key.faction,
+            kind: key.kind,
+            targetPosition: key.targetPosition,
+            targetUnitID: key.targetUnitID,
+            targetCityID: key.targetCityID,
+            sourceUnitIDs: sourceUnitIDs,
+            commanderUnitIDs: commanderUnitIDs,
+            intentKinds: intentKinds,
+            pressureLevel: pressure?.level,
+            threatHeatLevel: heat?.threatLevel,
+            projectedDamageTotal: projectedDamageTotal,
+            score: score,
+            title: title,
+            summary: summary,
+            detail: detail,
+            steps: steps
+        )
+    }
+
+    private func aiOperationalStepsWithRoles(_ steps: [AIPlanStepReport]) -> [AIPlanStepReport] {
+        var hasMainEffort = false
+        var assigned = steps
+            .sorted { left, right in
+                if left.threatScore == right.threatScore {
+                    return left.unitID < right.unitID
+                }
+                return left.threatScore > right.threatScore
+            }
+
+        for index in assigned.indices {
+            switch assigned[index].intentKind {
+            case .useSkill:
+                assigned[index].coordinationRole = .commander
+            case .attack, .advanceAttack, .captureCity, .advance:
+                assigned[index].coordinationRole = hasMainEffort ? .support : .mainEffort
+                hasMainEffort = true
+            case .defend, .regroup:
+                assigned[index].coordinationRole = .reserve
+            }
+        }
+
+        return assigned.sorted { left, right in
+            if left.coordinationRole.priority == right.coordinationRole.priority {
+                if left.threatScore == right.threatScore {
+                    return left.unitID < right.unitID
+                }
+                return left.threatScore > right.threatScore
+            }
+            return left.coordinationRole.priority > right.coordinationRole.priority
+        }
+    }
+
+    private func aiOperationalPlanDetail(
+        kind: AIOperationalPlanKind,
+        targetName: String,
+        impact: String,
+        steps: [AIPlanStepReport],
+        commanders: [String]
+    ) -> String {
+        let main = steps.first { $0.coordinationRole == .mainEffort }
+        let mainLabel = main.flatMap { unit(withID: $0.unitID) }.map { "\($0.faction.displayName)\($0.kind.displayName)" } ?? "敌军"
+        let commanderLabel = commanders
+            .compactMap { unit(withID: $0)?.generalName }
+            .joined(separator: "、")
+        let commanderText = commanderLabel.isEmpty ? "" : " · 将领 \(commanderLabel)"
+        return "\(kind.displayName) \(targetName) · \(mainLabel) 主导 · \(impact)\(commanderText)"
     }
 
     private func battlefieldPressureFocusReports(for faction: Faction) -> [BattlefieldFocusReport] {
@@ -3232,14 +3652,20 @@ public struct GameState: Codable, Equatable, Sendable {
             return []
         }
 
+        return aiPlanningForecast(for: faction).aiIntentReports(for: faction, limit: limit)
+    }
+
+    private func aiPlanningForecast(for faction: Faction) -> GameState {
         var forecast = self
         forecast.activeFaction = faction
-
         forecast.refreshFactionForNewTurn(faction)
+        return forecast
+    }
 
-        return forecast.units
+    private func aiIntentReports(for faction: Faction, limit: Int) -> [AIIntent] {
+        return units
             .filter { $0.faction == faction }
-            .compactMap { forecast.aiIntent(for: $0) }
+            .compactMap { aiIntent(for: $0) }
             .sorted { left, right in
                 if left.threatScore == right.threatScore {
                     return left.unitID < right.unitID

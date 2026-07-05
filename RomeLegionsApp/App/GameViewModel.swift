@@ -582,6 +582,107 @@ struct ThreatHeatZoneSummary: Identifiable {
     }
 }
 
+struct AIOperationalPlanSummary: Identifiable {
+    var report: AIOperationalPlanReport
+    var targetUnit: ArmyUnit?
+    var targetCity: City?
+    var sourceUnits: [ArmyUnit]
+    var commanderUnits: [ArmyUnit]
+
+    var id: String { report.id }
+    var kind: AIOperationalPlanKind { report.kind }
+    var targetPosition: Position { report.targetPosition }
+
+    var title: String {
+        report.title
+    }
+
+    var compactTitle: String {
+        "\(kindLabel) \(impactLabel)"
+    }
+
+    var kindLabel: String {
+        report.kind.displayName
+    }
+
+    var factionLabel: String {
+        report.faction.displayName
+    }
+
+    var targetLabel: String {
+        if let targetUnit {
+            return "\(targetUnit.faction.displayName)\(targetUnit.kind.displayName)"
+        }
+
+        if let targetCity {
+            return targetCity.name
+        }
+
+        return report.targetPosition.description
+    }
+
+    var sourceLabel: String {
+        guard !sourceUnits.isEmpty else {
+            return "敌方行动"
+        }
+
+        let labels = sourceUnits.prefix(3).map { "\($0.faction.displayName)\($0.kind.displayName)" }
+        return sourceUnits.count > 3 ? "\(labels.joined(separator: "、"))等 \(sourceUnits.count) 支" : labels.joined(separator: "、")
+    }
+
+    var commanderLabel: String? {
+        let names = commanderUnits.compactMap(\.generalName)
+        guard !names.isEmpty else {
+            return nil
+        }
+
+        return names.joined(separator: "、")
+    }
+
+    var pressureLabel: String {
+        report.pressureLevel?.displayName ?? "无集中压力"
+    }
+
+    var heatLabel: String {
+        report.threatHeatLevel?.displayName ?? "无热区"
+    }
+
+    var impactLabel: String {
+        if report.projectedDamageTotal > 0 {
+            return "预计伤害 \(report.projectedDamageTotal)"
+        }
+
+        return "\(report.steps.count) 步"
+    }
+
+    var stepLabel: String {
+        let labels = report.steps.prefix(3).map { "\($0.coordinationRole.displayName)\($0.intentKind.displayName)" }
+        return labels.joined(separator: "、")
+    }
+
+    var detail: String {
+        report.detail
+    }
+
+    var accessibilityLabel: String {
+        var parts = [
+            "\(factionLabel)\(kindLabel)",
+            "目标\(targetLabel)",
+            "来源\(sourceLabel)",
+            impactLabel,
+            "压力\(pressureLabel)",
+            "热区\(heatLabel)",
+            detail
+        ]
+
+        if let commanderLabel {
+            parts.insert("将领\(commanderLabel)", at: 3)
+        }
+
+        return parts.joined(separator: "，")
+    }
+}
+
 struct FrontlinePressureSummary: Identifiable {
     var report: FrontlinePressureReport
     var targetUnit: ArmyUnit?
@@ -1048,6 +1149,15 @@ final class GameViewModel: ObservableObject {
         enemyIntentSummaries.first
     }
 
+    var aiOperationalPlanSummaries: [AIOperationalPlanSummary] {
+        state.aiOperationalPlanReports(against: .rome, perFactionLimit: 4, limit: 5)
+            .map(aiOperationalPlanSummary(for:))
+    }
+
+    var primaryAIOperationalPlanSummary: AIOperationalPlanSummary? {
+        aiOperationalPlanSummaries.first
+    }
+
     var mapControlSummaries: [MapControlSummary] {
         state.mapControlReports(for: .rome)
             .map(mapControlSummary(for:))
@@ -1199,6 +1309,16 @@ final class GameViewModel: ObservableObject {
             report: report,
             sourceUnits: report.sourceUnitIDs.compactMap { state.unit(withID: $0) },
             cities: report.cityIDs.compactMap { state.city(withID: $0) }
+        )
+    }
+
+    private func aiOperationalPlanSummary(for report: AIOperationalPlanReport) -> AIOperationalPlanSummary {
+        AIOperationalPlanSummary(
+            report: report,
+            targetUnit: report.targetUnitID.flatMap { state.unit(withID: $0) },
+            targetCity: report.targetCityID.flatMap { state.city(withID: $0) },
+            sourceUnits: report.sourceUnitIDs.compactMap { state.unit(withID: $0) },
+            commanderUnits: report.commanderUnitIDs.compactMap { state.unit(withID: $0) }
         )
     }
 

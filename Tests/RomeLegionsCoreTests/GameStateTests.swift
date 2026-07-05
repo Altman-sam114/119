@@ -1079,6 +1079,109 @@ import Testing
     #expect(state == before)
 }
 
+@Test func aiOperationalPlanAggregatesFocusedAttackWithoutMutation() {
+    var state = GameState.newCampaign()
+    state.units = [
+        ArmyUnit(id: "rome-target", kind: .legion, faction: .rome, position: Position(x: 3, y: 3)),
+        ArmyUnit(id: "carthage-east", kind: .cavalry, faction: .carthage, position: Position(x: 4, y: 3)),
+        ArmyUnit(id: "carthage-north", kind: .legion, faction: .carthage, position: Position(x: 3, y: 2))
+    ]
+    state.activeFaction = .rome
+    let before = state
+
+    let reports = state.aiOperationalPlanReports(against: .rome, perFactionLimit: 4, limit: 5)
+    let report = reports.first { $0.kind == .focusedAttack && $0.targetUnitID == "rome-target" }
+
+    #expect(Set(report?.sourceUnitIDs ?? []) == Set(["carthage-east", "carthage-north"]))
+    #expect(report?.steps.contains { $0.coordinationRole == .mainEffort } == true)
+    #expect(report?.steps.contains { $0.coordinationRole == .support } == true)
+    #expect((report?.projectedDamageTotal ?? 0) > 0)
+    #expect(report?.pressureLevel == .critical)
+    #expect(report?.threatHeatLevel == .critical)
+    #expect(report?.title.contains("集火") == true)
+    #expect(report?.summary.isEmpty == false)
+    #expect(report?.detail.isEmpty == false)
+    #expect(state == before)
+}
+
+@Test func aiOperationalPlanReportsCityCapturePlanWithoutMutation() {
+    var state = GameState.newCampaign()
+    state.units = [
+        ArmyUnit(id: "carthage-capturer", kind: .cavalry, faction: .carthage, position: Position(x: 6, y: 2))
+    ]
+    for index in state.cities.indices where state.cities[index].id != "massilia" {
+        state.cities[index].owner = .carthage
+    }
+    if let massiliaIndex = state.cities.firstIndex(where: { $0.id == "massilia" }) {
+        state.cities[massiliaIndex].owner = .rome
+    }
+    let before = state
+
+    let reports = state.aiOperationalPlanReports(against: .rome, perFactionLimit: 4, limit: 5)
+    let report = reports.first { $0.kind == .cityCapture && $0.targetCityID == "massilia" }
+
+    #expect(report?.targetPosition == Position(x: 5, y: 2))
+    #expect(report?.sourceUnitIDs == ["carthage-capturer"])
+    #expect(report?.steps.first?.coordinationRole == .mainEffort)
+    #expect(report?.title.contains("马赛") == true)
+    #expect(report?.pressureLevel == .critical)
+    #expect(state == before)
+}
+
+@Test func aiOperationalPlanUsesEnemyForecastForCommanderSkillWithoutMutation() {
+    var state = GameState.newCampaign()
+    state.units = [
+        ArmyUnit(id: "rome-line", kind: .legion, faction: .rome, position: Position(x: 1, y: 1)),
+        ArmyUnit(id: "carthage-quartermaster", kind: .legion, faction: .carthage, position: Position(x: 5, y: 3), generalName: "阿格里帕", generalTrait: .quartermaster),
+        ArmyUnit(id: "carthage-wounded", kind: .cavalry, faction: .carthage, position: Position(x: 4, y: 3), health: 40)
+    ]
+    state.activeFaction = .rome
+    let before = state
+
+    let reports = state.aiOperationalPlanReports(against: .rome, perFactionLimit: 4, limit: 5)
+    let report = reports.first { $0.kind == .commanderSkill && $0.sourceUnitIDs.contains("carthage-quartermaster") }
+
+    #expect(report?.commanderUnitIDs == ["carthage-quartermaster"])
+    #expect(report?.targetUnitID == "carthage-wounded")
+    #expect(report?.steps.first?.coordinationRole == .commander)
+    #expect(report?.steps.first?.skillSummary?.contains("恢复") == true)
+    #expect(report?.detail.contains("阿格里帕") == true)
+    #expect(state == before)
+}
+
+@Test func aiOperationalPlanKeepsRegroupFallbackWithoutPressureTarget() {
+    var state = GameState.newCampaign()
+    state.units = [
+        ArmyUnit(id: "rome-line", kind: .legion, faction: .rome, position: Position(x: 1, y: 1)),
+        ArmyUnit(id: "carthage-battered", kind: .legion, faction: .carthage, position: Position(x: 8, y: 2), health: 18)
+    ]
+    let before = state
+
+    let reports = state.aiOperationalPlanReports(against: .rome, perFactionLimit: 4, limit: 5)
+    let report = reports.first { $0.kind == .regroup && $0.sourceUnitIDs.contains("carthage-battered") }
+
+    #expect(report?.targetPosition == Position(x: 8, y: 2))
+    #expect(report?.steps.first?.coordinationRole == .reserve)
+    #expect(report?.projectedDamageTotal == 0)
+    #expect(report?.summary.isEmpty == false)
+    #expect(state == before)
+}
+
+@Test func aiOperationalPlanIgnoresTreatyProtectedFactions() throws {
+    var state = GameState.newCampaign()
+    state.units = [
+        ArmyUnit(id: "rome-target", kind: .legion, faction: .rome, position: Position(x: 3, y: 3)),
+        ArmyUnit(id: "carthage-hunter", kind: .cavalry, faction: .carthage, position: Position(x: 4, y: 3))
+    ]
+    _ = try state.sendEnvoy(to: .carthage)
+    let before = state
+
+    let reports = state.aiOperationalPlanReports(against: .rome, perFactionLimit: 4, limit: 5)
+
+    #expect(!reports.contains { $0.sourceUnitIDs.contains("carthage-hunter") })
+    #expect(state == before)
+}
+
 @Test func aiRecruitsWhenBelowTargetForce() {
     var state = GameState.newCampaign()
     state.activeFaction = .gaul

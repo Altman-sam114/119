@@ -265,6 +265,30 @@ do {
     expect(heatReport?.threatLevel == .critical, "Threat heat should flag critical pressure")
     expect(recommendationState == mapControlBefore, "Map control and threat heat reports should not mutate state")
 
+    let operationalPlanBefore = recommendationState
+    let operationalPlan = recommendationState.aiOperationalPlanReports(against: .rome, perFactionLimit: 4, limit: 5).first
+    expect(operationalPlan?.kind == .focusedAttack, "AI operational plan should surface the enemy focused attack")
+    expect(operationalPlan?.targetUnitID == "rome-line", "AI operational plan should identify the pressured Roman line")
+    expect(Set(operationalPlan?.sourceUnitIDs ?? []) == Set(["carthage-east", "carthage-north"]), "AI operational plan should expose coordinated hostile sources")
+    expect(operationalPlan?.steps.contains { $0.coordinationRole == .mainEffort } == true, "AI operational plan should mark a main effort")
+    expect((operationalPlan?.projectedDamageTotal ?? 0) > 0, "AI operational plan should expose projected damage")
+    expect(!(operationalPlan?.title ?? "").isEmpty, "AI operational plan should expose a readable title")
+    expect(!(operationalPlan?.detail ?? "").isEmpty, "AI operational plan should expose readable detail")
+    expect(recommendationState == operationalPlanBefore, "AI operational plan reports should not mutate state")
+
+    var enemyCommanderPlanState = GameState.newCampaign()
+    enemyCommanderPlanState.units = [
+        ArmyUnit(id: "rome-line", kind: .legion, faction: .rome, position: Position(x: 1, y: 1)),
+        ArmyUnit(id: "carthage-quartermaster", kind: .legion, faction: .carthage, position: Position(x: 5, y: 3), generalName: "阿格里帕", generalTrait: .quartermaster),
+        ArmyUnit(id: "carthage-wounded", kind: .cavalry, faction: .carthage, position: Position(x: 4, y: 3), health: 40)
+    ]
+    let enemyCommanderPlanBefore = enemyCommanderPlanState
+    let commanderPlan = enemyCommanderPlanState.aiOperationalPlanReports(against: .rome, perFactionLimit: 4, limit: 5).first { $0.kind == .commanderSkill }
+    expect(commanderPlan?.commanderUnitIDs == ["carthage-quartermaster"], "AI operational plan should expose enemy commander skill coordination")
+    expect(commanderPlan?.targetUnitID == "carthage-wounded", "AI operational plan should expose the enemy skill target")
+    expect(commanderPlan?.steps.first?.skillSummary?.contains("恢复") == true, "AI operational plan should expose skill effect text")
+    expect(enemyCommanderPlanState == enemyCommanderPlanBefore, "Enemy commander operational plan should not mutate state")
+
     var siegeSkillState = GameState.newCampaign()
     siegeSkillState.units = [
         ArmyUnit(id: "test-siege", kind: .legion, faction: .rome, position: Position(x: 7, y: 2), generalName: "苏拉", generalTrait: .siegeEngineer)

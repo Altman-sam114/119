@@ -37,9 +37,9 @@ flowchart TD
     E --> H["BattleView 刷新<br/>玩家继续下令"]
 ```
 
-## 3. 战斗、敌军意图、战术建议、战场焦点与地图热区流
+## 3. 战斗、敌军意图、AI 作战计划、战术建议、战场焦点与地图热区流
 
-读图说明：这张图展示战斗预览、实际攻击、敌军意图、战线压力、玩家侧战术建议、战场焦点、地图控制和威胁热区之间的关系。关键铁律是预览与结算必须一致，敌军意图、战线压力、战术建议、战场焦点和地图热区只能读取和预测，地图路线、热区叠层和焦点卡只是只读报告的可视化，不能改变状态、结算或 AI 决策。
+读图说明：这张图展示战斗预览、实际攻击、敌军意图、AI 作战计划、战线压力、玩家侧战术建议、战场焦点、地图控制和威胁热区之间的关系。关键铁律是预览与结算必须一致，敌军意图、AI 作战计划、战线压力、战术建议、战场焦点和地图热区只能读取和预测，地图路线、热区叠层、计划卡和焦点卡只是只读报告的可视化，不能改变状态、结算或 AI 决策。
 
 ```mermaid
 flowchart TD
@@ -60,6 +60,12 @@ flowchart TD
     L --> AB["GameState.frontlinePressureReports<br/>按罗马单位或城市聚合多路意图<br/>来源、预计伤害、夺城风险、压力等级"]
     AB --> AC["GameViewModel.frontlinePressureSummaries<br/>目标、来源、压力标签、影响文案、无障碍说明"]
     AC --> AD["BattleView 战线 chip 与战局面板<br/>展示高压目标和防守优先级"]
+    L --> AR["GameState.aiOperationalPlanReports<br/>聚合敌军意图、压力、热区和敌方将领技能机会<br/>输出集火、夺城、将领技能、推进、固守或整备计划"]
+    AB --> AR
+    AO --> AR
+    AU["敌方 forecast 技能预览<br/>aiOperationalPlanReports 内部只读调用 generalSkillPreview<br/>不读取玩家选中单位"] --> AR
+    AR --> AS["GameViewModel.aiOperationalPlanSummaries<br/>计划类型、协同角色、来源、目标、预计影响和无障碍文案"]
+    AS --> AT["BattleView 计划 chip、敌情计划卡、战局计划行<br/>只展示核心报告，不改变 AI 决策"]
 
     AH["选中本方单位"] --> AI["GameState.tacticalRecommendation(unitID:)<br/>只读派生攻击、补线、推进、坚守或整备建议<br/>目标、目的地、路径、推荐姿态、风险和命令文案"]
     AI --> AJ["GameViewModel.selectedTacticalRecommendationSummary<br/>转成军议 chip、建议卡、路径线段和目标位置"]

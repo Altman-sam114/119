@@ -14,12 +14,56 @@
 
 - 项目类型：原创 SwiftUI iOS 罗马题材战棋原型。
 - 核心架构：纯 Swift `RomeLegionsCore` 负责玩法规则；`GameViewModel` 负责 UI 状态和派生数据；SwiftUI 视图负责展示和命令入口。
-- 当前玩法：六边形地图、地形、城市、阵营、军团、移动、攻击、反击、占城、招募、科技、任务 requirement、战役目标、胜负结算、结束保护、外交、城市扩建、城市经营与招募读板、军团训练、将领任命、主动技能、技能冷却、将领详情读板、被动贡献、战功状态、军团编制与成长读板、战术命令建议与补线路径读板、战场焦点与将领机会读板、地图控制与威胁热区读板、战术姿态与姿态预览、AI 回合、敌军意图预判、敌军意图六边形路径/目标叠层、战线压力读板、战局态势面板。
+- 当前玩法：六边形地图、地形、城市、阵营、军团、移动、攻击、反击、占城、招募、科技、任务 requirement、战役目标、胜负结算、结束保护、外交、城市扩建、城市经营与招募读板、军团训练、将领任命、主动技能、技能冷却、将领详情读板、被动贡献、战功状态、军团编制与成长读板、战术命令建议与补线路径读板、战场焦点与将领机会读板、地图控制与威胁热区读板、AI 作战计划与敌方将领协同读板、战术姿态与姿态预览、AI 回合、敌军意图预判、敌军意图六边形路径/目标叠层、战线压力读板、战局态势面板。
 - 当前测试入口：Swift Testing、Gameplay Smoke、项目结构检查、SwiftUI 类型检查、战斗页预览图渲染、无签名 Xcode 构建。
 - 当前协作系统：已建立 `AGENTS.md`、`update_log.md`、`md/prompt/`、`md/test/test.md`、`md/flow/flow.md`、`md/flow/flowchart.md`，默认按 `main` 直推、GitHub Actions 云端重验证、Agent C 下载未加密结果包复判，并具备未来由 Agent X 主控调度 Agent A/B/C 多轮循环的文档基线。
 - 当前 CI 入口：`.github/workflows/ci-results.yml`，在 `main` push 和手动触发时运行结构检查、SwiftPM 测试、Gameplay Smoke、RenderBattlePreview 和无签名 Xcode build，并上传 CI 结果包。
 
 ## 历史记录
+
+### v0.19 / AI 作战计划与将领协同读板
+
+日期：2026-07-05
+
+核心变更：
+
+- `GameState` 新增 `AIOperationalPlanKind`、`AIPlanCoordinationRole`、`AIPlanStepReport` 和 `AIOperationalPlanReport`，通过 `aiOperationalPlanReports(against:perFactionLimit:limit:)` 只读聚合敌军意图、战线压力、威胁热区和敌方将领技能机会。
+- AI 作战计划覆盖集火、夺城、将领技能、推进、固守和整备，输出来源单位、指挥将领、目标单位/城市、协同角色、预计伤害、压力/热区等级、标题和详情；不新增 Codable 存档字段。
+- `aiIntents(for:limit:)` 继续只读预测敌军倾向，并复用同一敌方 forecast copy；作战计划中的敌方将领技能机会在敌方规划态上读取，避免罗马回合误判敌方技能不可用。
+- 作战计划读板不改变真实 AI 行为、AI 评分、移动、攻击、技能释放、战斗结算、招募、城市扩建或胜负结算。
+- `GameViewModel` 新增 `AIOperationalPlanSummary`、`aiOperationalPlanSummaries` 和 `primaryAIOperationalPlanSummary`，把核心计划转成类型、来源、目标、影响、步骤和无障碍文案。
+- `BattleView` 新增顶部“计划”chip、敌情计划卡和完整战局计划行，让战斗页能直接看到敌军下一步集火、夺城或将领协同意图。
+- Swift Testing 增加集火计划、夺城计划、敌方将领技能计划、整备兜底和条约过滤五类核心只读测试；Gameplay Smoke 增加 AI 作战计划主链路和敌方将领技能协同断言；RenderBattlePreview 增加 AI 作战计划 ViewModel 字段断言。
+- `.github/workflows/ci-results.yml` artifact 版本更新到 v0.19。
+- README、flow、flowchart、test、prompt README 文档同步 AI 作战计划读板、云端 RenderBattlePreview 断言和 v0.19 Agent A 提示词。
+
+关键文件：
+
+- `Sources/RomeLegionsCore/GameState.swift`
+- `RomeLegionsApp/App/GameViewModel.swift`
+- `RomeLegionsApp/Views/BattleView.swift`
+- `Tests/RomeLegionsCoreTests/GameStateTests.swift`
+- `Tools/GameplaySmoke/main.swift`
+- `Tools/RenderBattlePreview/main.swift`
+- `.github/workflows/ci-results.yml`
+- `README.md`
+- `md/flow/flow.md`
+- `md/flow/flowchart.md`
+- `md/test/test.md`
+- `md/prompt/README.md`
+- `md/prompt/v0（玩法推进）/v0.19（AI作战计划与将领协同读板）.md`
+- `update_log.md`
+
+验证结果：
+
+- 按人工最新要求，本轮未运行任何本地测试、build、typecheck、RenderBattlePreview、`Tools/verify_project.mjs`、`git diff --check`、YAML/Plist 解析或脚本语法检查。
+- 本轮完整验证必须在 push 到 `origin/main` 后由 GitHub Actions 执行，并由 Agent C 下载最新 v0.19 artifact 复判 manifest、JUnit、主日志、render 日志、预览 PNG 和失败摘要。
+
+遗留事项：
+
+- 本轮没有实现真实多回合 AI 搜索、改变 AI 权重、自动执行计划、自动规避热区、真实补给线、外交界面、建筑树、装备系统或友方将领协同系统。
+- AI 作战计划只用于读板和 UI 解释，不自动执行命令，也不改变 AI 决策。
+- Agent C 必须核对最新 `origin/main` commit 对应的 v0.19 run id、run attempt 和 artifact；不能使用 v0.18 旧结果包。
 
 ### v0.18 / 地图控制与威胁热区读板
 
