@@ -16,6 +16,7 @@
 - 战役目标与胜负结算：任务目标可由核心规则判断，罗马完成核心目标后胜利，失去全部城市后失败
 - 战役结束保护：胜负已定后移动、攻击、招募、科技、外交、AI 推进等写状态命令不再改变战局
 - 城市扩建、军团训练、将领任命和外交派使
+- 军团成长决策读板：训练/任命有核心只读预览，展示成本、预计经验/军阶/伤害、恢复、候选将领/特性和阻塞原因，并复用到军令按钮
 - 将领特性与主动技能：鹰旗鼓舞、攻城布阵、战地补给、盾墙号令
 - 将领技能范围、目标与冷却预览：地图叠层、将领卡和军令按钮展示预计恢复、削城防、冷却和不可用原因
 - 将领详情读板：选中单位展示将领名、特性、被动贡献、技能状态、预计效果和战功摘要；无将领单位显示“无被动贡献”
@@ -84,7 +85,7 @@ swiftc -swift-version 5 -module-cache-path .build/module-cache Sources/RomeLegio
 node Tools/verify_project.mjs
 ```
 
-战斗页三尺寸预览图；渲染前会断言敌军意图 ViewModel 叠层包含移动后攻击六边形邻接路径、目标格和预计伤害文案，并断言主动地图叠层图例、AI 作战计划读板、战线压力读板、战场焦点摘要、地图控制摘要、威胁热区摘要、选中单位的军团编制摘要、本方将领协同摘要、机动落点摘要/地图 overlay、战术建议摘要/路径/目标、将领详情、被动贡献、战功摘要、战术姿态预览和城市经营/招募读板存在。每个命令会写出请求的城市场景 PNG，并额外写出同尺寸 `*-unit.png` 单位场景 PNG：
+战斗页三尺寸预览图；渲染前会断言敌军意图 ViewModel 叠层包含移动后攻击六边形邻接路径、目标格和预计伤害文案，并断言主动地图叠层图例、AI 作战计划读板、战线压力读板、战场焦点摘要、地图控制摘要、威胁热区摘要、选中单位的军团编制摘要、军团成长决策摘要、本方将领协同摘要、机动落点摘要/地图 overlay、战术建议摘要/路径/目标、将领详情、被动贡献、战功摘要、战术姿态预览和城市经营/招募读板存在。每个命令会写出请求的城市场景 PNG，并额外写出同尺寸 `*-unit.png` 单位场景 PNG：
 
 ```sh
 env HOME=$PWD/.home CLANG_MODULE_CACHE_PATH=$PWD/.build/module-cache /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/swiftc -parse-as-library -sdk /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX26.5.sdk -target arm64-apple-macosx14.0 -o .build/render-battle-preview Tools/RenderBattlePreview/main.swift Sources/RomeLegionsCore/GameState.swift RomeLegionsApp/App/GameViewModel.swift RomeLegionsApp/Views/BattleView.swift

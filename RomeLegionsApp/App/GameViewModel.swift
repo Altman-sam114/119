@@ -1151,6 +1151,51 @@ struct LegionFormationSummary: Identifiable {
     }
 }
 
+enum UnitDevelopmentDecisionKind: String, Identifiable {
+    case training
+    case appointment
+
+    var id: String { rawValue }
+}
+
+struct UnitDevelopmentDecisionOption: Identifiable {
+    var kind: UnitDevelopmentDecisionKind
+    var title: String
+    var symbol: String
+    var costLabel: String
+    var shortCostLabel: String
+    var impactLabel: String
+    var statusLabel: String
+    var buttonDetail: String
+    var canExecute: Bool
+    var accessibilityLabel: String
+
+    var id: UnitDevelopmentDecisionKind { kind }
+}
+
+struct UnitDevelopmentDecisionSummary: Identifiable {
+    var unitID: String
+    var unitTitle: String
+    var trainingPreview: TrainingPreview?
+    var appointmentPreview: GeneralAppointmentPreview?
+    var trainingOption: UnitDevelopmentDecisionOption?
+    var appointmentOption: UnitDevelopmentDecisionOption?
+
+    var id: String { unitID }
+
+    var options: [UnitDevelopmentDecisionOption] {
+        [trainingOption, appointmentOption].compactMap { $0 }
+    }
+
+    var title: String {
+        "\(unitTitle)成长"
+    }
+
+    var accessibilityLabel: String {
+        ([title] + options.map(\.accessibilityLabel)).joined(separator: "，")
+    }
+}
+
 struct GeneralPassiveContribution: Identifiable {
     var id: String
     var label: String
@@ -1535,6 +1580,11 @@ final class GameViewModel: ObservableObject {
         return legionFormationSummary(for: report)
     }
 
+    var selectedUnitDevelopmentDecisionSummary: UnitDevelopmentDecisionSummary? {
+        guard let selectedUnit else { return nil }
+        return unitDevelopmentDecisionSummary(for: selectedUnit)
+    }
+
     var selectedCommanderSynergySummary: CommanderSynergySummary? {
         guard let selectedUnitID,
               let report = try? state.commanderSynergyReport(unitID: selectedUnitID) else {
@@ -1667,6 +1717,99 @@ final class GameViewModel: ObservableObject {
             report: report,
             unit: state.unit(withID: report.unitID)
         )
+    }
+
+    private func unitDevelopmentDecisionSummary(for unit: ArmyUnit) -> UnitDevelopmentDecisionSummary {
+        let trainingPreview = try? state.trainingPreview(unitID: unit.id)
+        let appointmentPreview = try? state.generalAppointmentPreview(unitID: unit.id)
+        let unitTitle = "\(unit.faction.displayName)\(unit.kind.displayName)"
+
+        return UnitDevelopmentDecisionSummary(
+            unitID: unit.id,
+            unitTitle: unitTitle,
+            trainingPreview: trainingPreview,
+            appointmentPreview: appointmentPreview,
+            trainingOption: trainingPreview.map(trainingDecisionOption(for:)),
+            appointmentOption: appointmentPreview.map(appointmentDecisionOption(for:))
+        )
+    }
+
+    private func trainingDecisionOption(for preview: TrainingPreview) -> UnitDevelopmentDecisionOption {
+        let costLabel = resourceLabel(preview.cost, signed: false, includeZero: false)
+        let shortCostLabel = shortResourceLabel(preview.cost)
+        let blockedReason = decisionBlockedReason(error: preview.blockingError, fallback: preview.blockedReason, cost: preview.cost)
+        let statusLabel = preview.canTrain ? "可训练" : (blockedReason ?? "不可训练")
+        let impactLabel = "\(preview.summary) · \(preview.detail)"
+        let buttonDetail = preview.canTrain ? "\(preview.summary) · \(shortCostLabel)" : statusLabel
+        let accessibilityParts = [
+            "训练",
+            "成本\(costLabel)",
+            preview.summary,
+            preview.detail,
+            statusLabel
+        ]
+
+        return UnitDevelopmentDecisionOption(
+            kind: .training,
+            title: "训练",
+            symbol: "figure.walk",
+            costLabel: costLabel,
+            shortCostLabel: shortCostLabel,
+            impactLabel: impactLabel,
+            statusLabel: statusLabel,
+            buttonDetail: buttonDetail,
+            canExecute: preview.canTrain,
+            accessibilityLabel: accessibilityParts.joined(separator: "，")
+        )
+    }
+
+    private func appointmentDecisionOption(for preview: GeneralAppointmentPreview) -> UnitDevelopmentDecisionOption {
+        let costLabel = resourceLabel(preview.cost, signed: false, includeZero: false)
+        let shortCostLabel = shortResourceLabel(preview.cost)
+        let blockedReason = decisionBlockedReason(error: preview.blockingError, fallback: preview.blockedReason, cost: preview.cost)
+        let statusLabel = preview.canAppoint ? "可任命" : (blockedReason ?? "不可任命")
+        let candidateLabel: String
+        if let candidateName = preview.candidateName,
+           let trait = preview.candidateTrait {
+            candidateLabel = "\(candidateName) · \(trait.displayName)"
+        } else {
+            candidateLabel = "暂无候选"
+        }
+        let impactLabel = "\(candidateLabel) · \(preview.detail)"
+        let buttonDetail = preview.canAppoint ? "\(candidateLabel) · \(shortCostLabel)" : statusLabel
+        let accessibilityParts = [
+            "任命",
+            "成本\(costLabel)",
+            candidateLabel,
+            preview.detail,
+            statusLabel
+        ]
+
+        return UnitDevelopmentDecisionOption(
+            kind: .appointment,
+            title: "任命",
+            symbol: "person.crop.circle.badge.plus",
+            costLabel: costLabel,
+            shortCostLabel: shortCostLabel,
+            impactLabel: impactLabel,
+            statusLabel: statusLabel,
+            buttonDetail: buttonDetail,
+            canExecute: preview.canAppoint,
+            accessibilityLabel: accessibilityParts.joined(separator: "，")
+        )
+    }
+
+    private func decisionBlockedReason(
+        error: GameRuleError?,
+        fallback: String?,
+        cost: EmpireResources
+    ) -> String? {
+        if error == .insufficientResources,
+           let shortageLabel = resourceShortageLabel(for: cost) {
+            return shortageLabel
+        }
+
+        return fallback
     }
 
     private func battlefieldFocusSummary(for report: BattlefieldFocusReport) -> BattlefieldFocusSummary {
@@ -2276,6 +2419,24 @@ final class GameViewModel: ObservableObject {
         guard selectedUnit != nil,
               let preview = selectedGeneralSkillPreview else { return false }
         return preview.isExecutable
+    }
+
+    var canTrainSelectedUnit: Bool {
+        guard !isCampaignOver else { return false }
+        return selectedUnitDevelopmentDecisionSummary?.trainingOption?.canExecute ?? false
+    }
+
+    var canAppointGeneralToSelectedUnit: Bool {
+        guard !isCampaignOver else { return false }
+        return selectedUnitDevelopmentDecisionSummary?.appointmentOption?.canExecute ?? false
+    }
+
+    var selectedTrainingButtonDetail: String? {
+        selectedUnitDevelopmentDecisionSummary?.trainingOption?.buttonDetail
+    }
+
+    var selectedAppointmentButtonDetail: String? {
+        selectedUnitDevelopmentDecisionSummary?.appointmentOption?.buttonDetail
     }
 
     func canSetSelectedTacticalOrder(_ order: TacticalOrder) -> Bool {

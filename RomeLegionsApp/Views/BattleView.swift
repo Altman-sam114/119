@@ -1597,6 +1597,10 @@ struct CompactSelectionPanelView: View {
                         LegionFormationCardView(summary: formation, isCompact: true)
                     }
 
+                    if let development = viewModel.selectedUnitDevelopmentDecisionSummary {
+                        UnitDevelopmentDecisionCardView(summary: development, isCompact: true)
+                    }
+
                     if let recommendation = viewModel.selectedTacticalRecommendationSummary {
                         TacticalRecommendationCardView(summary: recommendation, isCompact: true)
                     }
@@ -3269,6 +3273,84 @@ struct LegionFormationCardView: View {
     }
 }
 
+struct UnitDevelopmentDecisionCardView: View {
+    var summary: UnitDevelopmentDecisionSummary
+    var isCompact: Bool
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: isCompact ? 5 : 7) {
+            HStack(spacing: 7) {
+                Image(systemName: "chevron.up.forward.2")
+                    .foregroundStyle(Color(red: 0.86, green: 0.68, blue: 0.34))
+                Text("成长")
+                    .font(.caption2.weight(.bold))
+                    .foregroundStyle(.white.opacity(0.58))
+                Text(summary.title)
+                    .font(.caption.weight(.heavy))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.72)
+                Spacer(minLength: 0)
+            }
+
+            ForEach(summary.options) { option in
+                UnitDevelopmentDecisionOptionRowView(option: option, isCompact: isCompact)
+            }
+        }
+        .padding(.horizontal, 8)
+        .padding(.vertical, isCompact ? 7 : 8)
+        .background(.black.opacity(0.16))
+        .clipShape(RoundedRectangle(cornerRadius: 7))
+        .accessibilityLabel(summary.accessibilityLabel)
+    }
+}
+
+struct UnitDevelopmentDecisionOptionRowView: View {
+    var option: UnitDevelopmentDecisionOption
+    var isCompact: Bool
+
+    var body: some View {
+        HStack(spacing: 7) {
+            Image(systemName: option.symbol)
+                .font(.caption.weight(.black))
+                .foregroundStyle(option.kind.tintColor)
+                .frame(width: 18)
+
+            VStack(alignment: .leading, spacing: 2) {
+                HStack(spacing: 5) {
+                    Text(option.title)
+                        .font(.caption.weight(.heavy))
+                    Text(option.shortCostLabel)
+                        .font(.caption2.monospacedDigit().weight(.bold))
+                        .foregroundStyle(.white.opacity(0.58))
+                }
+                Text(option.impactLabel)
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(.white.opacity(0.64))
+                    .lineLimit(isCompact ? 1 : 2)
+                    .minimumScaleFactor(0.68)
+            }
+
+            Spacer(minLength: 0)
+
+            Text(option.statusLabel)
+                .font(.caption2.weight(.black))
+                .foregroundStyle(option.canExecute ? .black.opacity(0.78) : .white.opacity(0.72))
+                .padding(.horizontal, 6)
+                .frame(height: 20)
+                .frame(maxWidth: isCompact ? 82 : 118)
+                .background(option.canExecute ? option.kind.tintColor : .white.opacity(0.12))
+                .clipShape(RoundedRectangle(cornerRadius: 5))
+                .lineLimit(1)
+                .minimumScaleFactor(0.68)
+        }
+        .padding(.horizontal, 7)
+        .padding(.vertical, 5)
+        .background(option.kind.tintColor.opacity(0.10))
+        .clipShape(RoundedRectangle(cornerRadius: 6))
+        .accessibilityLabel(option.accessibilityLabel)
+    }
+}
+
 struct EnemyIntentPanelView: View {
     @EnvironmentObject private var viewModel: GameViewModel
 
@@ -3430,6 +3512,10 @@ struct SelectionPanelView: View {
 
                     if let formation = viewModel.selectedLegionFormationSummary {
                         LegionFormationCardView(summary: formation, isCompact: false)
+                    }
+
+                    if let development = viewModel.selectedUnitDevelopmentDecisionSummary {
+                        UnitDevelopmentDecisionCardView(summary: development, isCompact: false)
                     }
 
                     if let recommendation = viewModel.selectedTacticalRecommendationSummary {
@@ -4059,18 +4145,26 @@ struct ActionsPanelView: View {
                         Button {
                             viewModel.trainSelectedUnit()
                         } label: {
-                            CommandButtonLabel(symbol: "figure.walk", text: "训练")
+                            CommandButtonLabel(
+                                symbol: "figure.walk",
+                                text: "训练",
+                                detail: viewModel.selectedTrainingButtonDetail
+                            )
                         }
                         .buttonStyle(SecondaryButtonStyle())
-                        .disabled(viewModel.isCampaignOver)
+                        .disabled(!viewModel.canTrainSelectedUnit)
 
                         Button {
                             viewModel.appointGeneralToSelectedUnit()
                         } label: {
-                            CommandButtonLabel(symbol: "person.crop.circle.badge.plus", text: "任命")
+                            CommandButtonLabel(
+                                symbol: "person.crop.circle.badge.plus",
+                                text: "任命",
+                                detail: viewModel.selectedAppointmentButtonDetail
+                            )
                         }
                         .buttonStyle(SecondaryButtonStyle())
-                        .disabled(unit.generalName != nil || viewModel.isCampaignOver)
+                        .disabled(!viewModel.canAppointGeneralToSelectedUnit)
                     }
 
                     HStack(spacing: 8) {
@@ -4526,6 +4620,17 @@ extension DiplomaticStatus {
         case .war: return Color(red: 0.86, green: 0.24, blue: 0.18)
         case .truce: return Color(red: 0.84, green: 0.66, blue: 0.32)
         case .alliance: return Color(red: 0.24, green: 0.66, blue: 0.34)
+        }
+    }
+}
+
+extension UnitDevelopmentDecisionKind {
+    var tintColor: Color {
+        switch self {
+        case .training:
+            return Color(red: 0.86, green: 0.68, blue: 0.34)
+        case .appointment:
+            return Color(red: 0.36, green: 0.86, blue: 0.92)
         }
     }
 }

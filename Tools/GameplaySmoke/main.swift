@@ -43,13 +43,29 @@ do {
     expect(technologyState.researchedTechnologies[.rome]?.contains(.marchingDrill) == true, "Technology should be researched")
 
     var trainingState = GameState.newCampaign()
+    let trainingIndex = trainingState.units.firstIndex { $0.id == "rome-archer-1" }
+    expect(trainingIndex != nil, "Training target should exist")
+    trainingState.units[trainingIndex!].health = 52
+    let trainingBeforePreview = trainingState
+    let trainingPreview = try trainingState.trainingPreview(unitID: "rome-archer-1")
+    expect(trainingState == trainingBeforePreview, "Training preview should not mutate state")
+    expect(trainingPreview.canTrain, "Training preview should be executable")
+    expect(trainingPreview.projectedExperience == 1, "Training preview should project experience")
+    expect(trainingPreview.projectedRecoveredHealth == 18, "Training preview should project recovery")
     _ = try trainingState.trainUnit(id: "rome-archer-1")
-    expect((trainingState.unit(withID: "rome-archer-1")?.experience ?? 0) > 0, "Training should add experience")
+    expect(trainingState.unit(withID: "rome-archer-1")?.experience == trainingPreview.projectedExperience, "Training should add previewed experience")
+    expect(trainingState.unit(withID: "rome-archer-1")?.health == trainingPreview.projectedHealth, "Training should apply previewed recovery")
 
     var generalState = GameState.newCampaign()
+    let appointmentBeforePreview = generalState
+    let appointmentPreview = try generalState.generalAppointmentPreview(unitID: "rome-archer-1")
+    expect(generalState == appointmentBeforePreview, "Appointment preview should not mutate state")
+    expect(appointmentPreview.canAppoint, "Appointment preview should be executable")
+    expect(appointmentPreview.candidateName == "庞培", "Appointment preview should expose candidate")
+    expect(appointmentPreview.candidateTrait == .eagleStandard, "Appointment preview should expose candidate trait")
     _ = try generalState.appointGeneral(unitID: "rome-archer-1")
-    expect(generalState.unit(withID: "rome-archer-1")?.generalName != nil, "General should be appointed")
-    expect(generalState.unit(withID: "rome-archer-1")?.resolvedGeneralTrait != nil, "General should receive a trait")
+    expect(generalState.unit(withID: "rome-archer-1")?.generalName == appointmentPreview.candidateName, "General should match appointment preview")
+    expect(generalState.unit(withID: "rome-archer-1")?.resolvedGeneralTrait == appointmentPreview.candidateTrait, "General trait should match appointment preview")
 
     var orderState = GameState.newCampaign()
     orderState.units.append(ArmyUnit(id: "near-carthage", kind: .archer, faction: .carthage, position: Position(x: 4, y: 3), health: 60))

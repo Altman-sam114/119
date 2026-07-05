@@ -14,12 +14,55 @@
 
 - 项目类型：原创 SwiftUI iOS 罗马题材战棋原型。
 - 核心架构：纯 Swift `RomeLegionsCore` 负责玩法规则；`GameViewModel` 负责 UI 状态和派生数据；SwiftUI 视图负责展示和命令入口。
-- 当前玩法：六边形地图、地形、城市、阵营、军团、移动、攻击、反击、占城、招募、科技、任务 requirement、战役目标、胜负结算、结束保护、外交、城市扩建、城市经营与招募读板、军团训练、将领任命、主动技能、技能冷却、将领详情读板、被动贡献、战功状态、军团编制与成长读板、战术命令建议与补线路径读板、本方将领协同与战术连携读板、机动落点与地图风险读板、战场焦点与将领机会读板、地图控制与威胁热区读板、主动地图叠层图例、AI 作战计划与敌方将领协同读板、战术姿态与姿态预览、AI 回合、AI 主攻优先执行、敌军意图预判、敌军意图六边形路径/目标叠层、战线压力读板、战局态势面板。
+- 当前玩法：六边形地图、地形、城市、阵营、军团、移动、攻击、反击、占城、招募、科技、任务 requirement、战役目标、胜负结算、结束保护、外交、城市扩建、城市经营与招募读板、军团训练、将领任命、军团成长决策读板、主动技能、技能冷却、将领详情读板、被动贡献、战功状态、军团编制与成长读板、战术命令建议与补线路径读板、本方将领协同与战术连携读板、机动落点与地图风险读板、战场焦点与将领机会读板、地图控制与威胁热区读板、主动地图叠层图例、AI 作战计划与敌方将领协同读板、战术姿态与姿态预览、AI 回合、AI 主攻优先执行、敌军意图预判、敌军意图六边形路径/目标叠层、战线压力读板、战局态势面板。
 - 当前测试入口：Swift Testing、Gameplay Smoke、项目结构检查、SwiftUI 类型检查、战斗页预览图渲染、无签名 Xcode 构建。
 - 当前协作系统：已建立 `AGENTS.md`、`update_log.md`、`md/prompt/`、`md/test/test.md`、`md/flow/flow.md`、`md/flow/flowchart.md`，默认按 `main` 直推、GitHub Actions 云端重验证、Agent C 下载未加密结果包复判，并具备未来由 Agent X 主控调度 Agent A/B/C 多轮循环的文档基线。
 - 当前 CI 入口：`.github/workflows/ci-results.yml`，在 `main` push 和手动触发时运行结构检查、SwiftPM 测试、Gameplay Smoke、RenderBattlePreview 和无签名 Xcode build，并上传 CI 结果包。
 
 ## 历史记录
+
+### v0.24 / 军团成长决策读板
+
+日期：2026-07-05
+
+核心变更：
+
+- `GameState` 新增 `TrainingPreview` 和 `GeneralAppointmentPreview`，通过 `trainingPreview(unitID:)` 与 `generalAppointmentPreview(unitID:)` 只读展示训练/任命成本、预计经验/军阶/伤害、恢复、候选将领/特性和阻塞原因。
+- `trainUnit(id:)` 与 `appointGeneral(unitID:)` 改为复用同一预览的成本、预计收益和候选将领，避免成长读板与真实结算分叉。
+- `GameViewModel` 新增 `UnitDevelopmentDecisionSummary` 与训练/任命按钮 detail/can 执行派生字段，把核心预览转成成本、收益、状态和无障碍文案。
+- `BattleView` 在完整与紧凑选中单位情报中新增“成长”卡，展示训练和任命两项决策；完整军令面板训练/任命按钮使用预览摘要和可执行状态。
+- Swift Testing 增强训练/任命测试，覆盖预览只读、成本复用、执行结果匹配预览、资源不足和已任命阻塞。
+- Gameplay Smoke 增加训练/任命预览主链路断言；RenderBattlePreview 增加 `selectedUnitDevelopmentDecisionSummary` 断言，失败抛出 `missingUnitDevelopmentDecisionSummary`。
+- `.github/workflows/ci-results.yml` artifact 版本更新到 v0.24。
+- README、flow、flowchart、test、prompt README 文档同步军团成长决策读板和 v0.24 Agent A 提示词。
+
+关键文件：
+
+- `Sources/RomeLegionsCore/GameState.swift`
+- `RomeLegionsApp/App/GameViewModel.swift`
+- `RomeLegionsApp/Views/BattleView.swift`
+- `Tests/RomeLegionsCoreTests/GameStateTests.swift`
+- `Tools/GameplaySmoke/main.swift`
+- `Tools/RenderBattlePreview/main.swift`
+- `.github/workflows/ci-results.yml`
+- `README.md`
+- `md/flow/flow.md`
+- `md/flow/flowchart.md`
+- `md/test/test.md`
+- `md/prompt/README.md`
+- `md/prompt/v0（玩法推进）/v0.24（军团成长决策读板）.md`
+- `update_log.md`
+
+验证结果：
+
+- 按人工最新要求，本轮未运行任何本地测试、build、typecheck、RenderBattlePreview、`Tools/verify_project.mjs`、`git diff --check`、YAML/JSON/Plist 解析或脚本语法检查。
+- 本轮完整验证必须在 push 到 `origin/main` 后由 GitHub Actions 执行，并由 Agent C 下载最新 v0.24 artifact 复判 manifest、JUnit、主日志、render 日志、预览 PNG 和失败摘要。
+
+遗留事项：
+
+- 本轮没有实现升级树、装备、兵种转职、将领池 UI、将领改名、技能选择、自动训练、真实补给线、建筑树、人口、外交界面或存档 UI。
+- 军团成长决策读板只解释训练/任命成本、收益和阻塞，不改变既有训练/任命数值、候选顺序、trait 映射、AI、移动、攻击、技能、城市或胜负结算。
+- Agent C 必须核对最新 `origin/main` commit 对应的 v0.24 run id、run attempt 和 artifact；不能使用 v0.23 旧结果包。
 
 ### v0.23 / 主动地图叠层图例
 
@@ -52,13 +95,13 @@
 验证结果：
 
 - 按人工最新要求，本轮未运行任何本地测试、build、typecheck、RenderBattlePreview、`Tools/verify_project.mjs`、`git diff --check`、YAML/JSON/Plist 解析或脚本语法检查。
-- 本轮完整验证必须在 push 到 `origin/main` 后由 GitHub Actions 执行，并由 Agent C 下载最新 v0.23 artifact 复判 manifest、JUnit、主日志、render 日志、预览 PNG 和失败摘要。
+- GitHub Actions run `28738374857` attempt `1` 通过，artifact 为 `RomeLegions-ci-v0.23-main-dc05817-run28738374857-attempt1`。
+- Agent C 复判已核对 manifest `version=v0.23`、`branch=main`、`commitSha=dc058178b33bfe25cb15bb3b44c62a1e9c6dd05f`、`runId=28738374857`、`runAttempt=1`，JUnit `failures=0`，static checks、Swift Testing、Gameplay Smoke、RenderBattlePreview 和 Xcode build 均为 success。
 
 遗留事项：
 
 - 本轮没有实现图层开关、教程系统、地图缩放、地图 UI 大重构、军团成长预览、真实补给线、建筑树、装备、人口、外交界面或存档 UI。
 - 主动地图叠层图例只用于解释当前可见叠层，不改变真实移动、攻击、占城、姿态、AI 决策、热区、控区、机动评分或战斗结算。
-- Agent C 必须核对最新 `origin/main` commit 对应的 v0.23 run id、run attempt 和 artifact；不能使用 v0.22 旧结果包。
 
 ### v0.22 / AI 主攻优先执行
 

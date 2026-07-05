@@ -118,6 +118,12 @@ flowchart TD
     AE["选中单位或罗马军团列表"] --> AF["GameState.legionFormationReports / legionFormationReport<br/>只读派生职责、战备、友军支援、近敌、建议姿态和命令建议"]
     AF --> AG["GameViewModel.legionFormationSummaries<br/>顶部军团 chip、战局行、选中单位编制卡"]
     AG --> X
+    AE --> BG["GameState.trainingPreview / generalAppointmentPreview<br/>只读派生成本、预计军阶/伤害/恢复、候选将领和阻塞原因"]
+    U --> BG
+    BG --> BH2["GameViewModel.selectedUnitDevelopmentDecisionSummary<br/>训练/任命成长读板和按钮 detail"]
+    BH2 --> BI["BattleView 成长卡与训练/任命按钮<br/>展示成本、收益、状态和阻塞<br/>不重算资源、候选或军阶"]
+    BI --> BJ["玩家训练或任命"]
+    BJ --> BK["GameState.trainUnit / appointGeneral<br/>复用同一预览成本、收益和候选后写状态"]
 
     Y["选中单位当前姿态"] --> Z["GameViewModel.selectedTacticalOrderPreviews<br/>局部复制单位替换姿态<br/>调用 effectiveAttack/Defense/Movement 计算攻防移预览"]
     Z --> AA["BattleView 姿态预览与按钮<br/>展示攻防移、变化值、当前标记和不可切换原因"]

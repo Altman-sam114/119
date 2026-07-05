@@ -187,23 +187,74 @@ private func riskTestPriority(_ risk: TacticalRecommendationRisk) -> Int {
 
 @Test func trainingUnitCostsPrestigeAndAddsExperience() throws {
     var state = GameState.newCampaign()
-    let beforePrestige = state.resources[.rome]?.prestige ?? 0
-    let beforeExperience = state.unit(withID: "rome-archer-1")?.experience ?? 0
+    let archerIndex = try #require(state.units.firstIndex { $0.id == "rome-archer-1" })
+    state.units[archerIndex].health = 52
+    let before = state
+    let beforeResources = state.resources[.rome]!
+
+    let preview = try state.trainingPreview(unitID: "rome-archer-1")
+
+    #expect(state == before)
+    #expect(preview.canTrain)
+    #expect(preview.currentExperience == 0)
+    #expect(preview.projectedExperience == 1)
+    #expect(preview.projectedRecoveredHealth == 18)
+    #expect(preview.projectedHealth == 70)
+    #expect(!preview.summary.isEmpty)
+    #expect(!preview.detail.isEmpty)
 
     _ = try state.trainUnit(id: "rome-archer-1")
 
-    #expect((state.unit(withID: "rome-archer-1")?.experience ?? 0) == beforeExperience + 1)
-    #expect((state.resources[.rome]?.prestige ?? 0) == beforePrestige - 1)
+    let trainedUnit = state.unit(withID: "rome-archer-1")
+    #expect(trainedUnit?.experience == preview.projectedExperience)
+    #expect(trainedUnit?.health == preview.projectedHealth)
+    #expect(trainedUnit?.hasActed == true)
+    #expect(state.resources[.rome]?.gold == beforeResources.gold - preview.cost.gold)
+    #expect(state.resources[.rome]?.grain == beforeResources.grain - preview.cost.grain)
+    #expect(state.resources[.rome]?.iron == beforeResources.iron - preview.cost.iron)
+    #expect(state.resources[.rome]?.prestige == beforeResources.prestige - preview.cost.prestige)
+
+    var poorState = GameState.newCampaign()
+    poorState.resources[.rome] = .zero
+    let blockedPreview = try poorState.trainingPreview(unitID: "rome-archer-1")
+    #expect(!blockedPreview.canTrain)
+    #expect(blockedPreview.blockingError == .insufficientResources)
 }
 
 @Test func appointingGeneralAssignsNameAndExperience() throws {
     var state = GameState.newCampaign()
+    let before = state
+    let beforeResources = state.resources[.rome]!
+
+    let preview = try state.generalAppointmentPreview(unitID: "rome-archer-1")
+
+    #expect(state == before)
+    #expect(preview.canAppoint)
+    #expect(preview.candidateName == "庞培")
+    #expect(preview.candidateTrait == .eagleStandard)
+    #expect(preview.projectedExperience == 2)
+    #expect(!preview.summary.isEmpty)
+    #expect(!preview.detail.isEmpty)
 
     _ = try state.appointGeneral(unitID: "rome-archer-1")
 
-    #expect(state.unit(withID: "rome-archer-1")?.generalName != nil)
-    #expect(state.unit(withID: "rome-archer-1")?.resolvedGeneralTrait != nil)
-    #expect((state.unit(withID: "rome-archer-1")?.experience ?? 0) == 2)
+    let appointedUnit = state.unit(withID: "rome-archer-1")
+    #expect(appointedUnit?.generalName == preview.candidateName)
+    #expect(appointedUnit?.resolvedGeneralTrait == preview.candidateTrait)
+    #expect(appointedUnit?.experience == preview.projectedExperience)
+    #expect(state.resources[.rome]?.gold == beforeResources.gold - preview.cost.gold)
+    #expect(state.resources[.rome]?.science == beforeResources.science - preview.cost.science)
+    #expect(state.resources[.rome]?.prestige == beforeResources.prestige - preview.cost.prestige)
+
+    let alreadyAssignedPreview = try state.generalAppointmentPreview(unitID: "rome-archer-1")
+    #expect(!alreadyAssignedPreview.canAppoint)
+    #expect(alreadyAssignedPreview.blockingError == .generalAlreadyAssigned)
+
+    var poorState = GameState.newCampaign()
+    poorState.resources[.rome] = .zero
+    let blockedPreview = try poorState.generalAppointmentPreview(unitID: "rome-archer-1")
+    #expect(!blockedPreview.canAppoint)
+    #expect(blockedPreview.blockingError == .insufficientResources)
 }
 
 @Test func generalTraitChangesEffectiveStats() {

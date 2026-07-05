@@ -800,6 +800,125 @@ public struct CityRecruitmentPreview: Equatable, Sendable {
     }
 }
 
+public struct TrainingPreview: Equatable, Sendable {
+    public var unitID: String
+    public var faction: Faction
+    public var kind: UnitKind
+    public var cost: EmpireResources
+    public var currentExperience: Int
+    public var projectedExperience: Int
+    public var currentRankName: String
+    public var projectedRankName: String
+    public var currentDamageBonus: Int
+    public var projectedDamageBonus: Int
+    public var currentHealth: Int
+    public var projectedRecoveredHealth: Int
+    public var projectedHealth: Int
+    public var canTrain: Bool
+    public var blockedReason: String?
+    public var blockingError: GameRuleError?
+    public var summary: String
+    public var detail: String
+
+    public init(
+        unitID: String,
+        faction: Faction,
+        kind: UnitKind,
+        cost: EmpireResources,
+        currentExperience: Int,
+        projectedExperience: Int,
+        currentRankName: String,
+        projectedRankName: String,
+        currentDamageBonus: Int,
+        projectedDamageBonus: Int,
+        currentHealth: Int,
+        projectedRecoveredHealth: Int,
+        projectedHealth: Int,
+        canTrain: Bool,
+        blockedReason: String?,
+        blockingError: GameRuleError?,
+        summary: String,
+        detail: String
+    ) {
+        self.unitID = unitID
+        self.faction = faction
+        self.kind = kind
+        self.cost = cost
+        self.currentExperience = currentExperience
+        self.projectedExperience = projectedExperience
+        self.currentRankName = currentRankName
+        self.projectedRankName = projectedRankName
+        self.currentDamageBonus = currentDamageBonus
+        self.projectedDamageBonus = projectedDamageBonus
+        self.currentHealth = currentHealth
+        self.projectedRecoveredHealth = projectedRecoveredHealth
+        self.projectedHealth = projectedHealth
+        self.canTrain = canTrain
+        self.blockedReason = blockedReason
+        self.blockingError = blockingError
+        self.summary = summary
+        self.detail = detail
+    }
+}
+
+public struct GeneralAppointmentPreview: Equatable, Sendable {
+    public var unitID: String
+    public var faction: Faction
+    public var kind: UnitKind
+    public var cost: EmpireResources
+    public var candidateName: String?
+    public var candidateTrait: GeneralTrait?
+    public var currentExperience: Int
+    public var projectedExperience: Int
+    public var currentRankName: String
+    public var projectedRankName: String
+    public var currentDamageBonus: Int
+    public var projectedDamageBonus: Int
+    public var canAppoint: Bool
+    public var blockedReason: String?
+    public var blockingError: GameRuleError?
+    public var summary: String
+    public var detail: String
+
+    public init(
+        unitID: String,
+        faction: Faction,
+        kind: UnitKind,
+        cost: EmpireResources,
+        candidateName: String?,
+        candidateTrait: GeneralTrait?,
+        currentExperience: Int,
+        projectedExperience: Int,
+        currentRankName: String,
+        projectedRankName: String,
+        currentDamageBonus: Int,
+        projectedDamageBonus: Int,
+        canAppoint: Bool,
+        blockedReason: String?,
+        blockingError: GameRuleError?,
+        summary: String,
+        detail: String
+    ) {
+        self.unitID = unitID
+        self.faction = faction
+        self.kind = kind
+        self.cost = cost
+        self.candidateName = candidateName
+        self.candidateTrait = candidateTrait
+        self.currentExperience = currentExperience
+        self.projectedExperience = projectedExperience
+        self.currentRankName = currentRankName
+        self.projectedRankName = projectedRankName
+        self.currentDamageBonus = currentDamageBonus
+        self.projectedDamageBonus = projectedDamageBonus
+        self.canAppoint = canAppoint
+        self.blockedReason = blockedReason
+        self.blockingError = blockingError
+        self.summary = summary
+        self.detail = detail
+    }
+}
+
 public enum Technology: String, CaseIterable, Codable, Identifiable, Hashable, Sendable {
     case marchingDrill
     case siegeEngineering
@@ -1799,6 +1918,10 @@ public struct GameState: Codable, Equatable, Sendable {
     private static let cityDevelopmentCost = EmpireResources(gold: 70, grain: 40, iron: 35, science: 0, prestige: 0)
     private static let cityDevelopmentProductionIncrease = EmpireResources(gold: 10, grain: 8, iron: 6, science: 4, prestige: 1)
     private static let cityDevelopmentFortificationIncrease = 3
+    private static let trainingCost = EmpireResources(gold: 35, grain: 20, iron: 10, science: 0, prestige: 1)
+    private static let trainingHealthRecovery = 18
+    private static let generalAppointmentCost = EmpireResources(gold: 55, grain: 0, iron: 0, science: 15, prestige: 2)
+    private static let generalCandidateNames = ["庞培", "西庇阿", "布鲁图", "马略", "苏拉", "阿格里帕"]
 
     public init(
         mode: GameMode,
@@ -2076,6 +2199,100 @@ public struct GameState: Codable, Equatable, Sendable {
             canRecruit: blockingError == nil,
             blockedReason: recruitmentBlockedReason(for: kind, from: city, error: blockingError),
             blockingError: blockingError
+        )
+    }
+
+    public func trainingPreview(unitID: String) throws -> TrainingPreview {
+        guard let unit = unit(withID: unitID) else {
+            throw GameRuleError.missingEntity
+        }
+
+        let cost = Self.trainingCost
+        let currentStatus = warMeritStatus(for: unit)
+        let projectedStatus = WarMeritStatus(experience: unit.experience + 1)
+        let recoveredHealth = min(Self.trainingHealthRecovery, unit.kind.maxHealth - unit.health)
+        let projectedHealth = min(unit.kind.maxHealth, unit.health + Self.trainingHealthRecovery)
+        let blockingError: GameRuleError?
+
+        if campaignStatus.isGameOver {
+            blockingError = .campaignAlreadyEnded
+        } else if unit.faction != activeFaction {
+            blockingError = .notActiveFaction
+        } else if !(resources[activeFaction] ?? .zero).canPay(cost) {
+            blockingError = .insufficientResources
+        } else {
+            blockingError = nil
+        }
+
+        let summary = "训练后\(projectedStatus.rankName) · 战功 \(unit.experience + 1)"
+        let detail = "伤害 +\(projectedStatus.damageBonus) · 恢复 \(recoveredHealth) · 生命 \(projectedHealth)/\(unit.kind.maxHealth)"
+
+        return TrainingPreview(
+            unitID: unit.id,
+            faction: unit.faction,
+            kind: unit.kind,
+            cost: cost,
+            currentExperience: unit.experience,
+            projectedExperience: unit.experience + 1,
+            currentRankName: currentStatus.rankName,
+            projectedRankName: projectedStatus.rankName,
+            currentDamageBonus: currentStatus.damageBonus,
+            projectedDamageBonus: projectedStatus.damageBonus,
+            currentHealth: unit.health,
+            projectedRecoveredHealth: recoveredHealth,
+            projectedHealth: projectedHealth,
+            canTrain: blockingError == nil,
+            blockedReason: blockingError?.displayMessage,
+            blockingError: blockingError,
+            summary: summary,
+            detail: detail
+        )
+    }
+
+    public func generalAppointmentPreview(unitID: String) throws -> GeneralAppointmentPreview {
+        guard let unit = unit(withID: unitID) else {
+            throw GameRuleError.missingEntity
+        }
+
+        let cost = Self.generalAppointmentCost
+        let candidate = generalAppointmentCandidate(for: unit)
+        let currentStatus = warMeritStatus(for: unit)
+        let projectedStatus = WarMeritStatus(experience: unit.experience + 2)
+        let blockingError: GameRuleError?
+
+        if campaignStatus.isGameOver {
+            blockingError = .campaignAlreadyEnded
+        } else if unit.faction != activeFaction {
+            blockingError = .notActiveFaction
+        } else if unit.generalName != nil {
+            blockingError = .generalAlreadyAssigned
+        } else if !(resources[activeFaction] ?? .zero).canPay(cost) {
+            blockingError = .insufficientResources
+        } else {
+            blockingError = nil
+        }
+
+        let summary = "任命\(candidate.name) · \(candidate.trait.displayName)"
+        let detail = "\(candidate.trait.skillName) · 战功 \(unit.experience + 2) · 伤害 +\(projectedStatus.damageBonus)"
+
+        return GeneralAppointmentPreview(
+            unitID: unit.id,
+            faction: unit.faction,
+            kind: unit.kind,
+            cost: cost,
+            candidateName: candidate.name,
+            candidateTrait: candidate.trait,
+            currentExperience: unit.experience,
+            projectedExperience: unit.experience + 2,
+            currentRankName: currentStatus.rankName,
+            projectedRankName: projectedStatus.rankName,
+            currentDamageBonus: currentStatus.damageBonus,
+            projectedDamageBonus: projectedStatus.damageBonus,
+            canAppoint: blockingError == nil,
+            blockedReason: blockingError?.displayMessage,
+            blockingError: blockingError,
+            summary: summary,
+            detail: detail
         )
     }
 
@@ -4950,17 +5167,17 @@ public struct GameState: Codable, Equatable, Sendable {
             throw GameRuleError.missingEntity
         }
 
-        guard units[index].faction == activeFaction else {
-            throw GameRuleError.notActiveFaction
+        let preview = try trainingPreview(unitID: unitID)
+        guard preview.canTrain else {
+            throw preview.blockingError ?? GameRuleError.invalidTarget
         }
 
-        let cost = EmpireResources(gold: 35, grain: 20, iron: 10, science: 0, prestige: 1)
         var pool = resources[activeFaction] ?? .zero
-        try pool.spend(cost)
+        try pool.spend(preview.cost)
         resources[activeFaction] = pool
 
-        units[index].experience += 1
-        units[index].health = min(units[index].kind.maxHealth, units[index].health + 18)
+        units[index].experience = preview.projectedExperience
+        units[index].health = preview.projectedHealth
         units[index].hasActed = true
 
         let messages = ["\(units[index].kind.displayName)完成训练，经验提升。"]
@@ -5053,26 +5270,23 @@ public struct GameState: Codable, Equatable, Sendable {
             throw GameRuleError.missingEntity
         }
 
-        guard units[index].faction == activeFaction else {
-            throw GameRuleError.notActiveFaction
+        let preview = try generalAppointmentPreview(unitID: unitID)
+        guard preview.canAppoint else {
+            throw preview.blockingError ?? GameRuleError.invalidTarget
         }
 
-        guard units[index].generalName == nil else {
-            throw GameRuleError.generalAlreadyAssigned
+        guard let name = preview.candidateName,
+              let trait = preview.candidateTrait else {
+            throw GameRuleError.missingEntity
         }
 
-        let cost = EmpireResources(gold: 55, grain: 0, iron: 0, science: 15, prestige: 2)
         var pool = resources[activeFaction] ?? .zero
-        try pool.spend(cost)
+        try pool.spend(preview.cost)
         resources[activeFaction] = pool
 
-        let usedNames = Set(units.compactMap(\.generalName))
-        let candidateNames = ["庞培", "西庇阿", "布鲁图", "马略", "苏拉", "阿格里帕"]
-        let name = candidateNames.first { !usedNames.contains($0) } ?? "罗马将领 \(units[index].experience + 1)"
-        let trait = GeneralTrait.defaultTrait(forName: name) ?? .eagleStandard
         units[index].generalName = name
         units[index].generalTrait = trait
-        units[index].experience += 2
+        units[index].experience = preview.projectedExperience
 
         let messages = ["元老院任命\(name)（\(trait.displayName)）统率\(units[index].kind.displayName)。"]
         eventLog.append(contentsOf: messages)
@@ -5730,6 +5944,13 @@ public struct GameState: Codable, Equatable, Sendable {
         default:
             return error.displayMessage
         }
+    }
+
+    private func generalAppointmentCandidate(for unit: ArmyUnit) -> (name: String, trait: GeneralTrait) {
+        let usedNames = Set(units.compactMap(\.generalName))
+        let name = Self.generalCandidateNames.first { !usedNames.contains($0) } ?? "罗马将领 \(unit.experience + 1)"
+        let trait = GeneralTrait.defaultTrait(forName: name) ?? .eagleStandard
+        return (name, trait)
     }
 
     private func spawnPosition(for kind: UnitKind, from city: City) throws -> Position {

@@ -125,6 +125,31 @@ struct RenderBattlePreview {
               !formationSummary.accessibilityLabel.isEmpty else {
             throw PreviewRenderError.missingLegionFormationSummary
         }
+        guard let developmentSummary = viewModel.selectedUnitDevelopmentDecisionSummary,
+              developmentSummary.unitID == "rome-legion-1",
+              let trainingPreview = developmentSummary.trainingPreview,
+              let appointmentPreview = developmentSummary.appointmentPreview,
+              let trainingOption = developmentSummary.trainingOption,
+              let appointmentOption = developmentSummary.appointmentOption,
+              !developmentSummary.title.isEmpty,
+              !developmentSummary.accessibilityLabel.isEmpty,
+              trainingPreview.projectedExperience > trainingPreview.currentExperience,
+              !trainingPreview.summary.isEmpty,
+              !trainingPreview.detail.isEmpty,
+              !trainingOption.costLabel.isEmpty,
+              !trainingOption.impactLabel.isEmpty,
+              !trainingOption.statusLabel.isEmpty,
+              !trainingOption.accessibilityLabel.isEmpty,
+              appointmentPreview.candidateName != nil,
+              appointmentPreview.candidateTrait != nil,
+              !appointmentPreview.summary.isEmpty,
+              !appointmentPreview.detail.isEmpty,
+              !appointmentOption.costLabel.isEmpty,
+              !appointmentOption.impactLabel.isEmpty,
+              !appointmentOption.statusLabel.isEmpty,
+              !appointmentOption.accessibilityLabel.isEmpty else {
+            throw PreviewRenderError.missingUnitDevelopmentDecisionSummary
+        }
         guard let selectedSynergySummary = viewModel.selectedCommanderSynergySummary,
               let primarySynergySummary = viewModel.primaryCommanderSynergySummary,
               !viewModel.commanderSynergySummaries.isEmpty,
@@ -385,6 +410,7 @@ enum PreviewRenderError: Error {
     case missingMapControlSummary
     case missingCommanderBrief
     case missingLegionFormationSummary
+    case missingUnitDevelopmentDecisionSummary
     case missingCommanderSynergySummary
     case missingTacticalRecommendationSummary
     case missingManeuverOptionSummary
