@@ -281,7 +281,8 @@ do {
     let maneuverBefore = maneuverState
     let maneuverReports = try maneuverState.maneuverOptionReports(unitID: "rome-striker", limit: 8)
     guard let strikeManeuver = maneuverReports.first(where: { $0.kind == .strike && $0.targetUnitID == "carthage-target" }) else {
-        throw SmokeError.expectationFailed("Maneuver options should expose a strike landing")
+        expect(false, "Maneuver options should expose a strike landing")
+        fatalError("unreachable")
     }
     var projectedManeuverState = maneuverState
     if let strikerIndex = projectedManeuverState.units.firstIndex(where: { $0.id == "rome-striker" }) {

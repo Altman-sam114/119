@@ -920,9 +920,9 @@ private func riskTestPriority(_ risk: TacticalRecommendationRisk) -> Int {
 
 @Test func maneuverOptionReportsIgnoreTreatyProtectedCaptureTargets() throws {
     var state = GameState.newCampaign()
-    state.cities = [
+    state.cities.append(
         City(id: "gaul-town", name: "高卢前哨", position: Position(x: 4, y: 3), owner: .gaul, production: .zero, fortification: 6)
-    ]
+    )
     state.units = [
         ArmyUnit(id: "rome-legion", kind: .legion, faction: .rome, position: Position(x: 3, y: 3))
     ]
