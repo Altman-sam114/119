@@ -966,7 +966,7 @@ import Testing
     #expect(blockedCommander?.isExecutable == false)
     #expect(reports.first?.unitID != "rome-commander")
     #expect(reports.first?.isExecutable == true)
-    #expect(reports.prefix { $0.unitID != "rome-commander" }.allSatisfy(\.isExecutable))
+    #expect(reports.prefix { $0.unitID != "rome-commander" }.allSatisfy { $0.isExecutable })
     #expect(state == before)
 }
 
