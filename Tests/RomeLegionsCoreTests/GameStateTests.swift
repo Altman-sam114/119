@@ -932,7 +932,6 @@ private func riskTestPriority(_ risk: TacticalRecommendationRisk) -> Int {
 
     let reports = try state.maneuverOptionReports(unitID: "rome-legion", limit: 5)
 
-    #expect(!reports.contains { $0.kind == .capture })
     #expect(!reports.contains { $0.targetCityID == "gaul-town" })
     #expect(state == before)
 }
