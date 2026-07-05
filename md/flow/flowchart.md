@@ -37,9 +37,9 @@ flowchart TD
     E --> H["BattleView 刷新<br/>玩家继续下令"]
 ```
 
-## 3. 战斗、敌军意图、AI 作战计划、将领协同、战术建议、战场焦点与地图热区流
+## 3. 战斗、敌军意图、AI 作战计划、将领协同、机动落点、战术建议、战场焦点与地图热区流
 
-读图说明：这张图展示战斗预览、实际攻击、敌军意图、AI 作战计划、本方将领协同、战线压力、玩家侧战术建议、战场焦点、地图控制和威胁热区之间的关系。关键铁律是预览与结算必须一致，敌军意图、AI 作战计划、本方将领协同、战线压力、战术建议、战场焦点和地图热区只能读取和预测，地图路线、热区叠层、将令卡、计划卡和焦点卡只是只读报告的可视化，不能改变状态、结算或 AI 决策。
+读图说明：这张图展示战斗预览、实际攻击、敌军意图、AI 作战计划、本方将领协同、机动落点、战线压力、玩家侧战术建议、战场焦点、地图控制和威胁热区之间的关系。关键铁律是预览与结算必须一致，敌军意图、AI 作战计划、本方将领协同、机动落点、战线压力、战术建议、战场焦点和地图热区只能读取和预测，地图路线、机动落点、热区叠层、将令卡、计划卡和焦点卡只是只读报告的可视化，不能改变状态、结算或 AI 决策。
 
 ```mermaid
 flowchart TD
@@ -70,6 +70,12 @@ flowchart TD
     AH["选中本方单位"] --> AI["GameState.tacticalRecommendation(unitID:)<br/>只读派生攻击、补线、推进、坚守或整备建议<br/>目标、目的地、路径、推荐姿态、风险和命令文案"]
     AI --> AJ["GameViewModel.selectedTacticalRecommendationSummary<br/>转成军议 chip、建议卡、路径线段和目标位置"]
     AJ --> AK["BattleView 地图本方建议路径/目标叠层<br/>选中单位情报展示建议理由和风险"]
+    AH --> AY["GameState.maneuverOptionReports(unitID:limit:)<br/>只读评估真实可达落点<br/>复用 projected 控图/热区/战线压力/占城目标/attackPreview"]
+    AI --> AY
+    AO --> AY
+    AB --> AY
+    AY --> AZ["GameViewModel.selectedManeuverOptionSummaries<br/>首要机动、落点 overlay、类型/风险/影响/无障碍文案"]
+    AZ --> BA["BattleView 地图机动落点叠层、机动 chip、选中单位机动卡、战局机动行<br/>只展示报告，不自动移动或攻击"]
     AH --> AV["GameState.commanderSynergyReport / commanderSynergyReports<br/>只读整合将领技能、编制、战术建议和攻击预览<br/>输出将领技能、合击、补线、推进或整备协同"]
     AI --> AV
     E --> AV

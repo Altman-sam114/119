@@ -271,6 +271,32 @@ do {
     expect(!recommendation.command.isEmpty, "Tactical recommendation should expose a command sentence")
     expect(recommendationState == recommendationBefore, "Tactical recommendation should not mutate state")
 
+    var maneuverState = GameState.newCampaign()
+    maneuverState.units = [
+        ArmyUnit(id: "rome-striker", kind: .legion, faction: .rome, position: Position(x: 3, y: 3)),
+        ArmyUnit(id: "rome-support", kind: .legion, faction: .rome, position: Position(x: 3, y: 2)),
+        ArmyUnit(id: "carthage-target", kind: .archer, faction: .carthage, position: Position(x: 5, y: 3), health: 45)
+    ]
+    maneuverState.activeFaction = .rome
+    let maneuverBefore = maneuverState
+    let maneuverReports = try maneuverState.maneuverOptionReports(unitID: "rome-striker", limit: 8)
+    guard let strikeManeuver = maneuverReports.first(where: { $0.kind == .strike && $0.targetUnitID == "carthage-target" }) else {
+        throw SmokeError.expectationFailed("Maneuver options should expose a strike landing")
+    }
+    var projectedManeuverState = maneuverState
+    if let strikerIndex = projectedManeuverState.units.firstIndex(where: { $0.id == "rome-striker" }) {
+        projectedManeuverState.units[strikerIndex].position = strikeManeuver.destination
+    }
+    let maneuverPreview = try projectedManeuverState.attackPreview(attackerID: "rome-striker", defenderID: "carthage-target")
+    expect(strikeManeuver.path.first == Position(x: 3, y: 3), "Maneuver option should expose path origin")
+    expect(strikeManeuver.path.last == strikeManeuver.destination, "Maneuver option should expose destination path")
+    expect(strikeManeuver.projectedDamage == maneuverPreview.damage, "Maneuver strike should reuse projected attack preview damage")
+    expect(strikeManeuver.retaliation == maneuverPreview.retaliation, "Maneuver strike should expose projected retaliation")
+    expect(strikeManeuver.supportBonus == maneuverPreview.supportBonus, "Maneuver strike should expose projected support")
+    expect(strikeManeuver.isExecutable, "Maneuver strike should be executable")
+    expect(!strikeManeuver.detail.isEmpty, "Maneuver option should expose readable detail")
+    expect(maneuverState == maneuverBefore, "Maneuver option reports should not mutate state")
+
     let focusBefore = recommendationState
     let focusReports = recommendationState.battlefieldFocusReports(for: .rome, limit: 5)
     let pressureFocus = focusReports.first { $0.kind == .defense && $0.targetUnitID == "rome-line" }

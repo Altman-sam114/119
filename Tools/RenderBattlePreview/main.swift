@@ -148,6 +148,21 @@ struct RenderBattlePreview {
               viewModel.selectedTacticalRecommendationTargetPosition != nil else {
             throw PreviewRenderError.missingTacticalRecommendationSummary
         }
+        guard let primaryManeuverSummary = viewModel.primaryManeuverOptionSummary,
+              !viewModel.selectedManeuverOptionSummaries.isEmpty,
+              !viewModel.maneuverOptionOverlaysByPosition.isEmpty,
+              !viewModel.maneuverOptionOverlayPositions.isEmpty,
+              viewModel.maneuverOptionOverlayPositions.contains(primaryManeuverSummary.destination),
+              primaryManeuverSummary.report.unitID == "rome-legion-1",
+              !primaryManeuverSummary.kindLabel.isEmpty,
+              !primaryManeuverSummary.destinationLabel.isEmpty,
+              !primaryManeuverSummary.targetLabel.isEmpty,
+              !primaryManeuverSummary.impactLabel.isEmpty,
+              !primaryManeuverSummary.riskLabel.isEmpty,
+              !primaryManeuverSummary.detail.isEmpty,
+              !primaryManeuverSummary.accessibilityLabel.isEmpty else {
+            throw PreviewRenderError.missingManeuverOptionSummary
+        }
         let orderPreviews = viewModel.selectedTacticalOrderPreviews
         guard orderPreviews.count == TacticalOrder.allCases.count,
               orderPreviews.contains(where: { !$0.isCurrent && ($0.attackDelta != 0 || $0.defenseDelta != 0 || $0.movementDelta != 0) }),
@@ -352,6 +367,7 @@ enum PreviewRenderError: Error {
     case missingLegionFormationSummary
     case missingCommanderSynergySummary
     case missingTacticalRecommendationSummary
+    case missingManeuverOptionSummary
     case missingTacticalOrderPreview
     case missingCityReadout
     case missingCompactCommandRender

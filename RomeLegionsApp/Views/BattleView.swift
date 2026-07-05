@@ -217,6 +217,7 @@ struct WarMapView: View {
             let tacticalRecommendation = viewModel.selectedTacticalRecommendationSummary
             let tacticalRecommendationPathPositions = viewModel.selectedTacticalRecommendationPathPositions
             let tacticalRecommendationTargetPosition = viewModel.selectedTacticalRecommendationTargetPosition
+            let maneuverOptionOverlays = viewModel.maneuverOptionOverlaysByPosition
             let selectedPosition = viewModel.focusedPosition
             let skillRangePositions = viewModel.selectedGeneralSkillRangePositions
             let skillTargetPositions = viewModel.selectedGeneralSkillTargetPositions
@@ -251,6 +252,7 @@ struct WarMapView: View {
                         enemyIntentDestination: enemyIntentDestinations[tile.position],
                         enemyIntentTarget: enemyIntentTargets[tile.position],
                         tacticalRecommendation: tacticalRecommendation,
+                        maneuverOption: maneuverOptionOverlays[tile.position],
                         mapControlSummary: mapControlSummaries[tile.position],
                         threatHeatZoneSummary: threatHeatOverlaysByPosition[tile.position],
                         isMapControlOverlay: mapControlOverlayPositions.contains(tile.position),
@@ -523,6 +525,17 @@ struct TacticalStatusStripView: View {
                 compact: compact
             )
         }
+
+        if let maneuver = viewModel.primaryManeuverOptionSummary {
+            TacticalChipView(
+                symbol: maneuver.kind.systemImage,
+                label: "机动",
+                value: maneuver.kindLabel,
+                tint: maneuver.kind.tintColor,
+                compact: compact,
+                accessibilityLabel: maneuver.accessibilityLabel
+            )
+        }
     }
 }
 
@@ -607,6 +620,7 @@ struct HexTileView: View {
     var enemyIntentDestination: EnemyIntentMapOverlay?
     var enemyIntentTarget: EnemyIntentMapOverlay?
     var tacticalRecommendation: TacticalRecommendationSummary?
+    var maneuverOption: ManeuverOptionSummary?
     var mapControlSummary: MapControlSummary?
     var threatHeatZoneSummary: ThreatHeatZoneSummary?
     var isMapControlOverlay: Bool
@@ -657,6 +671,13 @@ struct HexTileView: View {
 
             if isReachable {
                 ReachableTileOverlay(scale: scale)
+            }
+
+            if let maneuverOption,
+               !isSelected,
+               !isAttackTarget {
+                ManeuverOptionTileOverlay(summary: maneuverOption, scale: scale)
+                    .allowsHitTesting(false)
             }
 
             if isTacticalRecommendationPath && !isSelected && !isAttackTarget {
@@ -770,6 +791,9 @@ struct HexTileView: View {
         if isTacticalRecommendationTarget,
            let tacticalRecommendation {
             parts.append("战术建议目标\(tacticalRecommendation.targetLabel)")
+        }
+        if let maneuverOption {
+            parts.append("机动\(maneuverOption.kindLabel)，\(maneuverOption.impactLabel)，风险\(maneuverOption.riskLabel)")
         }
         if let mapControlSummary {
             parts.append("控区\(mapControlSummary.controlLabel)")
@@ -960,6 +984,32 @@ struct TacticalRecommendationPathOverlay: View {
                 )
                 .padding(8 * scale)
         }
+    }
+}
+
+struct ManeuverOptionTileOverlay: View {
+    var summary: ManeuverOptionSummary
+    var scale: CGFloat
+
+    var body: some View {
+        ZStack {
+            Hexagon()
+                .fill(summary.kind.tintColor.opacity(0.12))
+            Hexagon()
+                .stroke(
+                    summary.risk.tintColor.opacity(0.74),
+                    style: StrokeStyle(lineWidth: max(1, 1.45 * scale), lineCap: .round, dash: [2 * scale, 4 * scale])
+                )
+                .padding(11 * scale)
+            Image(systemName: summary.kind.systemImage)
+                .font(.system(size: 10 * scale, weight: .black))
+                .foregroundStyle(summary.kind.tintColor)
+                .padding(4 * scale)
+                .background(.black.opacity(0.34))
+                .clipShape(Circle())
+                .offset(x: -20 * scale, y: 20 * scale)
+        }
+        .accessibilityHidden(true)
     }
 }
 
@@ -1549,6 +1599,10 @@ struct CompactSelectionPanelView: View {
 
                     if let recommendation = viewModel.selectedTacticalRecommendationSummary {
                         TacticalRecommendationCardView(summary: recommendation, isCompact: true)
+                    }
+
+                    if let maneuver = viewModel.primaryManeuverOptionSummary {
+                        ManeuverOptionCardView(summary: maneuver, isCompact: true)
                     }
 
                     if let synergy = viewModel.selectedCommanderSynergySummary {
@@ -2214,6 +2268,7 @@ struct StrategicBalancePanelView: View {
 
     var body: some View {
         PanelView(title: "战局", symbol: "chart.bar.xaxis") {
+            let maneuverSummaries = viewModel.selectedManeuverOptionSummaries
             let synergySummaries = viewModel.commanderSynergySummaries
             let planSummaries = viewModel.aiOperationalPlanSummaries
             let focusSummaries = viewModel.battlefieldFocusSummaries
@@ -2249,6 +2304,19 @@ struct StrategicBalancePanelView: View {
                     ResourceDeltaView(symbol: "shield.fill", value: income.iron, tint: .gray)
                     ResourceDeltaView(symbol: "sparkle.magnifyingglass", value: income.science, tint: .cyan)
                     Spacer(minLength: 0)
+                }
+
+                VStack(alignment: .leading, spacing: 6) {
+                    if maneuverSummaries.isEmpty {
+                        Text("选中单位后显示机动落点。")
+                            .font(.caption)
+                            .foregroundStyle(.white.opacity(0.62))
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    } else {
+                        ForEach(maneuverSummaries.prefix(2)) { summary in
+                            ManeuverOptionRowView(summary: summary)
+                        }
+                    }
                 }
 
                 VStack(alignment: .leading, spacing: 6) {
@@ -2553,6 +2621,57 @@ struct CommanderSynergyRowView: View {
                     .padding(.horizontal, 6)
                     .frame(height: 20)
                     .background(summary.kind.tintColor)
+                    .clipShape(RoundedRectangle(cornerRadius: 5))
+                Text(summary.impactLabel)
+                    .font(.caption2.monospacedDigit().weight(.semibold))
+                    .foregroundStyle(.white.opacity(0.58))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.72)
+            }
+        }
+        .padding(.horizontal, 8)
+        .frame(minHeight: 46)
+        .background(.black.opacity(0.18))
+        .clipShape(RoundedRectangle(cornerRadius: 7))
+        .accessibilityLabel(summary.accessibilityLabel)
+    }
+}
+
+struct ManeuverOptionRowView: View {
+    var summary: ManeuverOptionSummary
+
+    var body: some View {
+        HStack(spacing: 8) {
+            ZStack {
+                RoundedRectangle(cornerRadius: 5)
+                    .fill(summary.kind.tintColor.opacity(0.92))
+                    .frame(width: 28, height: 28)
+                Image(systemName: summary.kind.systemImage)
+                    .font(.caption.weight(.black))
+                    .foregroundStyle(.white)
+            }
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(summary.title)
+                    .font(.caption.weight(.heavy))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.72)
+                Text(summary.detail)
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(.white.opacity(0.62))
+                    .lineLimit(2)
+                    .minimumScaleFactor(0.70)
+            }
+
+            Spacer(minLength: 0)
+
+            VStack(alignment: .trailing, spacing: 3) {
+                Text(summary.riskLabel)
+                    .font(.caption2.weight(.black))
+                    .foregroundStyle(.black.opacity(0.78))
+                    .padding(.horizontal, 6)
+                    .frame(height: 20)
+                    .background(summary.risk.tintColor)
                     .clipShape(RoundedRectangle(cornerRadius: 5))
                 Text(summary.impactLabel)
                     .font(.caption2.monospacedDigit().weight(.semibold))
@@ -2961,6 +3080,68 @@ struct TacticalRecommendationCardView: View {
     }
 }
 
+struct ManeuverOptionCardView: View {
+    var summary: ManeuverOptionSummary
+    var isCompact: Bool
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: isCompact ? 5 : 7) {
+            HStack(spacing: 7) {
+                Image(systemName: summary.kind.systemImage)
+                    .foregroundStyle(summary.kind.tintColor)
+                Text("机动")
+                    .font(.caption2.weight(.bold))
+                    .foregroundStyle(.white.opacity(0.58))
+                Text("\(summary.kindLabel) · \(summary.destinationLabel)")
+                    .font(.caption.weight(.heavy))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.70)
+                Spacer(minLength: 0)
+                Text(summary.riskLabel)
+                    .font(.caption2.weight(.black))
+                    .foregroundStyle(.black.opacity(0.78))
+                    .padding(.horizontal, 6)
+                    .frame(height: 20)
+                    .background(summary.risk.tintColor)
+                    .clipShape(RoundedRectangle(cornerRadius: 5))
+            }
+
+            if !isCompact {
+                Text(summary.detail)
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(.white.opacity(0.62))
+                    .lineLimit(2)
+                    .minimumScaleFactor(0.72)
+            }
+
+            HStack(spacing: 6) {
+                Label(summary.impactLabel, systemImage: summary.kind.systemImage)
+                Spacer(minLength: 0)
+                Label(summary.report.recommendedOrder.displayName, systemImage: summary.report.recommendedOrder.systemImage)
+            }
+            .font(.caption2.weight(.semibold))
+            .foregroundStyle(.white.opacity(0.66))
+            .lineLimit(1)
+            .minimumScaleFactor(0.70)
+
+            Text("\(summary.controlLabel) · \(summary.influenceLabel) · \(summary.modifierLabel)")
+                .font(.caption2.weight(.bold))
+                .foregroundStyle(summary.kind.tintColor)
+                .lineLimit(isCompact ? 1 : 2)
+                .minimumScaleFactor(0.70)
+        }
+        .padding(8)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(summary.kind.tintColor.opacity(0.12))
+        .overlay {
+            RoundedRectangle(cornerRadius: 7)
+                .stroke(summary.kind.tintColor.opacity(0.38), lineWidth: 1)
+        }
+        .clipShape(RoundedRectangle(cornerRadius: 7))
+        .accessibilityLabel(summary.accessibilityLabel)
+    }
+}
+
 struct CommanderSynergyCardView: View {
     var summary: CommanderSynergySummary
     var isCompact: Bool
@@ -3253,6 +3434,10 @@ struct SelectionPanelView: View {
 
                     if let recommendation = viewModel.selectedTacticalRecommendationSummary {
                         TacticalRecommendationCardView(summary: recommendation, isCompact: false)
+                    }
+
+                    if let maneuver = viewModel.primaryManeuverOptionSummary {
+                        ManeuverOptionCardView(summary: maneuver, isCompact: false)
                     }
 
                     if let synergy = viewModel.selectedCommanderSynergySummary {
@@ -4339,6 +4524,28 @@ extension CommanderSynergyKind {
         case .reinforce: return Color(red: 0.28, green: 0.78, blue: 0.62)
         case .advance: return Color(red: 0.70, green: 0.76, blue: 0.32)
         case .recover: return Color(red: 0.62, green: 0.76, blue: 0.46)
+        }
+    }
+}
+
+extension ManeuverOptionKind {
+    var systemImage: String {
+        switch self {
+        case .strike: return "bolt.fill"
+        case .capture: return "building.columns.fill"
+        case .reinforce: return "arrow.triangle.branch"
+        case .advance: return "arrow.up.right.circle.fill"
+        case .secure: return "shield.fill"
+        }
+    }
+
+    var tintColor: Color {
+        switch self {
+        case .strike: return Color(red: 0.92, green: 0.46, blue: 0.20)
+        case .capture: return Color(red: 0.86, green: 0.68, blue: 0.34)
+        case .reinforce: return Color(red: 0.28, green: 0.78, blue: 0.62)
+        case .advance: return Color(red: 0.70, green: 0.76, blue: 0.32)
+        case .secure: return Color(red: 0.52, green: 0.70, blue: 0.86)
         }
     }
 }

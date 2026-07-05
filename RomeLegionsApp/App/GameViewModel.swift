@@ -386,6 +386,109 @@ struct TacticalRecommendationSummary: Identifiable {
     }
 }
 
+struct ManeuverOptionSummary: Identifiable {
+    var report: ManeuverOptionReport
+    var unit: ArmyUnit?
+    var targetUnit: ArmyUnit?
+    var targetCity: City?
+
+    var id: String { report.id }
+    var kind: ManeuverOptionKind { report.kind }
+    var risk: TacticalRecommendationRisk { report.risk }
+    var destination: Position { report.destination }
+    var targetPosition: Position { report.targetPosition }
+
+    var title: String {
+        report.title
+    }
+
+    var compactTitle: String {
+        "\(kindLabel) \(impactLabel)"
+    }
+
+    var kindLabel: String {
+        report.kind.displayName
+    }
+
+    var riskLabel: String {
+        report.risk.displayName
+    }
+
+    var unitLabel: String {
+        if let unit {
+            return "\(unit.faction.displayName)\(unit.kind.displayName)"
+        }
+
+        return "\(report.faction.displayName)军团"
+    }
+
+    var targetLabel: String {
+        if let targetUnit {
+            return "\(targetUnit.faction.displayName)\(targetUnit.kind.displayName)"
+        }
+
+        if let targetCity {
+            return targetCity.name
+        }
+
+        return "坐标 \(report.targetPosition.description)"
+    }
+
+    var destinationLabel: String {
+        "落点 \(report.destination.description)"
+    }
+
+    var pathLabel: String {
+        "路径 \(max(0, report.path.count - 1))"
+    }
+
+    var impactLabel: String {
+        if let projectedDamage = report.projectedDamage {
+            return "伤害 \(projectedDamage)"
+        }
+
+        if let supportDistance = report.supportDistance {
+            return "补线距 \(supportDistance)"
+        }
+
+        if let objectiveDistance = report.objectiveDistance {
+            return "目标距 \(objectiveDistance)"
+        }
+
+        return report.controlState.displayName
+    }
+
+    var modifierLabel: String {
+        let parts = [
+            report.supportBonus > 0 ? "援+\(report.supportBonus)" : nil,
+            report.flankingBonus > 0 ? "夹+\(report.flankingBonus)" : nil,
+            report.commandBonus > 0 ? "令+\(report.commandBonus)" : nil
+        ].compactMap { $0 }
+
+        return parts.isEmpty ? "无修正" : parts.joined(separator: " ")
+    }
+
+    var controlLabel: String {
+        "\(report.controlState.displayName) · 热区\(report.threatLevel.displayName)"
+    }
+
+    var influenceLabel: String {
+        "友\(report.friendlyInfluence)/敌\(report.enemyInfluence)"
+    }
+
+    var scoreLabel: String {
+        "机动 \(report.score)"
+    }
+
+    var detail: String {
+        report.detail
+    }
+
+    var accessibilityLabel: String {
+        "\(title)，执行单位\(unitLabel)，\(destinationLabel)，目标\(targetLabel)，\(impactLabel)，\(controlLabel)，风险\(riskLabel)，建议\(report.recommendedOrder.displayName)，\(detail)"
+    }
+}
+
 struct CommanderSynergySummary: Identifiable {
     var report: CommanderSynergyReport
     var unit: ArmyUnit?
@@ -1417,6 +1520,34 @@ final class GameViewModel: ObservableObject {
         return commanderSynergySummary(for: report)
     }
 
+    var selectedManeuverOptionSummaries: [ManeuverOptionSummary] {
+        guard let selectedUnitID,
+              let reports = try? state.maneuverOptionReports(unitID: selectedUnitID, limit: 5) else {
+            return []
+        }
+
+        return reports.map(maneuverOptionSummary(for:))
+    }
+
+    var primaryManeuverOptionSummary: ManeuverOptionSummary? {
+        selectedManeuverOptionSummaries.first
+    }
+
+    var maneuverOptionOverlaysByPosition: [Position: ManeuverOptionSummary] {
+        var values: [Position: ManeuverOptionSummary] = [:]
+        for summary in selectedManeuverOptionSummaries {
+            let current = values[summary.destination]
+            if current == nil || summary.report.score > (current?.report.score ?? 0) {
+                values[summary.destination] = summary
+            }
+        }
+        return values
+    }
+
+    var maneuverOptionOverlayPositions: Set<Position> {
+        Set(maneuverOptionOverlaysByPosition.keys)
+    }
+
     var selectedTacticalRecommendationSummary: TacticalRecommendationSummary? {
         guard let selectedUnitID,
               let report = try? state.tacticalRecommendation(unitID: selectedUnitID) else {
@@ -1466,6 +1597,15 @@ final class GameViewModel: ObservableObject {
             targetCity: report.targetCityID.flatMap { state.city(withID: $0) },
             supportingUnits: report.supportingUnitIDs.compactMap { state.unit(withID: $0) },
             beneficiaryUnits: report.beneficiaryUnitIDs.compactMap { state.unit(withID: $0) }
+        )
+    }
+
+    private func maneuverOptionSummary(for report: ManeuverOptionReport) -> ManeuverOptionSummary {
+        ManeuverOptionSummary(
+            report: report,
+            unit: state.unit(withID: report.unitID),
+            targetUnit: report.targetUnitID.flatMap { state.unit(withID: $0) },
+            targetCity: report.targetCityID.flatMap { state.city(withID: $0) }
         )
     }
 

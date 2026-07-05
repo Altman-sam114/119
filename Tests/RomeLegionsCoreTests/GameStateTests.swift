@@ -2,6 +2,15 @@ import Foundation
 import Testing
 @testable import RomeLegionsCore
 
+private func riskTestPriority(_ risk: TacticalRecommendationRisk) -> Int {
+    switch risk {
+    case .low: return 1
+    case .guarded: return 2
+    case .high: return 3
+    case .critical: return 4
+    }
+}
+
 @Test func reachablePositionsRespectTerrainAndOccupation() {
     let state = GameState.newCampaign()
 
@@ -851,6 +860,114 @@ import Testing
     #expect(report.path == [Position(x: 3, y: 3)])
     #expect(report.projectedDamage == nil)
     #expect(report.command.contains("整备") || report.command.contains("恢复"))
+    #expect(state == before)
+}
+
+@Test func maneuverOptionReportsSurfaceStrikeLandingWithoutMutation() throws {
+    var state = GameState.newCampaign()
+    state.units = [
+        ArmyUnit(id: "rome-striker", kind: .legion, faction: .rome, position: Position(x: 3, y: 3)),
+        ArmyUnit(id: "rome-support", kind: .legion, faction: .rome, position: Position(x: 3, y: 2)),
+        ArmyUnit(id: "carthage-target", kind: .archer, faction: .carthage, position: Position(x: 5, y: 3), health: 45)
+    ]
+    state.activeFaction = .rome
+    let before = state
+
+    let reports = try state.maneuverOptionReports(unitID: "rome-striker", limit: 8)
+    let report = try #require(reports.first { $0.kind == .strike && $0.targetUnitID == "carthage-target" })
+    var projected = state
+    let strikerIndex = try #require(projected.units.firstIndex { $0.id == "rome-striker" })
+    projected.units[strikerIndex].position = report.destination
+    let preview = try projected.attackPreview(attackerID: "rome-striker", defenderID: "carthage-target")
+
+    #expect(report.origin == Position(x: 3, y: 3))
+    #expect(report.path.first == Position(x: 3, y: 3))
+    #expect(report.path.last == report.destination)
+    #expect(report.destination.hexDistance(to: Position(x: 5, y: 3)) <= 1)
+    #expect(report.projectedDamage == preview.damage)
+    #expect(report.retaliation == preview.retaliation)
+    #expect(report.supportBonus == preview.supportBonus)
+    #expect(report.flankingBonus == preview.flankingBonus)
+    #expect(report.commandBonus == preview.commandBonus)
+    #expect(report.isExecutable)
+    #expect(state == before)
+}
+
+@Test func maneuverOptionReportsSurfaceCaptureLandingWithoutMutation() throws {
+    var state = GameState.newCampaign()
+    state.units = [
+        ArmyUnit(id: "rome-cavalry", kind: .cavalry, faction: .rome, position: Position(x: 3, y: 3))
+    ]
+    let massiliaIndex = try #require(state.cities.firstIndex { $0.id == "massilia" })
+    state.cities[massiliaIndex].owner = .carthage
+    state.cities[massiliaIndex].fortification = 70
+    state.activeFaction = .rome
+    let before = state
+
+    let reports = try state.maneuverOptionReports(unitID: "rome-cavalry", limit: 8)
+    let report = try #require(reports.first { $0.kind == .capture && $0.targetCityID == "massilia" })
+
+    #expect(report.destination == Position(x: 5, y: 2))
+    #expect(report.targetPosition == Position(x: 5, y: 2))
+    #expect(report.path.first == Position(x: 3, y: 3))
+    #expect(report.path.last == report.destination)
+    #expect(report.title.contains("马赛"))
+    #expect(report.controlState == .friendlyControlled)
+    #expect(report.friendlyInfluence > report.enemyInfluence)
+    #expect(report.isExecutable)
+    #expect(state == before)
+}
+
+@Test func maneuverOptionReportsIgnoreTreatyProtectedCaptureTargets() throws {
+    var state = GameState.newCampaign()
+    state.cities = [
+        City(id: "gaul-town", name: "高卢前哨", position: Position(x: 4, y: 3), owner: .gaul, production: .zero, fortification: 6)
+    ]
+    state.units = [
+        ArmyUnit(id: "rome-legion", kind: .legion, faction: .rome, position: Position(x: 3, y: 3))
+    ]
+    state.activeFaction = .rome
+    _ = try state.sendEnvoy(to: .gaul)
+    let before = state
+
+    let reports = try state.maneuverOptionReports(unitID: "rome-legion", limit: 5)
+
+    #expect(!reports.contains { $0.kind == .capture })
+    #expect(!reports.contains { $0.targetCityID == "gaul-town" })
+    #expect(state == before)
+}
+
+@Test func maneuverOptionReportsRankSaferLandingAboveHotEmptyTileWithoutMutation() throws {
+    var state = GameState.newCampaign()
+    state.units = [
+        ArmyUnit(id: "rome-cavalry", kind: .cavalry, faction: .rome, position: Position(x: 3, y: 3), health: 88),
+        ArmyUnit(id: "carthage-east", kind: .cavalry, faction: .carthage, position: Position(x: 7, y: 3))
+    ]
+    state.activeFaction = .rome
+    let before = state
+
+    let reports = try state.maneuverOptionReports(unitID: "rome-cavalry", limit: 8)
+    let firstReport = try #require(reports.first)
+    let hotReport = try #require(reports.first { $0.threatLevel == .danger || $0.threatLevel == .critical })
+
+    #expect(riskTestPriority(firstReport.risk) <= riskTestPriority(hotReport.risk))
+    #expect(firstReport.score >= hotReport.score)
+    #expect(state == before)
+}
+
+@Test func maneuverOptionReportsReturnEmptyForSpentUnitWithoutMutation() throws {
+    var state = GameState.newCampaign()
+    state.units = [
+        ArmyUnit(id: "rome-spent", kind: .legion, faction: .rome, position: Position(x: 3, y: 3), hasMoved: true)
+    ]
+    state.activeFaction = .rome
+    let before = state
+
+    let reports = try state.maneuverOptionReports(unitID: "rome-spent", limit: 5)
+    let report = try state.maneuverOptionReport(unitID: "rome-spent")
+
+    #expect(reports.isEmpty)
+    #expect(report == nil)
     #expect(state == before)
 }
 

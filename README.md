@@ -24,6 +24,7 @@
 - 军团编制与成长读板：核心层只读派生军团职责、战备等级、相邻/两格友军、近敌、有效攻防移、建议姿态和命令建议，顶部态势、战局面板和选中单位情报均可读
 - 战术命令建议与补线路径读板：核心层只读派生选中单位的攻击、补线、推进、坚守或整备建议，地图显示本方建议路径/目标，情报面板显示推荐姿态、风险和命令理由
 - 本方将领协同与战术连携读板：核心层只读整合将领技能、合击修正、补线、推进和整备机会，顶部将令 chip、战局面板和选中单位情报展示预计伤害/恢复、支援、包夹、指挥、阻塞原因和协同步骤
+- 机动落点与地图风险读板：核心层只读评估选中单位真实可达格，输出打击、夺城、补线、推进或稳固落点，地图叠层、顶部机动 chip、战局面板和选中单位情报展示落点路径、热区风险、控区影响、预计伤害和推荐姿态
 - 手机横屏紧凑战斗栏、可攻击目标头顶徽标、选中单位待机/跳过
 - AI 招募、休整、战术姿态、将领技能冷却判断、移动后攻击和目标优先级评估
 - 敌军意图预判：地图徽标、贴合六边形邻接的路径线段、目的地/目标格叠层、顶部敌情芯片和侧栏敌情面板展示攻击、接敌、夺城、固守等倾向，预计伤害与规划态战斗预览一致
@@ -82,7 +83,7 @@ swiftc -swift-version 5 -module-cache-path .build/module-cache Sources/RomeLegio
 node Tools/verify_project.mjs
 ```
 
-战斗页三尺寸预览图；渲染前会断言敌军意图 ViewModel 叠层包含移动后攻击六边形邻接路径、目标格和预计伤害文案，并断言 AI 作战计划读板、战线压力读板、战场焦点摘要、地图控制摘要、威胁热区摘要、选中单位的军团编制摘要、本方将领协同摘要、战术建议摘要/路径/目标、将领详情、被动贡献、战功摘要、战术姿态预览和城市经营/招募读板存在。每个命令会写出请求的城市场景 PNG，并额外写出同尺寸 `*-unit.png` 单位场景 PNG：
+战斗页三尺寸预览图；渲染前会断言敌军意图 ViewModel 叠层包含移动后攻击六边形邻接路径、目标格和预计伤害文案，并断言 AI 作战计划读板、战线压力读板、战场焦点摘要、地图控制摘要、威胁热区摘要、选中单位的军团编制摘要、本方将领协同摘要、机动落点摘要/地图 overlay、战术建议摘要/路径/目标、将领详情、被动贡献、战功摘要、战术姿态预览和城市经营/招募读板存在。每个命令会写出请求的城市场景 PNG，并额外写出同尺寸 `*-unit.png` 单位场景 PNG：
 
 ```sh
 env HOME=$PWD/.home CLANG_MODULE_CACHE_PATH=$PWD/.build/module-cache /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/swiftc -parse-as-library -sdk /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX26.5.sdk -target arm64-apple-macosx14.0 -o .build/render-battle-preview Tools/RenderBattlePreview/main.swift Sources/RomeLegionsCore/GameState.swift RomeLegionsApp/App/GameViewModel.swift RomeLegionsApp/Views/BattleView.swift

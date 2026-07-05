@@ -1163,6 +1163,68 @@ public struct TacticalRecommendationReport: Identifiable, Equatable, Sendable {
     public var id: String { unitID }
 }
 
+public enum ManeuverOptionKind: String, CaseIterable, Identifiable, Equatable, Sendable {
+    case strike
+    case capture
+    case reinforce
+    case advance
+    case secure
+
+    public var id: String { rawValue }
+
+    public var displayName: String {
+        switch self {
+        case .strike: return "打击"
+        case .capture: return "夺城"
+        case .reinforce: return "补线"
+        case .advance: return "推进"
+        case .secure: return "稳固"
+        }
+    }
+
+    fileprivate var priority: Int {
+        switch self {
+        case .capture: return 5
+        case .strike: return 4
+        case .reinforce: return 3
+        case .advance: return 2
+        case .secure: return 1
+        }
+    }
+}
+
+public struct ManeuverOptionReport: Identifiable, Equatable, Sendable {
+    public var id: String
+    public var unitID: String
+    public var faction: Faction
+    public var kind: ManeuverOptionKind
+    public var origin: Position
+    public var destination: Position
+    public var path: [Position]
+    public var targetUnitID: String?
+    public var targetCityID: String?
+    public var targetPosition: Position
+    public var recommendedOrder: TacticalOrder
+    public var controlState: MapControlState
+    public var threatLevel: ThreatHeatLevel
+    public var friendlyInfluence: Int
+    public var enemyInfluence: Int
+    public var projectedDamage: Int?
+    public var retaliation: Int
+    public var supportBonus: Int
+    public var flankingBonus: Int
+    public var commandBonus: Int
+    public var supportDistance: Int?
+    public var objectiveDistance: Int?
+    public var isExecutable: Bool
+    public var blockedReason: String?
+    public var risk: TacticalRecommendationRisk
+    public var score: Int
+    public var title: String
+    public var summary: String
+    public var detail: String
+}
+
 public enum CommanderSynergyKind: String, CaseIterable, Identifiable, Equatable, Sendable {
     case commanderSkill
     case coordinatedAttack
@@ -2144,6 +2206,25 @@ public struct GameState: Codable, Equatable, Sendable {
         return tacticalRecommendation(for: unit)
     }
 
+    public func maneuverOptionReports(
+        unitID: String,
+        limit: Int = 5
+    ) throws -> [ManeuverOptionReport] {
+        guard let unit = unit(withID: unitID) else {
+            throw GameRuleError.missingEntity
+        }
+
+        guard limit > 0 else {
+            return []
+        }
+
+        return maneuverOptionReports(for: unit, limit: limit)
+    }
+
+    public func maneuverOptionReport(unitID: String) throws -> ManeuverOptionReport? {
+        try maneuverOptionReports(unitID: unitID, limit: 1).first
+    }
+
     public func commanderSynergyReport(unitID: String) throws -> CommanderSynergyReport {
         guard let unit = unit(withID: unitID) else {
             throw GameRuleError.missingEntity
@@ -2552,6 +2633,462 @@ public struct GameState: Codable, Equatable, Sendable {
             reason: formation.commandSuggestion,
             command: command
         )
+    }
+
+    private func maneuverOptionReports(for unit: ArmyUnit, limit: Int) -> [ManeuverOptionReport] {
+        guard unit.faction == activeFaction,
+              !unit.hasMoved else {
+            return []
+        }
+
+        let destinations = tacticalReachableDestinations(for: unit)
+        guard !destinations.isEmpty else {
+            return []
+        }
+
+        let pressureReports = frontlinePressureReports(against: unit.faction, perFactionLimit: 4, limit: 6)
+            .filter { $0.targetID != unit.id }
+        let objectiveCity = nearestAICityObjective(from: unit.position, for: unit.faction)
+        let originPressure = frontlinePressureByPosition(against: unit.faction)[unit.position]
+        let originControl = mapControlReport(at: unit.position, for: unit.faction, pressure: originPressure)
+
+        return destinations
+            .compactMap { destination in
+                maneuverOptionReport(
+                    for: unit,
+                    destination: destination,
+                    pressureReports: pressureReports,
+                    objectiveCity: objectiveCity,
+                    originControl: originControl
+                )
+            }
+            .sorted { left, right in
+                if left.isExecutable != right.isExecutable {
+                    return left.isExecutable && !right.isExecutable
+                }
+                if left.score == right.score {
+                    return left.id < right.id
+                }
+                return left.score > right.score
+            }
+            .prefix(limit)
+            .map { $0 }
+    }
+
+    private func maneuverOptionReport(
+        for unit: ArmyUnit,
+        destination: Position,
+        pressureReports: [FrontlinePressureReport],
+        objectiveCity: City?,
+        originControl: MapControlReport
+    ) -> ManeuverOptionReport? {
+        guard let projected = maneuverProjectedState(for: unit, destination: destination),
+              let movedUnit = projected.unit(withID: unit.id) else {
+            return nil
+        }
+
+        let projectedPressure = projected.frontlinePressureByPosition(against: unit.faction)[destination]
+        let control = projected.mapControlReport(at: destination, for: unit.faction, pressure: projectedPressure)
+        let attack = projected.maneuverAttackCandidate(for: movedUnit)
+        let captureCity = capturableCity(at: destination, by: unit.faction)
+        let reinforcement = maneuverReinforcementTarget(
+            from: unit.position,
+            destination: destination,
+            pressureReports: pressureReports
+        )
+        let objectiveDistance = objectiveCity.map { destination.hexDistance(to: $0.position) }
+        let objectiveImprovement = objectiveCity.map { city in
+            unit.position.hexDistance(to: city.position) - destination.hexDistance(to: city.position)
+        } ?? 0
+        let kind = maneuverOptionKind(
+            attack: attack,
+            captureCity: captureCity,
+            reinforcementImprovement: reinforcement?.improvement ?? 0,
+            objectiveImprovement: objectiveImprovement,
+            control: control,
+            originControl: originControl
+        )
+        let targetUnitID: String?
+        let targetCityID: String?
+        let targetPosition: Position
+
+        switch kind {
+        case .strike:
+            targetUnitID = attack?.target.id
+            targetCityID = nil
+            targetPosition = attack?.target.position ?? destination
+
+        case .capture:
+            targetUnitID = nil
+            targetCityID = captureCity?.id
+            targetPosition = captureCity?.position ?? destination
+
+        case .reinforce:
+            targetUnitID = reinforcement?.report.targetKind == .unit ? reinforcement?.report.targetID : nil
+            targetCityID = reinforcement?.report.targetKind == .city ? reinforcement?.report.targetID : nil
+            targetPosition = reinforcement?.report.targetPosition ?? destination
+
+        case .advance:
+            targetUnitID = nil
+            targetCityID = objectiveCity?.id
+            targetPosition = objectiveCity?.position ?? destination
+
+        case .secure:
+            targetUnitID = nil
+            targetCityID = control.cityID
+            targetPosition = destination
+        }
+
+        let targetName = battlefieldTargetName(
+            unitID: targetUnitID,
+            cityID: targetCityID,
+            fallback: destination.description
+        )
+        let risk = maneuverRisk(control: control, preview: attack?.preview, unit: movedUnit)
+        let formation = projected.legionFormationReport(for: movedUnit)
+        let recommendedOrder = maneuverRecommendedOrder(
+            kind: kind,
+            risk: risk,
+            preview: attack?.preview,
+            supportDistance: reinforcement?.afterDistance,
+            objectiveDistance: objectiveDistance,
+            formation: formation,
+            unit: movedUnit
+        )
+        let path = tacticalPath(from: unit.position, to: destination, for: unit) ??
+            tacticalFallbackPath(from: unit.position, to: destination)
+        let score = maneuverOptionScore(
+            kind: kind,
+            control: control,
+            originControl: originControl,
+            attack: attack,
+            captureCity: captureCity,
+            reinforcement: reinforcement,
+            objectiveImprovement: objectiveImprovement,
+            path: path,
+            risk: risk
+        )
+        let summary = maneuverOptionSummary(
+            kind: kind,
+            risk: risk,
+            attack: attack,
+            reinforcement: reinforcement,
+            objectiveDistance: objectiveDistance,
+            control: control
+        )
+        let detail = maneuverOptionDetail(
+            destination: destination,
+            targetName: targetName,
+            control: control,
+            path: path,
+            attack: attack,
+            captureCity: captureCity,
+            reinforcement: reinforcement,
+            objectiveCity: objectiveCity
+        )
+
+        return ManeuverOptionReport(
+            id: "maneuver-\(unit.id)-\(kind.rawValue)-\(destination.x)-\(destination.y)",
+            unitID: unit.id,
+            faction: unit.faction,
+            kind: kind,
+            origin: unit.position,
+            destination: destination,
+            path: path,
+            targetUnitID: targetUnitID,
+            targetCityID: targetCityID,
+            targetPosition: targetPosition,
+            recommendedOrder: recommendedOrder,
+            controlState: control.controlState,
+            threatLevel: control.threatLevel,
+            friendlyInfluence: control.friendlyInfluence,
+            enemyInfluence: control.enemyInfluence,
+            projectedDamage: attack?.preview.damage,
+            retaliation: attack?.preview.retaliation ?? 0,
+            supportBonus: attack?.preview.supportBonus ?? 0,
+            flankingBonus: attack?.preview.flankingBonus ?? 0,
+            commandBonus: attack?.preview.commandBonus ?? 0,
+            supportDistance: reinforcement?.afterDistance,
+            objectiveDistance: objectiveDistance,
+            isExecutable: true,
+            blockedReason: nil,
+            risk: risk,
+            score: score,
+            title: "\(kind.displayName)：\(targetName)",
+            summary: summary,
+            detail: detail
+        )
+    }
+
+    private func maneuverProjectedState(for unit: ArmyUnit, destination: Position) -> GameState? {
+        var projected = self
+        guard let index = projected.units.firstIndex(where: { $0.id == unit.id }) else {
+            return nil
+        }
+
+        projected.units[index] = aiPlanningUnit(
+            from: unit,
+            position: destination,
+            hasMoved: false,
+            hasActed: unit.hasActed
+        )
+        _ = projected.captureCityIfPossible(at: destination, by: unit.faction)
+        return projected
+    }
+
+    private func maneuverAttackCandidate(
+        for unit: ArmyUnit
+    ) -> (target: ArmyUnit, preview: CombatPreview, score: Int)? {
+        attackTargets(for: unit)
+            .compactMap { target -> (target: ArmyUnit, preview: CombatPreview, score: Int)? in
+                guard let preview = try? attackPreview(attackerID: unit.id, defenderID: target.id) else {
+                    return nil
+                }
+
+                let modifierScore = preview.supportBonus * 16 +
+                    preview.flankingBonus * 20 +
+                    preview.commandBonus * 22
+                let score = preview.damage * 12 -
+                    preview.retaliation * 7 +
+                    modifierScore +
+                    (preview.defeatsDefender ? 220 : 0) +
+                    (target.generalName == nil ? 0 : 70)
+                return (target, preview, score)
+            }
+            .sorted { left, right in
+                if left.score == right.score {
+                    return left.target.id < right.target.id
+                }
+                return left.score > right.score
+            }
+            .first
+    }
+
+    private func maneuverReinforcementTarget(
+        from origin: Position,
+        destination: Position,
+        pressureReports: [FrontlinePressureReport]
+    ) -> (report: FrontlinePressureReport, beforeDistance: Int, afterDistance: Int, improvement: Int)? {
+        pressureReports
+            .compactMap { report -> (report: FrontlinePressureReport, beforeDistance: Int, afterDistance: Int, improvement: Int)? in
+                let beforeDistance = origin.hexDistance(to: report.targetPosition)
+                let afterDistance = destination.hexDistance(to: report.targetPosition)
+                let improvement = beforeDistance - afterDistance
+                guard improvement > 0,
+                      report.level != .watch else {
+                    return nil
+                }
+
+                return (report, beforeDistance, afterDistance, improvement)
+            }
+            .sorted { left, right in
+                if left.improvement != right.improvement {
+                    return left.improvement > right.improvement
+                }
+                if left.report.pressureScore == right.report.pressureScore {
+                    return left.report.id < right.report.id
+                }
+                return left.report.pressureScore > right.report.pressureScore
+            }
+            .first
+    }
+
+    private func maneuverOptionKind(
+        attack: (target: ArmyUnit, preview: CombatPreview, score: Int)?,
+        captureCity: City?,
+        reinforcementImprovement: Int,
+        objectiveImprovement: Int,
+        control: MapControlReport,
+        originControl: MapControlReport
+    ) -> ManeuverOptionKind {
+        if captureCity != nil {
+            return .capture
+        }
+
+        if attack != nil {
+            return .strike
+        }
+
+        if reinforcementImprovement > 0 {
+            return .reinforce
+        }
+
+        if objectiveImprovement > 0 {
+            return .advance
+        }
+
+        if control.threatLevel.priority < originControl.threatLevel.priority ||
+            control.friendlyInfluence > originControl.friendlyInfluence {
+            return .secure
+        }
+
+        return .secure
+    }
+
+    private func maneuverRisk(
+        control: MapControlReport,
+        preview: CombatPreview?,
+        unit: ArmyUnit
+    ) -> TacticalRecommendationRisk {
+        let heatRisk: TacticalRecommendationRisk
+        switch control.threatLevel {
+        case .critical:
+            heatRisk = .critical
+        case .danger:
+            heatRisk = .high
+        case .contested, .watched:
+            heatRisk = .guarded
+        case .quiet:
+            heatRisk = .low
+        }
+
+        guard let preview else {
+            return heatRisk
+        }
+
+        let combatRisk = tacticalRisk(for: unit, preview: preview)
+        return combatRisk.priority > heatRisk.priority ? combatRisk : heatRisk
+    }
+
+    private func maneuverRecommendedOrder(
+        kind: ManeuverOptionKind,
+        risk: TacticalRecommendationRisk,
+        preview: CombatPreview?,
+        supportDistance: Int?,
+        objectiveDistance: Int?,
+        formation: LegionFormationReport,
+        unit: ArmyUnit
+    ) -> TacticalOrder {
+        if risk == .critical {
+            return .defensive
+        }
+
+        if let preview,
+           preview.defeatsDefender,
+           unit.healthRatio >= 0.55 {
+            return .assault
+        }
+
+        if kind == .reinforce,
+           (supportDistance ?? 99) <= 1 {
+            return .defensive
+        }
+
+        if kind == .advance,
+           (objectiveDistance ?? 0) > 1,
+           risk.priority <= TacticalRecommendationRisk.guarded.priority {
+            return .forcedMarch
+        }
+
+        if kind == .secure,
+           risk.priority >= TacticalRecommendationRisk.guarded.priority {
+            return .defensive
+        }
+
+        return formation.recommendedOrder
+    }
+
+    private func maneuverOptionScore(
+        kind: ManeuverOptionKind,
+        control: MapControlReport,
+        originControl: MapControlReport,
+        attack: (target: ArmyUnit, preview: CombatPreview, score: Int)?,
+        captureCity: City?,
+        reinforcement: (report: FrontlinePressureReport, beforeDistance: Int, afterDistance: Int, improvement: Int)?,
+        objectiveImprovement: Int,
+        path: [Position],
+        risk: TacticalRecommendationRisk
+    ) -> Int {
+        let terrainDefense = tile(at: control.position)?.terrain.defenseBonus ?? 0
+        let controlDelta = control.friendlyInfluence - control.enemyInfluence
+        let heatImprovement = max(0, originControl.threatLevel.priority - control.threatLevel.priority)
+        let base = kind.priority * 150 +
+            controlDelta +
+            terrainDefense * 8 +
+            heatImprovement * 45 -
+            risk.priority * 24 -
+            max(0, path.count - 1) * 4
+
+        switch kind {
+        case .capture:
+            let cityValue = captureCity.map { city in
+                city.production.gold + city.production.grain / 2 + city.production.prestige * 35 + city.fortification * 6
+            } ?? 0
+            return base + 560 + cityValue
+
+        case .strike:
+            return base + 420 + (attack?.score ?? 0)
+
+        case .reinforce:
+            let pressureScore = reinforcement?.report.pressureScore ?? 0
+            let improvement = reinforcement?.improvement ?? 0
+            return base + 300 + pressureScore + improvement * 70
+
+        case .advance:
+            return base + 220 + max(0, objectiveImprovement) * 75
+
+        case .secure:
+            return base + 160 + max(0, control.friendlyInfluence - originControl.friendlyInfluence) * 2
+        }
+    }
+
+    private func maneuverOptionSummary(
+        kind: ManeuverOptionKind,
+        risk: TacticalRecommendationRisk,
+        attack: (target: ArmyUnit, preview: CombatPreview, score: Int)?,
+        reinforcement: (report: FrontlinePressureReport, beforeDistance: Int, afterDistance: Int, improvement: Int)?,
+        objectiveDistance: Int?,
+        control: MapControlReport
+    ) -> String {
+        switch kind {
+        case .strike:
+            return "伤害 \(attack?.preview.damage ?? 0) · \(risk.displayName)"
+        case .capture:
+            return "占城 · \(risk.displayName)"
+        case .reinforce:
+            return "补线距 \(reinforcement?.afterDistance ?? 0) · \(risk.displayName)"
+        case .advance:
+            return "目标距 \(objectiveDistance ?? 0) · \(risk.displayName)"
+        case .secure:
+            return "\(control.controlState.displayName) · \(risk.displayName)"
+        }
+    }
+
+    private func maneuverOptionDetail(
+        destination: Position,
+        targetName: String,
+        control: MapControlReport,
+        path: [Position],
+        attack: (target: ArmyUnit, preview: CombatPreview, score: Int)?,
+        captureCity: City?,
+        reinforcement: (report: FrontlinePressureReport, beforeDistance: Int, afterDistance: Int, improvement: Int)?,
+        objectiveCity: City?
+    ) -> String {
+        var parts = [
+            "落点 \(destination.description)",
+            "路径 \(max(0, path.count - 1)) 步",
+            "\(control.controlState.displayName)",
+            "热区\(control.threatLevel.displayName)",
+            "友\(control.friendlyInfluence)/敌\(control.enemyInfluence)"
+        ]
+
+        if let attack {
+            parts.append("攻击\(targetName) 伤害 \(attack.preview.damage) 反击 \(attack.preview.retaliation)")
+        }
+
+        if let captureCity {
+            parts.append("可夺取\(captureCity.name)")
+        }
+
+        if let reinforcement {
+            parts.append("向\(reinforcement.report.targetKind.displayName)补线 \(reinforcement.beforeDistance)->\(reinforcement.afterDistance)")
+        }
+
+        if let objectiveCity {
+            parts.append("战略目标\(objectiveCity.name)")
+        }
+
+        return parts.joined(separator: " · ")
     }
 
     private func commanderSynergyReport(for unit: ArmyUnit) -> CommanderSynergyReport {
