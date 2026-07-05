@@ -101,6 +101,7 @@ do {
     var advanceIntentState = GameState.newCampaign()
     advanceIntentState.units = [
         ArmyUnit(id: "rome-target", kind: .legion, faction: .rome, position: Position(x: 3, y: 3)),
+        ArmyUnit(id: "carthage-low", kind: .archer, faction: .carthage, position: Position(x: 11, y: 0)),
         ArmyUnit(id: "carthage-hunter", kind: .cavalry, faction: .carthage, position: Position(x: 7, y: 2)),
         ArmyUnit(id: "carthage-support-north", kind: .legion, faction: .carthage, position: Position(x: 3, y: 1), hasMoved: true, hasActed: true),
         ArmyUnit(id: "carthage-support-east", kind: .legion, faction: .carthage, position: Position(x: 5, y: 4), hasMoved: true, hasActed: true),
@@ -134,7 +135,8 @@ do {
         var aiResolutionState = advanceIntentState
         aiResolutionState.activeFaction = .carthage
         let beforeHealth = aiResolutionState.unit(withID: "rome-target")?.health ?? 0
-        _ = aiResolutionState.performSimpleAI(for: .carthage)
+        let aiMessages = aiResolutionState.performSimpleAI(for: .carthage)
+        expect(aiMessages.first?.contains("骑兵") == true, "AI should execute the highest-threat cavalry before lower-threat units")
         expect(aiResolutionState.unit(withID: "rome-target")?.health == beforeHealth - advancePreview.damage, "AI resolution damage should match advance attack intent")
     }
     expect(advanceIntentState.unit(withID: "carthage-hunter")?.position == Position(x: 7, y: 2), "Advance intent forecast should not move the source unit")

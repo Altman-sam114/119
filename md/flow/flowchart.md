@@ -31,7 +31,7 @@ flowchart TD
     B --> C["GameState.endTurn()<br/>结算收入、推进 activeFaction<br/>刷新新势力行动并递减其技能冷却"]
     C --> D{"当前 activeFaction 是罗马？"}
     D -->|是| E["清空选择态<br/>banner 显示新罗马回合"]
-    D -->|否| F["GameState.performSimpleAI(for:)<br/>AI 招募、移动、攻击、技能、休整"]
+    D -->|否| F["GameState.performSimpleAI(for:)<br/>AI 招募后按当前意图威胁分排序单位<br/>主攻优先执行移动、攻击、技能、休整"]
     F --> G["GameState.endTurn()<br/>AI 势力结束回合<br/>刷新下一势力并递减其冷却"]
     G --> D
     E --> H["BattleView 刷新<br/>玩家继续下令"]
@@ -57,6 +57,8 @@ flowchart TD
     K --> M["GameViewModel.enemyIntentMapOverlays<br/>派生起点、六边形邻接路径、目的地、目标格、伤害/效果文案"]
     L --> K
     M --> W["BattleView 地图折线路径、目的地叠层、目标格叠层<br/>侧栏显示来源、去向、目标和预计伤害"]
+    L --> LF["performSimpleAI 当前状态排序<br/>读取单体 AIIntent.threatScore<br/>高威胁主攻单位先行动"]
+    LF --> LG["真实 AI 执行<br/>单位内部仍走原休整、技能、攻击、移动后攻击分支"]
     L --> AB["GameState.frontlinePressureReports<br/>按罗马单位或城市聚合多路意图<br/>来源、预计伤害、夺城风险、压力等级"]
     AB --> AC["GameViewModel.frontlinePressureSummaries<br/>目标、来源、压力标签、影响文案、无障碍说明"]
     AC --> AD["BattleView 战线 chip 与战局面板<br/>展示高压目标和防守优先级"]

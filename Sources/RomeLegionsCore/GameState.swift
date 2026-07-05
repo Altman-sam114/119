@@ -4730,6 +4730,30 @@ public struct GameState: Codable, Equatable, Sendable {
             .map { $0 }
     }
 
+    private func aiActingUnitIDs(for faction: Faction) -> [String] {
+        units
+            .filter { $0.faction == faction && !$0.hasActed }
+            .map { unit in
+                (unitID: unit.id, threatScore: aiIntent(for: unit)?.threatScore)
+            }
+            .sorted { left, right in
+                switch (left.threatScore, right.threatScore) {
+                case let (.some(leftScore), .some(rightScore)):
+                    if leftScore == rightScore {
+                        return left.unitID < right.unitID
+                    }
+                    return leftScore > rightScore
+                case (.some(_), .none):
+                    return true
+                case (.none, .some(_)):
+                    return false
+                case (.none, .none):
+                    return left.unitID < right.unitID
+                }
+            }
+            .map(\.unitID)
+    }
+
     public func frontlinePressureReports(
         against defendingFaction: Faction = .rome,
         perFactionLimit: Int = 4,
@@ -5236,7 +5260,7 @@ public struct GameState: Codable, Equatable, Sendable {
 
         messages.append(contentsOf: performAIRecruitment(for: faction))
 
-        let actingIDs = units.filter { $0.faction == faction }.map(\.id)
+        let actingIDs = aiActingUnitIDs(for: faction)
 
         for unitID in actingIDs {
             guard !campaignStatus.isGameOver else {
