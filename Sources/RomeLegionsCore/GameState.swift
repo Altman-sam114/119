@@ -2629,7 +2629,7 @@ public struct GameState: Codable, Equatable, Sendable {
             recommendedOrder: formation.recommendedOrder,
             summary: trait.skillName,
             detail: preview.detail,
-            extraUnits: beneficiaryUnitIDs.compactMap { unit(withID: $0) },
+            extraUnits: beneficiaryUnitIDs.compactMap { self.unit(withID: $0) },
             extraRole: .beneficiary,
             extraDetail: "受益于\(trait.skillName)"
         )
@@ -2779,7 +2779,7 @@ public struct GameState: Codable, Equatable, Sendable {
         let blockedReason = isExecutable ? nil : "本回合只能作为态势提示"
         let supportIDs: [String]
         if let targetUnitID = recommendation.targetUnitID,
-           unit(withID: targetUnitID)?.faction == unit.faction {
+           self.unit(withID: targetUnitID)?.faction == unit.faction {
             supportIDs = [targetUnitID]
         } else {
             supportIDs = []
