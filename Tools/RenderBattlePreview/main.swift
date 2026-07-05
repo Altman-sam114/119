@@ -12,7 +12,7 @@ struct RenderBattlePreview {
         let viewModel = GameViewModel()
         viewModel.isShowingMenu = false
         viewModel.state.units = [
-            ArmyUnit(id: "rome-legion-1", kind: .legion, faction: .rome, position: Position(x: 3, y: 3), experience: 2, generalName: "凯撒", generalTrait: .eagleStandard),
+            ArmyUnit(id: "rome-legion-1", kind: .legion, faction: .rome, position: Position(x: 3, y: 3), health: 88, experience: 2, generalName: "凯撒", generalTrait: .eagleStandard),
             ArmyUnit(id: "carthage-hunter", kind: .cavalry, faction: .carthage, position: Position(x: 7, y: 2))
         ]
         for index in viewModel.state.cities.indices where viewModel.state.cities[index].owner != .rome {
@@ -124,6 +124,18 @@ struct RenderBattlePreview {
               !formationSummary.recommendationLabel.isEmpty,
               !formationSummary.accessibilityLabel.isEmpty else {
             throw PreviewRenderError.missingLegionFormationSummary
+        }
+        guard let selectedSynergySummary = viewModel.selectedCommanderSynergySummary,
+              let primarySynergySummary = viewModel.primaryCommanderSynergySummary,
+              !viewModel.commanderSynergySummaries.isEmpty,
+              selectedSynergySummary.report.unitID == "rome-legion-1",
+              primarySynergySummary.report.unitID == "rome-legion-1",
+              !selectedSynergySummary.kindLabel.isEmpty,
+              !selectedSynergySummary.targetLabel.isEmpty,
+              !selectedSynergySummary.impactLabel.isEmpty,
+              !selectedSynergySummary.detail.isEmpty,
+              !selectedSynergySummary.accessibilityLabel.isEmpty else {
+            throw PreviewRenderError.missingCommanderSynergySummary
         }
         guard let recommendationSummary = viewModel.selectedTacticalRecommendationSummary,
               recommendationSummary.report.unitID == "rome-legion-1",
@@ -338,6 +350,7 @@ enum PreviewRenderError: Error {
     case missingMapControlSummary
     case missingCommanderBrief
     case missingLegionFormationSummary
+    case missingCommanderSynergySummary
     case missingTacticalRecommendationSummary
     case missingTacticalOrderPreview
     case missingCityReadout

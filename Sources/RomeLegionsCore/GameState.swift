@@ -1163,6 +1163,99 @@ public struct TacticalRecommendationReport: Identifiable, Equatable, Sendable {
     public var id: String { unitID }
 }
 
+public enum CommanderSynergyKind: String, CaseIterable, Identifiable, Equatable, Sendable {
+    case commanderSkill
+    case coordinatedAttack
+    case reinforce
+    case advance
+    case recover
+
+    public var id: String { rawValue }
+
+    public var displayName: String {
+        switch self {
+        case .commanderSkill: return "将令"
+        case .coordinatedAttack: return "合击"
+        case .reinforce: return "补线"
+        case .advance: return "推进"
+        case .recover: return "整备"
+        }
+    }
+
+    fileprivate var priority: Int {
+        switch self {
+        case .commanderSkill: return 5
+        case .coordinatedAttack: return 4
+        case .reinforce: return 3
+        case .advance: return 2
+        case .recover: return 1
+        }
+    }
+}
+
+public enum CommanderSynergyRole: String, CaseIterable, Identifiable, Equatable, Sendable {
+    case commander
+    case mainEffort
+    case support
+    case beneficiary
+    case reserve
+
+    public var id: String { rawValue }
+
+    public var displayName: String {
+        switch self {
+        case .commander: return "将领"
+        case .mainEffort: return "主攻"
+        case .support: return "支援"
+        case .beneficiary: return "受益"
+        case .reserve: return "预备"
+        }
+    }
+}
+
+public struct CommanderSynergyStepReport: Identifiable, Equatable, Sendable {
+    public var unitID: String
+    public var faction: Faction
+    public var role: CommanderSynergyRole
+    public var position: Position
+    public var targetPosition: Position
+    public var tacticalOrder: TacticalOrder
+    public var summary: String
+    public var detail: String
+
+    public var id: String { "\(role.rawValue)-\(unitID)" }
+}
+
+public struct CommanderSynergyReport: Identifiable, Equatable, Sendable {
+    public var id: String
+    public var faction: Faction
+    public var kind: CommanderSynergyKind
+    public var unitID: String
+    public var commanderUnitID: String?
+    public var targetUnitID: String?
+    public var targetCityID: String?
+    public var targetPosition: Position
+    public var supportingUnitIDs: [String]
+    public var beneficiaryUnitIDs: [String]
+    public var recommendedOrder: TacticalOrder
+    public var formationRole: LegionFormationRole
+    public var formationReadiness: LegionFormationReadiness
+    public var risk: TacticalRecommendationRisk
+    public var projectedDamage: Int?
+    public var supportBonus: Int
+    public var flankingBonus: Int
+    public var commandBonus: Int
+    public var projectedRecoveredHealth: Int
+    public var projectedFortificationReduction: Int
+    public var isExecutable: Bool
+    public var blockedReason: String?
+    public var score: Int
+    public var title: String
+    public var summary: String
+    public var detail: String
+    public var steps: [CommanderSynergyStepReport]
+}
+
 public enum BattlefieldFocusKind: String, CaseIterable, Identifiable, Equatable, Sendable {
     case defense
     case generalOpportunity
@@ -2051,6 +2144,36 @@ public struct GameState: Codable, Equatable, Sendable {
         return tacticalRecommendation(for: unit)
     }
 
+    public func commanderSynergyReport(unitID: String) throws -> CommanderSynergyReport {
+        guard let unit = unit(withID: unitID) else {
+            throw GameRuleError.missingEntity
+        }
+
+        return commanderSynergyReport(for: unit)
+    }
+
+    public func commanderSynergyReports(
+        for faction: Faction = .rome,
+        limit: Int = 5
+    ) -> [CommanderSynergyReport] {
+        guard faction != .neutral,
+              limit > 0 else {
+            return []
+        }
+
+        return units
+            .filter { $0.faction == faction }
+            .map { commanderSynergyReport(for: $0) }
+            .sorted { left, right in
+                if left.score == right.score {
+                    return left.id < right.id
+                }
+                return left.score > right.score
+            }
+            .prefix(limit)
+            .map { $0 }
+    }
+
     public func battlefieldFocusReports(
         for faction: Faction = .rome,
         limit: Int = 5
@@ -2426,6 +2549,381 @@ public struct GameState: Codable, Equatable, Sendable {
             reason: formation.commandSuggestion,
             command: command
         )
+    }
+
+    private func commanderSynergyReport(for unit: ArmyUnit) -> CommanderSynergyReport {
+        let formation = legionFormationReport(for: unit)
+        let recommendation = tacticalRecommendation(for: unit)
+        var candidates: [CommanderSynergyReport] = []
+
+        if let skillReport = commanderSkillSynergyReport(for: unit, formation: formation) {
+            candidates.append(skillReport)
+        }
+
+        if let attackReport = commanderAttackSynergyReport(for: unit, formation: formation) {
+            candidates.append(attackReport)
+        }
+
+        if recommendation.kind != .attack {
+            candidates.append(commanderRecommendationSynergyReport(for: unit, formation: formation, recommendation: recommendation))
+        }
+
+        return candidates
+            .sorted { left, right in
+                if left.score == right.score {
+                    return left.id < right.id
+                }
+                return left.score > right.score
+            }
+            .first ?? commanderRecommendationSynergyReport(for: unit, formation: formation, recommendation: recommendation)
+    }
+
+    private func commanderSkillSynergyReport(
+        for unit: ArmyUnit,
+        formation: LegionFormationReport
+    ) -> CommanderSynergyReport? {
+        guard unit.generalName != nil,
+              let trait = unit.resolvedGeneralTrait else {
+            return nil
+        }
+
+        let preview = generalSkillPreview(for: unit)
+        let usefulEffect = preview.projectedRecoveredHealth > 0 || preview.projectedFortificationReduction > 0
+        let isExecutable = preview.isExecutable && usefulEffect
+        let targetUnitID = preview.affectedUnitIDs.first
+        let targetCityID = preview.affectedCityIDs.first
+        let targetPosition = targetUnitID
+            .flatMap { self.unit(withID: $0)?.position } ??
+            targetCityID.flatMap { city(withID: $0)?.position } ??
+            preview.affectedPositions.first ??
+            unit.position
+        let beneficiaryUnitIDs = preview.affectedUnitIDs
+        let supportingUnitIDs = nearbyAlliedUnits(for: unit, range: max(1, trait.commandRange))
+            .map(\.id)
+        let risk = commanderSynergyRisk(for: formation.readiness)
+        let targetName = battlefieldTargetName(
+            unitID: targetUnitID,
+            cityID: targetCityID,
+            fallback: targetPosition.description
+        )
+        let blockedReason = isExecutable ? nil : (preview.blockedReason ?? preview.summary)
+        let executionScore: Int
+        if isExecutable {
+            executionScore = 720
+        } else if usefulEffect {
+            executionScore = -80
+        } else {
+            executionScore = -180
+        }
+        let score = executionScore +
+            CommanderSynergyKind.commanderSkill.priority * 110 +
+            preview.projectedRecoveredHealth * 3 +
+            preview.projectedFortificationReduction * 22 +
+            beneficiaryUnitIDs.count * 30 +
+            formation.readiness.priority * 35 +
+            max(0, 100 - formation.formationIntegrityScore)
+        let steps = commanderSynergySteps(
+            unit: unit,
+            role: .commander,
+            targetPosition: targetPosition,
+            recommendedOrder: formation.recommendedOrder,
+            summary: trait.skillName,
+            detail: preview.detail,
+            extraUnits: beneficiaryUnitIDs.compactMap { unit(withID: $0) },
+            extraRole: .beneficiary,
+            extraDetail: "受益于\(trait.skillName)"
+        )
+        let impact = preview.projectedRecoveredHealth > 0
+            ? "预计恢复 \(preview.projectedRecoveredHealth)"
+            : "削城防 \(preview.projectedFortificationReduction)"
+        let title = "\(unit.generalName ?? "将领")\(trait.skillName)"
+        let summary = isExecutable ? "\(impact) · \(targetName)" : "不可执行 · \(blockedReason ?? "无有效目标")"
+        let detail = isExecutable
+            ? "\(targetName) 进入将令范围，\(preview.summary)。"
+            : "\(preview.summary) · \(blockedReason ?? "暂不建议发动")。"
+
+        return CommanderSynergyReport(
+            id: "synergy-skill-\(unit.id)",
+            faction: unit.faction,
+            kind: .commanderSkill,
+            unitID: unit.id,
+            commanderUnitID: unit.id,
+            targetUnitID: targetUnitID,
+            targetCityID: targetCityID,
+            targetPosition: targetPosition,
+            supportingUnitIDs: supportingUnitIDs,
+            beneficiaryUnitIDs: beneficiaryUnitIDs,
+            recommendedOrder: formation.recommendedOrder,
+            formationRole: formation.role,
+            formationReadiness: formation.readiness,
+            risk: risk,
+            projectedDamage: nil,
+            supportBonus: 0,
+            flankingBonus: 0,
+            commandBonus: 0,
+            projectedRecoveredHealth: preview.projectedRecoveredHealth,
+            projectedFortificationReduction: preview.projectedFortificationReduction,
+            isExecutable: isExecutable,
+            blockedReason: blockedReason,
+            score: score,
+            title: title,
+            summary: summary,
+            detail: detail,
+            steps: steps
+        )
+    }
+
+    private func commanderAttackSynergyReport(
+        for unit: ArmyUnit,
+        formation: LegionFormationReport
+    ) -> CommanderSynergyReport? {
+        guard unit.faction == activeFaction,
+              !unit.hasActed else {
+            return nil
+        }
+
+        let candidates = attackTargets(for: unit).compactMap { target -> (unit: ArmyUnit, preview: CombatPreview, score: Int)? in
+            guard let preview = try? attackPreview(attackerID: unit.id, defenderID: target.id) else {
+                return nil
+            }
+
+            let modifierScore = preview.supportBonus * 18 + preview.flankingBonus * 22 + preview.commandBonus * 24
+            let score = preview.damage * 11 -
+                preview.retaliation * 6 +
+                modifierScore +
+                (preview.defeatsDefender ? 180 : 0) +
+                (target.generalName == nil ? 0 : 70)
+            return (target, preview, score)
+        }
+
+        guard let best = candidates.sorted(by: { left, right in
+            if left.score == right.score {
+                return left.unit.id < right.unit.id
+            }
+            return left.score > right.score
+        }).first else {
+            return nil
+        }
+
+        let commanderUnitIDs = commanderSupportUnitIDs(for: unit)
+        let adjacentSupportIDs = adjacentFriendlyUnitIDs(around: unit.position, faction: unit.faction, excluding: [unit.id])
+        let flankingSupportIDs = adjacentFriendlyUnitIDs(around: best.unit.position, faction: unit.faction, excluding: [unit.id])
+        let supportingUnitIDs = Array(Set(adjacentSupportIDs + flankingSupportIDs + commanderUnitIDs))
+            .sorted()
+        let targetName = battlefieldUnitName(unitID: best.unit.id, fallback: best.unit.kind.displayName)
+        let risk = tacticalRisk(for: unit, preview: best.preview)
+        let recommendedOrder: TacticalOrder = best.preview.defeatsDefender && unit.healthRatio >= 0.55 ? .assault : formation.recommendedOrder
+        let modifierParts = commanderSynergyModifierParts(preview: best.preview)
+        let modifierText = modifierParts.isEmpty ? "无额外修正" : modifierParts.joined(separator: " · ")
+        let steps = commanderSynergySteps(
+            unit: unit,
+            role: .mainEffort,
+            targetPosition: best.unit.position,
+            recommendedOrder: recommendedOrder,
+            summary: "攻击\(targetName)",
+            detail: "预计伤害 \(best.preview.damage)，\(modifierText)",
+            extraUnits: supportingUnitIDs.compactMap { self.unit(withID: $0) },
+            extraRole: .support,
+            extraDetail: "提供支援、包夹或指挥修正"
+        )
+        let score = 520 +
+            CommanderSynergyKind.coordinatedAttack.priority * 110 +
+            best.score +
+            supportingUnitIDs.count * 24 +
+            formation.readiness.priority * 20 -
+            risk.priority * 18
+
+        return CommanderSynergyReport(
+            id: "synergy-attack-\(unit.id)-\(best.unit.id)",
+            faction: unit.faction,
+            kind: .coordinatedAttack,
+            unitID: unit.id,
+            commanderUnitID: commanderUnitIDs.first,
+            targetUnitID: best.unit.id,
+            targetCityID: nil,
+            targetPosition: best.unit.position,
+            supportingUnitIDs: supportingUnitIDs,
+            beneficiaryUnitIDs: [],
+            recommendedOrder: recommendedOrder,
+            formationRole: formation.role,
+            formationReadiness: formation.readiness,
+            risk: risk,
+            projectedDamage: best.preview.damage,
+            supportBonus: best.preview.supportBonus,
+            flankingBonus: best.preview.flankingBonus,
+            commandBonus: best.preview.commandBonus,
+            projectedRecoveredHealth: 0,
+            projectedFortificationReduction: 0,
+            isExecutable: true,
+            blockedReason: nil,
+            score: score,
+            title: "合击：\(targetName)",
+            summary: "预计伤害 \(best.preview.damage) · \(risk.displayName)",
+            detail: "\(unit.kind.displayName)可在\(recommendedOrder.displayName)姿态压制目标，\(modifierText)。",
+            steps: steps
+        )
+    }
+
+    private func commanderRecommendationSynergyReport(
+        for unit: ArmyUnit,
+        formation: LegionFormationReport,
+        recommendation: TacticalRecommendationReport
+    ) -> CommanderSynergyReport {
+        let kind = commanderSynergyKind(for: recommendation.kind)
+        let targetName = battlefieldTargetName(
+            unitID: recommendation.targetUnitID,
+            cityID: recommendation.targetCityID,
+            fallback: recommendation.targetPosition.description
+        )
+        let isExecutable = recommendation.kind == .hold ? false : (!unit.hasMoved || !unit.hasActed)
+        let blockedReason = isExecutable ? nil : "本回合只能作为态势提示"
+        let supportIDs: [String]
+        if let targetUnitID = recommendation.targetUnitID,
+           unit(withID: targetUnitID)?.faction == unit.faction {
+            supportIDs = [targetUnitID]
+        } else {
+            supportIDs = []
+        }
+        let steps = commanderSynergySteps(
+            unit: unit,
+            role: kind == .recover ? .reserve : .mainEffort,
+            targetPosition: recommendation.targetPosition,
+            recommendedOrder: recommendation.recommendedOrder,
+            summary: recommendation.kind.displayName,
+            detail: recommendation.command,
+            extraUnits: supportIDs.compactMap { self.unit(withID: $0) },
+            extraRole: .beneficiary,
+            extraDetail: "等待\(unit.kind.displayName)补线"
+        )
+        let score = 180 +
+            kind.priority * 100 +
+            recommendation.priority +
+            recommendation.risk.priority * 25 +
+            formation.readiness.priority * 18
+
+        return CommanderSynergyReport(
+            id: "synergy-\(kind.rawValue)-\(unit.id)-\(recommendation.targetUnitID ?? recommendation.targetCityID ?? "position")",
+            faction: unit.faction,
+            kind: kind,
+            unitID: unit.id,
+            commanderUnitID: unit.generalName == nil ? nil : unit.id,
+            targetUnitID: recommendation.targetUnitID,
+            targetCityID: recommendation.targetCityID,
+            targetPosition: recommendation.targetPosition,
+            supportingUnitIDs: supportIDs,
+            beneficiaryUnitIDs: supportIDs,
+            recommendedOrder: recommendation.recommendedOrder,
+            formationRole: formation.role,
+            formationReadiness: formation.readiness,
+            risk: recommendation.risk,
+            projectedDamage: recommendation.projectedDamage,
+            supportBonus: 0,
+            flankingBonus: 0,
+            commandBonus: 0,
+            projectedRecoveredHealth: 0,
+            projectedFortificationReduction: 0,
+            isExecutable: isExecutable,
+            blockedReason: blockedReason,
+            score: score,
+            title: "\(kind.displayName)：\(targetName)",
+            summary: "\(recommendation.risk.displayName) · \(recommendation.recommendedOrder.displayName)",
+            detail: "\(recommendation.reason) \(recommendation.command)",
+            steps: steps
+        )
+    }
+
+    private func commanderSynergyKind(for recommendationKind: TacticalRecommendationKind) -> CommanderSynergyKind {
+        switch recommendationKind {
+        case .attack: return .coordinatedAttack
+        case .reinforce: return .reinforce
+        case .advance: return .advance
+        case .hold, .recover: return .recover
+        }
+    }
+
+    private func commanderSynergyRisk(for readiness: LegionFormationReadiness) -> TacticalRecommendationRisk {
+        switch readiness {
+        case .critical: return .critical
+        case .strained: return .high
+        case .engaged: return .guarded
+        case .steady, .fresh: return .low
+        }
+    }
+
+    private func commanderSynergySteps(
+        unit: ArmyUnit,
+        role: CommanderSynergyRole,
+        targetPosition: Position,
+        recommendedOrder: TacticalOrder,
+        summary: String,
+        detail: String,
+        extraUnits: [ArmyUnit],
+        extraRole: CommanderSynergyRole,
+        extraDetail: String
+    ) -> [CommanderSynergyStepReport] {
+        var steps = [
+            CommanderSynergyStepReport(
+                unitID: unit.id,
+                faction: unit.faction,
+                role: role,
+                position: unit.position,
+                targetPosition: targetPosition,
+                tacticalOrder: recommendedOrder,
+                summary: summary,
+                detail: detail
+            )
+        ]
+
+        for extra in extraUnits where extra.id != unit.id {
+            steps.append(
+                CommanderSynergyStepReport(
+                    unitID: extra.id,
+                    faction: extra.faction,
+                    role: extraRole,
+                    position: extra.position,
+                    targetPosition: targetPosition,
+                    tacticalOrder: extra.resolvedTacticalOrder,
+                    summary: extraRole.displayName,
+                    detail: extraDetail
+                )
+            )
+        }
+
+        return steps
+    }
+
+    private func commanderSynergyModifierParts(preview: CombatPreview) -> [String] {
+        [
+            preview.supportBonus > 0 ? "支援 +\(preview.supportBonus)" : nil,
+            preview.flankingBonus > 0 ? "包夹 +\(preview.flankingBonus)" : nil,
+            preview.commandBonus > 0 ? "指挥 +\(preview.commandBonus)" : nil
+        ].compactMap { $0 }
+    }
+
+    private func adjacentFriendlyUnitIDs(
+        around position: Position,
+        faction: Faction,
+        excluding excludedIDs: Set<String>
+    ) -> [String] {
+        units
+            .filter { unit in
+                unit.faction == faction &&
+                    !excludedIDs.contains(unit.id) &&
+                    unit.position.hexDistance(to: position) <= 1
+            }
+            .map(\.id)
+            .sorted()
+    }
+
+    private func commanderSupportUnitIDs(for unit: ArmyUnit) -> [String] {
+        units
+            .filter { commander in
+                commander.faction == unit.faction &&
+                    commander.generalName != nil &&
+                    unit.position.hexDistance(to: commander.position) <= max(1, commander.resolvedGeneralTrait?.commandRange ?? 1)
+            }
+            .map(\.id)
+            .sorted()
     }
 
     private func mapControlReport(

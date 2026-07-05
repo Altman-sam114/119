@@ -483,6 +483,17 @@ struct TacticalStatusStripView: View {
             )
         }
 
+        if let synergy = viewModel.primaryCommanderSynergySummary {
+            TacticalChipView(
+                symbol: synergy.kind.systemImage,
+                label: "将令",
+                value: synergy.compactTitle,
+                tint: synergy.kind.tintColor,
+                compact: compact,
+                accessibilityLabel: synergy.accessibilityLabel
+            )
+        }
+
         if let focus = viewModel.primaryBattlefieldFocusSummary {
             TacticalChipView(
                 symbol: focus.kind.systemImage,
@@ -1540,6 +1551,10 @@ struct CompactSelectionPanelView: View {
                         TacticalRecommendationCardView(summary: recommendation, isCompact: true)
                     }
 
+                    if let synergy = viewModel.selectedCommanderSynergySummary {
+                        CommanderSynergyCardView(summary: synergy, isCompact: true)
+                    }
+
                     TacticalOrderPreviewStripView(
                         previews: viewModel.selectedTacticalOrderPreviews,
                         isCompact: true
@@ -2199,6 +2214,7 @@ struct StrategicBalancePanelView: View {
 
     var body: some View {
         PanelView(title: "战局", symbol: "chart.bar.xaxis") {
+            let synergySummaries = viewModel.commanderSynergySummaries
             let planSummaries = viewModel.aiOperationalPlanSummaries
             let focusSummaries = viewModel.battlefieldFocusSummaries
             let heatSummaries = viewModel.threatHeatZoneSummaries
@@ -2233,6 +2249,19 @@ struct StrategicBalancePanelView: View {
                     ResourceDeltaView(symbol: "shield.fill", value: income.iron, tint: .gray)
                     ResourceDeltaView(symbol: "sparkle.magnifyingglass", value: income.science, tint: .cyan)
                     Spacer(minLength: 0)
+                }
+
+                VStack(alignment: .leading, spacing: 6) {
+                    if synergySummaries.isEmpty {
+                        Text("暂无本方将令协同。")
+                            .font(.caption)
+                            .foregroundStyle(.white.opacity(0.62))
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    } else {
+                        ForEach(synergySummaries.prefix(2)) { summary in
+                            CommanderSynergyRowView(summary: summary)
+                        }
+                    }
                 }
 
                 VStack(alignment: .leading, spacing: 6) {
@@ -2440,6 +2469,57 @@ struct BattlefieldFocusRowView: View {
 
 struct AIOperationalPlanRowView: View {
     var summary: AIOperationalPlanSummary
+
+    var body: some View {
+        HStack(spacing: 8) {
+            ZStack {
+                RoundedRectangle(cornerRadius: 5)
+                    .fill(summary.kind.tintColor.opacity(0.92))
+                    .frame(width: 28, height: 28)
+                Image(systemName: summary.kind.systemImage)
+                    .font(.caption.weight(.black))
+                    .foregroundStyle(.white)
+            }
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(summary.title)
+                    .font(.caption.weight(.heavy))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.72)
+                Text(summary.detail)
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(.white.opacity(0.62))
+                    .lineLimit(2)
+                    .minimumScaleFactor(0.70)
+            }
+
+            Spacer(minLength: 0)
+
+            VStack(alignment: .trailing, spacing: 3) {
+                Text(summary.kindLabel)
+                    .font(.caption2.weight(.black))
+                    .foregroundStyle(.black.opacity(0.78))
+                    .padding(.horizontal, 6)
+                    .frame(height: 20)
+                    .background(summary.kind.tintColor)
+                    .clipShape(RoundedRectangle(cornerRadius: 5))
+                Text(summary.impactLabel)
+                    .font(.caption2.monospacedDigit().weight(.semibold))
+                    .foregroundStyle(.white.opacity(0.58))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.72)
+            }
+        }
+        .padding(.horizontal, 8)
+        .frame(minHeight: 46)
+        .background(.black.opacity(0.18))
+        .clipShape(RoundedRectangle(cornerRadius: 7))
+        .accessibilityLabel(summary.accessibilityLabel)
+    }
+}
+
+struct CommanderSynergyRowView: View {
+    var summary: CommanderSynergySummary
 
     var body: some View {
         HStack(spacing: 8) {
@@ -2881,6 +2961,70 @@ struct TacticalRecommendationCardView: View {
     }
 }
 
+struct CommanderSynergyCardView: View {
+    var summary: CommanderSynergySummary
+    var isCompact: Bool
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: isCompact ? 5 : 7) {
+            HStack(spacing: 7) {
+                Image(systemName: summary.kind.systemImage)
+                    .foregroundStyle(summary.kind.tintColor)
+                Text("将令")
+                    .font(.caption2.weight(.bold))
+                    .foregroundStyle(.white.opacity(0.58))
+                Text("\(summary.kindLabel) · \(summary.targetLabel)")
+                    .font(.caption.weight(.heavy))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.70)
+                Spacer(minLength: 0)
+                Text(summary.statusLabel)
+                    .font(.caption2.weight(.black))
+                    .foregroundStyle(.black.opacity(0.78))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.66)
+                    .padding(.horizontal, 6)
+                    .frame(height: 20)
+                    .background(summary.kind.tintColor)
+                    .clipShape(RoundedRectangle(cornerRadius: 5))
+            }
+
+            if !isCompact {
+                Text(summary.stepLabel.isEmpty ? summary.beneficiaryLabel : summary.stepLabel)
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(.white.opacity(0.62))
+                    .lineLimit(2)
+                    .minimumScaleFactor(0.72)
+            }
+
+            HStack(spacing: 6) {
+                Label(summary.impactLabel, systemImage: "scope")
+                Spacer(minLength: 0)
+                Label(summary.report.recommendedOrder.displayName, systemImage: summary.report.recommendedOrder.systemImage)
+            }
+            .font(.caption2.weight(.semibold))
+            .foregroundStyle(.white.opacity(0.66))
+            .lineLimit(1)
+            .minimumScaleFactor(0.70)
+
+            Text(summary.modifierLabel == summary.statusLabel ? summary.detail : "\(summary.modifierLabel) · \(summary.detail)")
+                .font(.caption2.weight(.bold))
+                .foregroundStyle(summary.kind.tintColor)
+                .lineLimit(isCompact ? 1 : 2)
+                .minimumScaleFactor(0.70)
+        }
+        .padding(8)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(summary.kind.tintColor.opacity(0.12))
+        .overlay {
+            RoundedRectangle(cornerRadius: 7)
+                .stroke(summary.kind.tintColor.opacity(0.38), lineWidth: 1)
+        }
+        .clipShape(RoundedRectangle(cornerRadius: 7))
+        .accessibilityLabel(summary.accessibilityLabel)
+    }
+}
+
 struct LegionFormationCardView: View {
     var summary: LegionFormationSummary
     var isCompact: Bool
@@ -3109,6 +3253,10 @@ struct SelectionPanelView: View {
 
                     if let recommendation = viewModel.selectedTacticalRecommendationSummary {
                         TacticalRecommendationCardView(summary: recommendation, isCompact: false)
+                    }
+
+                    if let synergy = viewModel.selectedCommanderSynergySummary {
+                        CommanderSynergyCardView(summary: synergy, isCompact: false)
                     }
 
                     TacticalOrderPreviewStripView(
@@ -4169,6 +4317,28 @@ extension BattlefieldFocusKind {
         case .reinforce: return "arrow.triangle.branch"
         case .advance: return "arrow.up.right.circle.fill"
         case .recover: return "cross.case.fill"
+        }
+    }
+}
+
+extension CommanderSynergyKind {
+    var systemImage: String {
+        switch self {
+        case .commanderSkill: return "flag.2.crossed.fill"
+        case .coordinatedAttack: return "scope"
+        case .reinforce: return "arrow.triangle.branch"
+        case .advance: return "arrow.up.right.circle.fill"
+        case .recover: return "cross.case.fill"
+        }
+    }
+
+    var tintColor: Color {
+        switch self {
+        case .commanderSkill: return Color(red: 0.72, green: 0.48, blue: 0.92)
+        case .coordinatedAttack: return Color(red: 0.92, green: 0.46, blue: 0.20)
+        case .reinforce: return Color(red: 0.28, green: 0.78, blue: 0.62)
+        case .advance: return Color(red: 0.70, green: 0.76, blue: 0.32)
+        case .recover: return Color(red: 0.62, green: 0.76, blue: 0.46)
         }
     }
 }

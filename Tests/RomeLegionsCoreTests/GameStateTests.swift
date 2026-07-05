@@ -854,6 +854,151 @@ import Testing
     #expect(state == before)
 }
 
+@Test func commanderSynergySurfacesReadyCommanderSkillWithoutMutation() throws {
+    var state = GameState.newCampaign()
+    state.units = [
+        ArmyUnit(id: "rome-commander", kind: .legion, faction: .rome, position: Position(x: 3, y: 3), generalName: "凯撒", generalTrait: .eagleStandard),
+        ArmyUnit(id: "rome-wounded", kind: .archer, faction: .rome, position: Position(x: 4, y: 3), health: 30)
+    ]
+    state.activeFaction = .rome
+    let before = state
+
+    let report = try state.commanderSynergyReport(unitID: "rome-commander")
+
+    #expect(report.kind == .commanderSkill)
+    #expect(report.commanderUnitID == "rome-commander")
+    #expect(report.targetUnitID == "rome-wounded")
+    #expect(report.beneficiaryUnitIDs == ["rome-wounded"])
+    #expect(report.projectedRecoveredHealth > 0)
+    #expect(report.isExecutable)
+    #expect(report.steps.contains { $0.role == .commander })
+    #expect(report.steps.contains { $0.role == .beneficiary })
+    #expect(report.title.contains("鹰旗鼓舞"))
+    #expect(report.detail.contains("恢复"))
+    #expect(state == before)
+}
+
+@Test func commanderSynergySkillTargetPositionMatchesTargetIDWithoutMutation() throws {
+    var state = GameState.newCampaign()
+    state.units = [
+        ArmyUnit(id: "rome-commander", kind: .legion, faction: .rome, position: Position(x: 3, y: 3), generalName: "凯撒", generalTrait: .eagleStandard),
+        ArmyUnit(id: "rome-south", kind: .archer, faction: .rome, position: Position(x: 2, y: 4), health: 30),
+        ArmyUnit(id: "rome-north", kind: .legion, faction: .rome, position: Position(x: 3, y: 2), health: 40)
+    ]
+    state.activeFaction = .rome
+    let before = state
+
+    let report = try state.commanderSynergyReport(unitID: "rome-commander")
+
+    #expect(report.kind == .commanderSkill)
+    #expect(report.targetUnitID == "rome-south")
+    #expect(report.targetPosition == Position(x: 2, y: 4))
+    #expect(report.steps.first?.targetPosition == Position(x: 2, y: 4))
+    #expect(state == before)
+}
+
+@Test func commanderSynergyExplainsCoordinatedAttackModifiersWithoutMutation() throws {
+    var state = GameState.newCampaign()
+    state.units = [
+        ArmyUnit(id: "rome-attacker", kind: .legion, faction: .rome, position: Position(x: 3, y: 3), generalName: "凯撒", generalTrait: .eagleStandard),
+        ArmyUnit(id: "rome-support", kind: .legion, faction: .rome, position: Position(x: 2, y: 3)),
+        ArmyUnit(id: "rome-flanker", kind: .archer, faction: .rome, position: Position(x: 4, y: 2)),
+        ArmyUnit(id: "carthage-target", kind: .cavalry, faction: .carthage, position: Position(x: 4, y: 3), health: 70)
+    ]
+    state.activeFaction = .rome
+    let before = state
+
+    let report = try state.commanderSynergyReport(unitID: "rome-attacker")
+    let preview = try state.attackPreview(attackerID: "rome-attacker", defenderID: "carthage-target")
+
+    #expect(report.kind == .coordinatedAttack)
+    #expect(report.targetUnitID == "carthage-target")
+    #expect(report.projectedDamage == preview.damage)
+    #expect(report.supportBonus == preview.supportBonus)
+    #expect(report.flankingBonus == preview.flankingBonus)
+    #expect(report.commandBonus == preview.commandBonus)
+    #expect(report.supportBonus > 0)
+    #expect(report.flankingBonus > 0)
+    #expect(report.commandBonus > 0)
+    #expect(Set(report.supportingUnitIDs).isSuperset(of: Set(["rome-support", "rome-flanker", "rome-attacker"])))
+    #expect(report.detail.contains("支援"))
+    #expect(state == before)
+}
+
+@Test func commanderSynergyReportsCooldownBlockerWithoutMutation() throws {
+    var state = GameState.newCampaign()
+    state.units = [
+        ArmyUnit(id: "rome-commander", kind: .legion, faction: .rome, position: Position(x: 3, y: 3), generalName: "凯撒", generalTrait: .eagleStandard, generalSkillCooldownRemaining: 2),
+        ArmyUnit(id: "rome-wounded", kind: .archer, faction: .rome, position: Position(x: 4, y: 3), health: 30)
+    ]
+    state.activeFaction = .rome
+    let before = state
+
+    let report = try state.commanderSynergyReport(unitID: "rome-commander")
+
+    #expect(report.kind == .commanderSkill)
+    #expect(!report.isExecutable)
+    #expect(report.blockedReason?.contains("冷却") == true)
+    #expect(report.projectedRecoveredHealth > 0)
+    #expect(report.summary.contains("不可执行"))
+    #expect(state == before)
+}
+
+@Test func commanderSynergyRanksExecutableActionAboveBlockedSkill() {
+    var state = GameState.newCampaign()
+    state.units = [
+        ArmyUnit(id: "rome-commander", kind: .legion, faction: .rome, position: Position(x: 3, y: 3), generalName: "凯撒", generalTrait: .eagleStandard, generalSkillCooldownRemaining: 2),
+        ArmyUnit(id: "rome-wounded", kind: .archer, faction: .rome, position: Position(x: 4, y: 3), health: 30),
+        ArmyUnit(id: "rome-reserve", kind: .legion, faction: .rome, position: Position(x: 1, y: 3))
+    ]
+    state.activeFaction = .rome
+    let before = state
+
+    let reports = state.commanderSynergyReports(for: .rome, limit: 3)
+    let blockedCommander = reports.first { $0.unitID == "rome-commander" }
+
+    #expect(blockedCommander?.kind == .commanderSkill)
+    #expect(blockedCommander?.isExecutable == false)
+    #expect(reports.first?.unitID != "rome-commander")
+    #expect(reports.first?.isExecutable == true)
+    #expect(state == before)
+}
+
+@Test func commanderSynergyIgnoresTreatyProtectedAttackTargets() throws {
+    var state = GameState.newCampaign()
+    state.units = [
+        ArmyUnit(id: "rome-attacker", kind: .legion, faction: .rome, position: Position(x: 3, y: 3)),
+        ArmyUnit(id: "carthage-target", kind: .cavalry, faction: .carthage, position: Position(x: 4, y: 3), health: 70)
+    ]
+    _ = try state.sendEnvoy(to: .carthage)
+    let before = state
+
+    let report = try state.commanderSynergyReport(unitID: "rome-attacker")
+
+    #expect(report.kind != .coordinatedAttack)
+    #expect(report.targetUnitID != "carthage-target")
+    #expect(state == before)
+}
+
+@Test func commanderSynergyReportsSortHighestOpportunityFirst() {
+    var state = GameState.newCampaign()
+    state.units = [
+        ArmyUnit(id: "rome-commander", kind: .legion, faction: .rome, position: Position(x: 3, y: 3), generalName: "凯撒", generalTrait: .eagleStandard),
+        ArmyUnit(id: "rome-wounded", kind: .archer, faction: .rome, position: Position(x: 4, y: 3), health: 30),
+        ArmyUnit(id: "rome-reserve", kind: .legion, faction: .rome, position: Position(x: 1, y: 3))
+    ]
+    state.activeFaction = .rome
+    let before = state
+
+    let reports = state.commanderSynergyReports(for: .rome, limit: 3)
+
+    #expect(reports.first?.kind == .commanderSkill)
+    #expect(reports.first?.unitID == "rome-commander")
+    #expect((reports.first?.score ?? 0) >= (reports.dropFirst().first?.score ?? 0))
+    #expect(reports.contains { $0.unitID == "rome-reserve" })
+    #expect(state == before)
+}
+
 @Test func battlefieldFocusPrioritizesCriticalFrontlinePressureWithoutMutation() {
     var state = GameState.newCampaign()
     state.units = [

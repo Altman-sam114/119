@@ -14,12 +14,55 @@
 
 - 项目类型：原创 SwiftUI iOS 罗马题材战棋原型。
 - 核心架构：纯 Swift `RomeLegionsCore` 负责玩法规则；`GameViewModel` 负责 UI 状态和派生数据；SwiftUI 视图负责展示和命令入口。
-- 当前玩法：六边形地图、地形、城市、阵营、军团、移动、攻击、反击、占城、招募、科技、任务 requirement、战役目标、胜负结算、结束保护、外交、城市扩建、城市经营与招募读板、军团训练、将领任命、主动技能、技能冷却、将领详情读板、被动贡献、战功状态、军团编制与成长读板、战术命令建议与补线路径读板、战场焦点与将领机会读板、地图控制与威胁热区读板、AI 作战计划与敌方将领协同读板、战术姿态与姿态预览、AI 回合、敌军意图预判、敌军意图六边形路径/目标叠层、战线压力读板、战局态势面板。
+- 当前玩法：六边形地图、地形、城市、阵营、军团、移动、攻击、反击、占城、招募、科技、任务 requirement、战役目标、胜负结算、结束保护、外交、城市扩建、城市经营与招募读板、军团训练、将领任命、主动技能、技能冷却、将领详情读板、被动贡献、战功状态、军团编制与成长读板、战术命令建议与补线路径读板、本方将领协同与战术连携读板、战场焦点与将领机会读板、地图控制与威胁热区读板、AI 作战计划与敌方将领协同读板、战术姿态与姿态预览、AI 回合、敌军意图预判、敌军意图六边形路径/目标叠层、战线压力读板、战局态势面板。
 - 当前测试入口：Swift Testing、Gameplay Smoke、项目结构检查、SwiftUI 类型检查、战斗页预览图渲染、无签名 Xcode 构建。
 - 当前协作系统：已建立 `AGENTS.md`、`update_log.md`、`md/prompt/`、`md/test/test.md`、`md/flow/flow.md`、`md/flow/flowchart.md`，默认按 `main` 直推、GitHub Actions 云端重验证、Agent C 下载未加密结果包复判，并具备未来由 Agent X 主控调度 Agent A/B/C 多轮循环的文档基线。
 - 当前 CI 入口：`.github/workflows/ci-results.yml`，在 `main` push 和手动触发时运行结构检查、SwiftPM 测试、Gameplay Smoke、RenderBattlePreview 和无签名 Xcode build，并上传 CI 结果包。
 
 ## 历史记录
+
+### v0.20 / 本方将领协同与战术连携读板
+
+日期：2026-07-05
+
+核心变更：
+
+- `GameState` 新增 `CommanderSynergyKind`、`CommanderSynergyRole`、`CommanderSynergyStepReport` 和 `CommanderSynergyReport`，通过 `commanderSynergyReport(unitID:)` 与 `commanderSynergyReports(for:limit:)` 只读整合将领技能、合击攻击、补线、推进和整备机会。
+- 本方将令报告复用 `GeneralSkillPreview`、`LegionFormationReport`、`TacticalRecommendationReport` 和 `CombatPreview`，输出协同步骤、执行单位、将领单位、目标单位/城市、支援单位、受益单位、推荐姿态、风险、预计伤害、支援/包夹/指挥修正、预计恢复/削城防、可执行状态和阻塞原因；不新增 Codable 存档字段。
+- 合击报告的预计伤害、支援、包夹和指挥修正直接来自既有攻击预览；将领技能报告直接读取技能预览；补线、推进和整备报告复用战术建议，不改变真实移动、攻击、技能、姿态、AI、招募、城市或胜负结算。
+- `GameViewModel` 新增 `CommanderSynergySummary`、`commanderSynergySummaries`、`primaryCommanderSynergySummary` 和 `selectedCommanderSynergySummary`，把核心报告转成中文摘要、影响文案、支援/受益文案和无障碍文案。
+- `BattleView` 新增顶部“将令” chip、完整战局面板将令行、完整/紧凑选中单位将令卡，并保持紧凑界面军令入口优先。
+- Swift Testing 增加将领技能协同、技能目标位置一致性、合击修正解释、冷却阻塞、不可执行技能排序降级、条约过滤和全局排序七类核心只读测试；Gameplay Smoke 增加本方将领协同与合击主链路断言；RenderBattlePreview 增加本方将令 ViewModel 字段断言。
+- `.github/workflows/ci-results.yml` artifact 版本更新到 v0.20。
+- README、flow、flowchart、test、prompt README 文档同步本方将领协同读板、云端 RenderBattlePreview 断言和 v0.20 Agent A 提示词。
+
+关键文件：
+
+- `Sources/RomeLegionsCore/GameState.swift`
+- `RomeLegionsApp/App/GameViewModel.swift`
+- `RomeLegionsApp/Views/BattleView.swift`
+- `Tests/RomeLegionsCoreTests/GameStateTests.swift`
+- `Tools/GameplaySmoke/main.swift`
+- `Tools/RenderBattlePreview/main.swift`
+- `.github/workflows/ci-results.yml`
+- `README.md`
+- `md/flow/flow.md`
+- `md/flow/flowchart.md`
+- `md/test/test.md`
+- `md/prompt/README.md`
+- `md/prompt/v0（玩法推进）/v0.20（本方将领协同与战术连携读板）.md`
+- `update_log.md`
+
+验证结果：
+
+- 按人工最新要求，本轮未运行任何本地测试、build、typecheck、RenderBattlePreview、`Tools/verify_project.mjs`、`git diff --check`、YAML/Plist 解析或脚本语法检查。
+- 本轮完整验证必须在 push 到 `origin/main` 后由 GitHub Actions 执行，并由 Agent C 下载最新 v0.20 artifact 复判 manifest、JUnit、主日志、render 日志、预览 PNG 和失败摘要。
+
+遗留事项：
+
+- 本轮没有实现自动释放技能、一键合击、自动移动补线、多回合规划、真实补给线、建筑树、装备、人口、外交界面或存档 UI。
+- 本方将领协同只用于读板和 UI 解释，不自动执行命令，也不改变战斗结算或 AI 决策。
+- Agent C 必须核对最新 `origin/main` commit 对应的 v0.20 run id、run attempt 和 artifact；不能使用 v0.19 旧结果包。
 
 ### v0.19 / AI 作战计划与将领协同读板
 

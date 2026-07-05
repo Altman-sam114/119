@@ -220,6 +220,40 @@ do {
     expect(!formationReport.commandSuggestion.isEmpty, "Formation report should expose a command suggestion")
     expect(formationState == formationBefore, "Formation report should not mutate state")
 
+    var synergySkillState = GameState.newCampaign()
+    synergySkillState.units = [
+        ArmyUnit(id: "rome-commander", kind: .legion, faction: .rome, position: Position(x: 3, y: 3), generalName: "凯撒", generalTrait: .eagleStandard),
+        ArmyUnit(id: "rome-wounded", kind: .archer, faction: .rome, position: Position(x: 4, y: 3), health: 30)
+    ]
+    synergySkillState.activeFaction = .rome
+    let synergySkillBefore = synergySkillState
+    let skillSynergy = try synergySkillState.commanderSynergyReport(unitID: "rome-commander")
+    expect(skillSynergy.kind == .commanderSkill, "Commander synergy should surface ready general skill")
+    expect(skillSynergy.beneficiaryUnitIDs == ["rome-wounded"], "Commander synergy should expose skill beneficiaries")
+    expect(skillSynergy.projectedRecoveredHealth > 0, "Commander synergy should expose projected recovery")
+    expect(skillSynergy.isExecutable, "Ready commander synergy should be executable")
+    expect(skillSynergy.steps.contains { $0.role == .commander }, "Commander synergy should include commander step")
+    expect(synergySkillState == synergySkillBefore, "Commander synergy skill report should not mutate state")
+
+    var synergyAttackState = GameState.newCampaign()
+    synergyAttackState.units = [
+        ArmyUnit(id: "rome-attacker", kind: .legion, faction: .rome, position: Position(x: 3, y: 3), generalName: "凯撒", generalTrait: .eagleStandard),
+        ArmyUnit(id: "rome-support", kind: .legion, faction: .rome, position: Position(x: 2, y: 3)),
+        ArmyUnit(id: "rome-flanker", kind: .archer, faction: .rome, position: Position(x: 4, y: 2)),
+        ArmyUnit(id: "carthage-target", kind: .cavalry, faction: .carthage, position: Position(x: 4, y: 3), health: 70)
+    ]
+    synergyAttackState.activeFaction = .rome
+    let synergyAttackBefore = synergyAttackState
+    let attackSynergy = try synergyAttackState.commanderSynergyReport(unitID: "rome-attacker")
+    let attackSynergyPreview = try synergyAttackState.attackPreview(attackerID: "rome-attacker", defenderID: "carthage-target")
+    expect(attackSynergy.kind == .coordinatedAttack, "Commander synergy should surface coordinated attacks")
+    expect(attackSynergy.projectedDamage == attackSynergyPreview.damage, "Coordinated attack synergy should reuse attack preview damage")
+    expect(attackSynergy.supportBonus == attackSynergyPreview.supportBonus, "Coordinated attack synergy should expose support bonus")
+    expect(attackSynergy.flankingBonus == attackSynergyPreview.flankingBonus, "Coordinated attack synergy should expose flanking bonus")
+    expect(attackSynergy.commandBonus == attackSynergyPreview.commandBonus, "Coordinated attack synergy should expose command bonus")
+    expect(attackSynergy.supportBonus > 0 && attackSynergy.flankingBonus > 0 && attackSynergy.commandBonus > 0, "Coordinated attack synergy should explain visible modifiers")
+    expect(synergyAttackState == synergyAttackBefore, "Commander synergy attack report should not mutate state")
+
     var recommendationState = GameState.newCampaign()
     recommendationState.units = [
         ArmyUnit(id: "rome-line", kind: .legion, faction: .rome, position: Position(x: 3, y: 3)),

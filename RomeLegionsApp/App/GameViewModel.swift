@@ -386,6 +386,151 @@ struct TacticalRecommendationSummary: Identifiable {
     }
 }
 
+struct CommanderSynergySummary: Identifiable {
+    var report: CommanderSynergyReport
+    var unit: ArmyUnit?
+    var commanderUnit: ArmyUnit?
+    var targetUnit: ArmyUnit?
+    var targetCity: City?
+    var supportingUnits: [ArmyUnit]
+    var beneficiaryUnits: [ArmyUnit]
+
+    var id: String { report.id }
+    var kind: CommanderSynergyKind { report.kind }
+    var targetPosition: Position { report.targetPosition }
+
+    var title: String {
+        report.title
+    }
+
+    var compactTitle: String {
+        "\(kindLabel) \(impactLabel)"
+    }
+
+    var kindLabel: String {
+        report.kind.displayName
+    }
+
+    var unitLabel: String {
+        if let unit {
+            return "\(unit.faction.displayName)\(unit.kind.displayName)"
+        }
+
+        return "\(report.faction.displayName)军团"
+    }
+
+    var commanderLabel: String? {
+        if let commanderUnit,
+           let generalName = commanderUnit.generalName {
+            return generalName
+        }
+
+        return nil
+    }
+
+    var targetLabel: String {
+        if let targetUnit {
+            return "\(targetUnit.faction.displayName)\(targetUnit.kind.displayName)"
+        }
+
+        if let targetCity {
+            return targetCity.name
+        }
+
+        return report.targetPosition.description
+    }
+
+    var supportLabel: String {
+        guard !supportingUnits.isEmpty else {
+            return "无额外支援"
+        }
+
+        let labels = supportingUnits.prefix(3).map { unit in
+            if let generalName = unit.generalName {
+                return "\(generalName)"
+            }
+
+            return unit.kind.displayName
+        }
+        return supportingUnits.count > 3 ? "\(labels.joined(separator: "、"))等 \(supportingUnits.count) 支" : labels.joined(separator: "、")
+    }
+
+    var beneficiaryLabel: String {
+        guard !beneficiaryUnits.isEmpty else {
+            return supportLabel
+        }
+
+        let labels = beneficiaryUnits.prefix(3).map { "\($0.kind.displayName)" }
+        return beneficiaryUnits.count > 3 ? "\(labels.joined(separator: "、"))等 \(beneficiaryUnits.count) 支" : labels.joined(separator: "、")
+    }
+
+    var readinessLabel: String {
+        report.formationReadiness.displayName
+    }
+
+    var riskLabel: String {
+        report.risk.displayName
+    }
+
+    var statusLabel: String {
+        report.isExecutable ? "可执行" : (report.blockedReason ?? "仅提示")
+    }
+
+    var modifierLabel: String {
+        let parts = [
+            report.supportBonus > 0 ? "支援 +\(report.supportBonus)" : nil,
+            report.flankingBonus > 0 ? "包夹 +\(report.flankingBonus)" : nil,
+            report.commandBonus > 0 ? "指挥 +\(report.commandBonus)" : nil
+        ].compactMap { $0 }
+
+        return parts.isEmpty ? statusLabel : parts.joined(separator: " · ")
+    }
+
+    var impactLabel: String {
+        if let projectedDamage = report.projectedDamage {
+            return "预计伤害 \(projectedDamage)"
+        }
+
+        if report.projectedRecoveredHealth > 0 {
+            return "恢复 \(report.projectedRecoveredHealth)"
+        }
+
+        if report.projectedFortificationReduction > 0 {
+            return "削城防 \(report.projectedFortificationReduction)"
+        }
+
+        return "\(report.steps.count) 步"
+    }
+
+    var stepLabel: String {
+        report.steps.prefix(3).map { "\($0.role.displayName)\($0.summary)" }.joined(separator: "、")
+    }
+
+    var detail: String {
+        report.detail
+    }
+
+    var accessibilityLabel: String {
+        var parts = [
+            "\(kindLabel)将令",
+            "执行\(unitLabel)",
+            "目标\(targetLabel)",
+            impactLabel,
+            "支援\(supportLabel)",
+            "战备\(readinessLabel)",
+            "风险\(riskLabel)",
+            statusLabel,
+            detail
+        ]
+
+        if let commanderLabel {
+            parts.insert("将领\(commanderLabel)", at: 2)
+        }
+
+        return parts.joined(separator: "，")
+    }
+}
+
 struct BattlefieldFocusSummary: Identifiable {
     var report: BattlefieldFocusReport
     var unit: ArmyUnit?
@@ -1217,6 +1362,15 @@ final class GameViewModel: ObservableObject {
         battlefieldFocusSummaries.first
     }
 
+    var commanderSynergySummaries: [CommanderSynergySummary] {
+        state.commanderSynergyReports(for: .rome, limit: 5)
+            .map(commanderSynergySummary(for:))
+    }
+
+    var primaryCommanderSynergySummary: CommanderSynergySummary? {
+        commanderSynergySummaries.first
+    }
+
     var frontlinePressureSummaries: [FrontlinePressureSummary] {
         state.frontlinePressureReports(against: .rome, perFactionLimit: 4, limit: 4)
             .map { report in
@@ -1252,6 +1406,15 @@ final class GameViewModel: ObservableObject {
         }
 
         return legionFormationSummary(for: report)
+    }
+
+    var selectedCommanderSynergySummary: CommanderSynergySummary? {
+        guard let selectedUnitID,
+              let report = try? state.commanderSynergyReport(unitID: selectedUnitID) else {
+            return nil
+        }
+
+        return commanderSynergySummary(for: report)
     }
 
     var selectedTacticalRecommendationSummary: TacticalRecommendationSummary? {
@@ -1291,6 +1454,18 @@ final class GameViewModel: ObservableObject {
             targetUnit: report.targetUnitID.flatMap { state.unit(withID: $0) },
             targetCity: report.targetCityID.flatMap { state.city(withID: $0) },
             relatedUnits: report.relatedUnitIDs.compactMap { state.unit(withID: $0) }
+        )
+    }
+
+    private func commanderSynergySummary(for report: CommanderSynergyReport) -> CommanderSynergySummary {
+        CommanderSynergySummary(
+            report: report,
+            unit: state.unit(withID: report.unitID),
+            commanderUnit: report.commanderUnitID.flatMap { state.unit(withID: $0) },
+            targetUnit: report.targetUnitID.flatMap { state.unit(withID: $0) },
+            targetCity: report.targetCityID.flatMap { state.city(withID: $0) },
+            supportingUnits: report.supportingUnitIDs.compactMap { state.unit(withID: $0) },
+            beneficiaryUnits: report.beneficiaryUnitIDs.compactMap { state.unit(withID: $0) }
         )
     }
 
