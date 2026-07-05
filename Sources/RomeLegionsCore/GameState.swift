@@ -2555,9 +2555,16 @@ public struct GameState: Codable, Equatable, Sendable {
         let formation = legionFormationReport(for: unit)
         let recommendation = tacticalRecommendation(for: unit)
         var candidates: [CommanderSynergyReport] = []
+        var blockedUsefulSkillReport: CommanderSynergyReport?
 
         if let skillReport = commanderSkillSynergyReport(for: unit, formation: formation) {
-            candidates.append(skillReport)
+            if skillReport.isExecutable {
+                candidates.append(skillReport)
+            } else if skillReport.projectedRecoveredHealth > 0 || skillReport.projectedFortificationReduction > 0 {
+                blockedUsefulSkillReport = skillReport
+            } else {
+                candidates.append(skillReport)
+            }
         }
 
         if let attackReport = commanderAttackSynergyReport(for: unit, formation: formation) {
@@ -2568,14 +2575,23 @@ public struct GameState: Codable, Equatable, Sendable {
             candidates.append(commanderRecommendationSynergyReport(for: unit, formation: formation, recommendation: recommendation))
         }
 
-        return candidates
+        let bestReport = candidates
             .sorted { left, right in
                 if left.score == right.score {
                     return left.id < right.id
                 }
                 return left.score > right.score
             }
-            .first ?? commanderRecommendationSynergyReport(for: unit, formation: formation, recommendation: recommendation)
+            .first
+
+        if let blockedUsefulSkillReport,
+           bestReport?.kind != .coordinatedAttack {
+            return blockedUsefulSkillReport
+        }
+
+        return bestReport ??
+            blockedUsefulSkillReport ??
+            commanderRecommendationSynergyReport(for: unit, formation: formation, recommendation: recommendation)
     }
 
     private func commanderSkillSynergyReport(
@@ -2611,9 +2627,9 @@ public struct GameState: Codable, Equatable, Sendable {
         if isExecutable {
             executionScore = 720
         } else if usefulEffect {
-            executionScore = -80
+            executionScore = -360
         } else {
-            executionScore = -180
+            executionScore = -460
         }
         let score = executionScore +
             CommanderSynergyKind.commanderSkill.priority * 110 +

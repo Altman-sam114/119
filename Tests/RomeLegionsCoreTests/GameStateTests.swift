@@ -882,18 +882,21 @@ import Testing
     var state = GameState.newCampaign()
     state.units = [
         ArmyUnit(id: "rome-commander", kind: .legion, faction: .rome, position: Position(x: 3, y: 3), generalName: "凯撒", generalTrait: .eagleStandard),
-        ArmyUnit(id: "rome-south", kind: .archer, faction: .rome, position: Position(x: 2, y: 4), health: 30),
+        ArmyUnit(id: "rome-south", kind: .archer, faction: .rome, position: Position(x: 4, y: 4), health: 30),
         ArmyUnit(id: "rome-north", kind: .legion, faction: .rome, position: Position(x: 3, y: 2), health: 40)
     ]
     state.activeFaction = .rome
     let before = state
 
+    let preview = try state.generalSkillPreview(unitID: "rome-commander")
     let report = try state.commanderSynergyReport(unitID: "rome-commander")
 
+    #expect(preview.affectedUnitIDs.first == "rome-south")
+    #expect(preview.affectedPositions.first == Position(x: 3, y: 2))
     #expect(report.kind == .commanderSkill)
-    #expect(report.targetUnitID == "rome-south")
-    #expect(report.targetPosition == Position(x: 2, y: 4))
-    #expect(report.steps.first?.targetPosition == Position(x: 2, y: 4))
+    #expect(report.targetUnitID == preview.affectedUnitIDs.first)
+    #expect(report.targetPosition == Position(x: 4, y: 4))
+    #expect(report.steps.first?.targetPosition == Position(x: 4, y: 4))
     #expect(state == before)
 }
 
