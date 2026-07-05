@@ -37,9 +37,9 @@ flowchart TD
     E --> H["BattleView 刷新<br/>玩家继续下令"]
 ```
 
-## 3. 战斗与敌军意图流
+## 3. 战斗、敌军意图与战术建议流
 
-读图说明：这张图展示战斗预览、实际攻击、敌军意图和战线压力之间的关系。关键铁律是预览与结算必须一致，敌军意图和战线压力只能读取和预测，地图路线只是 `AIIntent` 既有字段的可视化，不能改变状态或 AI 决策。
+读图说明：这张图展示战斗预览、实际攻击、敌军意图、战线压力和玩家侧战术建议之间的关系。关键铁律是预览与结算必须一致，敌军意图、战线压力和战术建议只能读取和预测，地图路线只是只读报告的可视化，不能改变状态、结算或 AI 决策。
 
 ```mermaid
 flowchart TD
@@ -60,6 +60,10 @@ flowchart TD
     L --> AB["GameState.frontlinePressureReports<br/>按罗马单位或城市聚合多路意图<br/>来源、预计伤害、夺城风险、压力等级"]
     AB --> AC["GameViewModel.frontlinePressureSummaries<br/>目标、来源、压力标签、影响文案、无障碍说明"]
     AC --> AD["BattleView 战线 chip 与战局面板<br/>展示高压目标和防守优先级"]
+
+    AH["选中本方单位"] --> AI["GameState.tacticalRecommendation(unitID:)<br/>只读派生攻击、补线、推进、坚守或整备建议<br/>目标、目的地、路径、推荐姿态、风险和命令文案"]
+    AI --> AJ["GameViewModel.selectedTacticalRecommendationSummary<br/>转成军议 chip、建议卡、路径线段和目标位置"]
+    AJ --> AK["BattleView 地图本方建议路径/目标叠层<br/>选中单位情报展示建议理由和风险"]
 
     N["选中有将领单位"] --> O["GameViewModel.selectedGeneralSkillPreview"]
     O --> P["GameState.generalSkillPreview<br/>只读计算范围、目标、预计恢复或削城防"]

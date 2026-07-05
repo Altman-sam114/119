@@ -121,7 +121,7 @@ on:
 artifact 命名规则：
 
 ```text
-RomeLegions-ci-v0.15-main-<short_sha>-run<run_id>-attempt<run_attempt>
+RomeLegions-ci-v0.16-main-<short_sha>-run<run_id>-attempt<run_attempt>
 ```
 
 `ci-artifact-manifest.json` 必须至少包含：
@@ -237,13 +237,13 @@ swiftc -swift-version 5 -module-cache-path .build/module-cache Sources/RomeLegio
 当前基线：
 
 - 应输出 `Gameplay smoke test passed.`
-- 覆盖占城、城市扩建预览、招募部署预览、招募、科技、训练、将领、战术姿态、战斗修正、AI 意图 projectedDamage 与移动后攻击预览一致性、直接攻击/移动后攻击/夺城意图供 UI 使用的目的地和目标字段、战线压力聚合、军团编制与成长报告、主动技能预览与结算一致性、主动技能冷却递减、战功状态、外交、回合推进、战役胜利、战役失败和结束后回合保护。
+- 覆盖占城、城市扩建预览、招募部署预览、招募、科技、训练、将领、战术姿态、战斗修正、AI 意图 projectedDamage 与移动后攻击预览一致性、直接攻击/移动后攻击/夺城意图供 UI 使用的目的地和目标字段、战线压力聚合、军团编制与成长报告、战术命令建议报告、主动技能预览与结算一致性、主动技能冷却递减、战功状态、外交、回合推进、战役胜利、战役失败和结束后回合保护。
 
 ### UI Preview / RenderBattlePreview
 
 触发条件：
 
-- `BattleView`、`GameViewModel` UI 派生数据、战线压力读板、城市经营读板、招募按钮、地图叠层、将领卡、战术姿态按钮或战斗页布局变化。
+- `BattleView`、`GameViewModel` UI 派生数据、战线压力读板、战术命令建议读板、城市经营读板、招募按钮、地图叠层、将领卡、战术姿态按钮或战斗页布局变化。
 
 命令：
 
@@ -262,7 +262,7 @@ env HOME=$PWD/.home CLANG_MODULE_CACHE_PATH=$PWD/.build/module-cache /Applicatio
 - 渲染前应断言选中单位存在 `selectedLegionFormationSummary`、`selectedCommanderBrief`、鹰旗被动攻击贡献、主动技能状态、战功摘要和完整 `selectedTacticalOrderPreviews`。
 - 渲染前应切换到罗马城市并断言 `selectedCityBrief` 存在，扩建成本/收益、四类兵种招募预览、至少一个陆军招募选项和舰队港口部署预览存在；失败会抛出 `missingCityReadout`。
 - 每个命令会生成请求路径的城市场景 PNG，并额外生成同尺寸 `*-unit.png` 单位场景 PNG；两套图都会对紧凑视口命令区域做轻量像素检查，防止短横屏或竖屏命令区空白仍误判通过。
-- 三尺寸 PNG 和对应 `*-unit.png` 只用于本地目视检查，确认战线压力 chip、军团编制 chip、城市读板、扩建预览、招募按钮、军团编制卡、将领读板、战功、姿态预览、敌军路线、目标叠层、攻击按钮和命令入口没有明显裁切、重叠或遮挡；PNG 不提交版本库。
+- 三尺寸 PNG 和对应 `*-unit.png` 只用于本地目视检查，确认战线压力 chip、军团编制 chip、军议 chip、城市读板、扩建预览、招募按钮、军团编制卡、战术建议卡、将领读板、战功、姿态预览、敌军路线、本方建议路线、目标叠层、攻击按钮和命令入口没有明显裁切、重叠或遮挡；PNG 不提交版本库。
 
 ### Stage Regression
 
@@ -282,8 +282,8 @@ env HOME=$PWD/.home CLANG_MODULE_CACHE_PATH=$PWD/.build/module-cache DEVELOPER_D
 
 当前基线：
 
-- `Tests/RomeLegionsCoreTests/GameStateTests.swift` 当前包含 50 个 Swift Testing 用例。
-- 基线覆盖地形移动、占城、攻击、预览结算一致性、招募预览、招募部署位置、舰队港口预览、舰队港口被占阻塞、资源/港口阻塞、科技重复保护、城市扩建预览、城市扩建、训练、将领、战术姿态、支援/包夹/指挥/守军支援、主动技能预览与释放一致性、技能冷却写入/递减/阻止释放/预览只读、攻城无目标预览、AI 技能意图目标、AI 技能冷却保护、战功状态、军团编制与成长报告、旧 `ArmyUnit` JSON 冷却字段兼容、外交保护、回合收入、跳过单位、AI 攻击、AI 意图、AI 移动后攻击 projectedDamage 与规划态预览一致性、直接攻击/移动后攻击/夺城意图供 UI 叠层使用的目的地和目标字段、战线压力聚合、城市夺取压力、停战势力过滤、AI 招募、任务 requirement、奖励幂等、战役胜利、战役失败、结束保护、AI 结束后停止和 Codable 兼容。
+- `Tests/RomeLegionsCoreTests/GameStateTests.swift` 当前包含 53 个 Swift Testing 用例。
+- 基线覆盖地形移动、占城、攻击、预览结算一致性、招募预览、招募部署位置、舰队港口预览、舰队港口被占阻塞、资源/港口阻塞、科技重复保护、城市扩建预览、城市扩建、训练、将领、战术姿态、支援/包夹/指挥/守军支援、主动技能预览与释放一致性、技能冷却写入/递减/阻止释放/预览只读、攻城无目标预览、AI 技能意图目标、AI 技能冷却保护、战功状态、军团编制与成长报告、战术命令建议报告、旧 `ArmyUnit` JSON 冷却字段兼容、外交保护、回合收入、跳过单位、AI 攻击、AI 意图、AI 移动后攻击 projectedDamage 与规划态预览一致性、直接攻击/移动后攻击/夺城意图供 UI 叠层使用的目的地和目标字段、战线压力聚合、城市夺取压力、停战势力过滤、AI 招募、任务 requirement、奖励幂等、战役胜利、战役失败、结束保护、AI 结束后停止和 Codable 兼容。
 
 ### Full
 
@@ -328,10 +328,11 @@ env HOME=$PWD/.home DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer xco
 - `Tools/RenderBattlePreview/main.swift` 渲染前会断言 `GameViewModel.enemyIntentMapOverlays` 至少包含一个移动后攻击意图叠层，且具备起点、目的地、目标格、六边形相邻路线段和预计伤害文案；路径断言失败会抛出 `missingHexIntentRoute`。
 - `Tools/RenderBattlePreview/main.swift` 渲染前还会断言 `primaryFrontlinePressureSummary` 存在，且目标、位置、攻击意图数量、预计伤害和文案可用；断言失败会抛出 `missingFrontlinePressure`。
 - `Tools/RenderBattlePreview/main.swift` 渲染前还会断言 `selectedLegionFormationSummary` 和 `primaryLegionFormationSummary` 存在，军团职责、战备和建议文案可读；断言失败会抛出 `missingLegionFormationSummary`。
+- `Tools/RenderBattlePreview/main.swift` 渲染前还会断言 `selectedTacticalRecommendationSummary` 存在，战术建议类型、目标、路径、命令文案、路线线段、路径位置集合和目标位置可读；断言失败会抛出 `missingTacticalRecommendationSummary`。
 - `Tools/RenderBattlePreview/main.swift` 渲染前还会断言 `selectedCommanderBrief` 存在、鹰旗被动攻击贡献存在、技能状态非空、战功摘要存在、`selectedTacticalOrderPreviews` 覆盖全部 `TacticalOrder`，且突击/行军等非当前姿态有有效攻防移变化；断言失败会抛出 `missingCommanderBrief` 或 `missingTacticalOrderPreview`。
 - `Tools/RenderBattlePreview/main.swift` 渲染前还会切换到罗马城市并断言城市经营/招募读板存在，包含本城产出、扩建成本/收益、四类招募选项和舰队港口部署；断言失败会抛出 `missingCityReadout`。
 - `Tools/RenderBattlePreview/main.swift` 会为每个尺寸输出城市场景 PNG 和 `*-unit.png` 单位场景 PNG，并检查两套图在短横屏/竖屏紧凑命令区域存在足够可见像素；失败会抛出 `missingCompactCommandRender`。
-- 三尺寸城市场景图中应能看到城市经营读板、扩建收益和招募按钮；三尺寸单位场景 `*-unit.png` 中应能看到战线压力 chip、军团编制 chip、敌军意图路线、目的地、目标叠层、军团编制卡、将领详情读板、被动贡献、战功状态和战术姿态预览。
+- 三尺寸城市场景图中应能看到城市经营读板、扩建收益和招募按钮；三尺寸单位场景 `*-unit.png` 中应能看到战线压力 chip、军团编制 chip、军议 chip、敌军意图路线、目的地、目标叠层、本方建议路径、战术建议卡、军团编制卡、将领详情读板、被动贡献、战功状态和战术姿态预览。
 - 若因本地 Xcode SDK 版本不同导致命令路径或 SDK 路径变化，应先核对本机 `/Applications/Xcode.app`，再更新本文件和 README。
 
 ## 规则

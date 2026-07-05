@@ -789,6 +789,71 @@ import Testing
     #expect(state == before)
 }
 
+@Test func tacticalRecommendationPrioritizesAvailableAttackWithoutMutation() throws {
+    var state = GameState.newCampaign()
+    state.units = [
+        ArmyUnit(id: "rome-striker", kind: .legion, faction: .rome, position: Position(x: 3, y: 3), health: 82),
+        ArmyUnit(id: "carthage-target", kind: .archer, faction: .carthage, position: Position(x: 4, y: 3), health: 24)
+    ]
+    state.activeFaction = .rome
+    let before = state
+
+    let report = try state.tacticalRecommendation(unitID: "rome-striker")
+
+    #expect(report.kind == .attack)
+    #expect(report.targetUnitID == "carthage-target")
+    #expect(report.targetPosition == Position(x: 4, y: 3))
+    #expect(report.destination == Position(x: 3, y: 3))
+    #expect((report.projectedDamage ?? 0) > 0)
+    #expect(TacticalOrder.allCases.contains(report.recommendedOrder))
+    #expect(!report.path.isEmpty)
+    #expect(report.command.contains("攻击") || report.command.contains("压制"))
+    #expect(state == before)
+}
+
+@Test func tacticalRecommendationMovesReserveTowardPressedLineWithoutMutation() throws {
+    var state = GameState.newCampaign()
+    state.units = [
+        ArmyUnit(id: "rome-line", kind: .legion, faction: .rome, position: Position(x: 3, y: 3)),
+        ArmyUnit(id: "rome-reserve", kind: .legion, faction: .rome, position: Position(x: 1, y: 3)),
+        ArmyUnit(id: "carthage-east", kind: .cavalry, faction: .carthage, position: Position(x: 4, y: 3)),
+        ArmyUnit(id: "carthage-north", kind: .legion, faction: .carthage, position: Position(x: 3, y: 2))
+    ]
+    state.activeFaction = .rome
+    let before = state
+
+    let report = try state.tacticalRecommendation(unitID: "rome-reserve")
+
+    #expect(report.kind == .reinforce)
+    #expect(report.targetUnitID == "rome-line")
+    #expect(report.targetPosition == Position(x: 3, y: 3))
+    #expect(report.destination.hexDistance(to: report.targetPosition) < Position(x: 1, y: 3).hexDistance(to: report.targetPosition))
+    #expect(report.supportDistance != nil)
+    #expect(report.path.first == Position(x: 1, y: 3))
+    #expect(report.path.last == report.destination)
+    #expect(report.command.contains("补线") || report.command.contains("战线"))
+    #expect(state == before)
+}
+
+@Test func tacticalRecommendationDoesNotSuggestImmediateActionForSpentUnitWithoutMutation() throws {
+    var state = GameState.newCampaign()
+    state.units = [
+        ArmyUnit(id: "rome-spent", kind: .legion, faction: .rome, position: Position(x: 3, y: 3), health: 40, hasMoved: true, hasActed: true)
+    ]
+    state.activeFaction = .rome
+    let before = state
+
+    let report = try state.tacticalRecommendation(unitID: "rome-spent")
+
+    #expect(report.kind == .recover)
+    #expect(report.destination == Position(x: 3, y: 3))
+    #expect(report.targetPosition == Position(x: 3, y: 3))
+    #expect(report.path == [Position(x: 3, y: 3)])
+    #expect(report.projectedDamage == nil)
+    #expect(report.command.contains("整备") || report.command.contains("恢复"))
+    #expect(state == before)
+}
+
 @Test func aiRecruitsWhenBelowTargetForce() {
     var state = GameState.newCampaign()
     state.activeFaction = .gaul

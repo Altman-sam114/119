@@ -220,6 +220,23 @@ do {
     expect(!formationReport.commandSuggestion.isEmpty, "Formation report should expose a command suggestion")
     expect(formationState == formationBefore, "Formation report should not mutate state")
 
+    var recommendationState = GameState.newCampaign()
+    recommendationState.units = [
+        ArmyUnit(id: "rome-line", kind: .legion, faction: .rome, position: Position(x: 3, y: 3)),
+        ArmyUnit(id: "rome-reserve", kind: .legion, faction: .rome, position: Position(x: 1, y: 3)),
+        ArmyUnit(id: "carthage-east", kind: .cavalry, faction: .carthage, position: Position(x: 4, y: 3)),
+        ArmyUnit(id: "carthage-north", kind: .legion, faction: .carthage, position: Position(x: 3, y: 2))
+    ]
+    recommendationState.activeFaction = .rome
+    let recommendationBefore = recommendationState
+    let recommendation = try recommendationState.tacticalRecommendation(unitID: "rome-reserve")
+    expect(recommendation.kind == .reinforce, "Tactical recommendation should identify reinforcement opportunities")
+    expect(recommendation.targetUnitID == "rome-line", "Tactical recommendation should point to the pressured Roman line")
+    expect(recommendation.destination.hexDistance(to: recommendation.targetPosition) < Position(x: 1, y: 3).hexDistance(to: recommendation.targetPosition), "Tactical recommendation should move closer to the pressured target")
+    expect(!recommendation.path.isEmpty, "Tactical recommendation should expose a map path")
+    expect(!recommendation.command.isEmpty, "Tactical recommendation should expose a command sentence")
+    expect(recommendationState == recommendationBefore, "Tactical recommendation should not mutate state")
+
     var siegeSkillState = GameState.newCampaign()
     siegeSkillState.units = [
         ArmyUnit(id: "test-siege", kind: .legion, faction: .rome, position: Position(x: 7, y: 2), generalName: "苏拉", generalTrait: .siegeEngineer)

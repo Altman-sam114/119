@@ -279,6 +279,113 @@ struct EnemyIntentMapOverlay: Identifiable {
     }
 }
 
+struct TacticalRecommendationRouteSegment: Identifiable {
+    var id: String
+    var from: Position
+    var to: Position
+    var isTargetLeg: Bool
+    var risk: TacticalRecommendationRisk
+}
+
+struct TacticalRecommendationSummary: Identifiable {
+    var report: TacticalRecommendationReport
+    var unit: ArmyUnit?
+    var targetUnit: ArmyUnit?
+    var targetCity: City?
+
+    var id: String { report.id }
+    var kind: TacticalRecommendationKind { report.kind }
+    var risk: TacticalRecommendationRisk { report.risk }
+    var targetPosition: Position { report.targetPosition }
+    var destination: Position { report.destination }
+
+    var title: String {
+        "\(report.kind.displayName)建议"
+    }
+
+    var kindLabel: String {
+        report.kind.displayName
+    }
+
+    var riskLabel: String {
+        report.risk.displayName
+    }
+
+    var priorityLabel: String {
+        "优先 \(report.priority)"
+    }
+
+    var targetLabel: String {
+        if let targetUnit {
+            return "\(targetUnit.faction.displayName)\(targetUnit.kind.displayName)"
+        }
+
+        if let targetCity {
+            return targetCity.name
+        }
+
+        return "坐标 \(report.targetPosition.description)"
+    }
+
+    var pathLabel: String {
+        if report.destination == report.targetPosition {
+            return "目标 \(report.targetPosition.description)"
+        }
+
+        if let unit,
+           report.destination == unit.position {
+            return "原地 -> \(report.targetPosition.description)"
+        }
+
+        return "至 \(report.destination.description) · 距 \(report.supportDistance ?? report.destination.hexDistance(to: report.targetPosition))"
+    }
+
+    var damageLabel: String? {
+        report.projectedDamage.map { "预计伤害 \($0)" }
+    }
+
+    var detail: String {
+        [
+            targetLabel,
+            pathLabel,
+            damageLabel,
+            "姿态 \(report.recommendedOrder.displayName)",
+            riskLabel
+        ].compactMap { $0 }.joined(separator: " · ")
+    }
+
+    var accessibilityLabel: String {
+        "\(title)，目标\(targetLabel)，\(pathLabel)，\(priorityLabel)，风险\(riskLabel)，\(report.command)"
+    }
+
+    var routeSegments: [TacticalRecommendationRouteSegment] {
+        var segments = zip(report.path, report.path.dropFirst()).enumerated().map { index, pair in
+            TacticalRecommendationRouteSegment(
+                id: "\(report.id)-path-\(index)",
+                from: pair.0,
+                to: pair.1,
+                isTargetLeg: false,
+                risk: report.risk
+            )
+        }
+
+        if report.destination != report.targetPosition,
+           (report.path.last ?? report.destination) != report.targetPosition {
+            segments.append(
+                TacticalRecommendationRouteSegment(
+                    id: "\(report.id)-target",
+                    from: report.destination,
+                    to: report.targetPosition,
+                    isTargetLeg: true,
+                    risk: report.risk
+                )
+            )
+        }
+
+        return segments
+    }
+}
+
 struct FrontlinePressureSummary: Identifiable {
     var report: FrontlinePressureReport
     var targetUnit: ArmyUnit?
@@ -780,6 +887,29 @@ final class GameViewModel: ObservableObject {
         }
 
         return legionFormationSummary(for: report)
+    }
+
+    var selectedTacticalRecommendationSummary: TacticalRecommendationSummary? {
+        guard let selectedUnitID,
+              let report = try? state.tacticalRecommendation(unitID: selectedUnitID) else {
+            return nil
+        }
+
+        return TacticalRecommendationSummary(
+            report: report,
+            unit: state.unit(withID: report.unitID),
+            targetUnit: report.targetUnitID.flatMap { state.unit(withID: $0) },
+            targetCity: report.targetCityID.flatMap { state.city(withID: $0) }
+        )
+    }
+
+    var selectedTacticalRecommendationPathPositions: Set<Position> {
+        guard let summary = selectedTacticalRecommendationSummary else { return [] }
+        return Set(summary.report.path)
+    }
+
+    var selectedTacticalRecommendationTargetPosition: Position? {
+        selectedTacticalRecommendationSummary?.targetPosition
     }
 
     private func legionFormationSummary(for report: LegionFormationReport) -> LegionFormationSummary {

@@ -214,6 +214,9 @@ struct WarMapView: View {
             let enemyIntentsByUnit = Dictionary(uniqueKeysWithValues: enemyIntentSummaries.map { ($0.unit.id, $0) })
             let enemyIntentDestinations = viewModel.enemyIntentDestinationOverlays(for: enemyIntentOverlays)
             let enemyIntentTargets = viewModel.enemyIntentTargetOverlays(for: enemyIntentOverlays)
+            let tacticalRecommendation = viewModel.selectedTacticalRecommendationSummary
+            let tacticalRecommendationPathPositions = viewModel.selectedTacticalRecommendationPathPositions
+            let tacticalRecommendationTargetPosition = viewModel.selectedTacticalRecommendationTargetPosition
             let selectedPosition = viewModel.focusedPosition
             let skillRangePositions = viewModel.selectedGeneralSkillRangePositions
             let skillTargetPositions = viewModel.selectedGeneralSkillTargetPositions
@@ -227,6 +230,12 @@ struct WarMapView: View {
                     .allowsHitTesting(false)
                     .zIndex(1)
 
+                if let tacticalRecommendation {
+                    TacticalRecommendationRouteLayerView(summary: tacticalRecommendation, metrics: metrics)
+                        .allowsHitTesting(false)
+                        .zIndex(2)
+                }
+
                 ForEach(viewModel.state.tiles) { tile in
                     let city = viewModel.state.city(at: tile.position)
                     let unit = viewModel.state.unit(at: tile.position)
@@ -238,6 +247,9 @@ struct WarMapView: View {
                         enemyIntent: unit.flatMap { enemyIntentsByUnit[$0.id] },
                         enemyIntentDestination: enemyIntentDestinations[tile.position],
                         enemyIntentTarget: enemyIntentTargets[tile.position],
+                        tacticalRecommendation: tacticalRecommendation,
+                        isTacticalRecommendationPath: tacticalRecommendationPathPositions.contains(tile.position),
+                        isTacticalRecommendationTarget: tacticalRecommendationTargetPosition == tile.position,
                         isSelected: selectedPosition == tile.position,
                         isReachable: viewModel.reachablePositions.contains(tile.position),
                         isAttackTarget: attackTargets.contains { $0.position == tile.position },
@@ -453,6 +465,16 @@ struct TacticalStatusStripView: View {
                 compact: compact
             )
         }
+
+        if let recommendation = viewModel.selectedTacticalRecommendationSummary {
+            TacticalChipView(
+                symbol: recommendation.kind.systemImage,
+                label: "军议",
+                value: recommendation.kindLabel,
+                tint: recommendation.kind.tintColor,
+                compact: compact
+            )
+        }
     }
 }
 
@@ -534,6 +556,9 @@ struct HexTileView: View {
     var enemyIntent: EnemyIntentSummary?
     var enemyIntentDestination: EnemyIntentMapOverlay?
     var enemyIntentTarget: EnemyIntentMapOverlay?
+    var tacticalRecommendation: TacticalRecommendationSummary?
+    var isTacticalRecommendationPath: Bool
+    var isTacticalRecommendationTarget: Bool
     var isSelected: Bool
     var isReachable: Bool
     var isAttackTarget: Bool
@@ -572,8 +597,16 @@ struct HexTileView: View {
                 ReachableTileOverlay(scale: scale)
             }
 
+            if isTacticalRecommendationPath && !isSelected && !isAttackTarget {
+                TacticalRecommendationPathOverlay(scale: scale)
+            }
+
             if isSkillTarget && !isAttackTarget {
                 SkillTargetOverlay(scale: scale)
+            }
+
+            if isTacticalRecommendationTarget && !isAttackTarget && !isSkillTarget {
+                TacticalRecommendationTargetOverlay(summary: tacticalRecommendation, scale: scale)
             }
 
             if let enemyIntentDestination, !isAttackTarget {
@@ -668,6 +701,13 @@ struct HexTileView: View {
         }
         if isAttackTarget {
             parts.append("可攻击")
+        }
+        if isTacticalRecommendationPath {
+            parts.append("战术建议路径")
+        }
+        if isTacticalRecommendationTarget,
+           let tacticalRecommendation {
+            parts.append("战术建议目标\(tacticalRecommendation.targetLabel)")
         }
         if let enemyIntentDestination {
             parts.append("敌军意图目的地\(enemyIntentDestination.summary.destinationLabel)")
@@ -792,6 +832,97 @@ struct AttackTileOverlay: View {
                 .padding(2 * scale)
         }
         .shadow(color: .red.opacity(0.42), radius: 5 * scale)
+    }
+}
+
+struct TacticalRecommendationPathOverlay: View {
+    var scale: CGFloat
+
+    var body: some View {
+        ZStack {
+            Hexagon()
+                .fill(Color(red: 0.24, green: 0.70, blue: 0.58).opacity(0.13))
+            Hexagon()
+                .stroke(
+                    Color(red: 0.48, green: 0.90, blue: 0.74).opacity(0.72),
+                    style: StrokeStyle(lineWidth: max(1, 1.5 * scale), lineCap: .round, dash: [4 * scale, 4 * scale])
+                )
+                .padding(8 * scale)
+        }
+    }
+}
+
+struct TacticalRecommendationTargetOverlay: View {
+    var summary: TacticalRecommendationSummary?
+    var scale: CGFloat
+
+    var body: some View {
+        let tint = summary?.kind.tintColor ?? Color(red: 0.48, green: 0.90, blue: 0.74)
+
+        ZStack {
+            Hexagon()
+                .fill(tint.opacity(0.16))
+            Hexagon()
+                .stroke(tint.opacity(0.90), lineWidth: max(1.5, 2.1 * scale))
+                .padding(5 * scale)
+            Image(systemName: summary?.kind.systemImage ?? "location.fill")
+                .font(.system(size: 13 * scale, weight: .black))
+                .foregroundStyle(.white)
+                .shadow(color: .black.opacity(0.45), radius: 2, y: 1)
+                .offset(y: -21 * scale)
+        }
+        .shadow(color: tint.opacity(0.34), radius: 4 * scale)
+        .accessibilityLabel(summary?.accessibilityLabel ?? "战术建议目标")
+    }
+}
+
+struct TacticalRecommendationRouteLayerView: View {
+    var summary: TacticalRecommendationSummary
+    var metrics: HexMetrics
+
+    var body: some View {
+        ZStack {
+            ForEach(summary.routeSegments) { segment in
+                TacticalRecommendationRouteSegmentView(segment: segment, kind: summary.kind, metrics: metrics)
+            }
+        }
+    }
+}
+
+struct TacticalRecommendationRouteSegmentView: View {
+    var segment: TacticalRecommendationRouteSegment
+    var kind: TacticalRecommendationKind
+    var metrics: HexMetrics
+
+    var body: some View {
+        let start = metrics.center(for: segment.from)
+        let end = metrics.center(for: segment.to)
+        let color = kind.tintColor.opacity(segment.isTargetLeg ? 0.66 : 0.88)
+        let width = max(1.6, (segment.risk == .critical ? 3.2 : 2.5) * metrics.tileScale)
+        let dash = segment.isTargetLeg ? [4 * metrics.tileScale, 4 * metrics.tileScale] : []
+        let angle = Angle(radians: atan2(Double(end.y - start.y), Double(end.x - start.x)))
+
+        ZStack {
+            Path { path in
+                path.move(to: start)
+                path.addLine(to: end)
+            }
+            .stroke(.black.opacity(0.34), style: StrokeStyle(lineWidth: width + 2.4, lineCap: .round, lineJoin: .round, dash: dash))
+
+            Path { path in
+                path.move(to: start)
+                path.addLine(to: end)
+            }
+            .stroke(color, style: StrokeStyle(lineWidth: width, lineCap: .round, lineJoin: .round, dash: dash))
+
+            Image(systemName: segment.isTargetLeg ? "scope" : "arrowtriangle.right.fill")
+                .font(.system(size: max(8, 10 * metrics.tileScale), weight: .black))
+                .foregroundStyle(color)
+                .shadow(color: .black.opacity(0.45), radius: 2, y: 1)
+                .rotationEffect(segment.isTargetLeg ? .zero : angle)
+                .position(end)
+        }
+        .accessibilityHidden(true)
     }
 }
 
@@ -1303,6 +1434,10 @@ struct CompactSelectionPanelView: View {
 
                     if let formation = viewModel.selectedLegionFormationSummary {
                         LegionFormationCardView(summary: formation, isCompact: true)
+                    }
+
+                    if let recommendation = viewModel.selectedTacticalRecommendationSummary {
+                        TacticalRecommendationCardView(summary: recommendation, isCompact: true)
                     }
 
                     TacticalOrderPreviewStripView(
@@ -2168,6 +2303,68 @@ struct LegionFormationRowView: View {
     }
 }
 
+struct TacticalRecommendationCardView: View {
+    var summary: TacticalRecommendationSummary
+    var isCompact: Bool
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: isCompact ? 5 : 7) {
+            HStack(spacing: 7) {
+                Image(systemName: summary.kind.systemImage)
+                    .foregroundStyle(summary.kind.tintColor)
+                Text("军议")
+                    .font(.caption2.weight(.bold))
+                    .foregroundStyle(.white.opacity(0.58))
+                Text("\(summary.kindLabel) · \(summary.targetLabel)")
+                    .font(.caption.weight(.heavy))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.70)
+                Spacer(minLength: 0)
+                Text(summary.riskLabel)
+                    .font(.caption2.weight(.black))
+                    .foregroundStyle(.black.opacity(0.78))
+                    .padding(.horizontal, 6)
+                    .frame(height: 20)
+                    .background(summary.risk.tintColor)
+                    .clipShape(RoundedRectangle(cornerRadius: 5))
+            }
+
+            if !isCompact {
+                Text(summary.report.reason)
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(.white.opacity(0.62))
+                    .lineLimit(2)
+                    .minimumScaleFactor(0.72)
+            }
+
+            HStack(spacing: 6) {
+                Label(summary.pathLabel, systemImage: "point.topleft.down.curvedto.point.bottomright.up")
+                Spacer(minLength: 0)
+                Label(summary.report.recommendedOrder.displayName, systemImage: summary.report.recommendedOrder.systemImage)
+            }
+            .font(.caption2.weight(.semibold))
+            .foregroundStyle(.white.opacity(0.66))
+            .lineLimit(1)
+            .minimumScaleFactor(0.70)
+
+            Text(summary.report.command)
+                .font(.caption2.weight(.bold))
+                .foregroundStyle(summary.kind.tintColor)
+                .lineLimit(isCompact ? 1 : 2)
+                .minimumScaleFactor(0.70)
+        }
+        .padding(8)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(summary.kind.tintColor.opacity(0.12))
+        .overlay {
+            RoundedRectangle(cornerRadius: 7)
+                .stroke(summary.kind.tintColor.opacity(0.38), lineWidth: 1)
+        }
+        .clipShape(RoundedRectangle(cornerRadius: 7))
+        .accessibilityLabel(summary.accessibilityLabel)
+    }
+}
+
 struct LegionFormationCardView: View {
     var summary: LegionFormationSummary
     var isCompact: Bool
@@ -2329,6 +2526,10 @@ struct SelectionPanelView: View {
 
                     if let formation = viewModel.selectedLegionFormationSummary {
                         LegionFormationCardView(summary: formation, isCompact: false)
+                    }
+
+                    if let recommendation = viewModel.selectedTacticalRecommendationSummary {
+                        TacticalRecommendationCardView(summary: recommendation, isCompact: false)
                     }
 
                     TacticalOrderPreviewStripView(
@@ -3411,6 +3612,39 @@ extension LegionFormationReadiness {
         case .steady: return Color(red: 0.52, green: 0.70, blue: 0.86)
         case .engaged: return Color(red: 0.86, green: 0.68, blue: 0.34)
         case .strained: return Color(red: 0.92, green: 0.42, blue: 0.14)
+        case .critical: return Color(red: 0.84, green: 0.16, blue: 0.12)
+        }
+    }
+}
+
+extension TacticalRecommendationKind {
+    var systemImage: String {
+        switch self {
+        case .attack: return "bolt.fill"
+        case .reinforce: return "arrow.triangle.branch"
+        case .advance: return "arrow.up.right.circle.fill"
+        case .hold: return "shield.fill"
+        case .recover: return "cross.case.fill"
+        }
+    }
+
+    var tintColor: Color {
+        switch self {
+        case .attack: return Color(red: 0.92, green: 0.46, blue: 0.20)
+        case .reinforce: return Color(red: 0.28, green: 0.78, blue: 0.62)
+        case .advance: return Color(red: 0.70, green: 0.76, blue: 0.32)
+        case .hold: return Color(red: 0.52, green: 0.70, blue: 0.86)
+        case .recover: return Color(red: 0.62, green: 0.76, blue: 0.46)
+        }
+    }
+}
+
+extension TacticalRecommendationRisk {
+    var tintColor: Color {
+        switch self {
+        case .low: return Color(red: 0.36, green: 0.76, blue: 0.44)
+        case .guarded: return Color(red: 0.86, green: 0.68, blue: 0.34)
+        case .high: return Color(red: 0.92, green: 0.42, blue: 0.14)
         case .critical: return Color(red: 0.84, green: 0.16, blue: 0.12)
         }
     }

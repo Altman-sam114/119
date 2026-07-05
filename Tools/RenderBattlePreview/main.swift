@@ -76,6 +76,17 @@ struct RenderBattlePreview {
               !formationSummary.accessibilityLabel.isEmpty else {
             throw PreviewRenderError.missingLegionFormationSummary
         }
+        guard let recommendationSummary = viewModel.selectedTacticalRecommendationSummary,
+              recommendationSummary.report.unitID == "rome-legion-1",
+              !recommendationSummary.kindLabel.isEmpty,
+              !recommendationSummary.targetLabel.isEmpty,
+              !recommendationSummary.pathLabel.isEmpty,
+              !recommendationSummary.report.command.isEmpty,
+              !recommendationSummary.routeSegments.isEmpty,
+              !viewModel.selectedTacticalRecommendationPathPositions.isEmpty,
+              viewModel.selectedTacticalRecommendationTargetPosition != nil else {
+            throw PreviewRenderError.missingTacticalRecommendationSummary
+        }
         let orderPreviews = viewModel.selectedTacticalOrderPreviews
         guard orderPreviews.count == TacticalOrder.allCases.count,
               orderPreviews.contains(where: { !$0.isCurrent && ($0.attackDelta != 0 || $0.defenseDelta != 0 || $0.movementDelta != 0) }),
@@ -274,6 +285,7 @@ enum PreviewRenderError: Error {
     case missingFrontlinePressure
     case missingCommanderBrief
     case missingLegionFormationSummary
+    case missingTacticalRecommendationSummary
     case missingTacticalOrderPreview
     case missingCityReadout
     case missingCompactCommandRender

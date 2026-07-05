@@ -1096,6 +1096,73 @@ public struct LegionFormationReport: Identifiable, Equatable, Sendable {
     public var id: String { unitID }
 }
 
+public enum TacticalRecommendationKind: String, CaseIterable, Identifiable, Equatable, Sendable {
+    case attack
+    case reinforce
+    case advance
+    case hold
+    case recover
+
+    public var id: String { rawValue }
+
+    public var displayName: String {
+        switch self {
+        case .attack: return "压制"
+        case .reinforce: return "补线"
+        case .advance: return "推进"
+        case .hold: return "坚守"
+        case .recover: return "整备"
+        }
+    }
+}
+
+public enum TacticalRecommendationRisk: String, CaseIterable, Identifiable, Equatable, Sendable {
+    case low
+    case guarded
+    case high
+    case critical
+
+    public var id: String { rawValue }
+
+    public var displayName: String {
+        switch self {
+        case .low: return "低风险"
+        case .guarded: return "谨慎"
+        case .high: return "高风险"
+        case .critical: return "危急"
+        }
+    }
+
+    fileprivate var priority: Int {
+        switch self {
+        case .critical: return 4
+        case .high: return 3
+        case .guarded: return 2
+        case .low: return 1
+        }
+    }
+}
+
+public struct TacticalRecommendationReport: Identifiable, Equatable, Sendable {
+    public var unitID: String
+    public var faction: Faction
+    public var kind: TacticalRecommendationKind
+    public var targetPosition: Position
+    public var destination: Position
+    public var targetUnitID: String?
+    public var targetCityID: String?
+    public var recommendedOrder: TacticalOrder
+    public var path: [Position]
+    public var priority: Int
+    public var risk: TacticalRecommendationRisk
+    public var projectedDamage: Int?
+    public var supportDistance: Int?
+    public var reason: String
+    public var command: String
+
+    public var id: String { unitID }
+}
+
 public enum FrontlinePressureTargetKind: String, Hashable, Sendable {
     case unit
     case city
@@ -1712,8 +1779,343 @@ public struct GameState: Codable, Equatable, Sendable {
             .map { $0 }
     }
 
+    public func tacticalRecommendation(unitID: String) throws -> TacticalRecommendationReport {
+        guard let unit = unit(withID: unitID) else {
+            throw GameRuleError.missingEntity
+        }
+
+        return tacticalRecommendation(for: unit)
+    }
+
     public func effectiveDefense(for unit: ArmyUnit) -> Int {
         max(1, unit.kind.defense + (unit.resolvedGeneralTrait?.defenseBonus ?? 0) + unit.resolvedTacticalOrder.defenseBonus)
+    }
+
+    private func tacticalRecommendation(for unit: ArmyUnit) -> TacticalRecommendationReport {
+        let formation = legionFormationReport(for: unit)
+
+        if let attackReport = tacticalAttackRecommendation(for: unit, formation: formation) {
+            return attackReport
+        }
+
+        if let reinforceReport = tacticalReinforceRecommendation(for: unit, formation: formation) {
+            return reinforceReport
+        }
+
+        if let advanceReport = tacticalAdvanceRecommendation(for: unit, formation: formation) {
+            return advanceReport
+        }
+
+        return tacticalHoldRecommendation(for: unit, formation: formation)
+    }
+
+    private func tacticalAttackRecommendation(
+        for unit: ArmyUnit,
+        formation: LegionFormationReport
+    ) -> TacticalRecommendationReport? {
+        guard unit.faction == activeFaction,
+              !unit.hasActed else {
+            return nil
+        }
+
+        let candidates = attackTargets(for: unit).compactMap { target -> (unit: ArmyUnit, preview: CombatPreview, score: Int)? in
+            guard let preview = try? attackPreview(attackerID: unit.id, defenderID: target.id) else {
+                return nil
+            }
+
+            let score = (preview.defeatsDefender ? 1_000 : 0) +
+                preview.damage * 12 -
+                preview.retaliation * 7 +
+                max(0, target.kind.maxHealth - target.health) * 2 +
+                (target.generalName == nil ? 0 : 90)
+            return (target, preview, score)
+        }
+
+        guard let best = candidates.sorted(by: { left, right in
+            if left.score == right.score {
+                return left.unit.id < right.unit.id
+            }
+            return left.score > right.score
+        }).first else {
+            return nil
+        }
+
+        let risk = tacticalRisk(for: unit, preview: best.preview)
+        let order: TacticalOrder = best.preview.defeatsDefender && unit.healthRatio >= 0.55 ? .assault : formation.recommendedOrder
+        let command = best.preview.defeatsDefender
+            ? "集中攻击，争取击溃\(best.unit.faction.displayName)\(best.unit.kind.displayName)。"
+            : "压制\(best.unit.faction.displayName)\(best.unit.kind.displayName)，预计伤害 \(best.preview.damage)。"
+
+        return TacticalRecommendationReport(
+            unitID: unit.id,
+            faction: unit.faction,
+            kind: .attack,
+            targetPosition: best.unit.position,
+            destination: unit.position,
+            targetUnitID: best.unit.id,
+            targetCityID: nil,
+            recommendedOrder: order,
+            path: tacticalFallbackPath(from: unit.position, to: best.unit.position),
+            priority: 700 + best.score - risk.priority * 30,
+            risk: risk,
+            projectedDamage: best.preview.damage,
+            supportDistance: nil,
+            reason: "当前射程内存在可打击目标，反击 \(best.preview.retaliation)。",
+            command: command
+        )
+    }
+
+    private func tacticalReinforceRecommendation(
+        for unit: ArmyUnit,
+        formation: LegionFormationReport
+    ) -> TacticalRecommendationReport? {
+        guard unit.faction == activeFaction,
+              !unit.hasMoved else {
+            return nil
+        }
+
+        let reachable = tacticalReachableDestinations(for: unit)
+        guard !reachable.isEmpty else { return nil }
+
+        let pressureReports = frontlinePressureReports(against: unit.faction, perFactionLimit: 4, limit: 4)
+            .filter { report in
+                report.targetID != unit.id &&
+                    report.level != .watch
+            }
+
+        guard let pressure = pressureReports.first,
+              let destination = tacticalBestDestination(from: reachable, toward: pressure.targetPosition, for: unit),
+              destination.hexDistance(to: pressure.targetPosition) < unit.position.hexDistance(to: pressure.targetPosition) else {
+            return nil
+        }
+
+        let risk: TacticalRecommendationRisk = pressure.level == .critical ? .high : .guarded
+        let path = tacticalPath(from: unit.position, to: destination, for: unit) ?? tacticalFallbackPath(from: unit.position, to: destination)
+        let targetUnitID = pressure.targetKind == .unit ? pressure.targetID : nil
+        let targetCityID = pressure.targetKind == .city ? pressure.targetID : nil
+        let distance = destination.hexDistance(to: pressure.targetPosition)
+
+        return TacticalRecommendationReport(
+            unitID: unit.id,
+            faction: unit.faction,
+            kind: .reinforce,
+            targetPosition: pressure.targetPosition,
+            destination: destination,
+            targetUnitID: targetUnitID,
+            targetCityID: targetCityID,
+            recommendedOrder: distance <= 1 ? .defensive : formation.recommendedOrder,
+            path: path,
+            priority: 560 + pressure.pressureScore - distance * 25,
+            risk: risk,
+            projectedDamage: nil,
+            supportDistance: distance,
+            reason: "\(pressure.targetKind.displayName)承受\(pressure.level.displayName)压力，需靠拢补线。",
+            command: "移动至 \(destination)，把战线距离压到 \(distance) 格。"
+        )
+    }
+
+    private func tacticalAdvanceRecommendation(
+        for unit: ArmyUnit,
+        formation: LegionFormationReport
+    ) -> TacticalRecommendationReport? {
+        guard unit.faction == activeFaction,
+              !unit.hasMoved else {
+            return nil
+        }
+
+        let reachable = tacticalReachableDestinations(for: unit)
+        guard !reachable.isEmpty,
+              let city = nearestAICityObjective(from: unit.position, for: unit.faction),
+              let destination = tacticalBestDestination(from: reachable, toward: city.position, for: unit),
+              destination != unit.position else {
+            return nil
+        }
+
+        let distance = destination.hexDistance(to: city.position)
+        let path = tacticalPath(from: unit.position, to: destination, for: unit) ?? tacticalFallbackPath(from: unit.position, to: destination)
+        let risk: TacticalRecommendationRisk = nearbyEnemyUnits(for: unit, range: 3).isEmpty ? .low : .guarded
+
+        return TacticalRecommendationReport(
+            unitID: unit.id,
+            faction: unit.faction,
+            kind: .advance,
+            targetPosition: city.position,
+            destination: destination,
+            targetUnitID: nil,
+            targetCityID: city.id,
+            recommendedOrder: distance > 1 ? .forcedMarch : formation.recommendedOrder,
+            path: path,
+            priority: 360 + max(0, 8 - distance) * 18,
+            risk: risk,
+            projectedDamage: nil,
+            supportDistance: distance,
+            reason: "\(city.name)是最近可争夺城市，当前可向其推进。",
+            command: "向\(city.name)推进至 \(destination)，距离目标 \(distance) 格。"
+        )
+    }
+
+    private func tacticalHoldRecommendation(
+        for unit: ArmyUnit,
+        formation: LegionFormationReport
+    ) -> TacticalRecommendationReport {
+        let shouldRecover = unit.healthRatio <= 0.58 || unit.hasActed || unit.hasMoved
+        let kind: TacticalRecommendationKind = shouldRecover ? .recover : .hold
+        let risk: TacticalRecommendationRisk
+
+        if formation.readiness == .critical {
+            risk = .critical
+        } else if formation.readiness == .strained {
+            risk = .high
+        } else if formation.nearbyEnemyCount > 0 {
+            risk = .guarded
+        } else {
+            risk = .low
+        }
+
+        let command = shouldRecover
+            ? "保持阵位并整备，优先恢复行动能力。"
+            : "维持\(formation.recommendedOrder.displayName)姿态，等待更明确目标。"
+
+        return TacticalRecommendationReport(
+            unitID: unit.id,
+            faction: unit.faction,
+            kind: kind,
+            targetPosition: unit.position,
+            destination: unit.position,
+            targetUnitID: nil,
+            targetCityID: city(at: unit.position)?.id,
+            recommendedOrder: formation.recommendedOrder,
+            path: [unit.position],
+            priority: 180 + max(0, 100 - formation.formationIntegrityScore) + risk.priority * 25,
+            risk: risk,
+            projectedDamage: nil,
+            supportDistance: 0,
+            reason: formation.commandSuggestion,
+            command: command
+        )
+    }
+
+    private func tacticalReachableDestinations(for unit: ArmyUnit) -> Set<Position> {
+        guard unit.faction == activeFaction,
+              !unit.hasMoved else {
+            return []
+        }
+
+        return reachablePositions(for: unit)
+    }
+
+    private func tacticalBestDestination(
+        from destinations: Set<Position>,
+        toward target: Position,
+        for _: ArmyUnit
+    ) -> Position? {
+        destinations.sorted { left, right in
+            let leftDistance = left.hexDistance(to: target)
+            let rightDistance = right.hexDistance(to: target)
+            if leftDistance != rightDistance {
+                return leftDistance < rightDistance
+            }
+
+            let leftDefense = tile(at: left)?.terrain.defenseBonus ?? 0
+            let rightDefense = tile(at: right)?.terrain.defenseBonus ?? 0
+            if leftDefense != rightDefense {
+                return leftDefense > rightDefense
+            }
+
+            if left.y != right.y {
+                return left.y < right.y
+            }
+            return left.x < right.x
+        }.first
+    }
+
+    private func tacticalRisk(for unit: ArmyUnit, preview: CombatPreview) -> TacticalRecommendationRisk {
+        if preview.attackerFalls || preview.attackerRemainingHealth <= max(1, unit.kind.maxHealth / 5) {
+            return .critical
+        }
+
+        if preview.retaliation >= max(1, unit.health / 2) {
+            return .high
+        }
+
+        if preview.retaliation > 0 || unit.healthRatio <= 0.55 {
+            return .guarded
+        }
+
+        return .low
+    }
+
+    private func tacticalPath(from origin: Position, to destination: Position, for unit: ArmyUnit) -> [Position]? {
+        guard origin != destination else { return [origin] }
+
+        let movementLimit = effectiveMovement(for: unit)
+        var bestCost: [Position: Int] = [origin: 0]
+        var previous: [Position: Position] = [:]
+        var frontier = [origin]
+
+        while !frontier.isEmpty {
+            let currentIndex = frontier.indices.min { leftIndex, rightIndex in
+                let left = frontier[leftIndex]
+                let right = frontier[rightIndex]
+                let leftCost = bestCost[left] ?? Int.max
+                let rightCost = bestCost[right] ?? Int.max
+                if leftCost != rightCost { return leftCost < rightCost }
+
+                let leftDistance = left.hexDistance(to: destination)
+                let rightDistance = right.hexDistance(to: destination)
+                if leftDistance != rightDistance { return leftDistance < rightDistance }
+
+                if left.y != right.y { return left.y < right.y }
+                return left.x < right.x
+            } ?? frontier.startIndex
+            let current = frontier.remove(at: currentIndex)
+            if current == destination {
+                return tacticalReconstructPath(to: destination, from: previous, origin: origin)
+            }
+
+            let currentCost = bestCost[current] ?? 0
+            for neighbor in current.neighbors(width: width, height: height) {
+                guard let tile = tile(at: neighbor),
+                      unit.kind.canEnter(tile.terrain),
+                      self.unit(at: neighbor) == nil || neighbor == destination else {
+                    continue
+                }
+
+                let nextCost = currentCost + tile.terrain.movementCost
+                guard nextCost <= movementLimit else { continue }
+
+                if nextCost < (bestCost[neighbor] ?? Int.max) {
+                    bestCost[neighbor] = nextCost
+                    previous[neighbor] = current
+                    if !frontier.contains(neighbor) {
+                        frontier.append(neighbor)
+                    }
+                }
+            }
+        }
+
+        return nil
+    }
+
+    private func tacticalReconstructPath(
+        to destination: Position,
+        from previous: [Position: Position],
+        origin: Position
+    ) -> [Position]? {
+        var path = [destination]
+        var current = destination
+
+        while current != origin {
+            guard let step = previous[current] else { return nil }
+            current = step
+            path.append(current)
+        }
+
+        return path.reversed()
+    }
+
+    private func tacticalFallbackPath(from origin: Position, to destination: Position) -> [Position] {
+        origin == destination ? [origin] : [origin, destination]
     }
 
     private func legionFormationReport(for unit: ArmyUnit) -> LegionFormationReport {
