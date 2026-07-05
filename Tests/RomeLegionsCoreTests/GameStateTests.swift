@@ -891,6 +891,8 @@ import Testing
     let preview = try state.generalSkillPreview(unitID: "rome-commander")
     let report = try state.commanderSynergyReport(unitID: "rome-commander")
 
+    #expect(Position(x: 4, y: 4).hexDistance(to: Position(x: 3, y: 3)) == 1)
+    #expect(Position(x: 3, y: 2).hexDistance(to: Position(x: 3, y: 3)) == 1)
     #expect(preview.affectedUnitIDs.first == "rome-south")
     #expect(preview.affectedPositions.first == Position(x: 3, y: 2))
     #expect(report.kind == .commanderSkill)
@@ -964,6 +966,7 @@ import Testing
     #expect(blockedCommander?.isExecutable == false)
     #expect(reports.first?.unitID != "rome-commander")
     #expect(reports.first?.isExecutable == true)
+    #expect(reports.prefix { $0.unitID != "rome-commander" }.allSatisfy(\.isExecutable))
     #expect(state == before)
 }
 

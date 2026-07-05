@@ -2165,6 +2165,9 @@ public struct GameState: Codable, Equatable, Sendable {
             .filter { $0.faction == faction }
             .map { commanderSynergyReport(for: $0) }
             .sorted { left, right in
+                if left.isExecutable != right.isExecutable {
+                    return left.isExecutable && !right.isExecutable
+                }
                 if left.score == right.score {
                     return left.id < right.id
                 }
