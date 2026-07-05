@@ -1155,6 +1155,9 @@ import Testing
         ArmyUnit(id: "rome-line", kind: .legion, faction: .rome, position: Position(x: 1, y: 1)),
         ArmyUnit(id: "carthage-battered", kind: .legion, faction: .carthage, position: Position(x: 8, y: 2), health: 18)
     ]
+    if let alesiaIndex = state.cities.firstIndex(where: { $0.id == "alesia" }) {
+        state.cities[alesiaIndex].owner = .carthage
+    }
     let before = state
 
     let reports = state.aiOperationalPlanReports(against: .rome, perFactionLimit: 4, limit: 5)
