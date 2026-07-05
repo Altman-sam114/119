@@ -312,7 +312,7 @@ struct WarMapView: View {
                 VStack {
                     Spacer()
                     HStack {
-                        MiniLegendView()
+                        MapOverlayLegendView(items: viewModel.activeMapOverlayLegendItems)
                         Spacer()
                     }
                     .padding(12)
@@ -4279,24 +4279,99 @@ struct StatRow: View {
     }
 }
 
-struct MiniLegendView: View {
+struct MapOverlayLegendView: View {
+    var items: [MapOverlayLegendItem]
+
     var body: some View {
-        HStack(spacing: 8) {
-            ForEach(Faction.turnOrder) { faction in
-                HStack(spacing: 4) {
-                    Rectangle()
-                        .fill(faction.factionColor)
-                        .frame(width: 12, height: 12)
-                    Text(faction.displayName)
-                        .font(.caption2.weight(.bold))
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 8) {
+                ForEach(items) { item in
+                    MapOverlayLegendItemView(item: item)
+                }
+
+                if !items.isEmpty {
+                    Divider()
+                        .frame(height: 18)
+                        .overlay(.white.opacity(0.18))
+                }
+
+                ForEach(Faction.turnOrder) { faction in
+                    HStack(spacing: 5) {
+                        Rectangle()
+                            .fill(faction.factionColor)
+                            .frame(width: 12, height: 12)
+                        Text(faction.displayName)
+                            .font(.caption.bold())
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.74)
+                    }
                 }
             }
         }
         .foregroundStyle(.white)
-        .padding(.horizontal, 9)
+        .frame(maxWidth: 520, alignment: .leading)
+        .padding(.horizontal, 10)
         .padding(.vertical, 7)
         .background(.black.opacity(0.35))
         .clipShape(RoundedRectangle(cornerRadius: 8))
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(accessibilityLabel)
+    }
+
+    private var accessibilityLabel: String {
+        let overlayLabels = items.map(\.accessibilityLabel)
+        let factionLabels = Faction.turnOrder.map { "\($0.displayName)阵营色" }
+        return (overlayLabels + factionLabels).joined(separator: "，")
+    }
+}
+
+struct MapOverlayLegendItemView: View {
+    var item: MapOverlayLegendItem
+
+    var body: some View {
+        HStack(spacing: 5) {
+            Image(systemName: item.symbol)
+                .font(.caption.bold())
+                .foregroundStyle(item.kind.legendTint)
+                .frame(width: 16)
+            VStack(alignment: .leading, spacing: 1) {
+                Text(item.title)
+                    .font(.caption.bold())
+                    .lineLimit(1)
+                Text(item.detail)
+                    .font(.caption)
+                    .foregroundStyle(.white.opacity(0.72))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.72)
+            }
+        }
+        .padding(.horizontal, 7)
+        .padding(.vertical, 5)
+        .background(item.kind.legendTint.opacity(0.16))
+        .clipShape(RoundedRectangle(cornerRadius: 7))
+    }
+}
+
+private extension MapOverlayLegendKind {
+    var legendTint: Color {
+        switch self {
+        case .enemyRoute, .enemyTarget:
+            return .red
+        case .threatHeat:
+            return .orange
+        case .mapControl:
+            return .cyan
+        case .tacticalPath:
+            return .blue
+        case .maneuverOption:
+            return .green
+        case .reachable:
+            return .yellow
+        case .attackTarget:
+            return .pink
+        case .skillRange:
+            return .purple
+        }
     }
 }
 

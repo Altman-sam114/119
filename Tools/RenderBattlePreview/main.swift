@@ -163,6 +163,26 @@ struct RenderBattlePreview {
               !primaryManeuverSummary.accessibilityLabel.isEmpty else {
             throw PreviewRenderError.missingManeuverOptionSummary
         }
+        let legendItems = viewModel.activeMapOverlayLegendItems
+        let legendKinds = Set(legendItems.map(\.kind))
+        let requiredLegendKinds: Set<MapOverlayLegendKind> = [
+            .enemyRoute,
+            .enemyTarget,
+            .threatHeat,
+            .mapControl,
+            .tacticalPath,
+            .maneuverOption
+        ]
+        guard !legendItems.isEmpty,
+              requiredLegendKinds.isSubset(of: legendKinds),
+              legendItems.allSatisfy({ item in
+                  !item.symbol.isEmpty &&
+                      !item.title.isEmpty &&
+                      !item.detail.isEmpty &&
+                      !item.accessibilityLabel.isEmpty
+              }) else {
+            throw PreviewRenderError.missingMapOverlayLegend
+        }
         let orderPreviews = viewModel.selectedTacticalOrderPreviews
         guard orderPreviews.count == TacticalOrder.allCases.count,
               orderPreviews.contains(where: { !$0.isCurrent && ($0.attackDelta != 0 || $0.defenseDelta != 0 || $0.movementDelta != 0) }),
@@ -368,6 +388,7 @@ enum PreviewRenderError: Error {
     case missingCommanderSynergySummary
     case missingTacticalRecommendationSummary
     case missingManeuverOptionSummary
+    case missingMapOverlayLegend
     case missingTacticalOrderPreview
     case missingCityReadout
     case missingCompactCommandRender

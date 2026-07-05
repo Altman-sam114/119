@@ -124,7 +124,7 @@ on:
 artifact 命名规则：
 
 ```text
-RomeLegions-ci-v0.22-main-<short_sha>-run<run_id>-attempt<run_attempt>
+RomeLegions-ci-v0.23-main-<short_sha>-run<run_id>-attempt<run_attempt>
 ```
 
 `ci-artifact-manifest.json` 必须至少包含：
@@ -187,7 +187,7 @@ Agent C 必须核对：
 - manifest 的 `branch` 为 `main`。
 - manifest 的 `runId` 和 `runAttempt` 等于本次下载的 run。
 - workflow 结论、JUnit、主构建日志、RenderBattlePreview 日志、失败摘要互相一致。
-- v0.18 起若 manifest 包含 `renderPreviewOutcome`，必须为 `success`，且 `render-battle-preview.log` 和 `render-previews/*.png` 必须存在；v0.21 机动落点断言失败时应抛出 `missingManeuverOptionSummary`；v0.22 起 Gameplay Smoke 必须覆盖 AI 主攻优先执行顺序。
+- v0.18 起若 manifest 包含 `renderPreviewOutcome`，必须为 `success`，且 `render-battle-preview.log` 和 `render-previews/*.png` 必须存在；v0.21 机动落点断言失败时应抛出 `missingManeuverOptionSummary`；v0.22 起 Gameplay Smoke 必须覆盖 AI 主攻优先执行顺序；v0.23 主动地图叠层图例断言失败时应抛出 `missingMapOverlayLegend`。
 - 若 workflow 失败，失败摘要和日志路径足以退回 Agent B 修复。
 - 若本地仓库没有 `origin` 或 `gh` 无权限，明确报告阻塞，不能伪造下载核对。
 - 只能使用 `Altman-sam114` 对应 GitHub 权限完成 push、CI 或 artifact 验收；不得使用其他账号伪装完成。
@@ -274,6 +274,7 @@ env HOME=$PWD/.home CLANG_MODULE_CACHE_PATH=$PWD/.build/module-cache /Applicatio
 - 移动后攻击的移动路线应包含多个非 targetLeg 路线段；每个移动段的 `from` / `to` 必须互为 `Position.neighbors(width:height:)`，最后一段必须到达 `AIIntent.destination`，目标段继续从 destination 指向目标格。
 - 渲染前应断言首要和选中单位本方将领协同摘要存在，协同列表非空，标题、类型、目标、影响、详情和无障碍文案可用；失败会抛出 `missingCommanderSynergySummary`。
 - 渲染前应断言选中单位机动落点摘要存在，机动列表、首要机动、落点 overlay 字典和 overlay 位置集合非空，且类型、落点、目标、影响、风险、详情和无障碍文案可用；失败会抛出 `missingManeuverOptionSummary`。
+- 渲染前应断言主动地图叠层图例存在，至少覆盖敌军路线、敌军目标/目的地、威胁热区、地图控区、军议路径或目标、机动落点，且每项 symbol、title、detail 和无障碍文案非空；失败会抛出 `missingMapOverlayLegend`。
 - 渲染前应断言选中单位存在 `selectedLegionFormationSummary`、`selectedCommanderBrief`、鹰旗被动攻击贡献、主动技能状态、战功摘要和完整 `selectedTacticalOrderPreviews`。
 - 渲染前应切换到罗马城市并断言 `selectedCityBrief` 存在，扩建成本/收益、四类兵种招募预览、至少一个陆军招募选项和舰队港口部署预览存在；失败会抛出 `missingCityReadout`。
 - 每个命令会生成请求路径的城市场景 PNG，并额外生成同尺寸 `*-unit.png` 单位场景 PNG；两套图都会对紧凑视口命令区域做轻量像素检查，防止短横屏或竖屏命令区空白仍误判通过。
@@ -346,6 +347,7 @@ env HOME=$PWD/.home DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer xco
 - `Tools/RenderBattlePreview/main.swift` 渲染前还会断言 `primaryThreatHeatZoneSummary`、`threatHeatZoneSummaries` 和 `threatHeatOverlayPositions` 可用，且热区目标、来源、预计伤害、等级、详情和无障碍文案可读；断言失败会抛出 `missingThreatHeatSummary`。
 - `Tools/RenderBattlePreview/main.swift` 渲染前还会断言 `primaryMapControlSummary`、`mapControlSummaries` 和 `mapControlOverlayPositions` 可用，且控区状态、热度、来源、详情和无障碍文案可读；断言失败会抛出 `missingMapControlSummary`。
 - `Tools/RenderBattlePreview/main.swift` 渲染前还会断言 `primaryAIOperationalPlanSummary` 和 `aiOperationalPlanSummaries` 可用，且计划来源、标题、类型、影响、详情和无障碍文案可读；断言失败会抛出 `missingAIOperationalPlanSummary`。
+- `Tools/RenderBattlePreview/main.swift` 渲染前还会断言 `activeMapOverlayLegendItems` 可用，且包含敌军路线、敌军目标、热区、控区、军议和机动等当前叠层图例；断言失败会抛出 `missingMapOverlayLegend`。
 - `Tools/RenderBattlePreview/main.swift` 渲染前还会断言 `selectedLegionFormationSummary` 和 `primaryLegionFormationSummary` 存在，军团职责、战备和建议文案可读；断言失败会抛出 `missingLegionFormationSummary`。
 - `Tools/RenderBattlePreview/main.swift` 渲染前还会断言 `selectedCommanderSynergySummary`、`primaryCommanderSynergySummary` 和 `commanderSynergySummaries` 可用，且将令类型、目标、影响、详情和无障碍文案可读；断言失败会抛出 `missingCommanderSynergySummary`。
 - `Tools/RenderBattlePreview/main.swift` 渲染前还会断言 `primaryManeuverOptionSummary`、`selectedManeuverOptionSummaries`、`maneuverOptionOverlaysByPosition` 和 `maneuverOptionOverlayPositions` 可用，且机动类型、落点、目标、影响、风险、详情和无障碍文案可读；断言失败会抛出 `missingManeuverOptionSummary`。

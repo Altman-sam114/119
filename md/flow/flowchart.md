@@ -44,7 +44,10 @@ flowchart TD
 ```mermaid
 flowchart TD
     A["选中罗马单位"] --> B["GameViewModel.attackTargets<br/>读取 GameState.attackTargets"]
+    A --> BH["GameViewModel.reachablePositions<br/>读取选中单位真实可达格"]
     B --> C["BattleView 显示可攻击目标徽标"]
+    B --> BL
+    BH --> BL
     C --> D["GameViewModel.attackPreview(for:)"]
     D --> E["GameState.attackPreview<br/>计算伤害、反击、地形、支援、包夹、指挥、姿态"]
     E --> F["UI 展示 CombatPreview"]
@@ -57,6 +60,7 @@ flowchart TD
     K --> M["GameViewModel.enemyIntentMapOverlays<br/>派生起点、六边形邻接路径、目的地、目标格、伤害/效果文案"]
     L --> K
     M --> W["BattleView 地图折线路径、目的地叠层、目标格叠层<br/>侧栏显示来源、去向、目标和预计伤害"]
+    M --> BL["GameViewModel.activeMapOverlayLegendItems<br/>汇总敌路/目标、热区、控区、军议、机动、可达、攻击、技能等当前可见叠层图例"]
     L --> LF["performSimpleAI 当前状态排序<br/>读取单体 AIIntent.threatScore<br/>高威胁主攻单位先行动"]
     LF --> LG["真实 AI 执行<br/>单位内部仍走原休整、技能、攻击、移动后攻击分支"]
     L --> AB["GameState.frontlinePressureReports<br/>按罗马单位或城市聚合多路意图<br/>来源、预计伤害、夺城风险、压力等级"]
@@ -72,12 +76,14 @@ flowchart TD
     AH["选中本方单位"] --> AI["GameState.tacticalRecommendation(unitID:)<br/>只读派生攻击、补线、推进、坚守或整备建议<br/>目标、目的地、路径、推荐姿态、风险和命令文案"]
     AI --> AJ["GameViewModel.selectedTacticalRecommendationSummary<br/>转成军议 chip、建议卡、路径线段和目标位置"]
     AJ --> AK["BattleView 地图本方建议路径/目标叠层<br/>选中单位情报展示建议理由和风险"]
+    AJ --> BL
     AH --> AY["GameState.maneuverOptionReports(unitID:limit:)<br/>只读评估真实可达落点<br/>复用 projected 控图/热区/战线压力/占城目标/attackPreview"]
     AI --> AY
     AO --> AY
     AB --> AY
     AY --> AZ["GameViewModel.selectedManeuverOptionSummaries<br/>首要机动、落点 overlay、类型/风险/影响/无障碍文案"]
     AZ --> BA["BattleView 地图机动落点叠层、机动 chip、选中单位机动卡、战局机动行<br/>只展示报告，不自动移动或攻击"]
+    AZ --> BL
     AH --> AV["GameState.commanderSynergyReport / commanderSynergyReports<br/>只读整合将领技能、编制、战术建议和攻击预览<br/>输出将领技能、合击、补线、推进或整备协同"]
     AI --> AV
     E --> AV
@@ -95,8 +101,11 @@ flowchart TD
     AB --> AO
     AO --> AP["GameViewModel.mapControlSummaries / threatHeatZoneSummaries<br/>控区、热区、来源、影响和 overlay positions"]
     AP --> AQ["BattleView 地图低透明热区叠层、热区 chip、战场卡、战局行<br/>不在 SwiftUI 重新算射程或路径"]
+    AP --> BL
+    BL --> BM["BattleView 地图底部主动图例<br/>图标、标题、说明和阵营色<br/>只解释叠层，不改变规则"]
 
     N["选中有将领单位"] --> O["GameViewModel.selectedGeneralSkillPreview"]
+    O --> BL
     O --> P["GameState.generalSkillPreview<br/>只读计算范围、目标、预计恢复或削城防"]
     P --> Q["GameViewModel.selectedCommanderBrief<br/>整合将领名、被动贡献、技能状态、冷却原因和战功摘要"]
     Q --> X["BattleView 将领读板<br/>完整/紧凑情报展示被动、技能效果和战功"]

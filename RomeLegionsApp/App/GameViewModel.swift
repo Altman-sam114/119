@@ -20,6 +20,30 @@ struct EnemyIntentRouteSegment: Identifiable {
     var isHighThreat: Bool
 }
 
+enum MapOverlayLegendKind: String, Identifiable {
+    case enemyRoute
+    case enemyTarget
+    case threatHeat
+    case mapControl
+    case tacticalPath
+    case maneuverOption
+    case reachable
+    case attackTarget
+    case skillRange
+
+    var id: String { rawValue }
+}
+
+struct MapOverlayLegendItem: Identifiable {
+    var kind: MapOverlayLegendKind
+    var symbol: String
+    var title: String
+    var detail: String
+    var accessibilityLabel: String
+
+    var id: MapOverlayLegendKind { kind }
+}
+
 struct EnemyIntentSummary: Identifiable {
     var intent: AIIntent
     var unit: ArmyUnit
@@ -1546,6 +1570,73 @@ final class GameViewModel: ObservableObject {
 
     var maneuverOptionOverlayPositions: Set<Position> {
         Set(maneuverOptionOverlaysByPosition.keys)
+    }
+
+    var activeMapOverlayLegendItems: [MapOverlayLegendItem] {
+        var items: [MapOverlayLegendItem] = []
+        var insertedKinds = Set<MapOverlayLegendKind>()
+
+        func append(
+            _ kind: MapOverlayLegendKind,
+            symbol: String,
+            title: String,
+            detail: String
+        ) {
+            guard insertedKinds.insert(kind).inserted else { return }
+            items.append(
+                MapOverlayLegendItem(
+                    kind: kind,
+                    symbol: symbol,
+                    title: title,
+                    detail: detail,
+                    accessibilityLabel: "\(title)，\(detail)"
+                )
+            )
+        }
+
+        let intentOverlays = enemyIntentMapOverlays
+        if intentOverlays.contains(where: { !$0.routeSegments.isEmpty }) {
+            append(.enemyRoute, symbol: "arrow.right", title: "敌路", detail: "红线为敌军计划路线")
+        }
+
+        if !enemyIntentDestinationOverlays(for: intentOverlays).isEmpty ||
+            !enemyIntentTargetOverlays(for: intentOverlays).isEmpty {
+            append(.enemyTarget, symbol: "scope", title: "敌标", detail: "准星标出敌军目标")
+        }
+
+        if !threatHeatOverlayPositions.isEmpty {
+            append(.threatHeat, symbol: "flame.fill", title: "热区", detail: "火焰提示高危威胁")
+        }
+
+        if !mapControlOverlayPositions.isEmpty {
+            append(.mapControl, symbol: "shield.fill", title: "控区", detail: "底色显示争夺与控制")
+        }
+
+        if !selectedTacticalRecommendationPathPositions.isEmpty ||
+            selectedTacticalRecommendationTargetPosition != nil {
+            append(.tacticalPath, symbol: "arrow.turn.up.right", title: "军议", detail: "蓝线为本方建议路径")
+        }
+
+        if !maneuverOptionOverlayPositions.isEmpty {
+            append(.maneuverOption, symbol: "figure.run", title: "机动", detail: "虚线点提示推荐落点")
+        }
+
+        if !reachablePositions.isEmpty {
+            append(.reachable, symbol: "arrow.up.right.circle", title: "可达", detail: "黄圈为本回合可移动")
+        }
+
+        if !attackTargets.isEmpty {
+            append(.attackTarget, symbol: "bolt.fill", title: "攻击", detail: "红环为可攻击目标")
+        }
+
+        if !selectedGeneralSkillRangePositions.isEmpty ||
+            !selectedGeneralSkillTargetPositions.isEmpty ||
+            !selectedGeneralSkillTargetUnitIDs.isEmpty ||
+            !selectedGeneralSkillTargetCityIDs.isEmpty {
+            append(.skillRange, symbol: "sparkles", title: "技能", detail: "紫光为将领技能范围")
+        }
+
+        return items
     }
 
     var selectedTacticalRecommendationSummary: TacticalRecommendationSummary? {
