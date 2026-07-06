@@ -1606,6 +1606,112 @@ private func riskTestPriority(_ risk: TacticalRecommendationRisk) -> Int {
     #expect(state == before)
 }
 
+@Test func enemyCommanderThreatUsesEnemyForecastForSkillWithoutMutation() {
+    var state = GameState.newCampaign()
+    state.units = [
+        ArmyUnit(id: "rome-line", kind: .legion, faction: .rome, position: Position(x: 1, y: 1)),
+        ArmyUnit(id: "carthage-quartermaster", kind: .legion, faction: .carthage, position: Position(x: 5, y: 3), generalName: "阿格里帕", generalTrait: .quartermaster),
+        ArmyUnit(id: "carthage-wounded", kind: .cavalry, faction: .carthage, position: Position(x: 4, y: 3), health: 40)
+    ]
+    state.activeFaction = .rome
+    let before = state
+
+    let reports = state.enemyCommanderThreatReports(against: .rome, limit: 5)
+    let report = reports.first { $0.unitID == "carthage-quartermaster" }
+
+    #expect(report?.intentKind == .useSkill)
+    #expect((report?.projectedRecovery ?? 0) > 0)
+    #expect(report?.affectedUnitIDs.contains("carthage-wounded") == true)
+    #expect(report?.skillReady == true)
+    #expect(report?.skillBlockedReason == nil)
+    #expect(report?.skillSummary.contains("恢复") == true)
+    #expect(report?.detail.isEmpty == false)
+    #expect(state == before)
+}
+
+@Test func enemyCommanderThreatRanksReadySkillAboveCooldownCommander() {
+    var state = GameState.newCampaign()
+    state.units = [
+        ArmyUnit(id: "rome-line", kind: .legion, faction: .rome, position: Position(x: 1, y: 1)),
+        ArmyUnit(id: "carthage-ready", kind: .legion, faction: .carthage, position: Position(x: 5, y: 3), generalName: "阿格里帕", generalTrait: .quartermaster),
+        ArmyUnit(id: "carthage-cooling", kind: .legion, faction: .carthage, position: Position(x: 6, y: 3), generalName: "汉诺", generalTrait: .quartermaster, generalSkillCooldownRemaining: 2),
+        ArmyUnit(id: "carthage-wounded", kind: .cavalry, faction: .carthage, position: Position(x: 4, y: 3), health: 40)
+    ]
+    state.activeFaction = .rome
+    let before = state
+
+    let reports = state.enemyCommanderThreatReports(against: .rome, limit: 5)
+    let ready = reports.first { $0.unitID == "carthage-ready" }
+    let cooling = reports.first { $0.unitID == "carthage-cooling" }
+
+    #expect(ready?.skillReady == true)
+    #expect(ready?.intentKind == .useSkill)
+    #expect(cooling?.skillReady == false)
+    #expect(cooling?.skillBlockedReason?.contains("冷却") == true)
+    #expect((ready?.score ?? 0) > (cooling?.score ?? 0))
+    #expect(reports.first?.unitID == "carthage-ready")
+    #expect(state == before)
+}
+
+@Test func enemyCommanderThreatAttackDamageMatchesAIIntentForecast() {
+    var state = GameState.newCampaign()
+    state.units = [
+        ArmyUnit(id: "rome-target", kind: .legion, faction: .rome, position: Position(x: 3, y: 3)),
+        ArmyUnit(id: "carthage-commander", kind: .cavalry, faction: .carthage, position: Position(x: 4, y: 3), generalName: "汉尼拔", generalTrait: .eagleStandard)
+    ]
+    state.activeFaction = .rome
+    let before = state
+
+    let intent = state.aiIntents(for: .carthage, limit: 4).first { $0.unitID == "carthage-commander" }
+    let report = state.enemyCommanderThreatReports(against: .rome, limit: 5).first { $0.unitID == "carthage-commander" }
+
+    #expect(report?.intentKind == intent?.kind)
+    #expect(report?.targetUnitID == intent?.targetUnitID)
+    #expect((report?.projectedDamage ?? 0) > 0)
+    #expect(report?.projectedDamage == intent?.projectedDamage)
+    #expect(state == before)
+}
+
+@Test func enemyCommanderThreatSiegeImpactComesFromGeneralSkillPreview() throws {
+    var state = GameState.newCampaign()
+    state.units = [
+        ArmyUnit(id: "rome-garrison", kind: .legion, faction: .rome, position: Position(x: 3, y: 4)),
+        ArmyUnit(id: "carthage-siege", kind: .legion, faction: .carthage, position: Position(x: 4, y: 3), generalName: "汉尼拔", generalTrait: .siegeEngineer)
+    ]
+    state.activeFaction = .rome
+    let before = state
+
+    var previewState = state
+    previewState.activeFaction = .carthage
+    let preview = try previewState.generalSkillPreview(unitID: "carthage-siege")
+    let report = state.enemyCommanderThreatReports(against: .rome, limit: 5).first { $0.unitID == "carthage-siege" }
+
+    #expect(preview.affectedCityIDs.contains("rome"))
+    #expect(report?.intentKind == .useSkill)
+    #expect(report?.targetCityID == "rome")
+    #expect(report?.affectedCityIDs == preview.affectedCityIDs)
+    #expect(report?.projectedFortificationReduction == preview.projectedFortificationReduction)
+    #expect(report?.skillSummary == preview.summary)
+    #expect(report?.impact.contains("城防") == true)
+    #expect(state == before)
+}
+
+@Test func enemyCommanderThreatIgnoresTreatyProtectedFactions() throws {
+    var state = GameState.newCampaign()
+    state.units = [
+        ArmyUnit(id: "rome-line", kind: .legion, faction: .rome, position: Position(x: 1, y: 1)),
+        ArmyUnit(id: "carthage-quartermaster", kind: .legion, faction: .carthage, position: Position(x: 5, y: 3), generalName: "阿格里帕", generalTrait: .quartermaster),
+        ArmyUnit(id: "carthage-wounded", kind: .cavalry, faction: .carthage, position: Position(x: 4, y: 3), health: 40)
+    ]
+    _ = try state.sendEnvoy(to: .carthage)
+    let before = state
+
+    let reports = state.enemyCommanderThreatReports(against: .rome, limit: 5)
+
+    #expect(!reports.contains { $0.unitID == "carthage-quartermaster" })
+    #expect(state == before)
+}
+
 @Test func aiRecruitsWhenBelowTargetForce() {
     var state = GameState.newCampaign()
     state.activeFaction = .gaul

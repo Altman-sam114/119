@@ -1704,6 +1704,67 @@ public struct ThreatHeatZoneReport: Identifiable, Equatable, Sendable {
     public var detail: String
 }
 
+public enum EnemyCommanderThreatLevel: String, CaseIterable, Identifiable, Equatable, Sendable {
+    case watch
+    case dangerous
+    case severe
+    case critical
+
+    public var id: String { rawValue }
+
+    public var displayName: String {
+        switch self {
+        case .watch: return "监视"
+        case .dangerous: return "危险"
+        case .severe: return "严重"
+        case .critical: return "危急"
+        }
+    }
+
+    fileprivate var priority: Int {
+        switch self {
+        case .critical: return 4
+        case .severe: return 3
+        case .dangerous: return 2
+        case .watch: return 1
+        }
+    }
+}
+
+public struct EnemyCommanderThreatReport: Identifiable, Equatable, Sendable {
+    public var unitID: String
+    public var faction: Faction
+    public var position: Position
+    public var generalName: String
+    public var generalTrait: GeneralTrait
+    public var threatLevel: EnemyCommanderThreatLevel
+    public var score: Int
+    public var intentKind: AIIntentKind?
+    public var targetPosition: Position
+    public var targetUnitID: String?
+    public var targetCityID: String?
+    public var destination: Position?
+    public var projectedDamage: Int?
+    public var projectedRecovery: Int
+    public var projectedFortificationReduction: Int
+    public var affectedUnitIDs: [String]
+    public var affectedCityIDs: [String]
+    public var rangePositions: [Position]
+    public var affectedPositions: [Position]
+    public var skillReady: Bool
+    public var skillSummary: String
+    public var skillBlockedReason: String?
+    public var pressureLevel: FrontlinePressureLevel?
+    public var threatHeatLevel: ThreatHeatLevel?
+    public var title: String
+    public var summary: String
+    public var detail: String
+    public var reasons: [String]
+    public var impact: String
+
+    public var id: String { unitID }
+}
+
 public enum AIOperationalPlanKind: String, CaseIterable, Identifiable, Equatable, Sendable {
     case focusedAttack
     case cityCapture
@@ -2805,6 +2866,75 @@ public struct GameState: Codable, Equatable, Sendable {
 
     public func aiOperationalPlanReport(against defendingFaction: Faction = .rome) -> AIOperationalPlanReport? {
         aiOperationalPlanReports(against: defendingFaction, perFactionLimit: 4, limit: 1).first
+    }
+
+    public func enemyCommanderThreatReports(
+        against defendingFaction: Faction = .rome,
+        limit: Int = 5
+    ) -> [EnemyCommanderThreatReport] {
+        guard defendingFaction != .neutral,
+              limit > 0 else {
+            return []
+        }
+
+        let pressureReports = frontlinePressureReports(against: defendingFaction, perFactionLimit: 5, limit: max(limit * 2, 8))
+        let heatReports = threatHeatZoneReports(for: defendingFaction, limit: max(limit * 2, 8))
+        let planReports = aiOperationalPlanReports(against: defendingFaction, perFactionLimit: 5, limit: max(limit * 2, 8))
+        var reports: [EnemyCommanderThreatReport] = []
+
+        for faction in Faction.turnOrder where faction != defendingFaction && faction != .neutral {
+            guard diplomaticStatus(between: defendingFaction, and: faction) == .war else {
+                continue
+            }
+
+            let forecast = aiPlanningForecast(for: faction)
+            let intentLimit = max(forecast.units.filter { $0.faction == faction }.count, limit * 3, 6)
+            let intentsByUnitID = Dictionary(
+                uniqueKeysWithValues: forecast.aiIntentReports(for: faction, limit: intentLimit).map { ($0.unitID, $0) }
+            )
+
+            for unit in forecast.units where unit.faction == faction && unit.resolvedGeneralTrait != nil {
+                reports.append(
+                    forecast.enemyCommanderThreatReport(
+                        for: unit,
+                        against: defendingFaction,
+                        intent: intentsByUnitID[unit.id],
+                        planReports: planReports,
+                        pressureReports: pressureReports,
+                        heatReports: heatReports
+                    )
+                )
+            }
+        }
+
+        return reports
+            .sorted { left, right in
+                if left.threatLevel.priority == right.threatLevel.priority {
+                    if left.score == right.score {
+                        return left.unitID < right.unitID
+                    }
+                    return left.score > right.score
+                }
+                return left.threatLevel.priority > right.threatLevel.priority
+            }
+            .prefix(limit)
+            .map { $0 }
+    }
+
+    public func enemyCommanderThreatReport(
+        unitID: String,
+        against defendingFaction: Faction = .rome
+    ) throws -> EnemyCommanderThreatReport {
+        guard unit(withID: unitID) != nil else {
+            throw GameRuleError.missingEntity
+        }
+
+        guard let report = enemyCommanderThreatReports(against: defendingFaction, limit: max(units.count, 1))
+            .first(where: { $0.unitID == unitID }) else {
+            throw GameRuleError.generalSkillUnavailable
+        }
+
+        return report
     }
 
     public func effectiveDefense(for unit: ArmyUnit) -> Int {
@@ -4154,6 +4284,240 @@ public struct GameState: Codable, Equatable, Sendable {
         }
 
         return "\(report.controlState.displayName) · 友 \(report.friendlyInfluence) / 敌 \(report.enemyInfluence)"
+    }
+
+    private func enemyCommanderThreatReport(
+        for unit: ArmyUnit,
+        against defendingFaction: Faction,
+        intent: AIIntent?,
+        planReports: [AIOperationalPlanReport],
+        pressureReports: [FrontlinePressureReport],
+        heatReports: [ThreatHeatZoneReport]
+    ) -> EnemyCommanderThreatReport {
+        let trait = unit.resolvedGeneralTrait ?? .eagleStandard
+        let generalName = unit.generalName ?? trait.displayName
+        let skillPreview = generalSkillPreview(for: unit)
+        let formation = legionFormationReport(for: unit)
+        let targetUnitID = intent?.targetUnitID
+        let targetCityID = intent?.targetCityID ?? skillPreview.affectedCityIDs.first
+        let targetPosition = enemyCommanderTargetPosition(
+            intent: intent,
+            targetUnitID: targetUnitID,
+            targetCityID: targetCityID,
+            skillPreview: skillPreview,
+            fallback: unit.position
+        )
+        let pressure = enemyCommanderPressure(
+            targetUnitID: targetUnitID,
+            targetCityID: targetCityID,
+            targetPosition: targetPosition,
+            in: pressureReports
+        )
+        let heat = aiOperationalHeat(for: targetPosition, in: heatReports)
+        let plan = planReports.first { $0.commanderUnitIDs.contains(unit.id) } ??
+            planReports.first { $0.sourceUnitIDs.contains(unit.id) }
+        let projectedDamage = intent?.projectedDamage
+        let passiveScore = trait.attackBonus * 4 +
+            trait.siegeAttackBonus * 5 +
+            trait.defenseBonus * 3 +
+            trait.movementBonus * 30
+        var score = 120 +
+            (intent?.threatScore ?? 0) +
+            passiveScore +
+            (projectedDamage ?? 0) * 3 +
+            skillPreview.projectedRecoveredHealth * 2 +
+            skillPreview.projectedFortificationReduction * 22 +
+            formation.readiness.priority * 24 +
+            enemyCommanderPressurePriority(pressure?.level) * 70 +
+            (heat?.threatLevel.priority ?? 0) * 45
+
+        if skillPreview.isExecutable {
+            score += 110
+        }
+        if intent?.kind == .useSkill {
+            score += 160
+        }
+        if plan?.commanderUnitIDs.contains(unit.id) == true {
+            score += 90
+        }
+        if targetCityID != nil && trait == .siegeEngineer {
+            score += 70
+        }
+        if formation.role == .command || formation.role == .siege {
+            score += 35
+        }
+
+        let level = enemyCommanderThreatLevel(score: score, skillReady: skillPreview.isExecutable, pressure: pressure, heat: heat)
+        let targetName = battlefieldTargetName(
+            unitID: targetUnitID,
+            cityID: targetCityID,
+            fallback: targetPosition.description
+        )
+        let impact = enemyCommanderThreatImpact(
+            intent: intent,
+            skillPreview: skillPreview,
+            targetName: targetName
+        )
+        var reasons = [
+            trait.passiveDetail,
+            skillPreview.summary
+        ]
+        if let intent {
+            reasons.append("\(intent.kind.displayName) · 威胁 \(intent.threatScore)")
+        }
+        if let pressure {
+            reasons.append("战线\(pressure.level.displayName)")
+        }
+        if let heat {
+            reasons.append("热区\(heat.threatLevel.displayName)")
+        }
+        reasons.append("编制\(formation.role.displayName) · 战备\(formation.readiness.displayName)")
+        if plan?.commanderUnitIDs.contains(unit.id) == true {
+            reasons.append("敌军计划将领节点")
+        }
+
+        let title = "\(generalName) \(trait.skillName)"
+        let summary = "\(level.displayName) · \(intent?.kind.displayName ?? "将领待机") · \(targetName)"
+        let detail = [
+            "\(unit.faction.displayName)\(unit.kind.displayName)",
+            "编制\(formation.role.displayName) / \(formation.readiness.displayName)",
+            impact,
+            "技能\(skillPreview.cooldownText)",
+            skillPreview.blockedReason.map { "阻塞：\($0)" }
+        ].compactMap { $0 }.joined(separator: " · ")
+
+        return EnemyCommanderThreatReport(
+            unitID: unit.id,
+            faction: unit.faction,
+            position: unit.position,
+            generalName: generalName,
+            generalTrait: trait,
+            threatLevel: level,
+            score: max(1, score),
+            intentKind: intent?.kind,
+            targetPosition: targetPosition,
+            targetUnitID: targetUnitID,
+            targetCityID: targetCityID,
+            destination: intent?.destination,
+            projectedDamage: projectedDamage,
+            projectedRecovery: skillPreview.projectedRecoveredHealth,
+            projectedFortificationReduction: skillPreview.projectedFortificationReduction,
+            affectedUnitIDs: skillPreview.affectedUnitIDs,
+            affectedCityIDs: skillPreview.affectedCityIDs,
+            rangePositions: skillPreview.rangePositions,
+            affectedPositions: skillPreview.affectedPositions,
+            skillReady: skillPreview.isExecutable,
+            skillSummary: skillPreview.summary,
+            skillBlockedReason: skillPreview.blockedReason,
+            pressureLevel: pressure?.level,
+            threatHeatLevel: heat?.threatLevel,
+            title: title,
+            summary: summary,
+            detail: detail,
+            reasons: reasons,
+            impact: impact
+        )
+    }
+
+    private func enemyCommanderTargetPosition(
+        intent: AIIntent?,
+        targetUnitID: String?,
+        targetCityID: String?,
+        skillPreview: GeneralSkillPreview,
+        fallback: Position
+    ) -> Position {
+        if let targetUnitID,
+           let targetUnit = unit(withID: targetUnitID) {
+            return targetUnit.position
+        }
+
+        if let targetCityID,
+           let targetCity = city(withID: targetCityID) {
+            return targetCity.position
+        }
+
+        return intent?.destination ?? skillPreview.affectedPositions.first ?? fallback
+    }
+
+    private func enemyCommanderPressure(
+        targetUnitID: String?,
+        targetCityID: String?,
+        targetPosition: Position,
+        in reports: [FrontlinePressureReport]
+    ) -> FrontlinePressureReport? {
+        if let targetUnitID,
+           let report = reports.first(where: { $0.targetKind == .unit && $0.targetID == targetUnitID }) {
+            return report
+        }
+
+        if let targetCityID,
+           let report = reports.first(where: { $0.targetKind == .city && $0.targetID == targetCityID }) {
+            return report
+        }
+
+        return reports.first { $0.targetPosition == targetPosition }
+    }
+
+    private func enemyCommanderPressurePriority(_ level: FrontlinePressureLevel?) -> Int {
+        switch level {
+        case .some(.critical): return 4
+        case .some(.threatened): return 3
+        case .some(.contested): return 2
+        case .some(.watch): return 1
+        case .none: return 0
+        }
+    }
+
+    private func enemyCommanderThreatLevel(
+        score: Int,
+        skillReady: Bool,
+        pressure: FrontlinePressureReport?,
+        heat: ThreatHeatZoneReport?
+    ) -> EnemyCommanderThreatLevel {
+        if pressure?.level == .critical ||
+            heat?.threatLevel == .critical ||
+            score >= 780 {
+            return .critical
+        }
+
+        if pressure?.level == .threatened ||
+            heat?.threatLevel == .danger ||
+            (skillReady && score >= 560) ||
+            score >= 640 {
+            return .severe
+        }
+
+        if skillReady ||
+            score >= 360 {
+            return .dangerous
+        }
+
+        return .watch
+    }
+
+    private func enemyCommanderThreatImpact(
+        intent: AIIntent?,
+        skillPreview: GeneralSkillPreview,
+        targetName: String
+    ) -> String {
+        if let damage = intent?.projectedDamage,
+           damage > 0 {
+            return "\(targetName) 预计伤害 \(damage)"
+        }
+
+        if skillPreview.projectedFortificationReduction > 0 {
+            return "\(targetName) 城防 -\(skillPreview.projectedFortificationReduction)"
+        }
+
+        if skillPreview.projectedRecoveredHealth > 0 {
+            return "敌军恢复 \(skillPreview.projectedRecoveredHealth)"
+        }
+
+        if let intent {
+            return "\(intent.kind.displayName) \(targetName)"
+        }
+
+        return skillPreview.summary
     }
 
     private func aiOperationalPlanKind(for intent: AIIntent) -> AIOperationalPlanKind {

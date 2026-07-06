@@ -13,7 +13,8 @@ struct RenderBattlePreview {
         viewModel.isShowingMenu = false
         viewModel.state.units = [
             ArmyUnit(id: "rome-legion-1", kind: .legion, faction: .rome, position: Position(x: 3, y: 3), health: 88, experience: 2, generalName: "凯撒", generalTrait: .eagleStandard),
-            ArmyUnit(id: "carthage-hunter", kind: .cavalry, faction: .carthage, position: Position(x: 7, y: 2))
+            ArmyUnit(id: "carthage-hunter", kind: .cavalry, faction: .carthage, position: Position(x: 7, y: 2)),
+            ArmyUnit(id: "carthage-commander", kind: .legion, faction: .carthage, position: Position(x: 9, y: 6), generalName: "汉尼拔", generalTrait: .siegeEngineer)
         ]
         for index in viewModel.state.cities.indices where viewModel.state.cities[index].owner != .rome {
             viewModel.state.cities[index].owner = .carthage
@@ -74,7 +75,7 @@ struct RenderBattlePreview {
         }
         guard let operationalPlan = viewModel.primaryAIOperationalPlanSummary,
               !viewModel.aiOperationalPlanSummaries.isEmpty,
-              operationalPlan.report.sourceUnitIDs.contains("carthage-hunter"),
+              viewModel.aiOperationalPlanSummaries.contains(where: { $0.report.sourceUnitIDs.contains("carthage-hunter") }),
               !operationalPlan.title.isEmpty,
               !operationalPlan.kindLabel.isEmpty,
               !operationalPlan.sourceLabel.isEmpty,
@@ -82,6 +83,21 @@ struct RenderBattlePreview {
               !operationalPlan.detail.isEmpty,
               !operationalPlan.accessibilityLabel.isEmpty else {
             throw PreviewRenderError.missingAIOperationalPlanSummary
+        }
+        guard let enemyCommanderThreat = viewModel.primaryEnemyCommanderThreatSummary,
+              !viewModel.enemyCommanderThreatSummaries.isEmpty,
+              viewModel.enemyCommanderThreatSummaries.contains(where: { $0.report.unitID == "carthage-commander" }),
+              viewModel.enemyCommanderThreatSummaries.contains(where: { $0.report.intentKind == .useSkill || !$0.report.skillSummary.isEmpty }),
+              !enemyCommanderThreat.title.isEmpty,
+              !enemyCommanderThreat.compactTitle.isEmpty,
+              !enemyCommanderThreat.commanderLabel.isEmpty,
+              !enemyCommanderThreat.traitLabel.isEmpty,
+              !enemyCommanderThreat.levelLabel.isEmpty,
+              !enemyCommanderThreat.intentLabel.isEmpty,
+              !enemyCommanderThreat.impactLabel.isEmpty,
+              !enemyCommanderThreat.statusLabel.isEmpty,
+              !enemyCommanderThreat.accessibilityLabel.isEmpty else {
+            throw PreviewRenderError.missingEnemyCommanderThreatSummary
         }
         guard let mapControl = viewModel.primaryMapControlSummary,
               !viewModel.mapControlSummaries.isEmpty,
@@ -421,6 +437,7 @@ enum PreviewRenderError: Error {
     case missingBattlefieldFocus
     case missingThreatHeatSummary
     case missingAIOperationalPlanSummary
+    case missingEnemyCommanderThreatSummary
     case missingMapControlSummary
     case missingCommanderBrief
     case missingLegionFormationSummary

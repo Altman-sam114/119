@@ -465,6 +465,17 @@ struct TacticalStatusStripView: View {
             )
         }
 
+        if let commanderThreat = viewModel.primaryEnemyCommanderThreatSummary {
+            TacticalChipView(
+                symbol: commanderThreat.trait.systemImage,
+                label: "敌将",
+                value: commanderThreat.compactTitle,
+                tint: commanderThreat.level.tintColor,
+                compact: compact,
+                accessibilityLabel: commanderThreat.accessibilityLabel
+            )
+        }
+
         if let pressure = viewModel.primaryFrontlinePressureSummary {
             TacticalChipView(
                 symbol: pressure.level.systemImage,
@@ -2286,6 +2297,7 @@ struct StrategicBalancePanelView: View {
             let maneuverSummaries = viewModel.selectedManeuverOptionSummaries
             let synergySummaries = viewModel.commanderSynergySummaries
             let planSummaries = viewModel.aiOperationalPlanSummaries
+            let commanderThreatSummaries = viewModel.enemyCommanderThreatSummaries
             let focusSummaries = viewModel.battlefieldFocusSummaries
             let heatSummaries = viewModel.threatHeatZoneSummaries
             let pressureSummaries = viewModel.frontlinePressureSummaries
@@ -2370,6 +2382,19 @@ struct StrategicBalancePanelView: View {
                     } else {
                         ForEach(planSummaries.prefix(2)) { summary in
                             AIOperationalPlanRowView(summary: summary)
+                        }
+                    }
+                }
+
+                VStack(alignment: .leading, spacing: 6) {
+                    if commanderThreatSummaries.isEmpty {
+                        Text("暂无敌方将领威胁。")
+                            .font(.caption)
+                            .foregroundStyle(.white.opacity(0.62))
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    } else {
+                        ForEach(commanderThreatSummaries.prefix(2)) { summary in
+                            EnemyCommanderThreatRowView(summary: summary)
                         }
                     }
                 }
@@ -2662,6 +2687,57 @@ struct AIOperationalPlanRowView: View {
                     .background(summary.kind.tintColor)
                     .clipShape(RoundedRectangle(cornerRadius: 5))
                 Text(summary.impactLabel)
+                    .font(.caption2.monospacedDigit().weight(.semibold))
+                    .foregroundStyle(.white.opacity(0.58))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.72)
+            }
+        }
+        .padding(.horizontal, 8)
+        .frame(minHeight: 46)
+        .background(.black.opacity(0.18))
+        .clipShape(RoundedRectangle(cornerRadius: 7))
+        .accessibilityLabel(summary.accessibilityLabel)
+    }
+}
+
+struct EnemyCommanderThreatRowView: View {
+    var summary: EnemyCommanderThreatSummary
+
+    var body: some View {
+        HStack(spacing: 8) {
+            ZStack {
+                RoundedRectangle(cornerRadius: 5)
+                    .fill(summary.level.tintColor.opacity(0.92))
+                    .frame(width: 28, height: 28)
+                Image(systemName: summary.trait.systemImage)
+                    .font(.caption.weight(.black))
+                    .foregroundStyle(.white)
+            }
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(summary.title)
+                    .font(.caption.weight(.heavy))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.72)
+                Text(summary.detail)
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(.white.opacity(0.62))
+                    .lineLimit(2)
+                    .minimumScaleFactor(0.70)
+            }
+
+            Spacer(minLength: 0)
+
+            VStack(alignment: .trailing, spacing: 3) {
+                Text(summary.levelLabel)
+                    .font(.caption2.weight(.black))
+                    .foregroundStyle(.black.opacity(0.78))
+                    .padding(.horizontal, 6)
+                    .frame(height: 20)
+                    .background(summary.level.tintColor)
+                    .clipShape(RoundedRectangle(cornerRadius: 5))
+                Text(summary.scoreLabel)
                     .font(.caption2.monospacedDigit().weight(.semibold))
                     .foregroundStyle(.white.opacity(0.58))
                     .lineLimit(1)
@@ -3447,6 +3523,10 @@ struct EnemyIntentPanelView: View {
                     AIOperationalPlanCardView(summary: plan)
                 }
 
+                if let commanderThreat = viewModel.primaryEnemyCommanderThreatSummary {
+                    EnemyCommanderThreatCardView(summary: commanderThreat)
+                }
+
                 if viewModel.enemyIntentSummaries.isEmpty {
                     Text("暂无明确敌军动向。")
                         .font(.caption)
@@ -3459,6 +3539,62 @@ struct EnemyIntentPanelView: View {
                 }
             }
         }
+    }
+}
+
+struct EnemyCommanderThreatCardView: View {
+    var summary: EnemyCommanderThreatSummary
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 7) {
+            HStack(spacing: 7) {
+                Image(systemName: summary.trait.systemImage)
+                    .foregroundStyle(summary.level.tintColor)
+                Text("敌将")
+                    .font(.caption2.weight(.bold))
+                    .foregroundStyle(.white.opacity(0.58))
+                Text(summary.title)
+                    .font(.caption.weight(.heavy))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.70)
+                Spacer(minLength: 0)
+                Text(summary.levelLabel)
+                    .font(.caption2.weight(.black))
+                    .foregroundStyle(.black.opacity(0.78))
+                    .padding(.horizontal, 6)
+                    .frame(height: 20)
+                    .background(summary.level.tintColor)
+                    .clipShape(RoundedRectangle(cornerRadius: 5))
+            }
+
+            Text(summary.impactLabel)
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(.white.opacity(0.72))
+                .lineLimit(2)
+                .minimumScaleFactor(0.72)
+
+            HStack(spacing: 6) {
+                Label(summary.targetLabel, systemImage: "scope")
+                Spacer(minLength: 0)
+                Label(summary.intentLabel, systemImage: "bolt.shield.fill")
+                Spacer(minLength: 0)
+                Label(summary.statusLabel, systemImage: "timer")
+            }
+            .font(.caption2.weight(.semibold))
+            .foregroundStyle(.white.opacity(0.66))
+            .lineLimit(1)
+            .minimumScaleFactor(0.70)
+
+            Text(summary.detail)
+                .font(.caption2)
+                .foregroundStyle(.white.opacity(0.54))
+                .lineLimit(2)
+                .minimumScaleFactor(0.70)
+        }
+        .padding(8)
+        .background(summary.level.tintColor.opacity(0.11))
+        .clipShape(RoundedRectangle(cornerRadius: 7))
+        .accessibilityLabel(summary.accessibilityLabel)
     }
 }
 
@@ -4780,6 +4916,26 @@ extension FrontlinePressureLevel {
         case .watch: return Color(red: 0.52, green: 0.70, blue: 0.86)
         case .contested: return Color(red: 0.86, green: 0.68, blue: 0.34)
         case .threatened: return Color(red: 0.92, green: 0.42, blue: 0.14)
+        case .critical: return Color(red: 0.84, green: 0.16, blue: 0.12)
+        }
+    }
+}
+
+extension EnemyCommanderThreatLevel {
+    var systemImage: String {
+        switch self {
+        case .watch: return "eye.fill"
+        case .dangerous: return "person.crop.circle.badge.exclamationmark"
+        case .severe: return "bolt.shield.fill"
+        case .critical: return "flame.fill"
+        }
+    }
+
+    var tintColor: Color {
+        switch self {
+        case .watch: return Color(red: 0.52, green: 0.70, blue: 0.86)
+        case .dangerous: return Color(red: 0.86, green: 0.68, blue: 0.34)
+        case .severe: return Color(red: 0.92, green: 0.42, blue: 0.14)
         case .critical: return Color(red: 0.84, green: 0.16, blue: 0.12)
         }
     }

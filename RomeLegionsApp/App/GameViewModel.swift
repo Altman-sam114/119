@@ -955,6 +955,116 @@ struct AIOperationalPlanSummary: Identifiable {
     }
 }
 
+struct EnemyCommanderThreatSummary: Identifiable {
+    var report: EnemyCommanderThreatReport
+    var commanderUnit: ArmyUnit?
+    var targetUnit: ArmyUnit?
+    var targetCity: City?
+    var affectedUnits: [ArmyUnit]
+    var affectedCities: [City]
+
+    var id: String { report.id }
+    var level: EnemyCommanderThreatLevel { report.threatLevel }
+    var trait: GeneralTrait { report.generalTrait }
+    var targetPosition: Position { report.targetPosition }
+
+    var title: String {
+        report.title
+    }
+
+    var compactTitle: String {
+        "\(level.displayName) \(impactLabel)"
+    }
+
+    var factionLabel: String {
+        report.faction.displayName
+    }
+
+    var commanderLabel: String {
+        report.generalName
+    }
+
+    var traitLabel: String {
+        trait.displayName
+    }
+
+    var skillName: String {
+        trait.skillName
+    }
+
+    var intentLabel: String {
+        report.intentKind?.displayName ?? "将领待机"
+    }
+
+    var levelLabel: String {
+        level.displayName
+    }
+
+    var targetLabel: String {
+        if let targetUnit {
+            return "\(targetUnit.faction.displayName)\(targetUnit.kind.displayName)"
+        }
+
+        if let targetCity {
+            return targetCity.name
+        }
+
+        if let city = affectedCities.first {
+            return city.name
+        }
+
+        return report.targetPosition.description
+    }
+
+    var rangeLabel: String {
+        report.rangePositions.isEmpty ? "无技能范围" : "范围 \(report.rangePositions.count) 格"
+    }
+
+    var impactLabel: String {
+        report.impact
+    }
+
+    var statusLabel: String {
+        report.skillReady ? "技能就绪" : (report.skillBlockedReason ?? "技能暂不可用")
+    }
+
+    var scoreLabel: String {
+        "威胁 \(report.score)"
+    }
+
+    var detail: String {
+        report.detail
+    }
+
+    var affectedLabel: String {
+        if !affectedUnits.isEmpty {
+            let labels = affectedUnits.prefix(2).map { "\($0.faction.displayName)\($0.kind.displayName)" }
+            return affectedUnits.count > 2 ? "\(labels.joined(separator: "、"))等 \(affectedUnits.count) 支" : labels.joined(separator: "、")
+        }
+
+        if !affectedCities.isEmpty {
+            let labels = affectedCities.prefix(2).map(\.name)
+            return affectedCities.count > 2 ? "\(labels.joined(separator: "、"))等 \(affectedCities.count) 城" : labels.joined(separator: "、")
+        }
+
+        return targetLabel
+    }
+
+    var accessibilityLabel: String {
+        [
+            "敌方将领\(commanderLabel)",
+            traitLabel,
+            "等级\(levelLabel)",
+            "意图\(intentLabel)",
+            "目标\(targetLabel)",
+            impactLabel,
+            statusLabel,
+            scoreLabel,
+            detail
+        ].joined(separator: "，")
+    }
+}
+
 struct FrontlinePressureSummary: Identifiable {
     var report: FrontlinePressureReport
     var targetUnit: ArmyUnit?
@@ -1537,6 +1647,15 @@ final class GameViewModel: ObservableObject {
         aiOperationalPlanSummaries.first
     }
 
+    var enemyCommanderThreatSummaries: [EnemyCommanderThreatSummary] {
+        state.enemyCommanderThreatReports(against: .rome, limit: 5)
+            .map(enemyCommanderThreatSummary(for:))
+    }
+
+    var primaryEnemyCommanderThreatSummary: EnemyCommanderThreatSummary? {
+        enemyCommanderThreatSummaries.first
+    }
+
     var mapControlSummaries: [MapControlSummary] {
         state.mapControlReports(for: .rome)
             .map(mapControlSummary(for:))
@@ -1959,6 +2078,17 @@ final class GameViewModel: ObservableObject {
             targetCity: report.targetCityID.flatMap { state.city(withID: $0) },
             sourceUnits: report.sourceUnitIDs.compactMap { state.unit(withID: $0) },
             commanderUnits: report.commanderUnitIDs.compactMap { state.unit(withID: $0) }
+        )
+    }
+
+    private func enemyCommanderThreatSummary(for report: EnemyCommanderThreatReport) -> EnemyCommanderThreatSummary {
+        EnemyCommanderThreatSummary(
+            report: report,
+            commanderUnit: state.unit(withID: report.unitID),
+            targetUnit: report.targetUnitID.flatMap { state.unit(withID: $0) },
+            targetCity: report.targetCityID.flatMap { state.city(withID: $0) },
+            affectedUnits: report.affectedUnitIDs.compactMap { state.unit(withID: $0) },
+            affectedCities: report.affectedCityIDs.compactMap { state.city(withID: $0) }
         )
     }
 

@@ -383,6 +383,28 @@ do {
     expect(commanderPlan?.steps.first?.skillSummary?.contains("恢复") == true, "AI operational plan should expose skill effect text")
     expect(enemyCommanderPlanState == enemyCommanderPlanBefore, "Enemy commander operational plan should not mutate state")
 
+    let enemyCommanderThreat = enemyCommanderPlanState.enemyCommanderThreatReports(against: .rome, limit: 5).first { $0.unitID == "carthage-quartermaster" }
+    expect(enemyCommanderThreat?.intentKind == .useSkill, "Enemy commander threat should reuse enemy forecast skill intent")
+    expect((enemyCommanderThreat?.projectedRecovery ?? 0) > 0, "Enemy commander threat should expose projected recovery")
+    expect(enemyCommanderThreat?.affectedUnitIDs.contains("carthage-wounded") == true, "Enemy commander threat should expose affected ally")
+    expect(enemyCommanderThreat?.skillReady == true, "Enemy commander threat should evaluate skill readiness from enemy forecast")
+    expect(!(enemyCommanderThreat?.detail ?? "").isEmpty, "Enemy commander threat should expose readable detail")
+    expect(enemyCommanderPlanState == enemyCommanderPlanBefore, "Enemy commander threat reports should not mutate state")
+
+    var enemySiegeThreatState = GameState.newCampaign()
+    enemySiegeThreatState.units = [
+        ArmyUnit(id: "rome-garrison", kind: .legion, faction: .rome, position: Position(x: 3, y: 4)),
+        ArmyUnit(id: "carthage-siege", kind: .legion, faction: .carthage, position: Position(x: 4, y: 3), generalName: "汉尼拔", generalTrait: .siegeEngineer)
+    ]
+    var enemySiegePreviewState = enemySiegeThreatState
+    enemySiegePreviewState.activeFaction = .carthage
+    let enemySiegePreview = try enemySiegePreviewState.generalSkillPreview(unitID: "carthage-siege")
+    let enemySiegeThreat = enemySiegeThreatState.enemyCommanderThreatReports(against: .rome, limit: 5).first { $0.unitID == "carthage-siege" }
+    expect(enemySiegeThreat?.targetCityID == "rome", "Enemy siege threat should expose the threatened Roman city")
+    expect(enemySiegeThreat?.affectedCityIDs == enemySiegePreview.affectedCityIDs, "Enemy siege threat should reuse siege preview targets")
+    expect(enemySiegeThreat?.projectedFortificationReduction == enemySiegePreview.projectedFortificationReduction, "Enemy siege threat should reuse projected fortification reduction")
+    expect(enemySiegeThreat?.skillSummary == enemySiegePreview.summary, "Enemy siege threat should reuse siege skill summary")
+
     var siegeSkillState = GameState.newCampaign()
     siegeSkillState.units = [
         ArmyUnit(id: "test-siege", kind: .legion, faction: .rome, position: Position(x: 7, y: 2), generalName: "苏拉", generalTrait: .siegeEngineer)
