@@ -50,7 +50,10 @@
 
 验证结果：
 
-- 待 Agent B 提交并 push 到 `origin/main` 后由 GitHub Actions 和 Agent C artifact 复判确认；本地不运行测试、build、typecheck、RenderBattlePreview、`Tools/verify_project.mjs`、`git diff --check`、YAML/JSON/Plist 解析或脚本语法检查。
+- 按人工最新要求，本轮未运行任何本地测试、build、typecheck、RenderBattlePreview、`Tools/verify_project.mjs`、YAML/JSON/Plist 解析或脚本语法检查。说明：暂存前曾误执行一次空暂存区的 `git diff --check --cached`，没有检查本轮工作区 diff，也未作为验收依据；本轮正式验收只采用云端结果包。
+- 实现提交 `296866def4df472686e8cf7506c92d3ea0e5756f` 已 push 到 `origin/main`，GitHub Actions run `28790625708` attempt `1` 通过，artifact 为 `RomeLegions-ci-v0.38-main-296866d-run28790625708-attempt1`。
+- Agent C 复判已核对 manifest `version=v0.38`、`branch=main`、`commitSha=296866def4df472686e8cf7506c92d3ea0e5756f`、`runId=28790625708`、`runAttempt=1`，JUnit `failures=0`，static checks、Swift Testing、Gameplay Smoke、RenderBattlePreview 和 Xcode build 均为 success。
+- Swift Testing 日志显示 88 tests 通过，Gameplay Smoke 输出 `Gameplay smoke test passed.`，RenderBattlePreview 产出 6 张非空 PNG 且未出现 `missingGeneralSkillTargetReadout`、`missingCommanderActionGuidance`、`missingBattleObjectiveStageLinkedHighlight`、`missingBattleObjectiveStageCommandPreview`、`missingBattleObjectiveStageFocus`、`missingBattleObjectiveMapOverlay`、`missingBattleObjectiveChainSummary`、`missingMapOverlayLegend` 或 `missingCountermeasure...`，Xcode build 日志以 `** BUILD SUCCEEDED **` 结束。
 
 遗留事项：
 
