@@ -2503,6 +2503,61 @@ struct SelectedUnitSituationSignal: Identifiable {
     }
 }
 
+enum SelectedUnitSituationCommandEntryKind: String {
+    case countermeasure
+    case objectiveStage
+    case commanderAction
+    case maneuver
+    case recommendation
+    case tacticalOrder
+
+    var displayName: String {
+        switch self {
+        case .countermeasure:
+            return "反制"
+        case .objectiveStage:
+            return "目标线"
+        case .commanderAction:
+            return "将领"
+        case .maneuver:
+            return "机动"
+        case .recommendation:
+            return "军议"
+        case .tacticalOrder:
+            return "姿态"
+        }
+    }
+}
+
+struct SelectedUnitSituationCommandEntry: Identifiable {
+    var kind: SelectedUnitSituationCommandEntryKind
+    var title: String
+    var detail: String
+    var cueLabel: String
+    var position: Position?
+    var sourceID: String?
+    var isPrimary: Bool
+
+    var id: String {
+        [
+            kind.rawValue,
+            sourceID,
+            position?.description,
+            title
+        ].compactMap { $0 }.joined(separator: "-")
+    }
+
+    var accessibilityLabel: String {
+        [
+            kind.displayName,
+            title,
+            cueLabel,
+            detail,
+            position.map { "坐标 \($0.description)" }
+        ].compactMap { $0 }.joined(separator: "，")
+    }
+}
+
 struct SelectedUnitSituationReadout {
     var unitID: String
     var position: Position
@@ -2514,6 +2569,7 @@ struct SelectedUnitSituationReadout {
     var nextStepLabel: String
     var riskLabel: String
     var signals: [SelectedUnitSituationSignal]
+    var commandEntries: [SelectedUnitSituationCommandEntry]
     var pressureID: String?
     var threatHeatID: String?
     var mapControlID: String?
@@ -2521,9 +2577,26 @@ struct SelectedUnitSituationReadout {
     var recommendationID: String?
     var maneuverID: String?
     var synergyID: String?
+    var countermeasurePreviewID: String?
+    var battleObjectiveStagePreviewID: String?
+    var commanderActionID: String?
+    var tacticalOrderID: String?
+
+    var primaryCommandEntry: SelectedUnitSituationCommandEntry? {
+        commandEntries.first { $0.isPrimary } ?? commandEntries.first
+    }
+
+    var primaryCommandEntryLabel: String {
+        primaryCommandEntry?.cueLabel ?? nextStepLabel
+    }
+
+    var commandEntrySummaryLabel: String {
+        guard let primaryCommandEntry else { return nextStepLabel }
+        return "\(primaryCommandEntry.kind.displayName) · \(primaryCommandEntry.cueLabel)"
+    }
 
     var compactLabel: String {
-        "\(statusLabel) · \(nextStepLabel)"
+        "\(statusLabel) · \(primaryCommandEntryLabel)"
     }
 
     var accessibilityLabel: String {
@@ -2535,6 +2608,7 @@ struct SelectedUnitSituationReadout {
             "空间 \(spaceLabel)",
             "机会 \(opportunityLabel)",
             "下一步 \(nextStepLabel)",
+            "入口 \(commandEntrySummaryLabel)",
             "风险 \(riskLabel)"
         ].joined(separator: "，")
     }
@@ -2565,6 +2639,25 @@ struct SelectedUnitSituationReadout {
 
     func references(synergy candidate: CommanderSynergySummary) -> Bool {
         synergyID == candidate.id
+    }
+
+    func references(countermeasurePreview candidate: CountermeasureCommandPreview) -> Bool {
+        countermeasurePreviewID == candidate.id ||
+            commandEntries.contains { $0.kind == .countermeasure && $0.sourceID == candidate.id }
+    }
+
+    func references(stagePreview candidate: BattleObjectiveStageCommandPreview) -> Bool {
+        battleObjectiveStagePreviewID == candidate.id ||
+            commandEntries.contains { $0.kind == .objectiveStage && $0.sourceID == candidate.id }
+    }
+
+    func references(commandEntryKind kind: SelectedUnitSituationCommandEntryKind, sourceID: String?) -> Bool {
+        commandEntries.contains { $0.kind == kind && $0.sourceID == sourceID }
+    }
+
+    func references(recommendedOrder order: TacticalOrder) -> Bool {
+        tacticalOrderID == order.rawValue ||
+            commandEntries.contains { $0.kind == .tacticalOrder && $0.sourceID == order.rawValue }
     }
 }
 
@@ -3319,6 +3412,120 @@ final class GameViewModel: ObservableObject {
         frontlinePressureSummaries.first
     }
 
+    private func selectedUnitSituationCommandEntries(
+        for selectedUnit: ArmyUnit,
+        countermeasurePreview: CountermeasureCommandPreview?,
+        stagePreview: BattleObjectiveStageCommandPreview?,
+        commanderGuidance: CommanderActionGuidance?,
+        maneuver: ManeuverOptionSummary?,
+        recommendation: TacticalRecommendationSummary?,
+        tacticalOrderPreviews: [SelectedTacticalOrderPreview]
+    ) -> [SelectedUnitSituationCommandEntry] {
+        var entries: [SelectedUnitSituationCommandEntry] = []
+
+        func append(
+            kind: SelectedUnitSituationCommandEntryKind,
+            title: String,
+            detail: String,
+            cueLabel: String,
+            position: Position?,
+            sourceID: String?
+        ) {
+            entries.append(
+                SelectedUnitSituationCommandEntry(
+                    kind: kind,
+                    title: title,
+                    detail: detail,
+                    cueLabel: cueLabel,
+                    position: position,
+                    sourceID: sourceID,
+                    isPrimary: entries.isEmpty
+                )
+            )
+        }
+
+        if let countermeasurePreview {
+            append(
+                kind: .countermeasure,
+                title: countermeasurePreview.title,
+                detail: "\(countermeasurePreview.statusLabel) · \(countermeasurePreview.nextStepLabel)",
+                cueLabel: "\(countermeasurePreview.summary.kindLabel) · \(countermeasurePreview.nextStepLabel)",
+                position: countermeasurePreview.destination,
+                sourceID: countermeasurePreview.id
+            )
+        }
+
+        if let stagePreview {
+            append(
+                kind: .objectiveStage,
+                title: stagePreview.title,
+                detail: "\(stagePreview.statusLabel) · \(stagePreview.nextStepLabel)",
+                cueLabel: stagePreview.commandEntryCueLabel,
+                position: stagePreview.position,
+                sourceID: stagePreview.id
+            )
+        }
+
+        if let commanderGuidance {
+            append(
+                kind: .commanderAction,
+                title: commanderGuidance.title,
+                detail: "\(commanderGuidance.statusLabel) · \(commanderGuidance.skillCueLabel)",
+                cueLabel: commanderGuidance.stageCueLabel ?? commanderGuidance.skillCueLabel,
+                position: stagePreview?.position ?? selectedUnit.position,
+                sourceID: "\(selectedUnit.id)-commander-action"
+            )
+        }
+
+        if let maneuver {
+            append(
+                kind: .maneuver,
+                title: "机动入口",
+                detail: "\(maneuver.destinationLabel) · \(maneuver.impactLabel)",
+                cueLabel: "\(maneuver.kindLabel) · \(maneuver.destinationLabel)",
+                position: maneuver.destination,
+                sourceID: maneuver.id
+            )
+        }
+
+        if let recommendation {
+            append(
+                kind: .recommendation,
+                title: "军议入口",
+                detail: "\(recommendation.kindLabel) · \(recommendation.riskLabel)",
+                cueLabel: recommendation.report.command,
+                position: recommendation.destination,
+                sourceID: recommendation.id
+            )
+        }
+
+        if let orderPreview = tacticalOrderPreviews.first(where: { !$0.isCurrent && $0.canSwitch }) ??
+            tacticalOrderPreviews.first(where: { $0.isCurrent }) {
+            let statusLabel = orderPreview.isCurrent ? "当前姿态" : (orderPreview.blockedReason ?? "可切换")
+            append(
+                kind: .tacticalOrder,
+                title: "姿态入口",
+                detail: "\(orderPreview.order.displayName) · \(statusLabel)",
+                cueLabel: orderPreview.isCurrent ? "保持\(orderPreview.order.displayName)" : "切换\(orderPreview.order.displayName)",
+                position: selectedUnit.position,
+                sourceID: orderPreview.order.rawValue
+            )
+        }
+
+        if entries.isEmpty {
+            append(
+                kind: .tacticalOrder,
+                title: "姿态入口",
+                detail: "保持\(selectedUnit.resolvedTacticalOrder.displayName)",
+                cueLabel: "保持\(selectedUnit.resolvedTacticalOrder.displayName)",
+                position: selectedUnit.position,
+                sourceID: selectedUnit.resolvedTacticalOrder.rawValue
+            )
+        }
+
+        return entries
+    }
+
     var selectedUnitSituationReadout: SelectedUnitSituationReadout? {
         guard let selectedUnit else { return nil }
 
@@ -3336,6 +3543,18 @@ final class GameViewModel: ObservableObject {
         let recommendation = selectedTacticalRecommendationSummary
         let maneuver = primaryManeuverOptionSummary
         let synergy = selectedCommanderSynergySummary
+        let countermeasurePreview = selectedCountermeasureCommandPreview
+        let stagePreview = selectedBattleObjectiveStageCommandPreview
+        let commanderGuidance = selectedCommanderActionGuidance
+        let commandEntries = selectedUnitSituationCommandEntries(
+            for: selectedUnit,
+            countermeasurePreview: countermeasurePreview,
+            stagePreview: stagePreview,
+            commanderGuidance: commanderGuidance,
+            maneuver: maneuver,
+            recommendation: recommendation,
+            tacticalOrderPreviews: selectedTacticalOrderPreviews
+        )
         var signals: [SelectedUnitSituationSignal] = []
 
         if let pressure {
@@ -3484,13 +3703,18 @@ final class GameViewModel: ObservableObject {
             nextStepLabel: nextStepLabel,
             riskLabel: riskLabel,
             signals: signals,
+            commandEntries: commandEntries,
             pressureID: pressure?.id,
             threatHeatID: threatHeat?.id,
             mapControlID: mapControl?.id,
             formationID: formation?.id,
             recommendationID: recommendation?.id,
             maneuverID: maneuver?.id,
-            synergyID: synergy?.id
+            synergyID: synergy?.id,
+            countermeasurePreviewID: countermeasurePreview?.id,
+            battleObjectiveStagePreviewID: stagePreview?.id,
+            commanderActionID: commanderGuidance.map { _ in "\(selectedUnit.id)-commander-action" },
+            tacticalOrderID: commandEntries.first { $0.kind == .tacticalOrder }?.sourceID
         )
     }
 

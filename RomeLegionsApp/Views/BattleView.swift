@@ -3922,6 +3922,25 @@ struct SelectedUnitSituationReadoutView: View {
         return Color(red: 0.40, green: 0.78, blue: 0.70)
     }
 
+    private var commandEntrySymbol: String {
+        switch readout.primaryCommandEntry?.kind {
+        case .some(.countermeasure):
+            return "shield.lefthalf.filled"
+        case .some(.objectiveStage):
+            return "point.topleft.down.curvedto.point.bottomright.up.fill"
+        case .some(.commanderAction):
+            return "sparkles"
+        case .some(.maneuver):
+            return "arrow.up.right.circle.fill"
+        case .some(.recommendation):
+            return "lightbulb.fill"
+        case .some(.tacticalOrder):
+            return "flag.checkered"
+        case nil:
+            return "rectangle.and.hand.point.up.left.fill"
+        }
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: isCompact ? 5 : 7) {
             HStack(spacing: 7) {
@@ -3947,11 +3966,28 @@ struct SelectedUnitSituationReadoutView: View {
             }
 
             if isCompact {
-                Text(readout.nextStepLabel)
-                    .font(.caption2.weight(.semibold))
-                    .foregroundStyle(.white.opacity(0.68))
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.66)
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(readout.nextStepLabel)
+                        .font(.caption2.weight(.semibold))
+                        .foregroundStyle(.white.opacity(0.68))
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.66)
+                    HStack(spacing: 5) {
+                        Image(systemName: commandEntrySymbol)
+                            .font(.caption2.weight(.heavy))
+                            .foregroundStyle(tint)
+                            .frame(width: 13)
+                        Text("入口")
+                            .font(.caption2.weight(.bold))
+                            .foregroundStyle(.white.opacity(0.58))
+                        Text(readout.commandEntrySummaryLabel)
+                            .font(.caption2.weight(.semibold))
+                            .foregroundStyle(.white.opacity(0.72))
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.62)
+                        Spacer(minLength: 0)
+                    }
+                }
             } else {
                 SelectedUnitSituationLabelRow(
                     symbol: "flame.fill",
@@ -3966,15 +4002,15 @@ struct SelectedUnitSituationReadoutView: View {
                     tint: Color(red: 0.46, green: 0.72, blue: 0.96)
                 )
                 SelectedUnitSituationLabelRow(
-                    symbol: "arrow.forward.circle.fill",
-                    title: "下一步",
-                    value: readout.nextStepLabel,
+                    symbol: commandEntrySymbol,
+                    title: "入口",
+                    value: readout.commandEntrySummaryLabel,
                     tint: Color(red: 0.88, green: 0.68, blue: 0.26)
                 )
             }
         }
         .padding(8)
-        .frame(maxWidth: .infinity, minHeight: isCompact ? 48 : 104, alignment: .leading)
+        .frame(maxWidth: .infinity, minHeight: isCompact ? 60 : 104, alignment: .leading)
         .background(tint.opacity(0.11))
         .overlay {
             RoundedRectangle(cornerRadius: 7)

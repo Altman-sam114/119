@@ -96,6 +96,9 @@ struct RenderBattlePreview {
         let recommendationForSituation = viewModel.selectedTacticalRecommendationSummary
         let maneuverForSituation = viewModel.primaryManeuverOptionSummary
         let synergyForSituation = viewModel.selectedCommanderSynergySummary
+        let countermeasurePreviewForSituation = viewModel.selectedCountermeasureCommandPreview
+        let stagePreviewForSituation = viewModel.selectedBattleObjectiveStageCommandPreview
+        let commanderGuidanceForSituation = viewModel.selectedCommanderActionGuidance
         guard let selectedSituation = viewModel.selectedUnitSituationReadout,
               selectedSituation.unitID == "rome-legion-1",
               selectedSituation.position == Position(x: 3, y: 3),
@@ -109,12 +112,24 @@ struct RenderBattlePreview {
               !selectedSituation.nextStepLabel.isEmpty,
               !selectedSituation.riskLabel.isEmpty,
               !selectedSituation.accessibilityLabel.isEmpty,
+              selectedSituation.accessibilityLabel.contains("入口"),
               !selectedSituation.signals.isEmpty,
+              !selectedSituation.commandEntries.isEmpty,
+              selectedSituation.primaryCommandEntry != nil,
+              !selectedSituation.primaryCommandEntryLabel.isEmpty,
+              !selectedSituation.commandEntrySummaryLabel.isEmpty,
               selectedSituation.signals.allSatisfy({ signal in
                   !signal.title.isEmpty &&
                       !signal.detail.isEmpty &&
                       !signal.accessibilityLabel.isEmpty &&
                       (signal.position != nil || signal.sourceID != nil)
+              }),
+              selectedSituation.commandEntries.allSatisfy({ entry in
+                  !entry.title.isEmpty &&
+                      !entry.detail.isEmpty &&
+                      !entry.cueLabel.isEmpty &&
+                      !entry.accessibilityLabel.isEmpty &&
+                      (entry.position != nil || entry.sourceID != nil)
               }),
               selectedSituation.signals.contains(where: { $0.kind == .pressure && $0.sourceID == frontlinePressure.id }),
               selectedSituation.signals.contains(where: { $0.kind == .threatHeat && $0.sourceID == threatHeat.id }) else {
@@ -149,6 +164,36 @@ struct RenderBattlePreview {
                   selectedSituation.signals.contains(where: { $0.kind == .synergy && $0.sourceID == synergyForSituation.id }) else {
                 throw PreviewRenderError.missingSelectedUnitSituationReadout
             }
+        }
+        if let countermeasurePreviewForSituation,
+           countermeasurePreviewForSituation.summary.report.responseUnitID == selectedSituation.unitID {
+            guard selectedSituation.references(countermeasurePreview: countermeasurePreviewForSituation),
+                  selectedSituation.commandEntries.contains(where: {
+                      $0.kind == .countermeasure &&
+                          $0.sourceID == countermeasurePreviewForSituation.id
+                  }) else {
+                throw PreviewRenderError.missingSelectedUnitSituationReadout
+            }
+        }
+        if let stagePreviewForSituation,
+           stagePreviewForSituation.commandUnit?.id == selectedSituation.unitID {
+            guard selectedSituation.references(stagePreview: stagePreviewForSituation),
+                  selectedSituation.commandEntries.contains(where: {
+                      $0.kind == .objectiveStage &&
+                          $0.sourceID == stagePreviewForSituation.id
+                  }) else {
+                throw PreviewRenderError.missingSelectedUnitSituationReadout
+            }
+        }
+        if commanderGuidanceForSituation != nil {
+            guard let commanderActionID = selectedSituation.commanderActionID,
+                  selectedSituation.references(commandEntryKind: .commanderAction, sourceID: commanderActionID) else {
+                throw PreviewRenderError.missingSelectedUnitSituationReadout
+            }
+        }
+        guard selectedSituation.commandEntries.contains(where: { $0.kind == .tacticalOrder }),
+              selectedSituation.tacticalOrderID != nil else {
+            throw PreviewRenderError.missingSelectedUnitSituationReadout
         }
         let unitStateAfterSituationRead = viewModel.state.units
             .sorted(by: { $0.id < $1.id })

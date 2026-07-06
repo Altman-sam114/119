@@ -38,7 +38,7 @@
 - 战场焦点与将领机会读板：核心层综合战线压力、战术建议、军团编制和将领技能状态，提示救线、打击、补线、推进、整编或将领技能机会
 - 战场目标链路、地图叠层、阶段聚焦、命令预览与联动高亮：ViewModel 只读组合战场焦点、将领协同、机动落点和本方军议，战场面板用“1 焦点、2 将令、3 机动、4 军议”串联当前目标线，地图用阶段标记和金色连线展示同一空间关系，目标线卡片可定位各阶段并说明对应既有命令入口、当前状态和下一步；地图阶段徽标、目标线阶段按钮、姿态推荐、攻击按钮和将领技能入口会读取同一阶段 cue 做联动提示，但不自动执行命令
 - 战场态势交汇链路：ViewModel 只读聚合当前目标线、反制建议、反制指令预览、活动目标线阶段、将领协同、机动落点、威胁热区和地图控区，战场面板与战局顶部用一张短读板说明主线、回应、空间压力和下一步，不新增命令队列或自动执行
-- 选中军团处境读板：ViewModel 只读聚合当前选中军团的战线压力、威胁热区、脚下控区、编制、军议、机动和将令信号，情报面板用小卡说明压力、机会和下一步，不新增命令队列、评分或自动执行
+- 选中军团处境命令入口读板：ViewModel 只读聚合当前选中军团的战线压力、威胁热区、脚下控区、编制、军议、机动、将令信号，并连接既有反制、目标线、将领技能、机动、军议和姿态入口；情报面板用小卡说明压力、机会和入口，不新增命令队列、评分或自动执行
 - 地图控制与威胁热区读板：核心层只读派生每格友军/敌军影响、控制状态和威胁热度，地图低透明叠层、顶部热区 chip、战场卡和战局行均可读
 - 主动地图叠层图例：战斗地图底部按当前可见叠层解释敌军路线/目标、热区、控区、军议路径、机动落点、战场目标线、反制落点/目标、可移动/可攻击和技能范围，同时保留阵营色说明
 - Codex 后续协作规范：`AGENTS.md`、`update_log.md`、`md/test/test.md`、`md/flow/flow.md`、`md/flow/flowchart.md` 和 `md/prompt/` 组成长期多 Agent 迭代文档系统，支持未来用 `agentx:` 主控调度 A/B/C 多轮循环
@@ -92,7 +92,7 @@ swiftc -swift-version 5 -module-cache-path .build/module-cache Sources/RomeLegio
 node Tools/verify_project.mjs
 ```
 
-战斗页三尺寸预览图；渲染前会断言敌军意图 ViewModel 叠层包含移动后攻击六边形邻接路径、目标格和预计伤害文案，并断言主动地图叠层图例、AI 作战计划读板、敌方将领威胁读板、敌情反制建议读板、反制落点/目标地图 overlay、反制指令聚焦与焦点链路、战线压力读板、战场焦点摘要、战场目标链路、战场态势交汇链路、选中军团处境读板、目标线地图 overlay、阶段聚焦、阶段命令预览与联动高亮 cue、将令技能入口链路、将领技能目标与收益读板、地图控制摘要、威胁热区摘要、选中单位的军团编制摘要、军团成长决策摘要、军团成长优先级摘要、本方将领协同摘要、机动落点摘要/地图 overlay、战术建议摘要/路径/目标、将领详情、被动贡献、战功摘要、战术姿态预览和城市经营/招募读板存在。每个命令会写出请求的城市场景 PNG，并额外写出同尺寸 `*-unit.png` 单位场景 PNG：
+战斗页三尺寸预览图；渲染前会断言敌军意图 ViewModel 叠层包含移动后攻击六边形邻接路径、目标格和预计伤害文案，并断言主动地图叠层图例、AI 作战计划读板、敌方将领威胁读板、敌情反制建议读板、反制落点/目标地图 overlay、反制指令聚焦与焦点链路、战线压力读板、战场焦点摘要、战场目标链路、战场态势交汇链路、选中军团处境命令入口读板、目标线地图 overlay、阶段聚焦、阶段命令预览与联动高亮 cue、将令技能入口链路、将领技能目标与收益读板、地图控制摘要、威胁热区摘要、选中单位的军团编制摘要、军团成长决策摘要、军团成长优先级摘要、本方将领协同摘要、机动落点摘要/地图 overlay、战术建议摘要/路径/目标、将领详情、被动贡献、战功摘要、战术姿态预览和城市经营/招募读板存在。每个命令会写出请求的城市场景 PNG，并额外写出同尺寸 `*-unit.png` 单位场景 PNG：
 
 ```sh
 env HOME=$PWD/.home CLANG_MODULE_CACHE_PATH=$PWD/.build/module-cache /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/swiftc -parse-as-library -sdk /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX26.5.sdk -target arm64-apple-macosx14.0 -o .build/render-battle-preview Tools/RenderBattlePreview/main.swift Sources/RomeLegionsCore/GameState.swift RomeLegionsApp/App/GameViewModel.swift RomeLegionsApp/Views/BattleView.swift
