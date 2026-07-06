@@ -335,6 +335,18 @@ enum CountermeasureMapRole: String, Identifiable {
         case .target: return "目标"
         }
     }
+
+    var stageNumber: Int {
+        switch self {
+        case .response: return 1
+        case .destination: return 2
+        case .target: return 3
+        }
+    }
+
+    var stageLabel: String {
+        "\(stageNumber) \(displayName)"
+    }
 }
 
 struct CountermeasurePositionOverlay: Identifiable {
@@ -346,8 +358,27 @@ struct CountermeasurePositionOverlay: Identifiable {
         "\(summary.id)-\(role.rawValue)-\(position.x)-\(position.y)"
     }
 
+    var stageLabel: String {
+        role.stageLabel
+    }
+
+    var focusLabel: String {
+        switch role {
+        case .response:
+            return "\(stageLabel) \(summary.unitLabel)"
+        case .destination:
+            return "\(stageLabel) \(position.description)"
+        case .target:
+            return "\(stageLabel) \(summary.targetLabel)"
+        }
+    }
+
+    var chainLabel: String {
+        summary.countermeasureChainLabel
+    }
+
     var accessibilityLabel: String {
-        "反制\(role.displayName)\(position.description)，\(summary.kindLabel)，\(summary.responseLabel)，目标\(summary.targetLabel)"
+        "\(stageLabel)反制\(role.displayName)\(position.description)，\(summary.kindLabel)，\(chainLabel)"
     }
 }
 
@@ -370,8 +401,12 @@ struct CountermeasureMapOverlay: Identifiable {
         ]
     }
 
+    var chainLabel: String {
+        summary.countermeasureChainLabel
+    }
+
     var accessibilityLabel: String {
-        "反制路线，\(summary.responseLabel)，落点\(destination.description)，目标\(summary.targetLabel)"
+        "反制路线，\(chainLabel)"
     }
 }
 
@@ -533,12 +568,26 @@ struct CountermeasureCommandPreview: Identifiable {
         return "反制目标需占位确认"
     }
 
+    var chainSummaryLabel: String {
+        summary.countermeasureChainLabel
+    }
+
+    var targetStageCueLabel: String {
+        "\(CountermeasureMapRole.target.stageLabel) · \(attackCueLabel)"
+    }
+
     func isRecommendedOrder(_ order: TacticalOrder) -> Bool {
         recommendedOrder == order
     }
 
     func isAttackTarget(_ unit: ArmyUnit) -> Bool {
         targetUnit?.id == unit.id
+    }
+
+    func isMapOverlayTarget(_ overlay: CountermeasurePositionOverlay) -> Bool {
+        overlay.summary.id == summary.id &&
+            overlay.role == .target &&
+            overlay.position == targetPosition
     }
 
     var buttonTitle: String {
@@ -558,6 +607,7 @@ struct CountermeasureCommandPreview: Identifiable {
             title,
             statusLabel,
             orderLabel,
+            chainSummaryLabel,
             destinationLabel,
             "目标\(targetLabel)",
             commandChainLabel,
@@ -1406,6 +1456,10 @@ struct CountermeasureSummary: Identifiable {
         report.command
     }
 
+    var countermeasureChainLabel: String {
+        "\(CountermeasureMapRole.response.stageLabel) \(unitLabel) → \(CountermeasureMapRole.destination.stageLabel) \(destination.description) → \(CountermeasureMapRole.target.stageLabel) \(targetLabel)"
+    }
+
     var detail: String {
         report.detail
     }
@@ -1420,6 +1474,7 @@ struct CountermeasureSummary: Identifiable {
             "优先级\(priorityLabel)",
             "威胁\(threatLabel)",
             "回应\(responseLabel)",
+            countermeasureChainLabel,
             "目标\(targetLabel)",
             impactLabel,
             "风险\(riskLabel)",

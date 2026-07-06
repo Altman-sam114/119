@@ -119,16 +119,44 @@ struct RenderBattlePreview {
         }
         guard let countermeasureOverlay = viewModel.primaryCountermeasureMapOverlay,
               !countermeasureOverlay.routeSegments.isEmpty,
+              !countermeasureOverlay.chainLabel.isEmpty,
+              !countermeasureOverlay.accessibilityLabel.isEmpty,
               !viewModel.countermeasureRouteSegments.isEmpty,
               !viewModel.countermeasureOverlaysByPosition.isEmpty,
               !viewModel.countermeasureOverlayPositions.isEmpty,
               countermeasureOverlay.id == countermeasure.id,
               countermeasureOverlay.destination == countermeasure.destination,
               countermeasureOverlay.targetPosition == countermeasure.targetPosition,
+              viewModel.countermeasureOverlayPositions.contains(countermeasure.responsePosition),
               viewModel.countermeasureOverlayPositions.contains(countermeasure.destination),
               viewModel.countermeasureOverlayPositions.contains(countermeasure.targetPosition),
+              viewModel.countermeasureOverlaysByPosition[countermeasure.responsePosition] != nil,
               viewModel.countermeasureOverlaysByPosition[countermeasure.destination] != nil,
               viewModel.countermeasureOverlaysByPosition[countermeasure.targetPosition] != nil,
+              countermeasureOverlay.positionOverlays.contains(where: { overlay in
+                  overlay.role == .response &&
+                      overlay.position == countermeasure.responsePosition &&
+                      !overlay.stageLabel.isEmpty &&
+                      !overlay.focusLabel.isEmpty &&
+                      !overlay.chainLabel.isEmpty &&
+                      !overlay.accessibilityLabel.isEmpty
+              }),
+              countermeasureOverlay.positionOverlays.contains(where: { overlay in
+                  overlay.role == .destination &&
+                      overlay.position == countermeasure.destination &&
+                      !overlay.stageLabel.isEmpty &&
+                      !overlay.focusLabel.isEmpty &&
+                      !overlay.chainLabel.isEmpty &&
+                      !overlay.accessibilityLabel.isEmpty
+              }),
+              countermeasureOverlay.positionOverlays.contains(where: { overlay in
+                  overlay.role == .target &&
+                      overlay.position == countermeasure.targetPosition &&
+                      !overlay.stageLabel.isEmpty &&
+                      !overlay.focusLabel.isEmpty &&
+                      !overlay.chainLabel.isEmpty &&
+                      !overlay.accessibilityLabel.isEmpty
+              }),
               countermeasureOverlay.routeSegments.contains(where: { segment in
                   segment.from == countermeasure.responsePosition ||
                       segment.to == countermeasure.destination ||
@@ -147,9 +175,11 @@ struct RenderBattlePreview {
               !countermeasureCommandPreview.targetLabel.isEmpty,
               !countermeasureCommandPreview.nextStepLabel.isEmpty,
               !countermeasureCommandPreview.commandChainLabel.isEmpty,
+              !countermeasureCommandPreview.chainSummaryLabel.isEmpty,
               !countermeasureCommandPreview.recommendedOrderCueLabel.isEmpty,
               !countermeasureCommandPreview.movementCueLabel.isEmpty,
               !countermeasureCommandPreview.attackCueLabel.isEmpty,
+              !countermeasureCommandPreview.targetStageCueLabel.isEmpty,
               !countermeasureCommandPreview.buttonTitle.isEmpty,
               !countermeasureCommandPreview.buttonDetail.isEmpty,
               !countermeasureCommandPreview.accessibilityLabel.isEmpty,
@@ -176,6 +206,8 @@ struct RenderBattlePreview {
         }
         if countermeasureCommandPreview.canAttackCurrentTarget {
             guard let targetUnit = countermeasureCommandPreview.targetUnit,
+                  let targetOverlay = viewModel.countermeasureOverlaysByPosition[countermeasureCommandPreview.targetPosition],
+                  countermeasureCommandPreview.isMapOverlayTarget(targetOverlay),
                   viewModel.attackTargets.contains(where: { countermeasureCommandPreview.isAttackTarget($0) && $0.id == targetUnit.id }) else {
                 throw PreviewRenderError.missingCountermeasureCommandPreview
             }

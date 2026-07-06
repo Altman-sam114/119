@@ -727,7 +727,9 @@ struct HexTileView: View {
                 TacticalRecommendationPathOverlay(scale: scale)
             }
 
-            if let countermeasureOverlay, !isAttackTarget && !isSkillTarget {
+            if let countermeasureOverlay,
+               !isAttackTarget,
+               !isSkillTarget {
                 CountermeasureTileOverlay(overlay: countermeasureOverlay, scale: scale)
             }
 
@@ -771,6 +773,12 @@ struct HexTileView: View {
 
             if isAttackTarget {
                 AttackTileOverlay(scale: scale)
+            }
+
+            if let countermeasureOverlay,
+               isAttackTarget,
+               countermeasureOverlay.role == .target {
+                CountermeasureTileOverlay(overlay: countermeasureOverlay, scale: scale)
             }
         }
         .shadow(color: .black.opacity(isSelected ? 0.38 : 0.18), radius: isSelected ? 9 : 2, y: 2)
@@ -1303,14 +1311,21 @@ struct CountermeasureTileOverlay: View {
                     style: StrokeStyle(lineWidth: max(1.2, 1.8 * scale), lineCap: .round, dash: overlay.role == .destination ? [3 * scale, 4 * scale] : [])
                 )
                 .padding(overlay.role == .target ? 4 * scale : 9 * scale)
-            Image(systemName: symbol)
-                .font(.system(size: 12 * scale, weight: .black))
-                .foregroundStyle(.white)
-                .padding(4 * scale)
-                .background(tint.opacity(0.88))
-                .clipShape(Circle())
-                .shadow(color: .black.opacity(0.45), radius: 2, y: 1)
-                .offset(offset)
+            ZStack {
+                Circle()
+                    .fill(tint.opacity(0.90))
+                Image(systemName: symbol)
+                    .font(.system(size: 10 * scale, weight: .black))
+                    .foregroundStyle(.white)
+                    .offset(y: -2 * scale)
+                Text("\(overlay.role.stageNumber)")
+                    .font(.system(size: max(7, 8 * scale), weight: .black, design: .rounded))
+                    .foregroundStyle(.black.opacity(0.78))
+                    .offset(y: 6 * scale)
+            }
+            .frame(width: 23 * scale, height: 23 * scale)
+            .shadow(color: .black.opacity(0.45), radius: 2, y: 1)
+            .offset(offset)
         }
         .shadow(color: tint.opacity(0.26), radius: 4 * scale)
         .accessibilityLabel(overlay.accessibilityLabel)
@@ -1799,7 +1814,7 @@ struct CompactActionsPanelView: View {
                     let countermeasurePreview = viewModel.selectedCountermeasureCommandPreview
                     let isCountermeasureTarget = countermeasurePreview?.isAttackTarget(target) == true
                     let attackDetail = [
-                        isCountermeasureTarget ? countermeasurePreview?.attackCueLabel : nil,
+                        isCountermeasureTarget ? countermeasurePreview?.targetStageCueLabel : nil,
                         preview?.commandModifierSummary
                     ].compactMap { $0 }.joined(separator: " · ")
                     Button {
@@ -1812,7 +1827,7 @@ struct CompactActionsPanelView: View {
                         )
                     }
                     .buttonStyle(PrimaryButtonStyle())
-                    .accessibilityLabel(isCountermeasureTarget ? "\(countermeasurePreview?.attackCueLabel ?? "反制目标可攻击")，攻击\(target.faction.displayName)\(target.kind.displayName)" : "攻击\(target.faction.displayName)\(target.kind.displayName)")
+                    .accessibilityLabel(isCountermeasureTarget ? "\(countermeasurePreview?.targetStageCueLabel ?? "3 目标，反制目标可攻击")，攻击\(target.faction.displayName)\(target.kind.displayName)" : "攻击\(target.faction.displayName)\(target.kind.displayName)")
                 } else {
                     HStack(spacing: 6) {
                         Image(systemName: "bolt.slash.fill")
@@ -3946,6 +3961,12 @@ struct CountermeasureCommandPreviewView: View {
                 .lineLimit(1)
                 .minimumScaleFactor(0.72)
 
+            Text(preview.chainSummaryLabel)
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(.white.opacity(0.62))
+                .lineLimit(isCompact ? 2 : 1)
+                .minimumScaleFactor(0.68)
+
             HStack(spacing: 6) {
                 Label(preview.destinationLabel, systemImage: "arrow.up.right.circle.fill")
                 Spacer(minLength: 0)
@@ -3960,7 +3981,7 @@ struct CountermeasureCommandPreviewView: View {
                 HStack(spacing: 6) {
                     Label(preview.recommendedOrderCueLabel, systemImage: "flag.checkered")
                     Spacer(minLength: 0)
-                    Label(preview.attackCueLabel, systemImage: "bolt.fill")
+                    Label(preview.targetStageCueLabel, systemImage: "bolt.fill")
                 }
                 .font(.caption2.weight(.semibold))
                 .foregroundStyle(.white.opacity(0.58))
@@ -4721,7 +4742,7 @@ struct ActionsPanelView: View {
                         let countermeasurePreview = viewModel.selectedCountermeasureCommandPreview
                         let isCountermeasureTarget = countermeasurePreview?.isAttackTarget(target) == true
                         let attackDetail = [
-                            isCountermeasureTarget ? countermeasurePreview?.attackCueLabel : nil,
+                            isCountermeasureTarget ? countermeasurePreview?.targetStageCueLabel : nil,
                             preview?.commandModifierSummary
                         ].compactMap { $0 }.joined(separator: " · ")
                         Button {
@@ -4735,7 +4756,7 @@ struct ActionsPanelView: View {
                         }
                         .buttonStyle(PrimaryButtonStyle())
                         .disabled(viewModel.isCampaignOver)
-                        .accessibilityLabel(isCountermeasureTarget ? "\(countermeasurePreview?.attackCueLabel ?? "反制目标可攻击")，攻击\(target.faction.displayName)\(target.kind.displayName)" : "攻击\(target.faction.displayName)\(target.kind.displayName)")
+                        .accessibilityLabel(isCountermeasureTarget ? "\(countermeasurePreview?.targetStageCueLabel ?? "3 目标，反制目标可攻击")，攻击\(target.faction.displayName)\(target.kind.displayName)" : "攻击\(target.faction.displayName)\(target.kind.displayName)")
                     }
                 }
 
