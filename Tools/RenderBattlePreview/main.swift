@@ -246,6 +246,7 @@ struct RenderBattlePreview {
         }
         guard let selectedSkillPreview = viewModel.selectedGeneralSkillPreview,
               let commanderGuidance = viewModel.selectedCommanderActionGuidance,
+              let skillTargetReadout = viewModel.selectedGeneralSkillTargetReadout,
               let skillButtonDetail = viewModel.selectedGeneralSkillCommandButtonDetail,
               !commanderGuidance.title.isEmpty,
               !commanderGuidance.skillCueLabel.isEmpty,
@@ -260,6 +261,39 @@ struct RenderBattlePreview {
         if let prefix = commanderGuidance.buttonDetailPrefix {
             guard skillButtonDetail.contains(prefix) else {
                 throw PreviewRenderError.missingCommanderActionGuidance
+            }
+        }
+        let expectedSkillTargetCount = selectedSkillPreview.affectedUnitIDs.count + selectedSkillPreview.affectedCityIDs.count
+        let readoutTargetPositions = Set(skillTargetReadout.targets.map(\.position))
+        let previewTargetPositions = Set(selectedSkillPreview.affectedPositions)
+        guard skillTargetReadout.targets.count == expectedSkillTargetCount,
+              !skillTargetReadout.title.isEmpty,
+              !skillTargetReadout.targetCountLabel.isEmpty,
+              !skillTargetReadout.effectLabel.isEmpty,
+              !skillTargetReadout.mapCueLabel.isEmpty,
+              !skillTargetReadout.statusLabel.isEmpty,
+              !skillTargetReadout.accessibilityLabel.isEmpty,
+              skillTargetReadout.targetCountLabel.contains("\(expectedSkillTargetCount)"),
+              readoutTargetPositions == previewTargetPositions else {
+            throw PreviewRenderError.missingGeneralSkillTargetReadout
+        }
+        if selectedSkillPreview.affectedPositions.isEmpty {
+            guard skillTargetReadout.mapCueLabel.contains("暂无") else {
+                throw PreviewRenderError.missingGeneralSkillTargetReadout
+            }
+        } else {
+            guard skillTargetReadout.mapCueLabel.contains("\(selectedSkillPreview.affectedPositions.count)") else {
+                throw PreviewRenderError.missingGeneralSkillTargetReadout
+            }
+        }
+        if selectedSkillPreview.projectedRecoveredHealth > 0 {
+            guard skillTargetReadout.effectLabel.contains("\(selectedSkillPreview.projectedRecoveredHealth)") else {
+                throw PreviewRenderError.missingGeneralSkillTargetReadout
+            }
+        }
+        if selectedSkillPreview.projectedFortificationReduction > 0 {
+            guard skillTargetReadout.effectLabel.contains("\(selectedSkillPreview.projectedFortificationReduction)") else {
+                throw PreviewRenderError.missingGeneralSkillTargetReadout
             }
         }
         guard let formationSummary = viewModel.selectedLegionFormationSummary,
@@ -844,6 +878,7 @@ enum PreviewRenderError: Error {
     case missingBattleObjectiveStageCommandPreview
     case missingBattleObjectiveStageLinkedHighlight
     case missingCommanderActionGuidance
+    case missingGeneralSkillTargetReadout
     case missingThreatHeatSummary
     case missingAIOperationalPlanSummary
     case missingEnemyCommanderThreatSummary

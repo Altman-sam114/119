@@ -14,12 +14,48 @@
 
 - 项目类型：原创 SwiftUI iOS 罗马题材战棋原型。
 - 核心架构：纯 Swift `RomeLegionsCore` 负责玩法规则；`GameViewModel` 负责 UI 状态和派生数据；SwiftUI 视图负责展示和命令入口。
-- 当前玩法：六边形地图、地形、城市、阵营、军团、移动、攻击、反击、占城、招募、科技、任务 requirement、战役目标、胜负结算、结束保护、外交、城市扩建、城市经营与招募读板、军团训练、将领任命、军团成长决策读板、军团成长优先级读板、主动技能、技能冷却、将领详情读板、将令技能入口链路、被动贡献、战功状态、军团编制与成长读板、战术命令建议与补线路径读板、本方将领协同与战术连携读板、机动落点与地图风险读板、战场焦点与将领机会读板、战场目标链路、目标线地图叠层、阶段聚焦、阶段命令预览与联动高亮、地图控制与威胁热区读板、主动地图叠层图例、AI 作战计划与敌方将领协同读板、敌方将领威胁读板、敌情反制建议读板、反制落点/目标地图叠层、反制指令聚焦、反制命令链高亮与反制焦点链路、战术姿态与姿态预览、AI 回合、AI 主攻优先执行、敌军意图预判、敌军意图六边形路径/目标叠层、战线压力读板、战局态势面板。
+- 当前玩法：六边形地图、地形、城市、阵营、军团、移动、攻击、反击、占城、招募、科技、任务 requirement、战役目标、胜负结算、结束保护、外交、城市扩建、城市经营与招募读板、军团训练、将领任命、军团成长决策读板、军团成长优先级读板、主动技能、技能冷却、将领详情读板、将令技能入口链路、将领技能目标与收益读板、被动贡献、战功状态、军团编制与成长读板、战术命令建议与补线路径读板、本方将领协同与战术连携读板、机动落点与地图风险读板、战场焦点与将领机会读板、战场目标链路、目标线地图叠层、阶段聚焦、阶段命令预览与联动高亮、地图控制与威胁热区读板、主动地图叠层图例、AI 作战计划与敌方将领协同读板、敌方将领威胁读板、敌情反制建议读板、反制落点/目标地图叠层、反制指令聚焦、反制命令链高亮与反制焦点链路、战术姿态与姿态预览、AI 回合、AI 主攻优先执行、敌军意图预判、敌军意图六边形路径/目标叠层、战线压力读板、战局态势面板。
 - 当前测试入口：Swift Testing、Gameplay Smoke、项目结构检查、SwiftUI 类型检查、战斗页预览图渲染、无签名 Xcode 构建。
 - 当前协作系统：已建立 `AGENTS.md`、`update_log.md`、`md/prompt/`、`md/test/test.md`、`md/flow/flow.md`、`md/flow/flowchart.md`，默认按 `main` 直推、GitHub Actions 云端重验证、Agent C 下载未加密结果包复判，并具备未来由 Agent X 主控调度 Agent A/B/C 多轮循环的文档基线。
 - 当前 CI 入口：`.github/workflows/ci-results.yml`，在 `main` push 和手动触发时运行结构检查、SwiftPM 测试、Gameplay Smoke、RenderBattlePreview 和无签名 Xcode build，并上传 CI 结果包。
 
 ## 历史记录
+
+### v0.38 / 将领技能目标与收益读板
+
+日期：2026-07-06
+
+核心变更：
+
+- `GameViewModel` 新增 `GeneralSkillTargetReadoutTarget`、`SelectedGeneralSkillTargetReadout` 和 `selectedGeneralSkillTargetReadout`，把选中单位主动技能预览中的受影响单位/城市转成目标数、目标类型、收益、地图标记数量、目标短列表和无障碍文案。
+- `BattleView` 的完整/紧凑将领卡新增目标收益读板，展示当前技能目标、预计恢复或削城防、地图紫标数量和前几个目标名称；技能按钮 action、`.disabled(...)`、核心技能筛选、冷却、结算和 AI 行为保持不变。
+- `Tools/RenderBattlePreview/main.swift` 新增 `missingGeneralSkillTargetReadout` 断言，覆盖目标数量、目标坐标、收益文案、地图标记提示、状态和无障碍文案与 `selectedGeneralSkillPreview` 同源。
+- `.github/workflows/ci-results.yml` artifact 版本更新到 v0.38。
+- README、flow、flowchart、test、prompt README、AGENTS 文档同步将领技能目标与收益读板和 v0.38 Agent A 提示词。
+
+关键文件：
+
+- `RomeLegionsApp/App/GameViewModel.swift`
+- `RomeLegionsApp/Views/BattleView.swift`
+- `Tools/RenderBattlePreview/main.swift`
+- `.github/workflows/ci-results.yml`
+- `README.md`
+- `AGENTS.md`
+- `md/flow/flow.md`
+- `md/flow/flowchart.md`
+- `md/test/test.md`
+- `md/prompt/README.md`
+- `md/prompt/v0（玩法推进）/v0.38（将领技能目标与收益读板）.md`
+- `update_log.md`
+
+验证结果：
+
+- 待 Agent B 提交并 push 到 `origin/main` 后由 GitHub Actions 和 Agent C artifact 复判确认；本地不运行测试、build、typecheck、RenderBattlePreview、`Tools/verify_project.mjs`、`git diff --check`、YAML/JSON/Plist 解析或脚本语法检查。
+
+遗留事项：
+
+- 本轮没有实现一键发动技能、目标线自动执行、命令队列、多回合搜索、AI 权重重写、装备、升级树、将领池 UI、外交界面、存档 UI 或建筑树。
+- 将领技能目标与收益读板只解释当前技能预览已有目标和预计收益，不改变技能目标筛选、可用性、冷却、结算、移动、攻击、姿态或 AI 行为。
 
 ### v0.37 / 将令技能入口链路提示
 

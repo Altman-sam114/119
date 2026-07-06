@@ -1867,7 +1867,8 @@ struct CompactSelectionPanelView: View {
                             preview: viewModel.selectedGeneralSkillPreview,
                             warMeritStatus: viewModel.selectedWarMeritStatus,
                             commanderBrief: viewModel.selectedCommanderBrief,
-                            commanderActionGuidance: viewModel.selectedCommanderActionGuidance
+                            commanderActionGuidance: viewModel.selectedCommanderActionGuidance,
+                            skillTargetReadout: viewModel.selectedGeneralSkillTargetReadout
                         )
                     } else if let brief = viewModel.selectedCommanderBrief {
                         CompactNoGeneralView(brief: brief)
@@ -2054,6 +2055,7 @@ struct CompactGeneralTraitView: View {
     var warMeritStatus: WarMeritStatus?
     var commanderBrief: SelectedCommanderBrief?
     var commanderActionGuidance: CommanderActionGuidance?
+    var skillTargetReadout: SelectedGeneralSkillTargetReadout?
 
     var body: some View {
         HStack(spacing: 7) {
@@ -2114,6 +2116,9 @@ struct CompactGeneralTraitView: View {
             .frame(minHeight: 24)
             .background(.black.opacity(0.14))
             .clipShape(RoundedRectangle(cornerRadius: 6))
+        }
+        if let skillTargetReadout {
+            GeneralSkillTargetReadoutView(readout: skillTargetReadout, isCompact: true)
         }
     }
 }
@@ -4532,7 +4537,8 @@ struct SelectionPanelView: View {
                             preview: viewModel.selectedGeneralSkillPreview,
                             warMeritStatus: viewModel.selectedWarMeritStatus,
                             commanderBrief: viewModel.selectedCommanderBrief,
-                            commanderActionGuidance: viewModel.selectedCommanderActionGuidance
+                            commanderActionGuidance: viewModel.selectedCommanderActionGuidance,
+                            skillTargetReadout: viewModel.selectedGeneralSkillTargetReadout
                         )
                     } else if let brief = viewModel.selectedCommanderBrief {
                         NoGeneralCommandView(brief: brief)
@@ -4688,6 +4694,7 @@ struct GeneralTraitCardView: View {
     var warMeritStatus: WarMeritStatus?
     var commanderBrief: SelectedCommanderBrief?
     var commanderActionGuidance: CommanderActionGuidance?
+    var skillTargetReadout: SelectedGeneralSkillTargetReadout?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 7) {
@@ -4763,6 +4770,10 @@ struct GeneralTraitCardView: View {
                 .frame(minHeight: 28)
                 .background(.black.opacity(0.16))
                 .clipShape(RoundedRectangle(cornerRadius: 6))
+            }
+
+            if let skillTargetReadout {
+                GeneralSkillTargetReadoutView(readout: skillTargetReadout, isCompact: false)
             }
         }
         .padding(9)
@@ -4860,6 +4871,98 @@ struct CommanderSkillStatusRow: View {
         .background(.black.opacity(0.14))
         .clipShape(RoundedRectangle(cornerRadius: 6))
         .accessibilityLabel(guidance?.accessibilityLabel ?? brief.accessibilityLabel)
+    }
+}
+
+struct GeneralSkillTargetReadoutView: View {
+    var readout: SelectedGeneralSkillTargetReadout
+    var isCompact: Bool
+
+    var body: some View {
+        if isCompact {
+            HStack(spacing: 6) {
+                Image(systemName: "scope")
+                    .foregroundStyle(Color(red: 0.72, green: 0.54, blue: 0.96))
+                Text(readout.targetCountLabel)
+                    .font(.caption2.weight(.black))
+                    .foregroundStyle(.white)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.66)
+                Text(readout.effectLabel)
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(Color(red: 0.36, green: 0.86, blue: 0.92))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.62)
+                Spacer(minLength: 0)
+                Text(readout.mapCueLabel)
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(.white.opacity(0.58))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.56)
+            }
+            .padding(.horizontal, 8)
+            .frame(minHeight: 24)
+            .background(.black.opacity(0.14))
+            .clipShape(RoundedRectangle(cornerRadius: 6))
+            .accessibilityLabel(readout.accessibilityLabel)
+        } else {
+            VStack(alignment: .leading, spacing: 6) {
+                HStack(spacing: 7) {
+                    Image(systemName: "scope")
+                        .foregroundStyle(Color(red: 0.72, green: 0.54, blue: 0.96))
+                    Text(readout.title)
+                        .font(.caption2.weight(.black))
+                        .foregroundStyle(.white)
+                    Spacer(minLength: 0)
+                    Text(readout.statusLabel)
+                        .font(.caption2.weight(.black))
+                        .foregroundStyle(readout.statusLabel == "可发动" ? Color(red: 0.36, green: 0.86, blue: 0.92) : .orange)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.68)
+                }
+
+                HStack(spacing: 6) {
+                    Text(readout.targetCountLabel)
+                        .font(.caption2.weight(.semibold))
+                        .foregroundStyle(.white.opacity(0.68))
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.68)
+                    Text(readout.effectLabel)
+                        .font(.caption2.monospacedDigit().weight(.black))
+                        .foregroundStyle(Color(red: 0.36, green: 0.86, blue: 0.92))
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.62)
+                    Spacer(minLength: 0)
+                    Text(readout.mapCueLabel)
+                        .font(.caption2.weight(.semibold))
+                        .foregroundStyle(.white.opacity(0.58))
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.58)
+                }
+
+                if !readout.targetLabels.isEmpty {
+                    HStack(spacing: 5) {
+                        ForEach(readout.targetLabels.indices, id: \.self) { index in
+                            Text(readout.targetLabels[index])
+                                .font(.caption2.weight(.semibold))
+                                .foregroundStyle(.white.opacity(0.72))
+                                .lineLimit(1)
+                                .minimumScaleFactor(0.64)
+                                .padding(.horizontal, 6)
+                                .frame(height: 20)
+                                .background(.white.opacity(0.06))
+                                .clipShape(RoundedRectangle(cornerRadius: 5))
+                        }
+                        Spacer(minLength: 0)
+                    }
+                }
+            }
+            .padding(.horizontal, 7)
+            .padding(.vertical, 6)
+            .background(.black.opacity(0.16))
+            .clipShape(RoundedRectangle(cornerRadius: 6))
+            .accessibilityLabel(readout.accessibilityLabel)
+        }
     }
 }
 

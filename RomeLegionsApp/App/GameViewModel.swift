@@ -2369,6 +2369,26 @@ struct CommanderActionGuidance {
     var accessibilityLabel: String
 }
 
+struct GeneralSkillTargetReadoutTarget: Identifiable {
+    var id: String
+    var title: String
+    var subtitle: String
+    var position: Position
+    var effectLabel: String
+    var accessibilityLabel: String
+}
+
+struct SelectedGeneralSkillTargetReadout {
+    var title: String
+    var effectLabel: String
+    var targetCountLabel: String
+    var targetLabels: [String]
+    var mapCueLabel: String
+    var statusLabel: String
+    var targets: [GeneralSkillTargetReadoutTarget]
+    var accessibilityLabel: String
+}
+
 struct SelectedTacticalOrderPreview: Identifiable {
     var order: TacticalOrder
     var attack: Int
@@ -3956,6 +3976,76 @@ final class GameViewModel: ObservableObject {
 
     var selectedGeneralSkillTargetCityIDs: Set<String> {
         Set(selectedGeneralSkillPreview?.affectedCityIDs ?? [])
+    }
+
+    var selectedGeneralSkillTargetReadout: SelectedGeneralSkillTargetReadout? {
+        guard let preview = selectedGeneralSkillPreview else { return nil }
+
+        let unitTargets = preview.affectedUnitIDs.compactMap { unitID -> GeneralSkillTargetReadoutTarget? in
+            guard let unit = state.unit(withID: unitID) else { return nil }
+            let effect = preview.projectedRecoveredHealth > 0 ? "恢复 \(preview.trait.recoveryAmount)" : preview.summary
+            let title = "\(unit.faction.displayName)\(unit.kind.displayName)"
+            let subtitle = "\(unit.position.description) · 生命 \(unit.health)/\(unit.kind.maxHealth)"
+            return GeneralSkillTargetReadoutTarget(
+                id: "unit-\(unit.id)",
+                title: title,
+                subtitle: subtitle,
+                position: unit.position,
+                effectLabel: effect,
+                accessibilityLabel: "\(title)，\(subtitle)，\(effect)"
+            )
+        }
+        let cityTargets = preview.affectedCityIDs.compactMap { cityID -> GeneralSkillTargetReadoutTarget? in
+            guard let city = state.city(withID: cityID) else { return nil }
+            let effect = preview.projectedFortificationReduction > 0 ? "城防 -\(preview.trait.fortificationReductionAmount)" : preview.summary
+            let title = city.name
+            let subtitle = "\(city.position.description) · \(city.owner.displayName)"
+            return GeneralSkillTargetReadoutTarget(
+                id: "city-\(city.id)",
+                title: title,
+                subtitle: subtitle,
+                position: city.position,
+                effectLabel: effect,
+                accessibilityLabel: "\(title)，\(subtitle)，\(effect)"
+            )
+        }
+        let targets = unitTargets + cityTargets
+        let totalTargetCount = preview.affectedUnitIDs.count + preview.affectedCityIDs.count
+        let targetKindLabel = preview.trait == .siegeEngineer ? "敌城" : "友军"
+        let targetCountLabel = totalTargetCount > 0 ? "目标 \(totalTargetCount) \(targetKindLabel)" : "暂无目标 · 0"
+        let effectLabel: String
+        if preview.projectedFortificationReduction > 0 {
+            effectLabel = "削城防 \(preview.projectedFortificationReduction)"
+        } else if preview.projectedRecoveredHealth > 0 {
+            effectLabel = "恢复 \(preview.projectedRecoveredHealth)"
+        } else {
+            effectLabel = preview.summary
+        }
+        let visibleTargetLabels = targets.prefix(3).map(\.title)
+        let hiddenCount = max(0, totalTargetCount - visibleTargetLabels.count)
+        let targetLabels = hiddenCount > 0 ? visibleTargetLabels + ["等 \(hiddenCount) 个"] : visibleTargetLabels
+        let mapCueLabel = preview.affectedPositions.isEmpty ? "地图暂无目标标记" : "地图紫标 \(preview.affectedPositions.count) 处"
+        let statusLabel = preview.blockedReason ?? (preview.isExecutable ? "可发动" : preview.summary)
+        let accessibilityLabel = [
+            preview.trait.skillName,
+            targetCountLabel,
+            effectLabel,
+            mapCueLabel,
+            statusLabel,
+            selectedCommanderActionGuidance?.stageCueLabel,
+            targets.map(\.accessibilityLabel).joined(separator: "，")
+        ].compactMap { $0 }.filter { !$0.isEmpty }.joined(separator: "，")
+
+        return SelectedGeneralSkillTargetReadout(
+            title: "\(preview.trait.skillName)目标",
+            effectLabel: effectLabel,
+            targetCountLabel: targetCountLabel,
+            targetLabels: targetLabels,
+            mapCueLabel: mapCueLabel,
+            statusLabel: statusLabel,
+            targets: targets,
+            accessibilityLabel: accessibilityLabel
+        )
     }
 
     var selectedGeneralSkillButtonDetail: String? {
