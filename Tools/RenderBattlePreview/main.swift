@@ -422,6 +422,7 @@ struct RenderBattlePreview {
         let turnBeforeConvergenceRead = viewModel.state.turn
         let activeFactionBeforeConvergenceRead = viewModel.state.activeFaction
         let activeStagePreviewForConvergence = viewModel.activeBattleObjectiveStageCommandPreview
+        let primaryThreatHeatForConvergence = viewModel.primaryThreatHeatZoneSummary
         let activeMapControlForConvergence = viewModel.selectedMapControlSummary ?? viewModel.primaryMapControlSummary
         guard let battlefieldConvergence = viewModel.primaryBattlefieldConvergenceSummary,
               battlefieldConvergence.references(objectiveChain: objectiveChain),
@@ -430,7 +431,7 @@ struct RenderBattlePreview {
               activeStagePreviewForConvergence.map({ battlefieldConvergence.references(stagePreview: $0) }) ?? true,
               battlefieldConvergence.references(synergy: selectedSynergySummary),
               battlefieldConvergence.references(maneuver: primaryManeuverSummary),
-              battlefieldConvergence.references(threatHeat: threatHeat),
+              primaryThreatHeatForConvergence.map({ battlefieldConvergence.references(threatHeat: $0) }) ?? true,
               activeMapControlForConvergence.map({ battlefieldConvergence.references(mapControl: $0) }) ?? true,
               !battlefieldConvergence.title.isEmpty,
               !battlefieldConvergence.compactLabel.isEmpty,
@@ -446,7 +447,9 @@ struct RenderBattlePreview {
               battlefieldConvergence.signals.contains(where: { $0.role == .countermeasure && $0.sourceID == countermeasure.id && $0.position == countermeasure.targetPosition }),
               battlefieldConvergence.signals.contains(where: { $0.role == .synergy && $0.sourceID == selectedSynergySummary.id && $0.position == selectedSynergySummary.targetPosition }),
               battlefieldConvergence.signals.contains(where: { $0.role == .maneuver && $0.sourceID == primaryManeuverSummary.id && $0.position == primaryManeuverSummary.destination }),
-              battlefieldConvergence.signals.contains(where: { $0.role == .threatHeat && $0.sourceID == threatHeat.id && $0.position == threatHeat.targetPosition }),
+              primaryThreatHeatForConvergence.map({ heat in
+                  battlefieldConvergence.signals.contains(where: { $0.role == .threatHeat && $0.sourceID == heat.id && $0.position == heat.targetPosition })
+              }) ?? true,
               battlefieldConvergence.signals.allSatisfy({ signal in
                   !signal.id.isEmpty &&
                       !signal.title.isEmpty &&
