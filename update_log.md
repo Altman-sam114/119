@@ -56,13 +56,15 @@
 验证结果：
 
 - 按人工最新要求，本轮未运行任何本地测试、build、typecheck、RenderBattlePreview、`Tools/verify_project.mjs`、`git diff --check`、YAML/JSON/Plist 解析或脚本语法检查。
-- 本轮完整验证必须在 push 到 `origin/main` 后由 GitHub Actions 执行，并由 Agent C 下载最新 v0.25 artifact 复判 manifest、JUnit、主日志、render 日志、预览 PNG 和失败摘要。
+- GitHub Actions run `28741952637` attempt `1` 曾失败，失败范围为 RenderBattlePreview 和 Xcode build 编译 `GameViewModel.swift` 时发现 `unitDevelopmentRecommendationSummary(for:)` 缺少 `return`。
+- 修复提交 `07f217f2fa6719b776aa51737c8c2f8a2b94c6ff` 已 push 到 `origin/main`，GitHub Actions run `28743500256` attempt `1` 通过，artifact 为 `RomeLegions-ci-v0.25-main-07f217f-run28743500256-attempt1`。
+- Agent C 复判已核对 manifest `version=v0.25`、`branch=main`、`commitSha=07f217f2fa6719b776aa51737c8c2f8a2b94c6ff`、`runId=28743500256`、`runAttempt=1`，JUnit `failures=0`，static checks、Swift Testing、Gameplay Smoke、RenderBattlePreview 和 Xcode build 均为 success；Swift Testing 日志显示 79 tests 通过，RenderBattlePreview 产出 6 张非空 PNG，Xcode build 日志以 `** BUILD SUCCEEDED **` 结束。
 
 遗留事项：
 
 - 本轮没有实现自动训练、自动任命、升级树、装备、兵种转职、将领池 UI、将领改名、技能选择、真实补给线、建筑树、人口、外交界面或存档 UI。
 - 军团成长优先级读板只用于解释和排序训练/任命建议，不改变既有训练/任命结算、AI、移动、攻击、技能、城市或胜负规则。
-- Agent C 必须核对最新 `origin/main` commit 对应的 v0.25 run id、run attempt 和 artifact；不能使用 v0.24 旧结果包。
+- 下一轮 Agent X 可继续拆分地图、AI、将领或战斗 UI 目标，但仍必须验收最新 `origin/main` commit 对应的 run id、run attempt 和 artifact。
 
 ### v0.24 / 军团成长决策读板
 
