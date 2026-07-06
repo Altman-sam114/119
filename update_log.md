@@ -52,7 +52,9 @@
 验证结果：
 
 - 按人工最新要求，本轮未运行任何本地测试、build、typecheck、RenderBattlePreview、`Tools/verify_project.mjs`、`git diff --check`、YAML/JSON/Plist 解析或脚本语法检查。
-- 当前实现等待 `origin/main` push 后由 GitHub Actions 生成 v0.42 结果包，并由 Agent C 下载最新 artifact 复判。
+- Agent B 已将实现提交 `20ebca7a77c2e5999444e1277516f991c62ab320` 直推 `origin/main`。
+- Agent C 下载并复判最新 GitHub Actions 结果包 `RomeLegions-ci-v0.42-main-20ebca7-run28804023219-attempt1`，run id `28804023219`，run attempt `1`，manifest 对应 `main` / `20ebca7a77c2e5999444e1277516f991c62ab320` / `v0.42`。
+- manifest 显示 `staticChecksOutcome`、`swiftTestsOutcome`、`gameplaySmokeOutcome`、`renderPreviewOutcome`、`buildOutcome`、`testOutcome` 均为 `success`；JUnit 记录 `tests="5"`、`failures="0"`；Swift Testing 日志记录 `88 tests passed`；Render battle preview 生成 6 张非空 PNG；Xcode build 日志记录 `** BUILD SUCCEEDED **`。
 
 遗留事项：
 
