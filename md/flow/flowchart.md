@@ -39,7 +39,7 @@ flowchart TD
 
 ## 3. 战斗、敌军意图、AI 作战计划、将领协同、机动落点、战术建议、战场焦点与地图热区流
 
-读图说明：这张图展示战斗预览、实际攻击、敌军意图、AI 作战计划、敌方将领威胁、敌情反制建议及地图叠层/指令预览、本方将领协同、机动落点、战线压力、玩家侧战术建议、战场焦点、地图控制和威胁热区之间的关系。关键铁律是预览与结算必须一致，敌军意图、AI 作战计划、敌方将领威胁、敌情反制建议、本方将领协同、机动落点、战线压力、战术建议、战场焦点和地图热区只能读取和预测，地图路线、机动落点、反制落点/目标、热区叠层、敌将卡、反制卡、反制指令预览、将令卡、计划卡和焦点卡只是只读报告的可视化，不能改变状态、结算或 AI 决策。
+读图说明：这张图展示战斗预览、实际攻击、敌军意图、AI 作战计划、敌方将领威胁、敌情反制建议及地图叠层/指令预览/命令链高亮、本方将领协同、机动落点、战线压力、玩家侧战术建议、战场焦点、地图控制和威胁热区之间的关系。关键铁律是预览与结算必须一致，敌军意图、AI 作战计划、敌方将领威胁、敌情反制建议、本方将领协同、机动落点、战线压力、战术建议、战场焦点和地图热区只能读取和预测，地图路线、机动落点、反制落点/目标、热区叠层、敌将卡、反制卡、反制指令预览、反制命令按钮高亮、将令卡、计划卡和焦点卡只是只读报告的可视化，不能改变状态、结算或 AI 决策。
 
 ```mermaid
 flowchart TD
@@ -91,8 +91,9 @@ flowchart TD
     BS --> BU["GameViewModel.primaryCountermeasureMapOverlay<br/>派生回应位置、推荐落点、威胁目标和反制引导线"]
     BU --> BV["BattleView 地图反制线、落点和目标叠层<br/>只展示空间关系，不改变命令或 AI"]
     BU --> BL
-    BS --> BW["GameViewModel.countermeasureCommandPreviews<br/>推荐姿态、落点可达、目标窗口、下一步和阻塞原因"]
+    BS --> BW["GameViewModel.countermeasureCommandPreviews<br/>推荐姿态、落点可达、目标窗口、命令链短标签和阻塞原因"]
     BW --> BX["focusCountermeasure 只改选择态和 banner<br/>BattleView 军令面板显示反制执行预览<br/>不移动、不攻击、不切姿态"]
+    BW --> BY["BattleView 姿态按钮/攻击按钮反制高亮<br/>只标出现有命令入口<br/>不覆盖 disabled，不改变 action"]
 
     AH["选中本方单位"] --> AI["GameState.tacticalRecommendation(unitID:)<br/>只读派生攻击、补线、推进、坚守或整备建议<br/>目标、目的地、路径、推荐姿态、风险和命令文案"]
     AI --> AJ["GameViewModel.selectedTacticalRecommendationSummary<br/>转成军议 chip、建议卡、路径线段和目标位置"]

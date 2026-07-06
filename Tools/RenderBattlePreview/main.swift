@@ -146,9 +146,14 @@ struct RenderBattlePreview {
               !countermeasureCommandPreview.destinationLabel.isEmpty,
               !countermeasureCommandPreview.targetLabel.isEmpty,
               !countermeasureCommandPreview.nextStepLabel.isEmpty,
+              !countermeasureCommandPreview.commandChainLabel.isEmpty,
+              !countermeasureCommandPreview.recommendedOrderCueLabel.isEmpty,
+              !countermeasureCommandPreview.movementCueLabel.isEmpty,
+              !countermeasureCommandPreview.attackCueLabel.isEmpty,
               !countermeasureCommandPreview.buttonTitle.isEmpty,
               !countermeasureCommandPreview.buttonDetail.isEmpty,
               !countermeasureCommandPreview.accessibilityLabel.isEmpty,
+              countermeasureCommandPreview.isRecommendedOrder(countermeasure.report.recommendedOrder),
               !countermeasureCommandPreview.steps.isEmpty,
               countermeasureCommandPreview.steps.allSatisfy({ step in
                   !step.id.isEmpty &&
@@ -168,6 +173,12 @@ struct RenderBattlePreview {
               }),
               viewModel.bannerMessage.contains("反制") else {
             throw PreviewRenderError.missingCountermeasureCommandPreview
+        }
+        if countermeasureCommandPreview.canAttackCurrentTarget {
+            guard let targetUnit = countermeasureCommandPreview.targetUnit,
+                  viewModel.attackTargets.contains(where: { countermeasureCommandPreview.isAttackTarget($0) && $0.id == targetUnit.id }) else {
+                throw PreviewRenderError.missingCountermeasureCommandPreview
+            }
         }
         guard let mapControl = viewModel.primaryMapControlSummary,
               !viewModel.mapControlSummaries.isEmpty,

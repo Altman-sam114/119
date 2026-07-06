@@ -467,8 +467,78 @@ struct CountermeasureCommandPreview: Identifiable {
         return summary.commandLabel
     }
 
+    var commandChainLabel: String {
+        if let blockedReason {
+            return "反制受阻：\(blockedReason)"
+        }
+
+        if canAttackCurrentTarget {
+            return "反制攻击目标"
+        }
+
+        if let responseUnit,
+           destination == responseUnit.position {
+            return "已在落点，确认目标"
+        }
+
+        if canMoveToDestination {
+            return "先移动到反制落点"
+        }
+
+        if canSetOrder {
+            return "先切换\(recommendedOrder.displayName)"
+        }
+
+        return summary.commandLabel
+    }
+
     var blockedReason: String? {
         blockingReasons.first
+    }
+
+    var recommendedOrderCueLabel: String {
+        if responseUnit?.resolvedTacticalOrder == recommendedOrder {
+            return "反制姿态已就绪"
+        }
+
+        if canSetOrder {
+            return "反制建议：切换\(recommendedOrder.displayName)"
+        }
+
+        return "反制姿态受限"
+    }
+
+    var movementCueLabel: String {
+        if let responseUnit,
+           destination == responseUnit.position {
+            return "反制落点已占位"
+        }
+
+        if canMoveToDestination {
+            return "反制落点可移动"
+        }
+
+        return blockedReason ?? "反制落点暂不可达"
+    }
+
+    var attackCueLabel: String {
+        if canAttackCurrentTarget {
+            return "反制目标可攻击"
+        }
+
+        if targetUnit != nil {
+            return "反制目标未入攻击范围"
+        }
+
+        return "反制目标需占位确认"
+    }
+
+    func isRecommendedOrder(_ order: TacticalOrder) -> Bool {
+        recommendedOrder == order
+    }
+
+    func isAttackTarget(_ unit: ArmyUnit) -> Bool {
+        targetUnit?.id == unit.id
     }
 
     var buttonTitle: String {
@@ -490,6 +560,7 @@ struct CountermeasureCommandPreview: Identifiable {
             orderLabel,
             destinationLabel,
             "目标\(targetLabel)",
+            commandChainLabel,
             nextStepLabel
         ].joined(separator: "，")
     }

@@ -1796,16 +1796,23 @@ struct CompactActionsPanelView: View {
             VStack(spacing: 7) {
                 if let target = viewModel.attackTargets.first {
                     let preview = viewModel.attackPreview(for: target.id)
+                    let countermeasurePreview = viewModel.selectedCountermeasureCommandPreview
+                    let isCountermeasureTarget = countermeasurePreview?.isAttackTarget(target) == true
+                    let attackDetail = [
+                        isCountermeasureTarget ? countermeasurePreview?.attackCueLabel : nil,
+                        preview?.commandModifierSummary
+                    ].compactMap { $0 }.joined(separator: " · ")
                     Button {
                         viewModel.attack(target.id)
                     } label: {
                         CommandButtonLabel(
                             symbol: "bolt.fill",
-                            text: preview.map { "攻击 \(target.faction.displayName)\(target.kind.displayName) · 伤\($0.damage)" } ?? "攻击 \(target.faction.displayName)\(target.kind.displayName)",
-                            detail: preview?.commandModifierSummary
+                            text: preview.map { "\(isCountermeasureTarget ? "反制攻击" : "攻击") \(target.faction.displayName)\(target.kind.displayName) · 伤\($0.damage)" } ?? "\(isCountermeasureTarget ? "反制攻击" : "攻击") \(target.faction.displayName)\(target.kind.displayName)",
+                            detail: attackDetail.isEmpty ? nil : attackDetail
                         )
                     }
                     .buttonStyle(PrimaryButtonStyle())
+                    .accessibilityLabel(isCountermeasureTarget ? "\(countermeasurePreview?.attackCueLabel ?? "反制目标可攻击")，攻击\(target.faction.displayName)\(target.kind.displayName)" : "攻击\(target.faction.displayName)\(target.kind.displayName)")
                 } else {
                     HStack(spacing: 6) {
                         Image(systemName: "bolt.slash.fill")
@@ -3933,6 +3940,12 @@ struct CountermeasureCommandPreviewView: View {
                 .lineLimit(isCompact ? 2 : 1)
                 .minimumScaleFactor(0.72)
 
+            Text(preview.commandChainLabel)
+                .font(.caption2.weight(.bold))
+                .foregroundStyle(preview.summary.priority.tintColor)
+                .lineLimit(1)
+                .minimumScaleFactor(0.72)
+
             HStack(spacing: 6) {
                 Label(preview.destinationLabel, systemImage: "arrow.up.right.circle.fill")
                 Spacer(minLength: 0)
@@ -3944,6 +3957,16 @@ struct CountermeasureCommandPreviewView: View {
             .minimumScaleFactor(0.70)
 
             if !isCompact {
+                HStack(spacing: 6) {
+                    Label(preview.recommendedOrderCueLabel, systemImage: "flag.checkered")
+                    Spacer(minLength: 0)
+                    Label(preview.attackCueLabel, systemImage: "bolt.fill")
+                }
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(.white.opacity(0.58))
+                .lineLimit(1)
+                .minimumScaleFactor(0.70)
+
                 VStack(alignment: .leading, spacing: 4) {
                     ForEach(preview.steps) { step in
                         HStack(spacing: 5) {
@@ -4522,6 +4545,8 @@ struct TacticalOrderControlView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 7) {
+            let countermeasurePreview = viewModel.selectedCountermeasureCommandPreview
+
             if !isCompact {
                 HStack(spacing: 7) {
                     Image(systemName: unit.resolvedTacticalOrder.systemImage)
@@ -4548,12 +4573,13 @@ struct TacticalOrderControlView: View {
                         TacticalOrderPreviewButtonContent(
                             order: order,
                             preview: preview,
-                            isCompact: isCompact
+                            isCompact: isCompact,
+                            isCountermeasureRecommendation: countermeasurePreview?.isRecommendedOrder(order) == true
                         )
                     }
                     .buttonStyle(.plain)
                     .disabled(!(preview?.canSwitch ?? viewModel.canSetSelectedTacticalOrder(order)))
-                    .accessibilityLabel(preview?.accessibilityLabel ?? order.detail)
+                    .accessibilityLabel(countermeasurePreview?.isRecommendedOrder(order) == true ? "\(countermeasurePreview?.recommendedOrderCueLabel ?? "反制推荐姿态")，\(preview?.accessibilityLabel ?? order.detail)" : (preview?.accessibilityLabel ?? order.detail))
                 }
             }
 
@@ -4591,6 +4617,7 @@ struct TacticalOrderPreviewButtonContent: View {
     var order: TacticalOrder
     var preview: SelectedTacticalOrderPreview?
     var isCompact: Bool
+    var isCountermeasureRecommendation = false
 
     var body: some View {
         VStack(spacing: isCompact ? 2 : 4) {
@@ -4621,6 +4648,14 @@ struct TacticalOrderPreviewButtonContent: View {
                     .font(.caption2.weight(.black))
                     .lineLimit(1)
                     .minimumScaleFactor(0.62)
+
+                if isCountermeasureRecommendation {
+                    Text("反制")
+                        .font(.caption2.weight(.black))
+                        .foregroundStyle(preview.isCurrent ? .black.opacity(0.76) : order.tintColor)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.70)
+                }
             } else {
                 Text(order.detail)
                     .font(.caption2.weight(.semibold))
@@ -4635,7 +4670,7 @@ struct TacticalOrderPreviewButtonContent: View {
         .clipShape(RoundedRectangle(cornerRadius: 7))
         .overlay {
             RoundedRectangle(cornerRadius: 7)
-                .stroke(order.tintColor.opacity(preview?.isCurrent == true ? 0 : 0.32), lineWidth: 1)
+                .stroke(order.tintColor.opacity(isCountermeasureRecommendation ? 0.90 : (preview?.isCurrent == true ? 0 : 0.32)), lineWidth: isCountermeasureRecommendation ? 2 : 1)
         }
         .opacity(preview?.canSwitch == false && preview?.isCurrent == false ? 0.76 : 1)
     }
@@ -4683,17 +4718,24 @@ struct ActionsPanelView: View {
 
                     ForEach(viewModel.attackTargets) { target in
                         let preview = viewModel.attackPreview(for: target.id)
+                        let countermeasurePreview = viewModel.selectedCountermeasureCommandPreview
+                        let isCountermeasureTarget = countermeasurePreview?.isAttackTarget(target) == true
+                        let attackDetail = [
+                            isCountermeasureTarget ? countermeasurePreview?.attackCueLabel : nil,
+                            preview?.commandModifierSummary
+                        ].compactMap { $0 }.joined(separator: " · ")
                         Button {
                             viewModel.attack(target.id)
                         } label: {
                             CommandButtonLabel(
                                 symbol: "bolt.fill",
-                                text: preview.map { "攻击 \(target.faction.displayName)\(target.kind.displayName) · 伤害 \($0.damage)" } ?? "攻击 \(target.faction.displayName)\(target.kind.displayName)",
-                                detail: preview?.commandModifierSummary
+                                text: preview.map { "\(isCountermeasureTarget ? "反制攻击" : "攻击") \(target.faction.displayName)\(target.kind.displayName) · 伤害 \($0.damage)" } ?? "\(isCountermeasureTarget ? "反制攻击" : "攻击") \(target.faction.displayName)\(target.kind.displayName)",
+                                detail: attackDetail.isEmpty ? nil : attackDetail
                             )
                         }
                         .buttonStyle(PrimaryButtonStyle())
                         .disabled(viewModel.isCampaignOver)
+                        .accessibilityLabel(isCountermeasureTarget ? "\(countermeasurePreview?.attackCueLabel ?? "反制目标可攻击")，攻击\(target.faction.displayName)\(target.kind.displayName)" : "攻击\(target.faction.displayName)\(target.kind.displayName)")
                     }
                 }
 
