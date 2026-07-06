@@ -3148,6 +3148,159 @@ struct SelectedCommanderChainReadout {
     }
 }
 
+enum CommanderOpportunityBridgeSignalKind: String {
+    case commanderBrief
+    case commanderChain
+    case skillWindow
+    case guidance
+    case synergy
+    case enemyCommander
+    case countermeasure
+    case counterCommand
+    case objectiveStage
+    case engagementLoop
+
+    var displayName: String {
+        switch self {
+        case .commanderBrief:
+            return "将领"
+        case .commanderChain:
+            return "指挥链"
+        case .skillWindow:
+            return "技能"
+        case .guidance:
+            return "入口"
+        case .synergy:
+            return "战机"
+        case .enemyCommander:
+            return "敌将"
+        case .countermeasure:
+            return "反制"
+        case .counterCommand:
+            return "指令"
+        case .objectiveStage:
+            return "目标线"
+        case .engagementLoop:
+            return "敌情"
+        }
+    }
+}
+
+struct CommanderOpportunityBridgeSignal: Identifiable {
+    var kind: CommanderOpportunityBridgeSignalKind
+    var title: String
+    var detail: String
+    var position: Position?
+    var sourceID: String
+
+    var id: String {
+        [
+            kind.rawValue,
+            sourceID,
+            position?.description,
+            title
+        ].compactMap { $0 }.joined(separator: "-")
+    }
+
+    var accessibilityLabel: String {
+        var parts = [
+            kind.displayName,
+            title,
+            detail
+        ]
+
+        if let position {
+            parts.append("位置\(position.description)")
+        }
+
+        return parts.joined(separator: "，")
+    }
+}
+
+struct SelectedCommanderOpportunityBridgeReadout {
+    var unitID: String
+    var title: String
+    var statusLabel: String
+    var opportunityLabel: String
+    var skillWindowLabel: String
+    var enemyThreatLabel: String
+    var counterLabel: String
+    var entryLabel: String
+    var nextStepLabel: String
+    var riskLabel: String
+    var compactLabel: String
+    var signals: [CommanderOpportunityBridgeSignal]
+    var commanderBriefID: String?
+    var commanderChainUnitID: String?
+    var skillTargetReadoutID: String?
+    var guidanceID: String?
+    var synergyID: String?
+    var enemyCommanderThreatID: String?
+    var countermeasureID: String?
+    var countermeasurePreviewID: String?
+    var stagePreviewID: String?
+    var engagementLoopID: String?
+
+    var hasSignals: Bool {
+        !signals.isEmpty
+    }
+
+    var accessibilityLabel: String {
+        [
+            title,
+            "状态\(statusLabel)",
+            "战机\(opportunityLabel)",
+            "技能窗口\(skillWindowLabel)",
+            "敌将\(enemyThreatLabel)",
+            "反制\(counterLabel)",
+            "入口\(entryLabel)",
+            "下一步\(nextStepLabel)",
+            "风险\(riskLabel)"
+        ].joined(separator: "，")
+    }
+
+    func references(brief candidate: SelectedCommanderBrief) -> Bool {
+        commanderBriefID == candidate.unitID
+    }
+
+    func references(chain candidate: SelectedCommanderChainReadout) -> Bool {
+        commanderChainUnitID == candidate.unitID
+    }
+
+    func references(skillTargetReadout candidate: SelectedGeneralSkillTargetReadout) -> Bool {
+        skillTargetReadoutID == candidate.title
+    }
+
+    func references(guidance candidate: CommanderActionGuidance, unitID: String) -> Bool {
+        guidanceID == "\(unitID)-commander-action" &&
+            signals.contains { $0.kind == .guidance && $0.sourceID == guidanceID && $0.detail == candidate.skillCueLabel }
+    }
+
+    func references(synergy candidate: CommanderSynergySummary) -> Bool {
+        synergyID == candidate.id
+    }
+
+    func references(enemyCommanderThreat candidate: EnemyCommanderThreatSummary) -> Bool {
+        enemyCommanderThreatID == candidate.id
+    }
+
+    func references(countermeasure candidate: CountermeasureSummary) -> Bool {
+        countermeasureID == candidate.id
+    }
+
+    func references(countermeasurePreview candidate: CountermeasureCommandPreview) -> Bool {
+        countermeasurePreviewID == candidate.id
+    }
+
+    func references(stagePreview candidate: BattleObjectiveStageCommandPreview) -> Bool {
+        stagePreviewID == candidate.id
+    }
+
+    func references(engagementLoop candidate: EnemyEngagementLoopReadout) -> Bool {
+        engagementLoopID == candidate.compactLabel
+    }
+}
+
 struct SelectedTacticalOrderPreview: Identifiable {
     var order: TacticalOrder
     var attack: Int
@@ -5508,6 +5661,202 @@ final class GameViewModel: ObservableObject {
             synergyID: synergy?.id,
             stagePreviewID: stagePreview?.id,
             situationEntryID: situation?.primaryCommandEntry?.id
+        )
+    }
+
+    var selectedCommanderOpportunityBridgeReadout: SelectedCommanderOpportunityBridgeReadout? {
+        guard let selectedUnit,
+              selectedUnit.resolvedGeneralTrait != nil,
+              let brief = selectedCommanderBrief,
+              let commanderChain = selectedCommanderChainReadout else {
+            return nil
+        }
+
+        let skillTargetReadout = selectedGeneralSkillTargetReadout
+        let guidance = selectedCommanderActionGuidance
+        let synergy = selectedCommanderSynergySummary
+        let enemyCommanderThreat = primaryEnemyCommanderThreatSummary
+        let countermeasure = primaryCountermeasureSummary
+        let countermeasurePreview = selectedCountermeasureCommandPreview ?? primaryCountermeasureCommandPreview
+        let stagePreview = selectedBattleObjectiveStageCommandPreview ?? primaryBattleObjectiveStageCommandPreview
+        let engagementLoop = primaryEnemyEngagementLoopReadout
+        let commanderName = brief.generalName ?? selectedUnit.kind.displayName
+        let opportunityLabel = synergy.map { "\($0.kindLabel) · \($0.impactLabel)" } ??
+            skillTargetReadout.map { "\($0.targetCountLabel) · \($0.effectLabel)" } ??
+            commanderChain.entryLabel
+        let skillWindowLabel = skillTargetReadout.map { "\($0.statusLabel) · \($0.mapCueLabel)" } ??
+            guidance?.skillCueLabel ??
+            brief.skillStatusLabel
+        let enemyThreatLabel = enemyCommanderThreat.map { "\($0.commanderLabel) · \($0.impactLabel)" } ??
+            engagementLoop?.enemyCommanderLabel ??
+            "敌将待确认"
+        let counterLabel = countermeasurePreview.map { "\($0.summary.kindLabel) · \($0.nextStepLabel)" } ??
+            countermeasure.map { "\($0.kindLabel) · \($0.responseLabel)" } ??
+            "反制待确认"
+        let entryLabel = guidance?.stageCueLabel ??
+            guidance?.skillCueLabel ??
+            stagePreview?.commandEntryCueLabel ??
+            countermeasurePreview?.commandChainLabel ??
+            "入口待确认"
+        let nextStepLabel = countermeasurePreview?.nextStepLabel ??
+            stagePreview?.nextStepLabel ??
+            guidance?.statusLabel ??
+            engagementLoop?.nextStepLabel ??
+            "等待将领战机"
+        let riskLabel = countermeasure?.riskLabel ??
+            engagementLoop?.riskLabel ??
+            enemyCommanderThreat?.levelLabel ??
+            synergy?.riskLabel ??
+            "风险待确认"
+        let statusLabel = guidance?.statusLabel ??
+            skillTargetReadout?.statusLabel ??
+            brief.skillStatusLabel
+        let compactLabelParts = [
+            synergy?.kindLabel ?? "战机",
+            enemyCommanderThreat?.levelLabel ?? "敌将",
+            countermeasurePreview != nil || countermeasure != nil ? "反制入口" : stagePreview?.stageLabel
+        ].compactMap { $0 }
+        var signals: [CommanderOpportunityBridgeSignal] = []
+
+        signals.append(
+            CommanderOpportunityBridgeSignal(
+                kind: .commanderBrief,
+                title: commanderName,
+                detail: brief.skillStatusLabel,
+                position: selectedUnit.position,
+                sourceID: brief.unitID
+            )
+        )
+
+        signals.append(
+            CommanderOpportunityBridgeSignal(
+                kind: .commanderChain,
+                title: commanderChain.title,
+                detail: commanderChain.compactLabel,
+                position: selectedUnit.position,
+                sourceID: commanderChain.unitID
+            )
+        )
+
+        if let skillTargetReadout {
+            signals.append(
+                CommanderOpportunityBridgeSignal(
+                    kind: .skillWindow,
+                    title: skillTargetReadout.targetCountLabel,
+                    detail: "\(skillTargetReadout.effectLabel) · \(skillTargetReadout.mapCueLabel)",
+                    position: skillTargetReadout.targets.first?.position ?? selectedUnit.position,
+                    sourceID: skillTargetReadout.title
+                )
+            )
+        }
+
+        if let guidance {
+            signals.append(
+                CommanderOpportunityBridgeSignal(
+                    kind: .guidance,
+                    title: guidance.title,
+                    detail: guidance.skillCueLabel,
+                    position: selectedUnit.position,
+                    sourceID: "\(selectedUnit.id)-commander-action"
+                )
+            )
+        }
+
+        if let synergy {
+            signals.append(
+                CommanderOpportunityBridgeSignal(
+                    kind: .synergy,
+                    title: synergy.kindLabel,
+                    detail: "\(synergy.impactLabel) · \(synergy.statusLabel)",
+                    position: synergy.targetPosition,
+                    sourceID: synergy.id
+                )
+            )
+        }
+
+        if let enemyCommanderThreat {
+            signals.append(
+                CommanderOpportunityBridgeSignal(
+                    kind: .enemyCommander,
+                    title: enemyCommanderThreat.commanderLabel,
+                    detail: "\(enemyCommanderThreat.skillName) · \(enemyCommanderThreat.impactLabel)",
+                    position: enemyCommanderThreat.targetPosition,
+                    sourceID: enemyCommanderThreat.id
+                )
+            )
+        }
+
+        if let countermeasure {
+            signals.append(
+                CommanderOpportunityBridgeSignal(
+                    kind: .countermeasure,
+                    title: countermeasure.kindLabel,
+                    detail: countermeasure.countermeasureChainLabel,
+                    position: countermeasure.targetPosition,
+                    sourceID: countermeasure.id
+                )
+            )
+        }
+
+        if let countermeasurePreview {
+            signals.append(
+                CommanderOpportunityBridgeSignal(
+                    kind: .counterCommand,
+                    title: countermeasurePreview.statusLabel,
+                    detail: countermeasurePreview.commandChainLabel,
+                    position: countermeasurePreview.destination,
+                    sourceID: countermeasurePreview.id
+                )
+            )
+        }
+
+        if let stagePreview {
+            signals.append(
+                CommanderOpportunityBridgeSignal(
+                    kind: .objectiveStage,
+                    title: stagePreview.stageLabel,
+                    detail: stagePreview.commandEntryCueLabel,
+                    position: stagePreview.position,
+                    sourceID: stagePreview.id
+                )
+            )
+        }
+
+        if let engagementLoop {
+            signals.append(
+                CommanderOpportunityBridgeSignal(
+                    kind: .engagementLoop,
+                    title: engagementLoop.statusLabel,
+                    detail: engagementLoop.compactLabel,
+                    position: stagePreview?.position ?? countermeasurePreview?.targetPosition ?? selectedUnit.position,
+                    sourceID: engagementLoop.compactLabel
+                )
+            )
+        }
+
+        return SelectedCommanderOpportunityBridgeReadout(
+            unitID: selectedUnit.id,
+            title: "\(commanderName)战机桥接",
+            statusLabel: statusLabel,
+            opportunityLabel: opportunityLabel,
+            skillWindowLabel: skillWindowLabel,
+            enemyThreatLabel: enemyThreatLabel,
+            counterLabel: counterLabel,
+            entryLabel: entryLabel,
+            nextStepLabel: nextStepLabel,
+            riskLabel: riskLabel,
+            compactLabel: compactLabelParts.joined(separator: " · "),
+            signals: signals,
+            commanderBriefID: brief.unitID,
+            commanderChainUnitID: commanderChain.unitID,
+            skillTargetReadoutID: skillTargetReadout?.title,
+            guidanceID: guidance.map { _ in "\(selectedUnit.id)-commander-action" },
+            synergyID: synergy?.id,
+            enemyCommanderThreatID: enemyCommanderThreat?.id,
+            countermeasureID: countermeasure?.id,
+            countermeasurePreviewID: countermeasurePreview?.id,
+            stagePreviewID: stagePreview?.id,
+            engagementLoopID: engagementLoop?.compactLabel
         )
     }
 

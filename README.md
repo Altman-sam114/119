@@ -22,6 +22,7 @@
 - 将领技能范围、目标与冷却预览：地图叠层、将领卡和军令按钮展示预计恢复、削城防、冷却和不可用原因
 - 将领技能目标与收益读板：将领卡展示当前主动技能目标数、目标类型、预计恢复/削城防收益、地图标记数量和前几个目标名称，和地图紫标同源
 - 将领详情与指挥链读板：选中单位展示将领名、特性、被动贡献、技能状态、预计效果、战功摘要和将令技能入口链路，并用一条短指挥链串联被动、技能目标、战功、将令、目标线阶段和处境入口；无将领单位显示“无被动贡献”
+- 将领战机威胁桥接读板：选中有将领军团时，将领卡用短读板串联本方将令机会、技能目标、敌方将领威胁、反制入口、目标线阶段和敌情闭环，提示当前该发动技能、参与合击、压制敌将还是救线，不新增自动命令
 - 战功状态：经验转为军阶、伤害加成和下一军阶进度，在兵牌、情报面板和将领卡中可读
 - 战术姿态预览：均衡、突击、坚守、行军会展示切换后的攻、防、移、变化值、当前标记和不可切换原因
 - 军团编制与成长读板：核心层只读派生军团职责、战备等级、相邻/两格友军、近敌、有效攻防移、建议姿态和命令建议，顶部态势、战局面板和选中单位情报均可读
@@ -93,7 +94,7 @@ swiftc -swift-version 5 -module-cache-path .build/module-cache Sources/RomeLegio
 node Tools/verify_project.mjs
 ```
 
-战斗页三尺寸预览图；渲染前会断言敌军意图 ViewModel 叠层包含移动后攻击六边形邻接路径、目标格和预计伤害文案，并断言敌情交战闭环 HUD、主动地图叠层图例、AI 作战计划读板、敌方将领威胁读板、敌情反制建议读板、反制落点/目标地图 overlay、反制指令聚焦与焦点链路、战线压力读板、战场焦点摘要、战场目标链路、战场态势交汇链路、选中军团处境命令入口读板、目标线地图 overlay、阶段聚焦、阶段命令预览与联动高亮 cue、将令技能入口链路、将领指挥链读板、将领技能目标与收益读板、地图控制摘要、威胁热区摘要、选中单位的军团编制摘要、军团成长决策摘要、军团成长优先级摘要、本方将领协同摘要、机动落点摘要/地图 overlay、战术建议摘要/路径/目标、将领详情、被动贡献、战功摘要、战术姿态预览和城市经营/招募读板存在。每个命令会写出请求的城市场景 PNG，并额外写出同尺寸 `*-unit.png` 单位场景 PNG：
+战斗页三尺寸预览图；渲染前会断言敌军意图 ViewModel 叠层包含移动后攻击六边形邻接路径、目标格和预计伤害文案，并断言敌情交战闭环 HUD、主动地图叠层图例、AI 作战计划读板、敌方将领威胁读板、敌情反制建议读板、反制落点/目标地图 overlay、反制指令聚焦与焦点链路、战线压力读板、战场焦点摘要、战场目标链路、战场态势交汇链路、选中军团处境命令入口读板、目标线地图 overlay、阶段聚焦、阶段命令预览与联动高亮 cue、将令技能入口链路、将领指挥链读板、将领战机威胁桥接读板、将领技能目标与收益读板、地图控制摘要、威胁热区摘要、选中单位的军团编制摘要、军团成长决策摘要、军团成长优先级摘要、本方将领协同摘要、机动落点摘要/地图 overlay、战术建议摘要/路径/目标、将领详情、被动贡献、战功摘要、战术姿态预览和城市经营/招募读板存在。每个命令会写出请求的城市场景 PNG，并额外写出同尺寸 `*-unit.png` 单位场景 PNG：
 
 ```sh
 env HOME=$PWD/.home CLANG_MODULE_CACHE_PATH=$PWD/.build/module-cache /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/swiftc -parse-as-library -sdk /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX26.5.sdk -target arm64-apple-macosx14.0 -o .build/render-battle-preview Tools/RenderBattlePreview/main.swift Sources/RomeLegionsCore/GameState.swift RomeLegionsApp/App/GameViewModel.swift RomeLegionsApp/Views/BattleView.swift

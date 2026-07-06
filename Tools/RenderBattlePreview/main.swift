@@ -810,6 +810,99 @@ struct RenderBattlePreview {
               activeFactionBeforeEngagementLoopRead == viewModel.state.activeFaction else {
             throw PreviewRenderError.missingEnemyEngagementLoopReadout
         }
+        let unitStateBeforeCommanderBridgeRead = viewModel.state.units
+            .sorted { $0.id < $1.id }
+            .map { unit in
+                "\(unit.id)|\(unit.position.description)|\(unit.health)|\(unit.hasMoved)|\(unit.hasActed)|\(unit.generalSkillCooldownRemaining)|\(unit.tacticalOrder?.rawValue ?? "balanced")"
+            }
+        let cityStateBeforeCommanderBridgeRead = viewModel.state.cities
+            .sorted { $0.id < $1.id }
+            .map { city in
+                "\(city.id)|\(city.owner.rawValue)|\(city.fortification)|\(city.position.description)"
+            }
+        let resourcesBeforeCommanderBridgeRead = viewModel.state.resources
+            .sorted { $0.key.rawValue < $1.key.rawValue }
+            .map { entry in
+                let resources = entry.value
+                return "\(entry.key.rawValue)|\(resources.gold)|\(resources.grain)|\(resources.iron)|\(resources.science)|\(resources.prestige)"
+            }
+        let turnBeforeCommanderBridgeRead = viewModel.state.turn
+        let activeFactionBeforeCommanderBridgeRead = viewModel.state.activeFaction
+        let bridgeCountermeasurePreview = viewModel.selectedCountermeasureCommandPreview ?? countermeasureCommandPreview
+        let bridgeStagePreview = viewModel.selectedBattleObjectiveStageCommandPreview ?? viewModel.primaryBattleObjectiveStageCommandPreview
+        guard let commanderBridgeReadout = viewModel.selectedCommanderOpportunityBridgeReadout,
+              commanderBridgeReadout.unitID == "rome-legion-1",
+              commanderBridgeReadout.references(brief: commanderBrief),
+              commanderBridgeReadout.references(chain: commanderChainReadout),
+              commanderBridgeReadout.references(skillTargetReadout: skillTargetReadout),
+              commanderBridgeReadout.references(guidance: commanderGuidance, unitID: "rome-legion-1"),
+              commanderBridgeReadout.references(synergy: selectedSynergySummary),
+              commanderBridgeReadout.references(enemyCommanderThreat: enemyCommanderThreat),
+              commanderBridgeReadout.references(countermeasure: countermeasure),
+              commanderBridgeReadout.references(countermeasurePreview: bridgeCountermeasurePreview),
+              bridgeStagePreview.map({ commanderBridgeReadout.references(stagePreview: $0) }) ?? false,
+              commanderBridgeReadout.references(engagementLoop: engagementLoop),
+              !commanderBridgeReadout.title.isEmpty,
+              !commanderBridgeReadout.statusLabel.isEmpty,
+              !commanderBridgeReadout.opportunityLabel.isEmpty,
+              !commanderBridgeReadout.skillWindowLabel.isEmpty,
+              !commanderBridgeReadout.enemyThreatLabel.isEmpty,
+              !commanderBridgeReadout.counterLabel.isEmpty,
+              !commanderBridgeReadout.entryLabel.isEmpty,
+              !commanderBridgeReadout.nextStepLabel.isEmpty,
+              !commanderBridgeReadout.riskLabel.isEmpty,
+              !commanderBridgeReadout.compactLabel.isEmpty,
+              !commanderBridgeReadout.accessibilityLabel.isEmpty,
+              commanderBridgeReadout.accessibilityLabel.contains("战机"),
+              commanderBridgeReadout.accessibilityLabel.contains("敌将"),
+              commanderBridgeReadout.accessibilityLabel.contains("反制"),
+              commanderBridgeReadout.accessibilityLabel.contains("入口"),
+              commanderBridgeReadout.accessibilityLabel.contains("下一步"),
+              commanderBridgeReadout.hasSignals,
+              commanderBridgeReadout.signals.contains(where: { $0.kind == .commanderBrief && $0.sourceID == commanderBrief.unitID }),
+              commanderBridgeReadout.signals.contains(where: { $0.kind == .commanderChain && $0.sourceID == commanderChainReadout.unitID }),
+              commanderBridgeReadout.signals.contains(where: { $0.kind == .skillWindow && $0.sourceID == skillTargetReadout.title }),
+              commanderBridgeReadout.signals.contains(where: { $0.kind == .guidance }),
+              commanderBridgeReadout.signals.contains(where: { $0.kind == .synergy && $0.sourceID == selectedSynergySummary.id }),
+              commanderBridgeReadout.signals.contains(where: { $0.kind == .enemyCommander && $0.sourceID == enemyCommanderThreat.id }),
+              commanderBridgeReadout.signals.contains(where: { $0.kind == .countermeasure && $0.sourceID == countermeasure.id }),
+              commanderBridgeReadout.signals.contains(where: { $0.kind == .counterCommand && $0.sourceID == bridgeCountermeasurePreview.id }),
+              bridgeStagePreview.map({ stagePreview in
+                  commanderBridgeReadout.signals.contains(where: { $0.kind == .objectiveStage && $0.sourceID == stagePreview.id })
+              }) ?? false,
+              commanderBridgeReadout.signals.contains(where: { $0.kind == .engagementLoop && $0.sourceID == engagementLoop.compactLabel }),
+              commanderBridgeReadout.signals.allSatisfy({ signal in
+                  !signal.id.isEmpty &&
+                      !signal.title.isEmpty &&
+                      !signal.detail.isEmpty &&
+                      !signal.sourceID.isEmpty &&
+                      !signal.accessibilityLabel.isEmpty
+              }) else {
+            throw PreviewRenderError.missingCommanderOpportunityBridgeReadout
+        }
+        let unitStateAfterCommanderBridgeRead = viewModel.state.units
+            .sorted { $0.id < $1.id }
+            .map { unit in
+                "\(unit.id)|\(unit.position.description)|\(unit.health)|\(unit.hasMoved)|\(unit.hasActed)|\(unit.generalSkillCooldownRemaining)|\(unit.tacticalOrder?.rawValue ?? "balanced")"
+            }
+        let cityStateAfterCommanderBridgeRead = viewModel.state.cities
+            .sorted { $0.id < $1.id }
+            .map { city in
+                "\(city.id)|\(city.owner.rawValue)|\(city.fortification)|\(city.position.description)"
+            }
+        let resourcesAfterCommanderBridgeRead = viewModel.state.resources
+            .sorted { $0.key.rawValue < $1.key.rawValue }
+            .map { entry in
+                let resources = entry.value
+                return "\(entry.key.rawValue)|\(resources.gold)|\(resources.grain)|\(resources.iron)|\(resources.science)|\(resources.prestige)"
+            }
+        guard unitStateBeforeCommanderBridgeRead == unitStateAfterCommanderBridgeRead,
+              cityStateBeforeCommanderBridgeRead == cityStateAfterCommanderBridgeRead,
+              resourcesBeforeCommanderBridgeRead == resourcesAfterCommanderBridgeRead,
+              turnBeforeCommanderBridgeRead == viewModel.state.turn,
+              activeFactionBeforeCommanderBridgeRead == viewModel.state.activeFaction else {
+            throw PreviewRenderError.missingCommanderOpportunityBridgeReadout
+        }
         guard let battleObjectiveOverlay = viewModel.primaryBattleObjectiveMapOverlay,
               battleObjectiveOverlay.references(chain: objectiveChain),
               !battleObjectiveOverlay.chainLabel.isEmpty,
@@ -1288,6 +1381,7 @@ enum PreviewRenderError: Error {
     case missingBattleObjectiveStageCommandPreview
     case missingBattleObjectiveStageLinkedHighlight
     case missingCommanderChainReadout
+    case missingCommanderOpportunityBridgeReadout
     case missingCommanderActionGuidance
     case missingGeneralSkillTargetReadout
     case missingThreatHeatSummary

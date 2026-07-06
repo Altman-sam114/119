@@ -2005,6 +2005,7 @@ struct CompactSelectionPanelView: View {
                             commanderBrief: viewModel.selectedCommanderBrief,
                             commanderActionGuidance: viewModel.selectedCommanderActionGuidance,
                             commanderChainReadout: viewModel.selectedCommanderChainReadout,
+                            commanderOpportunityBridgeReadout: viewModel.selectedCommanderOpportunityBridgeReadout,
                             skillTargetReadout: viewModel.selectedGeneralSkillTargetReadout
                         )
                     } else if let brief = viewModel.selectedCommanderBrief {
@@ -2193,6 +2194,7 @@ struct CompactGeneralTraitView: View {
     var commanderBrief: SelectedCommanderBrief?
     var commanderActionGuidance: CommanderActionGuidance?
     var commanderChainReadout: SelectedCommanderChainReadout?
+    var commanderOpportunityBridgeReadout: SelectedCommanderOpportunityBridgeReadout?
     var skillTargetReadout: SelectedGeneralSkillTargetReadout?
 
     var body: some View {
@@ -2219,6 +2221,9 @@ struct CompactGeneralTraitView: View {
         }
         if let commanderChainReadout {
             CommanderChainReadoutView(readout: commanderChainReadout, isCompact: true)
+        }
+        if let commanderOpportunityBridgeReadout {
+            CommanderOpportunityBridgeReadoutView(readout: commanderOpportunityBridgeReadout, isCompact: true)
         }
         if let warMeritStatus {
             HStack(spacing: 6) {
@@ -5039,6 +5044,7 @@ struct SelectionPanelView: View {
                             commanderBrief: viewModel.selectedCommanderBrief,
                             commanderActionGuidance: viewModel.selectedCommanderActionGuidance,
                             commanderChainReadout: viewModel.selectedCommanderChainReadout,
+                            commanderOpportunityBridgeReadout: viewModel.selectedCommanderOpportunityBridgeReadout,
                             skillTargetReadout: viewModel.selectedGeneralSkillTargetReadout
                         )
                     } else if let brief = viewModel.selectedCommanderBrief {
@@ -5196,6 +5202,7 @@ struct GeneralTraitCardView: View {
     var commanderBrief: SelectedCommanderBrief?
     var commanderActionGuidance: CommanderActionGuidance?
     var commanderChainReadout: SelectedCommanderChainReadout?
+    var commanderOpportunityBridgeReadout: SelectedCommanderOpportunityBridgeReadout?
     var skillTargetReadout: SelectedGeneralSkillTargetReadout?
 
     var body: some View {
@@ -5226,6 +5233,10 @@ struct GeneralTraitCardView: View {
 
             if let commanderChainReadout {
                 CommanderChainReadoutView(readout: commanderChainReadout, isCompact: false)
+            }
+
+            if let commanderOpportunityBridgeReadout {
+                CommanderOpportunityBridgeReadoutView(readout: commanderOpportunityBridgeReadout, isCompact: false)
             }
 
             Text(trait.skillDetail)
@@ -5394,6 +5405,75 @@ struct CommanderChainReadoutView: View {
         .background(.black.opacity(0.14))
         .clipShape(RoundedRectangle(cornerRadius: 6))
         .accessibilityLabel(readout.accessibilityLabel)
+    }
+}
+
+struct CommanderOpportunityBridgeReadoutView: View {
+    var readout: SelectedCommanderOpportunityBridgeReadout
+    var isCompact: Bool
+
+    var body: some View {
+        if isCompact {
+            HStack(spacing: 6) {
+                Image(systemName: "scope")
+                    .foregroundStyle(Color(red: 0.36, green: 0.86, blue: 0.92))
+                    .frame(width: 14)
+                Text("战机")
+                    .font(.caption2.weight(.bold))
+                    .foregroundStyle(.white.opacity(0.58))
+                Text(readout.compactLabel)
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(.white.opacity(0.72))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.54)
+                Spacer(minLength: 0)
+                Text(readout.entryLabel)
+                    .font(.caption2.weight(.black))
+                    .foregroundStyle(Color(red: 0.36, green: 0.86, blue: 0.92))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.54)
+            }
+            .padding(.horizontal, 8)
+            .frame(minHeight: 24)
+            .background(.black.opacity(0.14))
+            .clipShape(RoundedRectangle(cornerRadius: 6))
+            .accessibilityLabel(readout.accessibilityLabel)
+        } else {
+            VStack(alignment: .leading, spacing: 5) {
+                HStack(spacing: 6) {
+                    Image(systemName: "scope")
+                        .foregroundStyle(Color(red: 0.36, green: 0.86, blue: 0.92))
+                    Text("战机桥接")
+                        .font(.caption2.weight(.black))
+                        .foregroundStyle(.white)
+                    Spacer(minLength: 0)
+                    Text(readout.statusLabel)
+                        .font(.caption2.weight(.black))
+                        .foregroundStyle(.black.opacity(0.78))
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.58)
+                        .padding(.horizontal, 6)
+                        .frame(height: 20)
+                        .background(Color(red: 0.36, green: 0.86, blue: 0.92))
+                        .clipShape(RoundedRectangle(cornerRadius: 5))
+                }
+                Text("\(readout.opportunityLabel) · \(readout.enemyThreatLabel)")
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(.white.opacity(0.72))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.58)
+                Text("\(readout.entryLabel) · \(readout.nextStepLabel)")
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(Color(red: 0.86, green: 0.68, blue: 0.34))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.58)
+            }
+            .padding(.horizontal, 8)
+            .padding(.vertical, 6)
+            .background(.black.opacity(0.16))
+            .clipShape(RoundedRectangle(cornerRadius: 6))
+            .accessibilityLabel(readout.accessibilityLabel)
+        }
     }
 }
 
