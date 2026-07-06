@@ -747,6 +747,26 @@ struct BattleObjectiveStageCommandPreview: Identifiable {
         return "技能非主入口"
     }
 
+    var commandEntryCueLabel: String {
+        "\(stageLabel) · \(commandEntryLabel)"
+    }
+
+    var recommendedOrderStageCueLabel: String {
+        "\(stageLabel) · \(orderCueLabel)"
+    }
+
+    var attackStageCueLabel: String {
+        "\(stageLabel) · \(attackCueLabel)"
+    }
+
+    var skillStageCueLabel: String {
+        "\(stageLabel) · \(skillCueLabel)"
+    }
+
+    var shouldHighlightSkillEntry: Bool {
+        role == .synergy && canUseGeneralSkill
+    }
+
     var targetLabel: String {
         if let targetUnit {
             return "\(targetUnit.faction.displayName)\(targetUnit.kind.displayName)"
@@ -828,6 +848,10 @@ struct BattleObjectiveStageCommandPreview: Identifiable {
 
     func isAttackTarget(_ unit: ArmyUnit) -> Bool {
         targetUnit?.id == unit.id
+    }
+
+    func isCommandUnit(_ unit: ArmyUnit) -> Bool {
+        commandUnit?.id == unit.id
     }
 
     func isStage(_ candidate: BattleObjectiveMapRole) -> Bool {
@@ -2796,6 +2820,16 @@ final class GameViewModel: ObservableObject {
 
     var primaryBattleObjectiveStageCommandPreview: BattleObjectiveStageCommandPreview? {
         focusedBattleObjectiveStageCommandPreview ?? battleObjectiveStageCommandPreviews.first
+    }
+
+    var activeBattleObjectiveStageCommandPreview: BattleObjectiveStageCommandPreview? {
+        focusedBattleObjectiveStageCommandPreview ??
+            selectedBattleObjectiveStageCommandPreview ??
+            primaryBattleObjectiveStageCommandPreview
+    }
+
+    var activeBattleObjectiveStageRole: BattleObjectiveMapRole? {
+        activeBattleObjectiveStageCommandPreview?.role
     }
 
     var frontlinePressureSummaries: [FrontlinePressureSummary] {

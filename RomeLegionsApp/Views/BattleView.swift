@@ -220,7 +220,7 @@ struct WarMapView: View {
             let maneuverOptionOverlays = viewModel.maneuverOptionOverlaysByPosition
             let battleObjectiveOverlay = viewModel.primaryBattleObjectiveMapOverlay
             let battleObjectiveOverlays = viewModel.battleObjectiveOverlaysByPosition
-            let focusedBattleObjectiveRole = viewModel.focusedBattleObjectiveRole
+            let activeBattleObjectiveStageRole = viewModel.activeBattleObjectiveStageRole
             let countermeasureOverlay = viewModel.primaryCountermeasureMapOverlay
             let countermeasureOverlays = viewModel.countermeasureOverlaysByPosition
             let selectedPosition = viewModel.focusedPosition
@@ -271,7 +271,7 @@ struct WarMapView: View {
                         tacticalRecommendation: tacticalRecommendation,
                         maneuverOption: maneuverOptionOverlays[tile.position],
                         battleObjectiveOverlays: battleObjectiveOverlays[tile.position, default: []],
-                        focusedBattleObjectiveRole: focusedBattleObjectiveRole,
+                        focusedBattleObjectiveRole: activeBattleObjectiveStageRole,
                         countermeasureOverlay: countermeasureOverlays[tile.position],
                         mapControlSummary: mapControlSummaries[tile.position],
                         threatHeatZoneSummary: threatHeatOverlaysByPosition[tile.position],
@@ -1897,22 +1897,24 @@ struct CompactActionsPanelView: View {
                     let battleObjectivePreview = viewModel.selectedBattleObjectiveStageCommandPreview
                     let isCountermeasureTarget = countermeasurePreview?.isAttackTarget(target) == true
                     let isBattleObjectiveTarget = battleObjectivePreview?.isAttackTarget(target) == true
+                    let attackActionLabel = isCountermeasureTarget ? "反制攻击" : (isBattleObjectiveTarget ? "目标线攻击" : "攻击")
                     let attackDetail = [
                         isCountermeasureTarget ? countermeasurePreview?.targetStageCueLabel : nil,
-                        !isCountermeasureTarget && isBattleObjectiveTarget ? battleObjectivePreview?.attackCueLabel : nil,
+                        !isCountermeasureTarget && isBattleObjectiveTarget ? battleObjectivePreview?.attackStageCueLabel : nil,
                         preview?.commandModifierSummary
                     ].compactMap { $0 }.joined(separator: " · ")
+                    let attackAccessibilityLead = isBattleObjectiveTarget ? battleObjectivePreview?.attackStageCueLabel : nil
                     Button {
                         viewModel.attack(target.id)
                     } label: {
                         CommandButtonLabel(
                             symbol: "bolt.fill",
-                            text: preview.map { "\(isCountermeasureTarget ? "反制攻击" : "攻击") \(target.faction.displayName)\(target.kind.displayName) · 伤\($0.damage)" } ?? "\(isCountermeasureTarget ? "反制攻击" : "攻击") \(target.faction.displayName)\(target.kind.displayName)",
+                            text: preview.map { "\(attackActionLabel) \(target.faction.displayName)\(target.kind.displayName) · 伤\($0.damage)" } ?? "\(attackActionLabel) \(target.faction.displayName)\(target.kind.displayName)",
                             detail: attackDetail.isEmpty ? nil : attackDetail
                         )
                     }
                     .buttonStyle(PrimaryButtonStyle())
-                    .accessibilityLabel(isCountermeasureTarget ? "\(countermeasurePreview?.targetStageCueLabel ?? "3 目标，反制目标可攻击")，攻击\(target.faction.displayName)\(target.kind.displayName)" : "攻击\(target.faction.displayName)\(target.kind.displayName)")
+                    .accessibilityLabel(isCountermeasureTarget ? "\(countermeasurePreview?.targetStageCueLabel ?? "3 目标，反制目标可攻击")，攻击\(target.faction.displayName)\(target.kind.displayName)" : "\(attackAccessibilityLead ?? "攻击")，攻击\(target.faction.displayName)\(target.kind.displayName)")
                 } else {
                     HStack(spacing: 6) {
                         Image(systemName: "bolt.slash.fill")
@@ -1937,13 +1939,20 @@ struct CompactActionsPanelView: View {
                     TacticalOrderControlView(unit: unit, isCompact: true)
 
                     if let trait = unit.resolvedGeneralTrait {
+                        let battleObjectivePreview = viewModel.selectedBattleObjectiveStageCommandPreview
+                        let isBattleObjectiveSkillEntry = battleObjectivePreview?.shouldHighlightSkillEntry == true &&
+                            battleObjectivePreview?.isCommandUnit(unit) == true
+                        let skillButtonDetail = [
+                            isBattleObjectiveSkillEntry ? battleObjectivePreview?.skillStageCueLabel : nil,
+                            viewModel.selectedGeneralSkillButtonDetail
+                        ].compactMap { $0 }.joined(separator: " · ")
                         Button {
                             viewModel.useSelectedGeneralSkill()
                         } label: {
                             CommandButtonLabel(
                                 symbol: trait.systemImage,
                                 text: trait.skillName,
-                                detail: viewModel.selectedGeneralSkillButtonDetail
+                                detail: skillButtonDetail.isEmpty ? nil : skillButtonDetail
                             )
                         }
                         .buttonStyle(SecondaryButtonStyle())
@@ -3370,6 +3379,8 @@ struct BattleObjectiveChainCardView: View {
             if focusStageAction != nil {
                 HStack(spacing: 5) {
                     ForEach(stageRoles) { role in
+                        let isStageActive = focusedRole == role || stageCommandPreview?.role == role
+                        let stageCueLabel = stageCommandPreview?.role == role ? stageCommandPreview?.commandEntryCueLabel : nil
                         Button {
                             focusStageAction?(role)
                         } label: {
@@ -3381,15 +3392,15 @@ struct BattleObjectiveChainCardView: View {
                                     .lineLimit(1)
                                     .minimumScaleFactor(0.72)
                             }
-                            .foregroundStyle(focusedRole == role ? .black.opacity(0.82) : role.tintColor)
+                            .foregroundStyle(isStageActive ? .black.opacity(0.82) : role.tintColor)
                             .padding(.horizontal, 5)
                             .frame(maxWidth: .infinity, minHeight: 22)
-                            .background(focusedRole == role ? role.tintColor : role.tintColor.opacity(0.14))
+                            .background(isStageActive ? role.tintColor : role.tintColor.opacity(0.14))
                             .clipShape(RoundedRectangle(cornerRadius: 5))
                         }
                         .buttonStyle(.plain)
-                        .accessibilityLabel("\(stageAccessibilityLabel(for: role))，定位")
-                        .accessibilityAddTraits(focusedRole == role ? .isSelected : AccessibilityTraits())
+                        .accessibilityLabel([stageAccessibilityLabel(for: role), stageCueLabel, "定位"].compactMap { $0 }.joined(separator: "，"))
+                        .accessibilityAddTraits(isStageActive ? .isSelected : AccessibilityTraits())
                     }
                 }
             }
@@ -4910,6 +4921,7 @@ struct TacticalOrderControlView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 7) {
             let countermeasurePreview = viewModel.selectedCountermeasureCommandPreview
+            let battleObjectivePreview = viewModel.selectedBattleObjectiveStageCommandPreview
 
             if !isCompact {
                 HStack(spacing: 7) {
@@ -4931,6 +4943,9 @@ struct TacticalOrderControlView: View {
             HStack(spacing: 6) {
                 ForEach(TacticalOrder.allCases) { order in
                     let preview = viewModel.selectedTacticalOrderPreview(for: order)
+                    let isCountermeasureRecommendation = countermeasurePreview?.isRecommendedOrder(order) == true
+                    let isBattleObjectiveRecommendation = !isCountermeasureRecommendation &&
+                        battleObjectivePreview?.isRecommendedOrder(order) == true
                     Button {
                         viewModel.setSelectedTacticalOrder(order)
                     } label: {
@@ -4938,12 +4953,14 @@ struct TacticalOrderControlView: View {
                             order: order,
                             preview: preview,
                             isCompact: isCompact,
-                            isCountermeasureRecommendation: countermeasurePreview?.isRecommendedOrder(order) == true
+                            isCountermeasureRecommendation: isCountermeasureRecommendation,
+                            isBattleObjectiveRecommendation: isBattleObjectiveRecommendation,
+                            battleObjectiveCueLabel: isBattleObjectiveRecommendation ? battleObjectivePreview?.recommendedOrderStageCueLabel : nil
                         )
                     }
                     .buttonStyle(.plain)
                     .disabled(!(preview?.canSwitch ?? viewModel.canSetSelectedTacticalOrder(order)))
-                    .accessibilityLabel(countermeasurePreview?.isRecommendedOrder(order) == true ? "\(countermeasurePreview?.recommendedOrderCueLabel ?? "反制推荐姿态")，\(preview?.accessibilityLabel ?? order.detail)" : (preview?.accessibilityLabel ?? order.detail))
+                    .accessibilityLabel(isCountermeasureRecommendation ? "\(countermeasurePreview?.recommendedOrderCueLabel ?? "反制推荐姿态")，\(preview?.accessibilityLabel ?? order.detail)" : (isBattleObjectiveRecommendation ? "\(battleObjectivePreview?.recommendedOrderStageCueLabel ?? "目标线推荐姿态")，\(preview?.accessibilityLabel ?? order.detail)" : (preview?.accessibilityLabel ?? order.detail)))
                 }
             }
 
@@ -4982,6 +4999,8 @@ struct TacticalOrderPreviewButtonContent: View {
     var preview: SelectedTacticalOrderPreview?
     var isCompact: Bool
     var isCountermeasureRecommendation = false
+    var isBattleObjectiveRecommendation = false
+    var battleObjectiveCueLabel: String?
 
     var body: some View {
         VStack(spacing: isCompact ? 2 : 4) {
@@ -5019,6 +5038,12 @@ struct TacticalOrderPreviewButtonContent: View {
                         .foregroundStyle(preview.isCurrent ? .black.opacity(0.76) : order.tintColor)
                         .lineLimit(1)
                         .minimumScaleFactor(0.70)
+                } else if isBattleObjectiveRecommendation {
+                    Text(battleObjectiveBadgeLabel)
+                        .font(.caption2.weight(.black))
+                        .foregroundStyle(preview.isCurrent ? .black.opacity(0.76) : order.tintColor)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.58)
                 }
             } else {
                 Text(order.detail)
@@ -5034,9 +5059,29 @@ struct TacticalOrderPreviewButtonContent: View {
         .clipShape(RoundedRectangle(cornerRadius: 7))
         .overlay {
             RoundedRectangle(cornerRadius: 7)
-                .stroke(order.tintColor.opacity(isCountermeasureRecommendation ? 0.90 : (preview?.isCurrent == true ? 0 : 0.32)), lineWidth: isCountermeasureRecommendation ? 2 : 1)
+                .stroke(order.tintColor.opacity(recommendationStrokeOpacity(isCurrent: preview?.isCurrent == true)), lineWidth: recommendationStrokeWidth)
         }
         .opacity(preview?.canSwitch == false && preview?.isCurrent == false ? 0.76 : 1)
+    }
+
+    private var recommendationStrokeWidth: CGFloat {
+        isCountermeasureRecommendation || isBattleObjectiveRecommendation ? 2 : 1
+    }
+
+    private var battleObjectiveBadgeLabel: String {
+        battleObjectiveCueLabel?.split(separator: "·", maxSplits: 1).first.map(String.init) ?? "目标线"
+    }
+
+    private func recommendationStrokeOpacity(isCurrent: Bool) -> Double {
+        if isCountermeasureRecommendation {
+            return 0.90
+        }
+
+        if isBattleObjectiveRecommendation {
+            return 0.74
+        }
+
+        return isCurrent ? 0 : 0.32
     }
 }
 
@@ -5086,23 +5131,25 @@ struct ActionsPanelView: View {
                         let battleObjectivePreview = viewModel.selectedBattleObjectiveStageCommandPreview
                         let isCountermeasureTarget = countermeasurePreview?.isAttackTarget(target) == true
                         let isBattleObjectiveTarget = battleObjectivePreview?.isAttackTarget(target) == true
+                        let attackActionLabel = isCountermeasureTarget ? "反制攻击" : (isBattleObjectiveTarget ? "目标线攻击" : "攻击")
                         let attackDetail = [
                             isCountermeasureTarget ? countermeasurePreview?.targetStageCueLabel : nil,
-                            !isCountermeasureTarget && isBattleObjectiveTarget ? battleObjectivePreview?.attackCueLabel : nil,
+                            !isCountermeasureTarget && isBattleObjectiveTarget ? battleObjectivePreview?.attackStageCueLabel : nil,
                             preview?.commandModifierSummary
                         ].compactMap { $0 }.joined(separator: " · ")
+                        let attackAccessibilityLead = isBattleObjectiveTarget ? battleObjectivePreview?.attackStageCueLabel : nil
                         Button {
                             viewModel.attack(target.id)
                         } label: {
                             CommandButtonLabel(
                                 symbol: "bolt.fill",
-                                text: preview.map { "\(isCountermeasureTarget ? "反制攻击" : "攻击") \(target.faction.displayName)\(target.kind.displayName) · 伤害 \($0.damage)" } ?? "\(isCountermeasureTarget ? "反制攻击" : "攻击") \(target.faction.displayName)\(target.kind.displayName)",
+                                text: preview.map { "\(attackActionLabel) \(target.faction.displayName)\(target.kind.displayName) · 伤害 \($0.damage)" } ?? "\(attackActionLabel) \(target.faction.displayName)\(target.kind.displayName)",
                                 detail: attackDetail.isEmpty ? nil : attackDetail
                             )
                         }
                         .buttonStyle(PrimaryButtonStyle())
                         .disabled(viewModel.isCampaignOver)
-                        .accessibilityLabel(isCountermeasureTarget ? "\(countermeasurePreview?.targetStageCueLabel ?? "3 目标，反制目标可攻击")，攻击\(target.faction.displayName)\(target.kind.displayName)" : "攻击\(target.faction.displayName)\(target.kind.displayName)")
+                        .accessibilityLabel(isCountermeasureTarget ? "\(countermeasurePreview?.targetStageCueLabel ?? "3 目标，反制目标可攻击")，攻击\(target.faction.displayName)\(target.kind.displayName)" : "\(attackAccessibilityLead ?? "攻击")，攻击\(target.faction.displayName)\(target.kind.displayName)")
                     }
                 }
 
@@ -5139,13 +5186,20 @@ struct ActionsPanelView: View {
                     TacticalOrderControlView(unit: unit)
 
                     if let trait = unit.resolvedGeneralTrait {
+                        let battleObjectivePreview = viewModel.selectedBattleObjectiveStageCommandPreview
+                        let isBattleObjectiveSkillEntry = battleObjectivePreview?.shouldHighlightSkillEntry == true &&
+                            battleObjectivePreview?.isCommandUnit(unit) == true
+                        let skillButtonDetail = [
+                            isBattleObjectiveSkillEntry ? battleObjectivePreview?.skillStageCueLabel : nil,
+                            viewModel.selectedGeneralSkillButtonDetail
+                        ].compactMap { $0 }.joined(separator: " · ")
                         Button {
                             viewModel.useSelectedGeneralSkill()
                         } label: {
                             CommandButtonLabel(
                                 symbol: trait.systemImage,
                                 text: trait.skillName,
-                                detail: viewModel.selectedGeneralSkillButtonDetail
+                                detail: skillButtonDetail.isEmpty ? nil : skillButtonDetail
                             )
                         }
                         .buttonStyle(SecondaryButtonStyle())

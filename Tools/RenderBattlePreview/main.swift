@@ -472,6 +472,63 @@ struct RenderBattlePreview {
                   viewModel.bannerMessage.contains("目标线") else {
                 throw PreviewRenderError.missingBattleObjectiveStageCommandPreview
             }
+            guard viewModel.activeBattleObjectiveStageRole == stage.role,
+                  let activePreview = viewModel.activeBattleObjectiveStageCommandPreview,
+                  activePreview.chainID == focusedPreview.chainID,
+                  activePreview.role == focusedPreview.role,
+                  activePreview.position == focusedPreview.position,
+                  activePreview.sourceSummaryID == focusedPreview.sourceSummaryID,
+                  viewModel.battleObjectiveOverlaysByPosition[stage.position]?.contains(where: { overlay in
+                      overlay.role == stage.role &&
+                          overlay.position == stage.position &&
+                          overlay.stageLabel == focusedPreview.stageLabel
+                  }) == true,
+                  activePreview.commandEntryCueLabel.contains(focusedPreview.stageLabel),
+                  activePreview.commandEntryCueLabel.contains(focusedPreview.commandEntryLabel),
+                  activePreview.recommendedOrderStageCueLabel.contains(focusedPreview.stageLabel),
+                  activePreview.recommendedOrderStageCueLabel.contains(focusedPreview.orderCueLabel),
+                  activePreview.attackStageCueLabel.contains(focusedPreview.stageLabel),
+                  activePreview.attackStageCueLabel.contains(focusedPreview.attackCueLabel),
+                  activePreview.skillStageCueLabel.contains(focusedPreview.stageLabel),
+                  activePreview.skillStageCueLabel.contains(focusedPreview.skillCueLabel) else {
+                throw PreviewRenderError.missingBattleObjectiveStageLinkedHighlight
+            }
+            if let commandUnit = focusedPreview.commandUnit {
+                guard focusedPreview.isCommandUnit(commandUnit),
+                      viewModel.selectedBattleObjectiveStageCommandPreview?.role == focusedPreview.role,
+                      viewModel.selectedBattleObjectiveStageCommandPreview?.position == focusedPreview.position,
+                      viewModel.selectedBattleObjectiveStageCommandPreview?.sourceSummaryID == focusedPreview.sourceSummaryID else {
+                    throw PreviewRenderError.missingBattleObjectiveStageLinkedHighlight
+                }
+            }
+            if let recommendedOrder = focusedPreview.recommendedOrder,
+               let commandUnit = focusedPreview.commandUnit {
+                guard focusedPreview.isRecommendedOrder(recommendedOrder),
+                      viewModel.selectedUnitID == commandUnit.id,
+                      viewModel.selectedTacticalOrderPreview(for: recommendedOrder) != nil,
+                      focusedPreview.recommendedOrderStageCueLabel.contains(recommendedOrder.displayName) else {
+                    throw PreviewRenderError.missingBattleObjectiveStageLinkedHighlight
+                }
+            }
+            if focusedPreview.canAttackCurrentTarget,
+               let targetUnit = focusedPreview.targetUnit {
+                guard viewModel.attackTargets.contains(where: { target in
+                    target.id == targetUnit.id &&
+                        focusedPreview.isAttackTarget(target) &&
+                        focusedPreview.attackStageCueLabel.contains(focusedPreview.attackCueLabel)
+                }) else {
+                    throw PreviewRenderError.missingBattleObjectiveStageLinkedHighlight
+                }
+            }
+            if focusedPreview.shouldHighlightSkillEntry,
+               let commandUnit = focusedPreview.commandUnit {
+                guard focusedPreview.isCommandUnit(commandUnit),
+                      viewModel.selectedUnitID == commandUnit.id,
+                      viewModel.canUseSelectedGeneralSkill,
+                      focusedPreview.skillStageCueLabel.contains(focusedPreview.skillCueLabel) else {
+                    throw PreviewRenderError.missingBattleObjectiveStageLinkedHighlight
+                }
+            }
         }
         viewModel.focusPrimaryBattleObjectiveStage(.maneuver)
         guard viewModel.focusedPosition == primaryManeuverSummary.destination,
@@ -754,6 +811,7 @@ enum PreviewRenderError: Error {
     case missingBattleObjectiveMapOverlay
     case missingBattleObjectiveStageFocus
     case missingBattleObjectiveStageCommandPreview
+    case missingBattleObjectiveStageLinkedHighlight
     case missingThreatHeatSummary
     case missingAIOperationalPlanSummary
     case missingEnemyCommanderThreatSummary

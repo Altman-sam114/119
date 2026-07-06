@@ -14,12 +14,50 @@
 
 - 项目类型：原创 SwiftUI iOS 罗马题材战棋原型。
 - 核心架构：纯 Swift `RomeLegionsCore` 负责玩法规则；`GameViewModel` 负责 UI 状态和派生数据；SwiftUI 视图负责展示和命令入口。
-- 当前玩法：六边形地图、地形、城市、阵营、军团、移动、攻击、反击、占城、招募、科技、任务 requirement、战役目标、胜负结算、结束保护、外交、城市扩建、城市经营与招募读板、军团训练、将领任命、军团成长决策读板、军团成长优先级读板、主动技能、技能冷却、将领详情读板、被动贡献、战功状态、军团编制与成长读板、战术命令建议与补线路径读板、本方将领协同与战术连携读板、机动落点与地图风险读板、战场焦点与将领机会读板、战场目标链路、目标线地图叠层、阶段聚焦与阶段命令预览、地图控制与威胁热区读板、主动地图叠层图例、AI 作战计划与敌方将领协同读板、敌方将领威胁读板、敌情反制建议读板、反制落点/目标地图叠层、反制指令聚焦、反制命令链高亮与反制焦点链路、战术姿态与姿态预览、AI 回合、AI 主攻优先执行、敌军意图预判、敌军意图六边形路径/目标叠层、战线压力读板、战局态势面板。
+- 当前玩法：六边形地图、地形、城市、阵营、军团、移动、攻击、反击、占城、招募、科技、任务 requirement、战役目标、胜负结算、结束保护、外交、城市扩建、城市经营与招募读板、军团训练、将领任命、军团成长决策读板、军团成长优先级读板、主动技能、技能冷却、将领详情读板、被动贡献、战功状态、军团编制与成长读板、战术命令建议与补线路径读板、本方将领协同与战术连携读板、机动落点与地图风险读板、战场焦点与将领机会读板、战场目标链路、目标线地图叠层、阶段聚焦、阶段命令预览与联动高亮、地图控制与威胁热区读板、主动地图叠层图例、AI 作战计划与敌方将领协同读板、敌方将领威胁读板、敌情反制建议读板、反制落点/目标地图叠层、反制指令聚焦、反制命令链高亮与反制焦点链路、战术姿态与姿态预览、AI 回合、AI 主攻优先执行、敌军意图预判、敌军意图六边形路径/目标叠层、战线压力读板、战局态势面板。
 - 当前测试入口：Swift Testing、Gameplay Smoke、项目结构检查、SwiftUI 类型检查、战斗页预览图渲染、无签名 Xcode 构建。
 - 当前协作系统：已建立 `AGENTS.md`、`update_log.md`、`md/prompt/`、`md/test/test.md`、`md/flow/flow.md`、`md/flow/flowchart.md`，默认按 `main` 直推、GitHub Actions 云端重验证、Agent C 下载未加密结果包复判，并具备未来由 Agent X 主控调度 Agent A/B/C 多轮循环的文档基线。
 - 当前 CI 入口：`.github/workflows/ci-results.yml`，在 `main` push 和手动触发时运行结构检查、SwiftPM 测试、Gameplay Smoke、RenderBattlePreview 和无签名 Xcode build，并上传 CI 结果包。
 
 ## 历史记录
+
+### v0.36 / 目标线阶段联动高亮
+
+日期：2026-07-06
+
+核心变更：
+
+- `BattleObjectiveStageCommandPreview` 新增命令入口、推荐姿态、攻击和技能阶段 cue，并提供当前阶段执行单位判断；`GameViewModel` 新增 `activeBattleObjectiveStageCommandPreview` 与 `activeBattleObjectiveStageRole`，统一地图徽标和目标线阶段读板的高亮来源。
+- `BattleView` 将目标线地图阶段徽标、目标线卡片阶段按钮、姿态推荐按钮、攻击按钮和将领技能入口接到同一阶段 cue；反制目标和反制推荐姿态仍保持最高优先级。
+- 目标线阶段联动高亮只读取现有 ViewModel 派生数据，不改变 `Button` action、`.disabled(...)`、`GameState`、AI 决策、攻击/移动/技能/姿态结算或核心规则。
+- `Tools/RenderBattlePreview/main.swift` 新增 `missingBattleObjectiveStageLinkedHighlight` 断言，覆盖 active/focused/selected 阶段预览、地图 overlay、推荐姿态 cue、攻击 cue、技能 cue 与只读快照。
+- `.github/workflows/ci-results.yml` artifact 版本更新到 v0.36。
+- README、flow、flowchart、test、prompt README、AGENTS 文档同步目标线阶段联动高亮和 v0.36 Agent A 提示词。
+
+关键文件：
+
+- `RomeLegionsApp/App/GameViewModel.swift`
+- `RomeLegionsApp/Views/BattleView.swift`
+- `Tools/RenderBattlePreview/main.swift`
+- `.github/workflows/ci-results.yml`
+- `README.md`
+- `AGENTS.md`
+- `md/flow/flow.md`
+- `md/flow/flowchart.md`
+- `md/test/test.md`
+- `md/prompt/README.md`
+- `md/prompt/v0（玩法推进）/v0.36（目标线阶段联动高亮）.md`
+- `update_log.md`
+
+验证结果：
+
+- 按人工最新要求，本轮未运行任何本地测试、build、typecheck、RenderBattlePreview、`Tools/verify_project.mjs`、`git diff --check`、YAML/JSON/Plist 解析或脚本语法检查。
+- 云端 GitHub Actions 与 Agent C artifact 复判待本轮实现提交 push 后补齐。
+
+遗留事项：
+
+- 本轮没有实现目标线自动执行、一键移动、一键攻击、一键技能、一键切姿态、命令队列、多回合搜索、AI 权重重写、装备、升级树、将领池 UI、外交界面、存档 UI 或建筑树。
+- 阶段联动高亮只解释当前目标线与既有命令入口的关系，不声明为真实命令队列，也不改变既有 AI、技能、攻击、移动、城市、外交或胜负规则。
 
 ### v0.35 / 目标线阶段命令预览
 
