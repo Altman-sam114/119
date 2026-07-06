@@ -14,12 +14,51 @@
 
 - 项目类型：原创 SwiftUI iOS 罗马题材战棋原型。
 - 核心架构：纯 Swift `RomeLegionsCore` 负责玩法规则；`GameViewModel` 负责 UI 状态和派生数据；SwiftUI 视图负责展示和命令入口。
-- 当前玩法：六边形地图、地形、城市、阵营、军团、移动、攻击、反击、占城、招募、科技、任务 requirement、战役目标、胜负结算、结束保护、外交、城市扩建、城市经营与招募读板、军团训练、将领任命、军团成长决策读板、军团成长优先级读板、主动技能、技能冷却、将领详情读板、被动贡献、战功状态、军团编制与成长读板、战术命令建议与补线路径读板、本方将领协同与战术连携读板、机动落点与地图风险读板、战场焦点与将领机会读板、战场目标链路、地图控制与威胁热区读板、主动地图叠层图例、AI 作战计划与敌方将领协同读板、敌方将领威胁读板、敌情反制建议读板、反制落点/目标地图叠层、反制指令聚焦、反制命令链高亮与反制焦点链路、战术姿态与姿态预览、AI 回合、AI 主攻优先执行、敌军意图预判、敌军意图六边形路径/目标叠层、战线压力读板、战局态势面板。
+- 当前玩法：六边形地图、地形、城市、阵营、军团、移动、攻击、反击、占城、招募、科技、任务 requirement、战役目标、胜负结算、结束保护、外交、城市扩建、城市经营与招募读板、军团训练、将领任命、军团成长决策读板、军团成长优先级读板、主动技能、技能冷却、将领详情读板、被动贡献、战功状态、军团编制与成长读板、战术命令建议与补线路径读板、本方将领协同与战术连携读板、机动落点与地图风险读板、战场焦点与将领机会读板、战场目标链路与目标线地图叠层、地图控制与威胁热区读板、主动地图叠层图例、AI 作战计划与敌方将领协同读板、敌方将领威胁读板、敌情反制建议读板、反制落点/目标地图叠层、反制指令聚焦、反制命令链高亮与反制焦点链路、战术姿态与姿态预览、AI 回合、AI 主攻优先执行、敌军意图预判、敌军意图六边形路径/目标叠层、战线压力读板、战局态势面板。
 - 当前测试入口：Swift Testing、Gameplay Smoke、项目结构检查、SwiftUI 类型检查、战斗页预览图渲染、无签名 Xcode 构建。
 - 当前协作系统：已建立 `AGENTS.md`、`update_log.md`、`md/prompt/`、`md/test/test.md`、`md/flow/flow.md`、`md/flow/flowchart.md`，默认按 `main` 直推、GitHub Actions 云端重验证、Agent C 下载未加密结果包复判，并具备未来由 Agent X 主控调度 Agent A/B/C 多轮循环的文档基线。
 - 当前 CI 入口：`.github/workflows/ci-results.yml`，在 `main` push 和手动触发时运行结构检查、SwiftPM 测试、Gameplay Smoke、RenderBattlePreview 和无签名 Xcode build，并上传 CI 结果包。
 
 ## 历史记录
+
+### v0.33 / 战场目标线地图叠层
+
+日期：2026-07-06
+
+核心变更：
+
+- `BattleObjectiveChainSummary` 增加同源地图叠层派生：`BattleObjectiveMapOverlay`、`BattleObjectivePositionOverlay`、`BattleObjectiveRouteSegment` 与 `BattleObjectiveMapRole`，把“1 焦点、2 将令、3 机动、4 军议”目标线转成只读阶段位置和路线线段。
+- `GameViewModel` 新增 `primaryBattleObjectiveMapOverlay`、`battleObjectiveRouteSegments`、`battleObjectiveOverlaysByPosition` 和 `battleObjectiveOverlayPositions`，按位置保留多个阶段，避免同格阶段互相覆盖。
+- `BattleView` 在地图上展示战场目标线金色连线和阶段徽标，并将 tile accessibility 同步读出阶段、坐标和链路摘要；叠层不接管点击，不改变按钮 action 或 disabled 规则。
+- 主动地图叠层图例新增“目标线”，只在目标线 overlay 存在时显示。
+- `Tools/RenderBattlePreview/main.swift` 新增 `missingBattleObjectiveMapOverlay` 断言，覆盖目标线 overlay、route segments、按位置索引、阶段位置、链路引用一致性和图例。
+- `.github/workflows/ci-results.yml` artifact 版本更新到 v0.33。
+- README、flow、flowchart、test、prompt README、AGENTS 文档同步战场目标线地图叠层和 v0.33 Agent A 提示词。
+
+关键文件：
+
+- `RomeLegionsApp/App/GameViewModel.swift`
+- `RomeLegionsApp/Views/BattleView.swift`
+- `Tools/RenderBattlePreview/main.swift`
+- `.github/workflows/ci-results.yml`
+- `README.md`
+- `AGENTS.md`
+- `md/flow/flow.md`
+- `md/flow/flowchart.md`
+- `md/test/test.md`
+- `md/prompt/README.md`
+- `md/prompt/v0（玩法推进）/v0.33（战场目标线地图叠层）.md`
+- `update_log.md`
+
+验证结果：
+
+- 按人工最新要求，本轮未运行任何本地测试、build、typecheck、RenderBattlePreview、`Tools/verify_project.mjs`、`git diff --check`、YAML/JSON/Plist 解析或脚本语法检查。
+- 云端 GitHub Actions 与 Agent C artifact 复判待本轮提交 push 后执行。
+
+遗留事项：
+
+- 本轮没有实现目标线自动执行、一键移动、一键攻击、一键技能、一键切姿态、多回合搜索、AI 权重重写、装备、升级树、将领池 UI、外交界面、存档 UI 或建筑树。
+- 战场目标线地图叠层只解释已有焦点、将令、机动和军议的空间关系，不声明为真实移动路径，也不改变既有 AI、技能、攻击、移动、城市、外交或胜负规则。
 
 ### v0.32 / 战场目标链路
 

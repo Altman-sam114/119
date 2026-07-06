@@ -351,6 +351,55 @@ struct RenderBattlePreview {
               !recommendationSummary.objectiveCueLabel.isEmpty else {
             throw PreviewRenderError.missingBattleObjectiveChainSummary
         }
+        guard let battleObjectiveOverlay = viewModel.primaryBattleObjectiveMapOverlay,
+              battleObjectiveOverlay.references(chain: objectiveChain),
+              !battleObjectiveOverlay.chainLabel.isEmpty,
+              !battleObjectiveOverlay.accessibilityLabel.isEmpty,
+              !battleObjectiveOverlay.positionOverlays.isEmpty,
+              !battleObjectiveOverlay.routeSegments.isEmpty,
+              !viewModel.battleObjectiveRouteSegments.isEmpty,
+              !viewModel.battleObjectiveOverlaysByPosition.isEmpty,
+              !viewModel.battleObjectiveOverlayPositions.isEmpty,
+              viewModel.battleObjectiveOverlayPositions.contains(battlefieldFocus.targetPosition),
+              viewModel.battleObjectiveOverlaysByPosition[battlefieldFocus.targetPosition]?.contains(where: { overlay in
+                  overlay.role == .focus &&
+                      overlay.position == battlefieldFocus.targetPosition &&
+                      !overlay.stageLabel.isEmpty &&
+                      !overlay.focusLabel.isEmpty &&
+                      !overlay.chainLabel.isEmpty &&
+                      !overlay.accessibilityLabel.isEmpty
+              }) == true,
+              viewModel.battleObjectiveOverlayPositions.contains(selectedSynergySummary.targetPosition),
+              viewModel.battleObjectiveOverlaysByPosition[selectedSynergySummary.targetPosition]?.contains(where: { overlay in
+                  overlay.role == .synergy &&
+                      overlay.position == selectedSynergySummary.targetPosition &&
+                      !overlay.stageLabel.isEmpty &&
+                      !overlay.focusLabel.isEmpty &&
+                      !overlay.accessibilityLabel.isEmpty
+              }) == true,
+              viewModel.battleObjectiveOverlayPositions.contains(primaryManeuverSummary.destination),
+              viewModel.battleObjectiveOverlaysByPosition[primaryManeuverSummary.destination]?.contains(where: { overlay in
+                  overlay.role == .maneuver &&
+                      overlay.position == primaryManeuverSummary.destination &&
+                      !overlay.stageLabel.isEmpty &&
+                      !overlay.focusLabel.isEmpty &&
+                      !overlay.accessibilityLabel.isEmpty
+              }) == true,
+              viewModel.battleObjectiveOverlayPositions.contains(recommendationSummary.targetPosition),
+              viewModel.battleObjectiveOverlaysByPosition[recommendationSummary.targetPosition]?.contains(where: { overlay in
+                  overlay.role == .recommendation &&
+                      overlay.position == recommendationSummary.targetPosition &&
+                      !overlay.stageLabel.isEmpty &&
+                      !overlay.focusLabel.isEmpty &&
+                      !overlay.accessibilityLabel.isEmpty
+              }) == true,
+              battleObjectiveOverlay.routeSegments.allSatisfy({ segment in
+                  !segment.id.isEmpty &&
+                      battleObjectiveOverlay.positionOverlays.contains(where: { $0.position == segment.from }) &&
+                      battleObjectiveOverlay.positionOverlays.contains(where: { $0.position == segment.to })
+              }) else {
+            throw PreviewRenderError.missingBattleObjectiveMapOverlay
+        }
         let legendItems = viewModel.activeMapOverlayLegendItems
         let legendKinds = Set(legendItems.map(\.kind))
         let requiredLegendKinds: Set<MapOverlayLegendKind> = [
@@ -360,6 +409,7 @@ struct RenderBattlePreview {
             .mapControl,
             .tacticalPath,
             .maneuverOption,
+            .battleObjective,
             .countermeasure
         ]
         guard !legendItems.isEmpty,
@@ -570,6 +620,7 @@ enum PreviewRenderError: Error {
     case missingFrontlinePressure
     case missingBattlefieldFocus
     case missingBattleObjectiveChainSummary
+    case missingBattleObjectiveMapOverlay
     case missingThreatHeatSummary
     case missingAIOperationalPlanSummary
     case missingEnemyCommanderThreatSummary

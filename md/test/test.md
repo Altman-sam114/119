@@ -124,7 +124,7 @@ on:
 artifact 命名规则：
 
 ```text
-RomeLegions-ci-v0.32-main-<short_sha>-run<run_id>-attempt<run_attempt>
+RomeLegions-ci-v0.33-main-<short_sha>-run<run_id>-attempt<run_attempt>
 ```
 
 `ci-artifact-manifest.json` 必须至少包含：
@@ -187,7 +187,7 @@ Agent C 必须核对：
 - manifest 的 `branch` 为 `main`。
 - manifest 的 `runId` 和 `runAttempt` 等于本次下载的 run。
 - workflow 结论、JUnit、主构建日志、RenderBattlePreview 日志、失败摘要互相一致。
-- v0.18 起若 manifest 包含 `renderPreviewOutcome`，必须为 `success`，且 `render-battle-preview.log` 和 `render-previews/*.png` 必须存在；v0.21 机动落点断言失败时应抛出 `missingManeuverOptionSummary`；v0.22 起 Gameplay Smoke 必须覆盖 AI 主攻优先执行顺序；v0.23 主动地图叠层图例断言失败时应抛出 `missingMapOverlayLegend`；v0.24 军团成长决策读板断言失败时应抛出 `missingUnitDevelopmentDecisionSummary`；v0.25 军团成长优先级读板断言失败时应抛出 `missingUnitDevelopmentRecommendationSummary`；v0.26 敌方将领威胁读板断言失败时应抛出 `missingEnemyCommanderThreatSummary`；v0.27 敌情反制建议读板断言失败时应抛出 `missingCountermeasureSummary`；v0.28 起反制落点/目标地图叠层或焦点链路断言失败时应抛出 `missingCountermeasureOverlay`；v0.29 起反制指令聚焦、执行预览、命令链高亮或焦点链路断言失败时应抛出 `missingCountermeasureCommandPreview`；v0.32 起战场目标链路断言失败时应抛出 `missingBattleObjectiveChainSummary`。
+- v0.18 起若 manifest 包含 `renderPreviewOutcome`，必须为 `success`，且 `render-battle-preview.log` 和 `render-previews/*.png` 必须存在；v0.21 机动落点断言失败时应抛出 `missingManeuverOptionSummary`；v0.22 起 Gameplay Smoke 必须覆盖 AI 主攻优先执行顺序；v0.23 主动地图叠层图例断言失败时应抛出 `missingMapOverlayLegend`；v0.24 军团成长决策读板断言失败时应抛出 `missingUnitDevelopmentDecisionSummary`；v0.25 军团成长优先级读板断言失败时应抛出 `missingUnitDevelopmentRecommendationSummary`；v0.26 敌方将领威胁读板断言失败时应抛出 `missingEnemyCommanderThreatSummary`；v0.27 敌情反制建议读板断言失败时应抛出 `missingCountermeasureSummary`；v0.28 起反制落点/目标地图叠层或焦点链路断言失败时应抛出 `missingCountermeasureOverlay`；v0.29 起反制指令聚焦、执行预览、命令链高亮或焦点链路断言失败时应抛出 `missingCountermeasureCommandPreview`；v0.32 起战场目标链路断言失败时应抛出 `missingBattleObjectiveChainSummary`；v0.33 起战场目标线地图叠层断言失败时应抛出 `missingBattleObjectiveMapOverlay`。
 - 若 workflow 失败，失败摘要和日志路径足以退回 Agent B 修复。
 - 若本地仓库没有 `origin` 或 `gh` 无权限，明确报告阻塞，不能伪造下载核对。
 - 只能使用 `Altman-sam114` 对应 GitHub 权限完成 push、CI 或 artifact 验收；不得使用其他账号伪装完成。
@@ -252,7 +252,7 @@ swiftc -swift-version 5 -module-cache-path .build/module-cache Sources/RomeLegio
 
 触发条件：
 
-- `BattleView`、`GameViewModel` UI 派生数据、AI 作战计划读板、敌方将领威胁读板、敌情反制建议读板、反制落点/目标地图叠层、反制指令聚焦与执行预览、反制命令链高亮、反制焦点链路、战场目标链路、本方将领协同读板、机动落点读板、战线压力读板、战场焦点读板、地图控制读板、威胁热区叠层、战术命令建议读板、城市经营读板、招募按钮、地图叠层、将领卡、战术姿态按钮或战斗页布局变化。
+- `BattleView`、`GameViewModel` UI 派生数据、AI 作战计划读板、敌方将领威胁读板、敌情反制建议读板、反制落点/目标地图叠层、反制指令聚焦与执行预览、反制命令链高亮、反制焦点链路、战场目标链路、战场目标线地图叠层、本方将领协同读板、机动落点读板、战线压力读板、战场焦点读板、地图控制读板、威胁热区叠层、战术命令建议读板、城市经营读板、招募按钮、地图叠层、将领卡、战术姿态按钮或战斗页布局变化。
 
 命令：
 
@@ -276,16 +276,17 @@ env HOME=$PWD/.home CLANG_MODULE_CACHE_PATH=$PWD/.build/module-cache /Applicatio
 - 渲染前应断言首要反制地图叠层存在，反制路线线段、按位置索引 overlay 和 overlay positions 非空，且包含首要反制建议的回应位置、推荐落点和威胁目标；每个 overlay 必须有阶段标签、焦点文案、链路摘要和无障碍文案；失败会抛出 `missingCountermeasureOverlay`。
 - 渲染前应断言首要反制指令预览存在，关联首要反制建议，回应单位、推荐姿态、落点、目标、下一步、命令链短标签、焦点链路摘要、姿态 cue、移动 cue、攻击 cue、目标阶段 cue、按钮文案、步骤和无障碍文案可读；调用 `focusCountermeasure(_:)` 后应选中回应军团、记录聚焦反制 ID、聚焦其位置、刷新选中单位姿态预览并显示反制 banner；若反制目标当前可攻击，应能通过 ViewModel 判断攻击按钮和地图目标 overlay 属于同一反制目标；失败会抛出 `missingCountermeasureCommandPreview`。
 - 渲染前应断言首要战场目标链路存在，引用当前首要战场焦点、当前将令、首要机动落点和选中单位军议，阶段标签、链路摘要、紧凑文案、优先级文案、四类 cue 和无障碍文案均可读；失败会抛出 `missingBattleObjectiveChainSummary`。
+- 渲染前应断言战场目标线地图叠层存在，`primaryBattleObjectiveMapOverlay`、`battleObjectiveRouteSegments`、`battleObjectiveOverlaysByPosition` 和 `battleObjectiveOverlayPositions` 可用，并覆盖焦点、将令、机动和军议阶段位置、路线线段、链路摘要和无障碍文案；失败会抛出 `missingBattleObjectiveMapOverlay`。
 - 移动后攻击的移动路线应包含多个非 targetLeg 路线段；每个移动段的 `from` / `to` 必须互为 `Position.neighbors(width:height:)`，最后一段必须到达 `AIIntent.destination`，目标段继续从 destination 指向目标格。
 - 渲染前应断言首要和选中单位本方将领协同摘要存在，协同列表非空，标题、类型、目标、影响、详情和无障碍文案可用；失败会抛出 `missingCommanderSynergySummary`。
 - 渲染前应断言选中单位机动落点摘要存在，机动列表、首要机动、落点 overlay 字典和 overlay 位置集合非空，且类型、落点、目标、影响、风险、详情和无障碍文案可用；失败会抛出 `missingManeuverOptionSummary`。
-- 渲染前应断言主动地图叠层图例存在，至少覆盖敌军路线、敌军目标/目的地、威胁热区、地图控区、军议路径或目标、机动落点和反制叠层，且每项 symbol、title、detail 和无障碍文案非空；失败会抛出 `missingMapOverlayLegend`。
+- 渲染前应断言主动地图叠层图例存在，至少覆盖敌军路线、敌军目标/目的地、威胁热区、地图控区、军议路径或目标、机动落点、战场目标线和反制叠层，且每项 symbol、title、detail 和无障碍文案非空；失败会抛出 `missingMapOverlayLegend`。
 - 渲染前应断言选中单位军团成长决策摘要存在，训练和任命预览均可读，成本、预计收益、候选将领/特性、状态和无障碍文案非空；失败会抛出 `missingUnitDevelopmentDecisionSummary`。
 - 渲染前应断言全局军团成长优先级摘要存在，推荐列表非空，至少包含训练和任命两类推荐，标题、优先级、理由、影响、状态和无障碍文案可读；失败会抛出 `missingUnitDevelopmentRecommendationSummary`。
 - 渲染前应断言选中单位存在 `selectedLegionFormationSummary`、`selectedCommanderBrief`、鹰旗被动攻击贡献、主动技能状态、战功摘要和完整 `selectedTacticalOrderPreviews`。
 - 渲染前应切换到罗马城市并断言 `selectedCityBrief` 存在，扩建成本/收益、四类兵种招募预览、至少一个陆军招募选项和舰队港口部署预览存在；失败会抛出 `missingCityReadout`。
 - 每个命令会生成请求路径的城市场景 PNG，并额外生成同尺寸 `*-unit.png` 单位场景 PNG；两套图都会对紧凑视口命令区域做轻量像素检查，防止短横屏或竖屏命令区空白仍误判通过。
-- 三尺寸 PNG 和对应 `*-unit.png` 只用于本地目视检查和云端 artifact 复判，确认计划 chip、计划卡/行、敌将 chip、敌将卡/行、反制 chip、反制卡/行、反制指令预览、反制命令链 cue、反制焦点链路、战场目标链路、定位回应按钮、将令 chip、将令卡/行、机动 chip、机动卡/行、战线压力 chip、热区 chip、焦点 chip、军团编制 chip、成长 chip、军议 chip、城市读板、扩建预览、招募按钮、地图热区叠层、机动落点叠层、反制落点/目标叠层、战场焦点卡、热区卡、军团编制卡、军团成长决策卡、军团成长优先级行、战术建议卡、将领读板、战功、姿态预览、敌军路线、本方建议路线、反制引导线、目标叠层、反制攻击按钮和命令入口没有明显裁切、重叠或遮挡；PNG 不提交版本库。
+- 三尺寸 PNG 和对应 `*-unit.png` 只用于本地目视检查和云端 artifact 复判，确认计划 chip、计划卡/行、敌将 chip、敌将卡/行、反制 chip、反制卡/行、反制指令预览、反制命令链 cue、反制焦点链路、战场目标链路、战场目标线连线/阶段标记、定位回应按钮、将令 chip、将令卡/行、机动 chip、机动卡/行、战线压力 chip、热区 chip、焦点 chip、军团编制 chip、成长 chip、军议 chip、城市读板、扩建预览、招募按钮、地图热区叠层、机动落点叠层、反制落点/目标叠层、战场焦点卡、热区卡、军团编制卡、军团成长决策卡、军团成长优先级行、战术建议卡、将领读板、战功、姿态预览、敌军路线、本方建议路线、反制引导线、目标叠层、反制攻击按钮和命令入口没有明显裁切、重叠或遮挡；PNG 不提交版本库。
 
 ### Stage Regression
 
@@ -359,7 +360,8 @@ env HOME=$PWD/.home DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer xco
 - `Tools/RenderBattlePreview/main.swift` 渲染前还会断言 `primaryCountermeasureMapOverlay`、`countermeasureRouteSegments`、`countermeasureOverlaysByPosition` 和 `countermeasureOverlayPositions` 可用，且包含首要反制建议的回应位置、推荐落点和威胁目标；地图 overlay 必须提供阶段标签、焦点文案、链路摘要和无障碍文案；断言失败会抛出 `missingCountermeasureOverlay`。
 - `Tools/RenderBattlePreview/main.swift` 渲染前还会断言 `primaryCountermeasureCommandPreview` 可用，且文案、步骤、按钮、命令链短标签、焦点链路摘要、姿态 cue、移动 cue、攻击 cue、目标阶段 cue 和聚焦行为可读；调用 `focusCountermeasure(_:)` 后应选中回应军团、记录聚焦反制 ID、更新焦点位置、暴露推荐姿态预览并显示反制 banner；若反制目标当前可攻击，应能标记当前攻击按钮对应目标和地图目标 overlay；断言失败会抛出 `missingCountermeasureCommandPreview`。
 - `Tools/RenderBattlePreview/main.swift` 渲染前还会断言 `primaryBattleObjectiveChainSummary` 可用，且引用首要焦点、当前将令、首要机动和选中军议，四个阶段标签、链路摘要、紧凑文案、优先级文案、四类目标 cue 和无障碍文案可读；断言失败会抛出 `missingBattleObjectiveChainSummary`。
-- `Tools/RenderBattlePreview/main.swift` 渲染前还会断言 `activeMapOverlayLegendItems` 可用，且包含敌军路线、敌军目标、热区、控区、军议、机动和反制等当前叠层图例；断言失败会抛出 `missingMapOverlayLegend`。
+- `Tools/RenderBattlePreview/main.swift` 渲染前还会断言 `primaryBattleObjectiveMapOverlay`、`battleObjectiveRouteSegments`、`battleObjectiveOverlaysByPosition` 和 `battleObjectiveOverlayPositions` 可用，且地图目标线引用同一条目标链路，包含焦点、将令、机动和军议阶段位置、路线线段、链路摘要和无障碍文案；断言失败会抛出 `missingBattleObjectiveMapOverlay`。
+- `Tools/RenderBattlePreview/main.swift` 渲染前还会断言 `activeMapOverlayLegendItems` 可用，且包含敌军路线、敌军目标、热区、控区、军议、机动、目标线和反制等当前叠层图例；断言失败会抛出 `missingMapOverlayLegend`。
 - `Tools/RenderBattlePreview/main.swift` 渲染前还会断言 `selectedLegionFormationSummary` 和 `primaryLegionFormationSummary` 存在，军团职责、战备和建议文案可读；断言失败会抛出 `missingLegionFormationSummary`。
 - `Tools/RenderBattlePreview/main.swift` 渲染前还会断言 `selectedUnitDevelopmentDecisionSummary` 存在，训练/任命预览、成本、预计收益、候选将领/特性、状态和无障碍文案可读；断言失败会抛出 `missingUnitDevelopmentDecisionSummary`。
 - `Tools/RenderBattlePreview/main.swift` 渲染前还会断言 `primaryUnitDevelopmentRecommendationSummary` 和 `unitDevelopmentRecommendationSummaries` 存在，且推荐覆盖训练和任命两类，优先级、理由、影响、状态和无障碍文案可读；断言失败会抛出 `missingUnitDevelopmentRecommendationSummary`。

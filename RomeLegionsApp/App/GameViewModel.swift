@@ -27,6 +27,7 @@ enum MapOverlayLegendKind: String, Identifiable {
     case mapControl
     case tacticalPath
     case maneuverOption
+    case battleObjective
     case countermeasure
     case reachable
     case attackTarget
@@ -1128,6 +1129,173 @@ struct BattleObjectiveChainSummary: Identifiable {
 
     func references(recommendation candidate: TacticalRecommendationSummary) -> Bool {
         recommendation?.id == candidate.id
+    }
+}
+
+struct BattleObjectiveRouteSegment: Identifiable {
+    var id: String
+    var from: Position
+    var to: Position
+    var fromRole: BattleObjectiveMapRole
+    var toRole: BattleObjectiveMapRole
+    var isTargetLeg: Bool
+}
+
+enum BattleObjectiveMapRole: String, Identifiable {
+    case focus
+    case synergy
+    case maneuver
+    case recommendation
+
+    var id: String { rawValue }
+
+    var displayName: String {
+        switch self {
+        case .focus: return "焦点"
+        case .synergy: return "将令"
+        case .maneuver: return "机动"
+        case .recommendation: return "军议"
+        }
+    }
+
+    var stageNumber: Int {
+        switch self {
+        case .focus: return 1
+        case .synergy: return 2
+        case .maneuver: return 3
+        case .recommendation: return 4
+        }
+    }
+
+    var stageLabel: String {
+        "\(stageNumber) \(displayName)"
+    }
+}
+
+struct BattleObjectivePositionOverlay: Identifiable {
+    var chain: BattleObjectiveChainSummary
+    var role: BattleObjectiveMapRole
+    var position: Position
+
+    var id: String {
+        "\(chain.id)-\(role.rawValue)-\(position.x)-\(position.y)"
+    }
+
+    var stageLabel: String {
+        role.stageLabel
+    }
+
+    var focusLabel: String {
+        switch role {
+        case .focus:
+            return chain.focusStageLabel
+        case .synergy:
+            return chain.synergyStageLabel
+        case .maneuver:
+            return chain.maneuverStageLabel
+        case .recommendation:
+            return chain.recommendationStageLabel
+        }
+    }
+
+    var chainLabel: String {
+        chain.chainLabel
+    }
+
+    var accessibilityLabel: String {
+        "\(stageLabel)目标线\(position.description)，\(focusLabel)，\(chainLabel)"
+    }
+}
+
+struct BattleObjectiveMapOverlay: Identifiable {
+    var chain: BattleObjectiveChainSummary
+
+    var id: String { chain.id }
+    var chainLabel: String { chain.chainLabel }
+
+    var positionOverlays: [BattleObjectivePositionOverlay] {
+        var overlays = [
+            BattleObjectivePositionOverlay(
+                chain: chain,
+                role: .focus,
+                position: chain.focus.targetPosition
+            )
+        ]
+
+        if let synergy = chain.synergy {
+            overlays.append(
+                BattleObjectivePositionOverlay(
+                    chain: chain,
+                    role: .synergy,
+                    position: synergy.targetPosition
+                )
+            )
+        }
+
+        if let maneuver = chain.maneuver {
+            overlays.append(
+                BattleObjectivePositionOverlay(
+                    chain: chain,
+                    role: .maneuver,
+                    position: maneuver.destination
+                )
+            )
+        }
+
+        if let recommendation = chain.recommendation {
+            overlays.append(
+                BattleObjectivePositionOverlay(
+                    chain: chain,
+                    role: .recommendation,
+                    position: recommendation.targetPosition
+                )
+            )
+        }
+
+        return overlays
+    }
+
+    var routeSegments: [BattleObjectiveRouteSegment] {
+        let overlays = positionOverlays
+        var segments: [BattleObjectiveRouteSegment] = []
+
+        for (index, pair) in zip(overlays, overlays.dropFirst()).enumerated() {
+            guard pair.0.position != pair.1.position else { continue }
+            segments.append(
+                BattleObjectiveRouteSegment(
+                    id: "\(id)-objective-\(index)",
+                    from: pair.0.position,
+                    to: pair.1.position,
+                    fromRole: pair.0.role,
+                    toRole: pair.1.role,
+                    isTargetLeg: pair.1.role == .recommendation
+                )
+            )
+        }
+
+        if segments.isEmpty,
+           let first = overlays.first {
+            segments.append(
+                BattleObjectiveRouteSegment(
+                    id: "\(id)-objective-focus",
+                    from: first.position,
+                    to: first.position,
+                    fromRole: first.role,
+                    toRole: first.role,
+                    isTargetLeg: true
+                )
+            )
+        }
+
+        return segments
+    }
+
+    var accessibilityLabel: String {
+        "战场目标线地图叠层，\(chainLabel)"
+    }
+
+    func references(chain candidate: BattleObjectiveChainSummary) -> Bool {
+        chain.id == candidate.id
     }
 }
 
@@ -2346,6 +2514,26 @@ final class GameViewModel: ObservableObject {
         )
     }
 
+    var primaryBattleObjectiveMapOverlay: BattleObjectiveMapOverlay? {
+        primaryBattleObjectiveChainSummary.map { BattleObjectiveMapOverlay(chain: $0) }
+    }
+
+    var battleObjectiveRouteSegments: [BattleObjectiveRouteSegment] {
+        primaryBattleObjectiveMapOverlay?.routeSegments ?? []
+    }
+
+    var battleObjectiveOverlaysByPosition: [Position: [BattleObjectivePositionOverlay]] {
+        guard let overlay = primaryBattleObjectiveMapOverlay else { return [:] }
+
+        return overlay.positionOverlays.reduce(into: [Position: [BattleObjectivePositionOverlay]]()) { result, positionOverlay in
+            result[positionOverlay.position, default: []].append(positionOverlay)
+        }
+    }
+
+    var battleObjectiveOverlayPositions: Set<Position> {
+        Set(battleObjectiveOverlaysByPosition.keys)
+    }
+
     var frontlinePressureSummaries: [FrontlinePressureSummary] {
         state.frontlinePressureReports(against: .rome, perFactionLimit: 4, limit: 4)
             .map { report in
@@ -2481,6 +2669,11 @@ final class GameViewModel: ObservableObject {
 
         if !maneuverOptionOverlayPositions.isEmpty {
             append(.maneuverOption, symbol: "figure.run", title: "机动", detail: "虚线点提示推荐落点")
+        }
+
+        if primaryBattleObjectiveMapOverlay != nil,
+           !battleObjectiveOverlayPositions.isEmpty {
+            append(.battleObjective, symbol: "point.topleft.down.curvedto.point.bottomright.up.fill", title: "目标线", detail: "金线串联焦点将令机动军议")
         }
 
         if primaryCountermeasureMapOverlay != nil,

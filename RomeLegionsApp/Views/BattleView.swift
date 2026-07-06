@@ -218,6 +218,8 @@ struct WarMapView: View {
             let tacticalRecommendationPathPositions = viewModel.selectedTacticalRecommendationPathPositions
             let tacticalRecommendationTargetPosition = viewModel.selectedTacticalRecommendationTargetPosition
             let maneuverOptionOverlays = viewModel.maneuverOptionOverlaysByPosition
+            let battleObjectiveOverlay = viewModel.primaryBattleObjectiveMapOverlay
+            let battleObjectiveOverlays = viewModel.battleObjectiveOverlaysByPosition
             let countermeasureOverlay = viewModel.primaryCountermeasureMapOverlay
             let countermeasureOverlays = viewModel.countermeasureOverlaysByPosition
             let selectedPosition = viewModel.focusedPosition
@@ -242,6 +244,12 @@ struct WarMapView: View {
                         .zIndex(2)
                 }
 
+                if let battleObjectiveOverlay {
+                    BattleObjectiveRouteLayerView(overlay: battleObjectiveOverlay, metrics: metrics)
+                        .allowsHitTesting(false)
+                        .zIndex(2.35)
+                }
+
                 if let countermeasureOverlay {
                     CountermeasureRouteLayerView(overlay: countermeasureOverlay, metrics: metrics)
                         .allowsHitTesting(false)
@@ -261,6 +269,7 @@ struct WarMapView: View {
                         enemyIntentTarget: enemyIntentTargets[tile.position],
                         tacticalRecommendation: tacticalRecommendation,
                         maneuverOption: maneuverOptionOverlays[tile.position],
+                        battleObjectiveOverlays: battleObjectiveOverlays[tile.position, default: []],
                         countermeasureOverlay: countermeasureOverlays[tile.position],
                         mapControlSummary: mapControlSummaries[tile.position],
                         threatHeatZoneSummary: threatHeatOverlaysByPosition[tile.position],
@@ -663,6 +672,7 @@ struct HexTileView: View {
     var enemyIntentTarget: EnemyIntentMapOverlay?
     var tacticalRecommendation: TacticalRecommendationSummary?
     var maneuverOption: ManeuverOptionSummary?
+    var battleObjectiveOverlays: [BattleObjectivePositionOverlay]
     var countermeasureOverlay: CountermeasurePositionOverlay?
     var mapControlSummary: MapControlSummary?
     var threatHeatZoneSummary: ThreatHeatZoneSummary?
@@ -725,6 +735,13 @@ struct HexTileView: View {
 
             if isTacticalRecommendationPath && !isSelected && !isAttackTarget {
                 TacticalRecommendationPathOverlay(scale: scale)
+            }
+
+            if !battleObjectiveOverlays.isEmpty,
+               !isAttackTarget,
+               !isSkillTarget {
+                BattleObjectiveTileOverlay(overlays: battleObjectiveOverlays, scale: scale)
+                    .allowsHitTesting(false)
             }
 
             if let countermeasureOverlay,
@@ -849,6 +866,14 @@ struct HexTileView: View {
         }
         if let maneuverOption {
             parts.append("机动\(maneuverOption.kindLabel)，\(maneuverOption.impactLabel)，风险\(maneuverOption.riskLabel)")
+        }
+        if !battleObjectiveOverlays.isEmpty {
+            let labels = battleObjectiveOverlays.map { "\($0.stageLabel)\($0.position.description)" }
+            parts.append("目标线\(labels.joined(separator: "、"))")
+            if let chainLabel = battleObjectiveOverlays.first?.chainLabel,
+               !chainLabel.isEmpty {
+                parts.append(chainLabel)
+            }
         }
         if let countermeasureOverlay {
             parts.append(countermeasureOverlay.accessibilityLabel)
@@ -1105,6 +1130,56 @@ struct TacticalRecommendationRouteLayerView: View {
                 TacticalRecommendationRouteSegmentView(segment: segment, kind: summary.kind, metrics: metrics)
             }
         }
+    }
+}
+
+struct BattleObjectiveRouteLayerView: View {
+    var overlay: BattleObjectiveMapOverlay
+    var metrics: HexMetrics
+
+    var body: some View {
+        ZStack {
+            ForEach(overlay.routeSegments) { segment in
+                BattleObjectiveRouteSegmentView(segment: segment, metrics: metrics)
+            }
+        }
+        .accessibilityLabel(overlay.accessibilityLabel)
+    }
+}
+
+struct BattleObjectiveRouteSegmentView: View {
+    var segment: BattleObjectiveRouteSegment
+    var metrics: HexMetrics
+
+    var body: some View {
+        let start = metrics.center(for: segment.from)
+        let end = metrics.center(for: segment.to)
+        let color = segment.toRole.tintColor.opacity(segment.isTargetLeg ? 0.78 : 0.92)
+        let width = max(1.5, 2.35 * metrics.tileScale)
+        let dash = segment.isTargetLeg ? [4 * metrics.tileScale, 4 * metrics.tileScale] : [8 * metrics.tileScale, 3 * metrics.tileScale]
+        let angle = Angle(radians: atan2(Double(end.y - start.y), Double(end.x - start.x)))
+
+        ZStack {
+            Path { path in
+                path.move(to: start)
+                path.addLine(to: end)
+            }
+            .stroke(.black.opacity(0.34), style: StrokeStyle(lineWidth: width + 2.2, lineCap: .round, lineJoin: .round, dash: dash))
+
+            Path { path in
+                path.move(to: start)
+                path.addLine(to: end)
+            }
+            .stroke(color, style: StrokeStyle(lineWidth: width, lineCap: .round, lineJoin: .round, dash: dash))
+
+            Image(systemName: segment.toRole.symbol)
+                .font(.system(size: max(8, 10 * metrics.tileScale), weight: .black))
+                .foregroundStyle(color)
+                .shadow(color: .black.opacity(0.45), radius: 2, y: 1)
+                .rotationEffect(segment.from == segment.to ? Angle.zero : angle)
+                .position(end)
+        }
+        .accessibilityHidden(true)
     }
 }
 
@@ -5205,6 +5280,90 @@ struct MapOverlayLegendItemView: View {
     }
 }
 
+struct BattleObjectiveTileOverlay: View {
+    var overlays: [BattleObjectivePositionOverlay]
+    var scale: CGFloat
+
+    var body: some View {
+        ZStack {
+            Hexagon()
+                .fill(Color(red: 0.86, green: 0.68, blue: 0.34).opacity(0.10))
+            Hexagon()
+                .stroke(
+                    Color(red: 0.92, green: 0.70, blue: 0.28).opacity(0.76),
+                    style: StrokeStyle(lineWidth: max(1.1, 1.5 * scale), lineCap: .round, dash: [4 * scale, 4 * scale])
+                )
+                .padding(7 * scale)
+
+            ForEach(Array(overlays.prefix(4))) { overlay in
+                BattleObjectiveStageBadge(overlay: overlay, index: overlay.role.stageNumber - 1, count: 4, scale: scale)
+            }
+        }
+        .shadow(color: Color(red: 0.86, green: 0.68, blue: 0.34).opacity(0.24), radius: 4 * scale)
+        .accessibilityLabel(overlays.map(\.accessibilityLabel).joined(separator: "，"))
+    }
+}
+
+struct BattleObjectiveStageBadge: View {
+    var overlay: BattleObjectivePositionOverlay
+    var index: Int
+    var count: Int
+    var scale: CGFloat
+
+    var body: some View {
+        ZStack {
+            Circle()
+                .fill(overlay.role.tintColor.opacity(0.92))
+            Image(systemName: overlay.role.symbol)
+                .font(.system(size: 9 * scale, weight: .black))
+                .foregroundStyle(.white)
+                .offset(y: -2 * scale)
+            Text("\(overlay.role.stageNumber)")
+                .font(.system(size: max(7, 8 * scale), weight: .black, design: .rounded))
+                .foregroundStyle(.black.opacity(0.78))
+                .offset(y: 6 * scale)
+        }
+        .frame(width: 22 * scale, height: 22 * scale)
+        .shadow(color: .black.opacity(0.45), radius: 2, y: 1)
+        .offset(offset)
+        .accessibilityLabel(overlay.accessibilityLabel)
+    }
+
+    private var offset: CGSize {
+        let spread = 14 * scale
+        let x = (CGFloat(index) - CGFloat(count - 1) / 2) * spread
+        return CGSize(width: x, height: -21 * scale)
+    }
+}
+
+private extension BattleObjectiveMapRole {
+    var tintColor: Color {
+        switch self {
+        case .focus:
+            return Color(red: 0.96, green: 0.74, blue: 0.24)
+        case .synergy:
+            return Color(red: 0.90, green: 0.58, blue: 0.24)
+        case .maneuver:
+            return Color(red: 0.76, green: 0.72, blue: 0.28)
+        case .recommendation:
+            return Color(red: 0.98, green: 0.82, blue: 0.36)
+        }
+    }
+
+    var symbol: String {
+        switch self {
+        case .focus:
+            return "scope"
+        case .synergy:
+            return "person.crop.circle.badge.checkmark"
+        case .maneuver:
+            return "figure.run"
+        case .recommendation:
+            return "arrow.turn.up.right"
+        }
+    }
+}
+
 private extension MapOverlayLegendKind {
     var legendTint: Color {
         switch self {
@@ -5218,6 +5377,8 @@ private extension MapOverlayLegendKind {
             return .blue
         case .maneuverOption:
             return .green
+        case .battleObjective:
+            return Color(red: 0.92, green: 0.70, blue: 0.28)
         case .countermeasure:
             return Color(red: 0.28, green: 0.78, blue: 0.76)
         case .reachable:

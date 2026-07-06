@@ -39,7 +39,7 @@ flowchart TD
 
 ## 3. 战斗、敌军意图、AI 作战计划、将领协同、机动落点、战术建议、战场焦点与地图热区流
 
-读图说明：这张图展示战斗预览、实际攻击、敌军意图、AI 作战计划、敌方将领威胁、敌情反制建议及地图叠层/指令预览/命令链高亮/焦点链路、本方将领协同、机动落点、战线压力、玩家侧战术建议、战场焦点、战场目标链路、地图控制和威胁热区之间的关系。关键铁律是预览与结算必须一致，敌军意图、AI 作战计划、敌方将领威胁、敌情反制建议、本方将领协同、机动落点、战线压力、战术建议、战场焦点、战场目标链路和地图热区只能读取和预测，地图路线、机动落点、反制落点/目标、热区叠层、敌将卡、反制卡、反制指令预览、反制命令按钮高亮、反制焦点链路、战场目标线、将令卡、计划卡和焦点卡只是只读报告的可视化，不能改变状态、结算或 AI 决策。
+读图说明：这张图展示战斗预览、实际攻击、敌军意图、AI 作战计划、敌方将领威胁、敌情反制建议及地图叠层/指令预览/命令链高亮/焦点链路、本方将领协同、机动落点、战线压力、玩家侧战术建议、战场焦点、战场目标链路、战场目标线地图叠层、地图控制和威胁热区之间的关系。关键铁律是预览与结算必须一致，敌军意图、AI 作战计划、敌方将领威胁、敌情反制建议、本方将领协同、机动落点、战线压力、战术建议、战场焦点、战场目标链路和地图热区只能读取和预测，地图路线、机动落点、反制落点/目标、战场目标线、热区叠层、敌将卡、反制卡、反制指令预览、反制命令按钮高亮、反制焦点链路、将令卡、计划卡和焦点卡只是只读报告的可视化，不能改变状态、结算或 AI 决策。
 
 ```mermaid
 flowchart TD
@@ -60,7 +60,7 @@ flowchart TD
     K --> M["GameViewModel.enemyIntentMapOverlays<br/>派生起点、六边形邻接路径、目的地、目标格、伤害/效果文案"]
     L --> K
     M --> W["BattleView 地图折线路径、目的地叠层、目标格叠层<br/>侧栏显示来源、去向、目标和预计伤害"]
-    M --> BL["GameViewModel.activeMapOverlayLegendItems<br/>汇总敌路/目标、热区、控区、军议、机动、反制、可达、攻击、技能等当前可见叠层图例"]
+    M --> BL["GameViewModel.activeMapOverlayLegendItems<br/>汇总敌路/目标、热区、控区、军议、机动、目标线、反制、可达、攻击、技能等当前可见叠层图例"]
     L --> LF["performSimpleAI 当前状态排序<br/>读取单体 AIIntent.threatScore<br/>高威胁主攻单位先行动"]
     LF --> LG["真实 AI 执行<br/>单位内部仍走原休整、技能、攻击、移动后攻击分支"]
     L --> AB["GameState.frontlinePressureReports<br/>按罗马单位或城市聚合多路意图<br/>来源、预计伤害、夺城风险、压力等级"]
@@ -123,7 +123,10 @@ flowchart TD
     AW --> CO
     AZ --> CO
     AJ --> CO
-    CO --> CP["BattleView 战场目标线与各卡片 cue<br/>只解释当前作战目标<br/>不移动、不攻击、不放技能、不切姿态"]
+    CO --> CP["BattleView 战场目标线、地图阶段标记与各卡片 cue<br/>只解释当前作战目标<br/>不移动、不攻击、不放技能、不切姿态"]
+    CO --> CQ["GameViewModel.primaryBattleObjectiveMapOverlay<br/>派生 1 焦点/2 将令/3 机动/4 军议位置和金色连线"]
+    CQ --> CR["BattleView 地图目标线叠层<br/>只展示空间关系，不声明真实路径或自动命令"]
+    CQ --> BL
     L --> AO["GameState.mapControlReports / threatHeatZoneReports<br/>按地形、单位、城市、外交、意图和压力派生控区与热区<br/>不写状态，不改变 AI 评分"]
     AB --> AO
     AO --> AP["GameViewModel.mapControlSummaries / threatHeatZoneSummaries<br/>控区、热区、来源、影响和 overlay positions"]
