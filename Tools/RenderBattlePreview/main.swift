@@ -331,6 +331,26 @@ struct RenderBattlePreview {
               !primaryManeuverSummary.accessibilityLabel.isEmpty else {
             throw PreviewRenderError.missingManeuverOptionSummary
         }
+        guard let objectiveChain = viewModel.primaryBattleObjectiveChainSummary,
+              objectiveChain.references(focus: battlefieldFocus),
+              objectiveChain.references(synergy: selectedSynergySummary),
+              objectiveChain.references(maneuver: primaryManeuverSummary),
+              objectiveChain.references(recommendation: recommendationSummary),
+              !objectiveChain.title.isEmpty,
+              !objectiveChain.focusStageLabel.isEmpty,
+              !objectiveChain.synergyStageLabel.isEmpty,
+              !objectiveChain.maneuverStageLabel.isEmpty,
+              !objectiveChain.recommendationStageLabel.isEmpty,
+              !objectiveChain.chainLabel.isEmpty,
+              !objectiveChain.compactLabel.isEmpty,
+              !objectiveChain.priorityLabel.isEmpty,
+              !objectiveChain.accessibilityLabel.isEmpty,
+              !battlefieldFocus.objectiveCueLabel.isEmpty,
+              !selectedSynergySummary.objectiveCueLabel.isEmpty,
+              !primaryManeuverSummary.objectiveCueLabel.isEmpty,
+              !recommendationSummary.objectiveCueLabel.isEmpty else {
+            throw PreviewRenderError.missingBattleObjectiveChainSummary
+        }
         let legendItems = viewModel.activeMapOverlayLegendItems
         let legendKinds = Set(legendItems.map(\.kind))
         let requiredLegendKinds: Set<MapOverlayLegendKind> = [
@@ -549,6 +569,7 @@ enum PreviewRenderError: Error {
     case missingHexIntentRoute
     case missingFrontlinePressure
     case missingBattlefieldFocus
+    case missingBattleObjectiveChainSummary
     case missingThreatHeatSummary
     case missingAIOperationalPlanSummary
     case missingEnemyCommanderThreatSummary

@@ -2200,6 +2200,7 @@ struct BattlefieldFocusPanelView: View {
     var body: some View {
         PanelView(title: "战场", symbol: "map.fill") {
             let focus = viewModel.primaryBattlefieldFocusSummary
+            let objectiveChain = viewModel.primaryBattleObjectiveChainSummary
             let heat = viewModel.primaryThreatHeatZoneSummary
             let mapControl = viewModel.selectedMapControlSummary ?? viewModel.primaryMapControlSummary
             if let tile = viewModel.selectedTile {
@@ -2222,6 +2223,15 @@ struct BattlefieldFocusPanelView: View {
                                 .lineLimit(1)
                                 .minimumScaleFactor(0.72)
                                 .accessibilityLabel(focus.accessibilityLabel)
+                        }
+
+                        if let objectiveChain {
+                            Label(objectiveChain.compactLabel, systemImage: "point.topleft.down.curvedto.point.bottomright.up.fill")
+                                .font(.caption2.weight(.heavy))
+                                .foregroundStyle(Color(red: 0.86, green: 0.68, blue: 0.34))
+                                .lineLimit(1)
+                                .minimumScaleFactor(0.68)
+                                .accessibilityLabel(objectiveChain.accessibilityLabel)
                         }
 
                         if let heat {
@@ -2270,6 +2280,10 @@ struct BattlefieldFocusPanelView: View {
 
                         if let focus {
                             BattlefieldFocusCardView(summary: focus, isCompact: false)
+                        }
+
+                        if let objectiveChain {
+                            BattleObjectiveChainCardView(summary: objectiveChain, isCompact: false)
                         }
 
                         if let heat {
@@ -2323,6 +2337,8 @@ struct BattlefieldFocusPanelView: View {
                 }
             } else if let heat {
                 ThreatHeatCardView(summary: heat, isCompact: isCompact)
+            } else if let objectiveChain {
+                BattleObjectiveChainCardView(summary: objectiveChain, isCompact: isCompact)
             } else if let focus {
                 BattlefieldFocusCardView(summary: focus, isCompact: isCompact)
             } else if let mapControl {
@@ -3179,6 +3195,12 @@ struct BattlefieldFocusCardView: View {
                     .minimumScaleFactor(0.72)
             }
 
+            Text(summary.objectiveCueLabel)
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(.white.opacity(0.62))
+                .lineLimit(1)
+                .minimumScaleFactor(0.68)
+
             HStack(spacing: 6) {
                 Label(summary.targetLabel, systemImage: "scope")
                 Spacer(minLength: 0)
@@ -3201,6 +3223,64 @@ struct BattlefieldFocusCardView: View {
         .overlay {
             RoundedRectangle(cornerRadius: 7)
                 .stroke(summary.severity.tintColor.opacity(0.38), lineWidth: 1)
+        }
+        .clipShape(RoundedRectangle(cornerRadius: 7))
+        .accessibilityLabel(summary.accessibilityLabel)
+    }
+}
+
+struct BattleObjectiveChainCardView: View {
+    var summary: BattleObjectiveChainSummary
+    var isCompact: Bool
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: isCompact ? 5 : 7) {
+            HStack(spacing: 7) {
+                Image(systemName: "point.topleft.down.curvedto.point.bottomright.up.fill")
+                    .foregroundStyle(Color(red: 0.86, green: 0.68, blue: 0.34))
+                Text("目标线")
+                    .font(.caption2.weight(.bold))
+                    .foregroundStyle(.white.opacity(0.58))
+                Text(summary.title)
+                    .font(.caption.weight(.heavy))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.70)
+                Spacer(minLength: 0)
+                Text(summary.priorityLabel)
+                    .font(.caption2.weight(.black))
+                    .foregroundStyle(.black.opacity(0.78))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.66)
+                    .padding(.horizontal, 6)
+                    .frame(height: 20)
+                    .background(Color(red: 0.86, green: 0.68, blue: 0.34))
+                    .clipShape(RoundedRectangle(cornerRadius: 5))
+            }
+
+            Text(isCompact ? summary.compactLabel : summary.chainLabel)
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(.white.opacity(0.66))
+                .lineLimit(isCompact ? 2 : 3)
+                .minimumScaleFactor(0.66)
+
+            if !isCompact {
+                HStack(spacing: 6) {
+                    Label(summary.focus.targetLabel, systemImage: summary.focus.kind.systemImage)
+                    Spacer(minLength: 0)
+                    Label(summary.recommendation?.targetLabel ?? summary.focus.targetLabel, systemImage: "scope")
+                }
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(.white.opacity(0.58))
+                .lineLimit(1)
+                .minimumScaleFactor(0.68)
+            }
+        }
+        .padding(8)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color(red: 0.86, green: 0.68, blue: 0.34).opacity(0.12))
+        .overlay {
+            RoundedRectangle(cornerRadius: 7)
+                .stroke(Color(red: 0.86, green: 0.68, blue: 0.34).opacity(0.38), lineWidth: 1)
         }
         .clipShape(RoundedRectangle(cornerRadius: 7))
         .accessibilityLabel(summary.accessibilityLabel)
@@ -3458,6 +3538,12 @@ struct TacticalRecommendationCardView: View {
                     .minimumScaleFactor(0.72)
             }
 
+            Text(summary.objectiveCueLabel)
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(.white.opacity(0.62))
+                .lineLimit(1)
+                .minimumScaleFactor(0.68)
+
             HStack(spacing: 6) {
                 Label(summary.pathLabel, systemImage: "point.topleft.down.curvedto.point.bottomright.up")
                 Spacer(minLength: 0)
@@ -3519,6 +3605,12 @@ struct ManeuverOptionCardView: View {
                     .lineLimit(2)
                     .minimumScaleFactor(0.72)
             }
+
+            Text(summary.objectiveCueLabel)
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(.white.opacity(0.62))
+                .lineLimit(1)
+                .minimumScaleFactor(0.68)
 
             HStack(spacing: 6) {
                 Label(summary.impactLabel, systemImage: summary.kind.systemImage)
@@ -3583,6 +3675,12 @@ struct CommanderSynergyCardView: View {
                     .lineLimit(2)
                     .minimumScaleFactor(0.72)
             }
+
+            Text(summary.objectiveCueLabel)
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(.white.opacity(0.62))
+                .lineLimit(1)
+                .minimumScaleFactor(0.68)
 
             HStack(spacing: 6) {
                 Label(summary.impactLabel, systemImage: "scope")

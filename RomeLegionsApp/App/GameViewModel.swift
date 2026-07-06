@@ -683,8 +683,12 @@ struct TacticalRecommendationSummary: Identifiable {
         ].compactMap { $0 }.joined(separator: " · ")
     }
 
+    var objectiveCueLabel: String {
+        "4 军议 \(kindLabel) -> \(targetLabel)"
+    }
+
     var accessibilityLabel: String {
-        "\(title)，目标\(targetLabel)，\(pathLabel)，\(priorityLabel)，风险\(riskLabel)，\(report.command)"
+        "\(title)，\(objectiveCueLabel)，目标\(targetLabel)，\(pathLabel)，\(priorityLabel)，风险\(riskLabel)，\(report.command)"
     }
 
     var routeSegments: [TacticalRecommendationRouteSegment] {
@@ -813,8 +817,12 @@ struct ManeuverOptionSummary: Identifiable {
         report.detail
     }
 
+    var objectiveCueLabel: String {
+        "3 机动 \(destination.description) -> \(targetLabel)"
+    }
+
     var accessibilityLabel: String {
-        "\(title)，执行单位\(unitLabel)，\(destinationLabel)，目标\(targetLabel)，\(impactLabel)，\(controlLabel)，风险\(riskLabel)，建议\(report.recommendedOrder.displayName)，\(detail)"
+        "\(title)，\(objectiveCueLabel)，执行单位\(unitLabel)，\(destinationLabel)，目标\(targetLabel)，\(impactLabel)，\(controlLabel)，风险\(riskLabel)，建议\(report.recommendedOrder.displayName)，\(detail)"
     }
 }
 
@@ -942,9 +950,14 @@ struct CommanderSynergySummary: Identifiable {
         report.detail
     }
 
+    var objectiveCueLabel: String {
+        "2 将令 \(kindLabel) -> \(targetLabel)"
+    }
+
     var accessibilityLabel: String {
         var parts = [
             "\(kindLabel)将令",
+            objectiveCueLabel,
             "执行\(unitLabel)",
             "目标\(targetLabel)",
             impactLabel,
@@ -1032,8 +1045,89 @@ struct BattlefieldFocusSummary: Identifiable {
         report.detail
     }
 
+    var objectiveCueLabel: String {
+        "1 焦点 \(kindLabel) -> \(targetLabel)"
+    }
+
     var accessibilityLabel: String {
-        "\(title)，\(kindLabel)，\(severityLabel)，目标\(targetLabel)，执行单位\(unitLabel)，建议\(report.recommendedOrder.displayName)，\(detail)"
+        "\(title)，\(objectiveCueLabel)，\(kindLabel)，\(severityLabel)，目标\(targetLabel)，执行单位\(unitLabel)，建议\(report.recommendedOrder.displayName)，\(detail)"
+    }
+}
+
+struct BattleObjectiveChainSummary: Identifiable {
+    var focus: BattlefieldFocusSummary
+    var synergy: CommanderSynergySummary?
+    var maneuver: ManeuverOptionSummary?
+    var recommendation: TacticalRecommendationSummary?
+
+    var id: String {
+        [
+            focus.id,
+            synergy?.id,
+            maneuver?.id,
+            recommendation?.id
+        ].compactMap { $0 }.joined(separator: "-")
+    }
+
+    var title: String {
+        "战场目标线"
+    }
+
+    var focusStageLabel: String {
+        focus.objectiveCueLabel
+    }
+
+    var synergyStageLabel: String {
+        synergy?.objectiveCueLabel ?? "2 将令 待确认"
+    }
+
+    var maneuverStageLabel: String {
+        maneuver?.objectiveCueLabel ?? "3 机动 待确认"
+    }
+
+    var recommendationStageLabel: String {
+        recommendation?.objectiveCueLabel ?? "4 军议 待确认"
+    }
+
+    var stageLabels: [String] {
+        [
+            focusStageLabel,
+            synergyStageLabel,
+            maneuverStageLabel,
+            recommendationStageLabel
+        ]
+    }
+
+    var chainLabel: String {
+        stageLabels.joined(separator: " -> ")
+    }
+
+    var compactLabel: String {
+        "\(focus.targetLabel) -> \(maneuver?.destination.description ?? focus.targetPosition.description) -> \(recommendation?.targetLabel ?? focus.targetLabel)"
+    }
+
+    var priorityLabel: String {
+        "\(focus.severityLabel) · \(recommendation?.riskLabel ?? maneuver?.riskLabel ?? focus.kindLabel)"
+    }
+
+    var accessibilityLabel: String {
+        "\(title)，\(chainLabel)，优先级\(priorityLabel)"
+    }
+
+    func references(focus candidate: BattlefieldFocusSummary) -> Bool {
+        focus.id == candidate.id
+    }
+
+    func references(synergy candidate: CommanderSynergySummary) -> Bool {
+        synergy?.id == candidate.id
+    }
+
+    func references(maneuver candidate: ManeuverOptionSummary) -> Bool {
+        maneuver?.id == candidate.id
+    }
+
+    func references(recommendation candidate: TacticalRecommendationSummary) -> Bool {
+        recommendation?.id == candidate.id
     }
 }
 
@@ -2237,6 +2331,19 @@ final class GameViewModel: ObservableObject {
 
     var primaryCommanderSynergySummary: CommanderSynergySummary? {
         commanderSynergySummaries.first
+    }
+
+    var primaryBattleObjectiveChainSummary: BattleObjectiveChainSummary? {
+        guard let focus = primaryBattlefieldFocusSummary else {
+            return nil
+        }
+
+        return BattleObjectiveChainSummary(
+            focus: focus,
+            synergy: selectedCommanderSynergySummary ?? primaryCommanderSynergySummary,
+            maneuver: primaryManeuverOptionSummary,
+            recommendation: selectedTacticalRecommendationSummary
+        )
     }
 
     var frontlinePressureSummaries: [FrontlinePressureSummary] {
