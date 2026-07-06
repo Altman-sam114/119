@@ -53,7 +53,9 @@
 验证结果：
 
 - 按人工最新要求，本轮未运行任何本地测试、build、typecheck、RenderBattlePreview、`Tools/verify_project.mjs`、`git diff --check`、YAML/JSON/Plist 解析或脚本语法检查。
-- 待提交并 push 到 `origin/main` 后，由 GitHub Actions 云端运行结构检查、Swift Testing、Gameplay Smoke、RenderBattlePreview 和 Xcode build，再由 Agent C 下载最新 artifact 复判。
+- 实现提交 `fe10045f92af1008dedc8dbbb1c593184513c3bd` 已 push 到 `origin/main`，GitHub Actions run `28768182174` attempt `1` 通过，artifact 为 `RomeLegions-ci-v0.28-main-fe10045-run28768182174-attempt1`。
+- Agent C 复判已核对 manifest `version=v0.28`、`branch=main`、`commitSha=fe10045f92af1008dedc8dbbb1c593184513c3bd`、`runId=28768182174`、`runAttempt=1`，JUnit `failures=0`，static checks、Swift Testing、Gameplay Smoke、RenderBattlePreview 和 Xcode build 均为 success。
+- Swift Testing 日志显示 88 tests 通过，Gameplay Smoke 输出 `Gameplay smoke test passed.`，RenderBattlePreview 产出 6 张非空 PNG 且未出现 `missingCountermeasureOverlay` 或 `missingCountermeasureSummary`，Xcode build 日志以 `** BUILD SUCCEEDED **` 结束。
 
 遗留事项：
 
