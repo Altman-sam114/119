@@ -1836,6 +1836,10 @@ struct CompactSelectionPanelView: View {
 
                     CompactOrderBadgeView(order: unit.resolvedTacticalOrder)
 
+                    if let situation = viewModel.selectedUnitSituationReadout {
+                        SelectedUnitSituationReadoutView(readout: situation, isCompact: true)
+                    }
+
                     if let formation = viewModel.selectedLegionFormationSummary {
                         LegionFormationCardView(summary: formation, isCompact: true)
                     }
@@ -3902,6 +3906,111 @@ struct LegionFormationRowView: View {
     }
 }
 
+struct SelectedUnitSituationReadoutView: View {
+    var readout: SelectedUnitSituationReadout
+    var isCompact: Bool
+
+    private var tint: Color {
+        if readout.pressureLabel.contains("伤害") || readout.statusLabel.contains("高") {
+            return Color(red: 0.92, green: 0.42, blue: 0.25)
+        }
+
+        if readout.spaceLabel.contains("争夺") || readout.riskLabel.contains("中") {
+            return Color(red: 0.88, green: 0.68, blue: 0.26)
+        }
+
+        return Color(red: 0.40, green: 0.78, blue: 0.70)
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: isCompact ? 5 : 7) {
+            HStack(spacing: 7) {
+                Image(systemName: "scope")
+                    .foregroundStyle(tint)
+                Text("处境")
+                    .font(.caption2.weight(.bold))
+                    .foregroundStyle(.white.opacity(0.58))
+                Text(readout.title)
+                    .font(.caption.weight(.heavy))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.70)
+                Spacer(minLength: 0)
+                Text(readout.statusLabel)
+                    .font(.caption2.weight(.black))
+                    .foregroundStyle(.black.opacity(0.78))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.64)
+                    .padding(.horizontal, 6)
+                    .frame(height: 20)
+                    .background(tint)
+                    .clipShape(RoundedRectangle(cornerRadius: 5))
+            }
+
+            if isCompact {
+                Text(readout.nextStepLabel)
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(.white.opacity(0.68))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.66)
+            } else {
+                SelectedUnitSituationLabelRow(
+                    symbol: "flame.fill",
+                    title: "压力",
+                    value: "\(readout.pressureLabel) · \(readout.spaceLabel)",
+                    tint: Color(red: 0.92, green: 0.42, blue: 0.25)
+                )
+                SelectedUnitSituationLabelRow(
+                    symbol: "sparkles",
+                    title: "机会",
+                    value: "\(readout.opportunityLabel) · 风险 \(readout.riskLabel)",
+                    tint: Color(red: 0.46, green: 0.72, blue: 0.96)
+                )
+                SelectedUnitSituationLabelRow(
+                    symbol: "arrow.forward.circle.fill",
+                    title: "下一步",
+                    value: readout.nextStepLabel,
+                    tint: Color(red: 0.88, green: 0.68, blue: 0.26)
+                )
+            }
+        }
+        .padding(8)
+        .frame(maxWidth: .infinity, minHeight: isCompact ? 48 : 104, alignment: .leading)
+        .background(tint.opacity(0.11))
+        .overlay {
+            RoundedRectangle(cornerRadius: 7)
+                .stroke(tint.opacity(0.34), lineWidth: 1)
+        }
+        .clipShape(RoundedRectangle(cornerRadius: 7))
+        .accessibilityLabel(readout.accessibilityLabel)
+    }
+}
+
+struct SelectedUnitSituationLabelRow: View {
+    var symbol: String
+    var title: String
+    var value: String
+    var tint: Color
+
+    var body: some View {
+        HStack(spacing: 6) {
+            Image(systemName: symbol)
+                .font(.caption2.weight(.heavy))
+                .foregroundStyle(tint)
+                .frame(width: 14)
+            Text(title)
+                .font(.caption2.weight(.bold))
+                .foregroundStyle(.white.opacity(0.58))
+                .frame(width: 38, alignment: .leading)
+            Text(value)
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(.white.opacity(0.72))
+                .lineLimit(1)
+                .minimumScaleFactor(0.66)
+            Spacer(minLength: 0)
+        }
+    }
+}
+
 struct TacticalRecommendationCardView: View {
     var summary: TacticalRecommendationSummary
     var isCompact: Bool
@@ -4719,6 +4828,10 @@ struct SelectionPanelView: View {
                         StatRow(label: "经验", value: "\(unit.experience)")
                     }
                     StatRow(label: "姿态", value: unit.resolvedTacticalOrder.displayName)
+
+                    if let situation = viewModel.selectedUnitSituationReadout {
+                        SelectedUnitSituationReadoutView(readout: situation, isCompact: false)
+                    }
 
                     if let formation = viewModel.selectedLegionFormationSummary {
                         LegionFormationCardView(summary: formation, isCompact: false)

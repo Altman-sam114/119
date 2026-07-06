@@ -2448,6 +2448,126 @@ struct FrontlinePressureSummary: Identifiable {
     }
 }
 
+enum SelectedUnitSituationSignalKind: String {
+    case pressure
+    case threatHeat
+    case mapControl
+    case formation
+    case recommendation
+    case maneuver
+    case synergy
+
+    var displayName: String {
+        switch self {
+        case .pressure:
+            return "压力"
+        case .threatHeat:
+            return "热区"
+        case .mapControl:
+            return "控区"
+        case .formation:
+            return "编制"
+        case .recommendation:
+            return "军议"
+        case .maneuver:
+            return "机动"
+        case .synergy:
+            return "将令"
+        }
+    }
+}
+
+struct SelectedUnitSituationSignal: Identifiable {
+    var kind: SelectedUnitSituationSignalKind
+    var title: String
+    var detail: String
+    var position: Position?
+    var sourceID: String?
+
+    var id: String {
+        [
+            kind.rawValue,
+            sourceID,
+            position?.description,
+            title
+        ].compactMap { $0 }.joined(separator: "-")
+    }
+
+    var accessibilityLabel: String {
+        [
+            kind.displayName,
+            title,
+            detail,
+            position.map { "坐标 \($0.description)" }
+        ].compactMap { $0 }.joined(separator: "，")
+    }
+}
+
+struct SelectedUnitSituationReadout {
+    var unitID: String
+    var position: Position
+    var title: String
+    var statusLabel: String
+    var pressureLabel: String
+    var spaceLabel: String
+    var opportunityLabel: String
+    var nextStepLabel: String
+    var riskLabel: String
+    var signals: [SelectedUnitSituationSignal]
+    var pressureID: String?
+    var threatHeatID: String?
+    var mapControlID: String?
+    var formationID: String?
+    var recommendationID: String?
+    var maneuverID: String?
+    var synergyID: String?
+
+    var compactLabel: String {
+        "\(statusLabel) · \(nextStepLabel)"
+    }
+
+    var accessibilityLabel: String {
+        [
+            title,
+            "位置 \(position.description)",
+            "状态 \(statusLabel)",
+            "压力 \(pressureLabel)",
+            "空间 \(spaceLabel)",
+            "机会 \(opportunityLabel)",
+            "下一步 \(nextStepLabel)",
+            "风险 \(riskLabel)"
+        ].joined(separator: "，")
+    }
+
+    func references(pressure candidate: FrontlinePressureSummary) -> Bool {
+        pressureID == candidate.id
+    }
+
+    func references(threatHeat candidate: ThreatHeatZoneSummary) -> Bool {
+        threatHeatID == candidate.id
+    }
+
+    func references(mapControl candidate: MapControlSummary) -> Bool {
+        mapControlID == candidate.id
+    }
+
+    func references(formation candidate: LegionFormationSummary) -> Bool {
+        formationID == candidate.id
+    }
+
+    func references(recommendation candidate: TacticalRecommendationSummary) -> Bool {
+        recommendationID == candidate.id
+    }
+
+    func references(maneuver candidate: ManeuverOptionSummary) -> Bool {
+        maneuverID == candidate.id
+    }
+
+    func references(synergy candidate: CommanderSynergySummary) -> Bool {
+        synergyID == candidate.id
+    }
+}
+
 struct LegionFormationSummary: Identifiable {
     var report: LegionFormationReport
     var unit: ArmyUnit?
@@ -3197,6 +3317,181 @@ final class GameViewModel: ObservableObject {
 
     var primaryFrontlinePressureSummary: FrontlinePressureSummary? {
         frontlinePressureSummaries.first
+    }
+
+    var selectedUnitSituationReadout: SelectedUnitSituationReadout? {
+        guard let selectedUnit else { return nil }
+
+        let pressure = frontlinePressureSummaries.first { summary in
+            summary.report.targetKind == .unit &&
+                summary.report.targetID == selectedUnit.id
+        }
+        let threatHeat = threatHeatZoneOverlaysByPosition[selectedUnit.position] ??
+            threatHeatZoneSummaries.first { summary in
+                summary.report.positions.contains(selectedUnit.position)
+            }
+        let mapControl = state.mapControlReport(at: selectedUnit.position, for: .rome)
+            .map { mapControlSummary(for: $0) }
+        let formation = selectedLegionFormationSummary
+        let recommendation = selectedTacticalRecommendationSummary
+        let maneuver = primaryManeuverOptionSummary
+        let synergy = selectedCommanderSynergySummary
+        var signals: [SelectedUnitSituationSignal] = []
+
+        if let pressure {
+            signals.append(
+                SelectedUnitSituationSignal(
+                    kind: .pressure,
+                    title: pressure.pressureLabel,
+                    detail: "\(pressure.sourceLabel) · \(pressure.impactLabel)",
+                    position: pressure.targetPosition,
+                    sourceID: pressure.id
+                )
+            )
+        }
+
+        if let threatHeat {
+            signals.append(
+                SelectedUnitSituationSignal(
+                    kind: .threatHeat,
+                    title: threatHeat.levelLabel,
+                    detail: "\(threatHeat.sourceLabel) · \(threatHeat.impactLabel)",
+                    position: selectedUnit.position,
+                    sourceID: threatHeat.id
+                )
+            )
+        }
+
+        if let mapControl {
+            signals.append(
+                SelectedUnitSituationSignal(
+                    kind: .mapControl,
+                    title: mapControl.compactTitle,
+                    detail: mapControl.detail,
+                    position: mapControl.position,
+                    sourceID: mapControl.id
+                )
+            )
+        }
+
+        if let formation {
+            signals.append(
+                SelectedUnitSituationSignal(
+                    kind: .formation,
+                    title: formation.readinessLabel,
+                    detail: formation.recommendationLabel,
+                    position: selectedUnit.position,
+                    sourceID: formation.id
+                )
+            )
+        }
+
+        if let recommendation {
+            signals.append(
+                SelectedUnitSituationSignal(
+                    kind: .recommendation,
+                    title: recommendation.kindLabel,
+                    detail: recommendation.report.command,
+                    position: recommendation.destination,
+                    sourceID: recommendation.id
+                )
+            )
+        }
+
+        if let maneuver {
+            signals.append(
+                SelectedUnitSituationSignal(
+                    kind: .maneuver,
+                    title: maneuver.kindLabel,
+                    detail: "\(maneuver.destinationLabel) · \(maneuver.impactLabel)",
+                    position: maneuver.destination,
+                    sourceID: maneuver.id
+                )
+            )
+        }
+
+        if let synergy {
+            signals.append(
+                SelectedUnitSituationSignal(
+                    kind: .synergy,
+                    title: synergy.kindLabel,
+                    detail: "\(synergy.impactLabel) · \(synergy.statusLabel)",
+                    position: synergy.targetPosition,
+                    sourceID: synergy.id
+                )
+            )
+        }
+
+        if signals.isEmpty {
+            signals.append(
+                SelectedUnitSituationSignal(
+                    kind: .formation,
+                    title: "待命",
+                    detail: "暂无本方处境信号",
+                    position: selectedUnit.position,
+                    sourceID: selectedUnit.id
+                )
+            )
+        }
+
+        let pressureLabel: String
+        if let pressure {
+            pressureLabel = "\(pressure.pressureLabel) · \(pressure.impactLabel)"
+        } else if let threatHeat {
+            pressureLabel = "\(threatHeat.levelLabel) · \(threatHeat.impactLabel)"
+        } else {
+            pressureLabel = formation?.supportLabel ?? "暂无直接压力"
+        }
+
+        let spaceLabel: String
+        if let mapControl {
+            spaceLabel = "\(mapControl.controlLabel) · \(mapControl.levelLabel) · \(mapControl.sourceLabel)"
+        } else if let threatHeat {
+            spaceLabel = "\(threatHeat.controlLabel) · \(threatHeat.sourceLabel)"
+        } else {
+            spaceLabel = "空间待确认"
+        }
+
+        let opportunityLabel = synergy?.impactLabel ??
+            maneuver?.impactLabel ??
+            recommendation?.kindLabel ??
+            formation?.roleLabel ??
+            "维持阵线"
+        let nextStepLabel = recommendation?.report.command ??
+            maneuver.map { "\($0.destinationLabel) · \($0.report.recommendedOrder.displayName)" } ??
+            formation?.recommendationLabel ??
+            "保持\(selectedUnit.resolvedTacticalOrder.displayName)"
+        let riskLabel = recommendation?.riskLabel ??
+            maneuver?.riskLabel ??
+            synergy?.riskLabel ??
+            pressure?.pressureLabel ??
+            threatHeat?.levelLabel ??
+            "低"
+        let statusLabel = pressure?.pressureLabel ??
+            threatHeat?.levelLabel ??
+            mapControl?.levelLabel ??
+            formation?.readinessLabel ??
+            "待命"
+
+        return SelectedUnitSituationReadout(
+            unitID: selectedUnit.id,
+            position: selectedUnit.position,
+            title: "\(selectedUnit.kind.displayName)处境",
+            statusLabel: statusLabel,
+            pressureLabel: pressureLabel,
+            spaceLabel: spaceLabel,
+            opportunityLabel: opportunityLabel,
+            nextStepLabel: nextStepLabel,
+            riskLabel: riskLabel,
+            signals: signals,
+            pressureID: pressure?.id,
+            threatHeatID: threatHeat?.id,
+            mapControlID: mapControl?.id,
+            formationID: formation?.id,
+            recommendationID: recommendation?.id,
+            maneuverID: maneuver?.id,
+            synergyID: synergy?.id
+        )
     }
 
     var legionFormationSummaries: [LegionFormationSummary] {

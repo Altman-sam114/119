@@ -73,6 +73,106 @@ struct RenderBattlePreview {
               !threatHeat.accessibilityLabel.isEmpty else {
             throw PreviewRenderError.missingThreatHeatSummary
         }
+        let unitStateBeforeSituationRead = viewModel.state.units
+            .sorted { $0.id < $1.id }
+            .map { unit in
+                "\(unit.id)|\(unit.position.description)|\(unit.health)|\(unit.hasMoved)|\(unit.hasActed)|\(unit.generalSkillCooldownRemaining)|\(unit.tacticalOrder?.rawValue ?? "balanced")"
+            }
+        let cityStateBeforeSituationRead = viewModel.state.cities
+            .sorted { $0.id < $1.id }
+            .map { city in
+                "\(city.id)|\(city.owner.rawValue)|\(city.fortification)|\(city.position.description)"
+            }
+        let resourcesBeforeSituationRead = viewModel.state.resources
+            .sorted { $0.key.rawValue < $1.key.rawValue }
+            .map { entry in
+                let resources = entry.value
+                return "\(entry.key.rawValue)|\(resources.gold)|\(resources.grain)|\(resources.iron)|\(resources.science)|\(resources.prestige)"
+            }
+        let turnBeforeSituationRead = viewModel.state.turn
+        let activeFactionBeforeSituationRead = viewModel.state.activeFaction
+        let mapControlForSituation = viewModel.selectedMapControlSummary
+        let formationForSituation = viewModel.selectedLegionFormationSummary
+        let recommendationForSituation = viewModel.selectedTacticalRecommendationSummary
+        let maneuverForSituation = viewModel.primaryManeuverOptionSummary
+        let synergyForSituation = viewModel.selectedCommanderSynergySummary
+        guard let selectedSituation = viewModel.selectedUnitSituationReadout,
+              selectedSituation.unitID == "rome-legion-1",
+              selectedSituation.position == Position(x: 3, y: 3),
+              selectedSituation.references(pressure: frontlinePressure),
+              selectedSituation.references(threatHeat: threatHeat),
+              !selectedSituation.title.isEmpty,
+              !selectedSituation.statusLabel.isEmpty,
+              !selectedSituation.pressureLabel.isEmpty,
+              !selectedSituation.spaceLabel.isEmpty,
+              !selectedSituation.opportunityLabel.isEmpty,
+              !selectedSituation.nextStepLabel.isEmpty,
+              !selectedSituation.riskLabel.isEmpty,
+              !selectedSituation.accessibilityLabel.isEmpty,
+              !selectedSituation.signals.isEmpty,
+              selectedSituation.signals.allSatisfy({ signal in
+                  !signal.title.isEmpty &&
+                      !signal.detail.isEmpty &&
+                      !signal.accessibilityLabel.isEmpty &&
+                      (signal.position != nil || signal.sourceID != nil)
+              }),
+              selectedSituation.signals.contains(where: { $0.kind == .pressure && $0.sourceID == frontlinePressure.id }),
+              selectedSituation.signals.contains(where: { $0.kind == .threatHeat && $0.sourceID == threatHeat.id }) else {
+            throw PreviewRenderError.missingSelectedUnitSituationReadout
+        }
+        if let mapControlForSituation {
+            guard selectedSituation.references(mapControl: mapControlForSituation),
+                  selectedSituation.signals.contains(where: { $0.kind == .mapControl && $0.sourceID == mapControlForSituation.id }) else {
+                throw PreviewRenderError.missingSelectedUnitSituationReadout
+            }
+        }
+        if let formationForSituation {
+            guard selectedSituation.references(formation: formationForSituation),
+                  selectedSituation.signals.contains(where: { $0.kind == .formation && $0.sourceID == formationForSituation.id }) else {
+                throw PreviewRenderError.missingSelectedUnitSituationReadout
+            }
+        }
+        if let recommendationForSituation {
+            guard selectedSituation.references(recommendation: recommendationForSituation),
+                  selectedSituation.signals.contains(where: { $0.kind == .recommendation && $0.sourceID == recommendationForSituation.id }) else {
+                throw PreviewRenderError.missingSelectedUnitSituationReadout
+            }
+        }
+        if let maneuverForSituation {
+            guard selectedSituation.references(maneuver: maneuverForSituation),
+                  selectedSituation.signals.contains(where: { $0.kind == .maneuver && $0.sourceID == maneuverForSituation.id }) else {
+                throw PreviewRenderError.missingSelectedUnitSituationReadout
+            }
+        }
+        if let synergyForSituation {
+            guard selectedSituation.references(synergy: synergyForSituation),
+                  selectedSituation.signals.contains(where: { $0.kind == .synergy && $0.sourceID == synergyForSituation.id }) else {
+                throw PreviewRenderError.missingSelectedUnitSituationReadout
+            }
+        }
+        let unitStateAfterSituationRead = viewModel.state.units
+            .sorted(by: { $0.id < $1.id })
+            .map { unit in
+                "\(unit.id)|\(unit.position.description)|\(unit.health)|\(unit.hasMoved)|\(unit.hasActed)|\(unit.generalSkillCooldownRemaining)|\(unit.tacticalOrder?.rawValue ?? "balanced")"
+            }
+        let cityStateAfterSituationRead = viewModel.state.cities
+            .sorted(by: { $0.id < $1.id })
+            .map { city in
+                "\(city.id)|\(city.owner.rawValue)|\(city.fortification)|\(city.position.description)"
+            }
+        let resourcesAfterSituationRead = viewModel.state.resources
+            .sorted(by: { $0.key.rawValue < $1.key.rawValue })
+            .map { entry in
+                let resources = entry.value
+                return "\(entry.key.rawValue)|\(resources.gold)|\(resources.grain)|\(resources.iron)|\(resources.science)|\(resources.prestige)"
+            }
+        guard unitStateBeforeSituationRead == unitStateAfterSituationRead,
+              cityStateBeforeSituationRead == cityStateAfterSituationRead,
+              resourcesBeforeSituationRead == resourcesAfterSituationRead,
+              turnBeforeSituationRead == viewModel.state.turn,
+              activeFactionBeforeSituationRead == viewModel.state.activeFaction else {
+            throw PreviewRenderError.missingSelectedUnitSituationReadout
+        }
         guard let operationalPlan = viewModel.primaryAIOperationalPlanSummary,
               !viewModel.aiOperationalPlanSummaries.isEmpty,
               viewModel.aiOperationalPlanSummaries.contains(where: { $0.report.sourceUnitIDs.contains("carthage-hunter") }),
@@ -951,6 +1051,7 @@ enum PreviewRenderError: Error {
     case missingIntentOverlay
     case missingHexIntentRoute
     case missingFrontlinePressure
+    case missingSelectedUnitSituationReadout
     case missingBattlefieldFocus
     case missingBattlefieldConvergenceSummary
     case missingBattleObjectiveChainSummary
