@@ -1,6 +1,6 @@
 # 项目核心流程文档
 
-一句话总览：`RomeLegions` 当前是 SwiftUI App + 纯 Swift 核心规则的罗马题材战棋原型，用户在菜单选择模式后进入战场，SwiftUI 通过 `GameViewModel` 调用 `GameState` 完成移动、战斗、城市、科技、外交、战役胜负结算、AI、敌军意图、AI 作战计划、敌方将领威胁、敌情反制建议及地图叠层、战线压力、战场焦点、地图控制、威胁热区、玩家侧战术建议、本方将领协同和机动落点展示；真实 AI 回合会按当前意图威胁分优先执行主攻单位；协作层默认通过 `main` 直推触发 GitHub Actions，并由 Agent C 下载未加密结果包复判；未来可由 Agent X 围绕人工总目标调度 A/B/C 多轮迭代。
+一句话总览：`RomeLegions` 当前是 SwiftUI App + 纯 Swift 核心规则的罗马题材战棋原型，用户在菜单选择模式后进入战场，SwiftUI 通过 `GameViewModel` 调用 `GameState` 完成移动、战斗、城市、科技、外交、战役胜负结算、AI、敌军意图、AI 作战计划、敌方将领威胁、敌情反制建议及地图叠层、战线压力、战场焦点、战场态势交汇、地图控制、威胁热区、玩家侧战术建议、本方将领协同和机动落点展示；真实 AI 回合会按当前意图威胁分优先执行主攻单位；协作层默认通过 `main` 直推触发 GitHub Actions，并由 Agent C 下载未加密结果包复判；未来可由 Agent X 围绕人工总目标调度 A/B/C 多轮迭代。
 
 本文只记录当前真实链路，不写历史叙事。
 
@@ -9,7 +9,7 @@
 1. `RomeLegionsApp` 创建 `GameViewModel`，并通过 `.environmentObject(viewModel)` 注入根视图。
 2. `RootView` 根据 `viewModel.isShowingMenu` 展示 `MainMenuView` 或 `BattleView`。
 3. `MainMenuView` 调用 `viewModel.start(mode:)`，创建 `GameState.newCampaign(mode:)` 并进入战斗。
-4. `BattleView` 读取 `GameViewModel` 的派生数据：当前回合、资源、选中单位、选中城市、城市经营与招募读板、可移动格、攻击目标、战斗预览、将领技能预览、将领技能目标与收益读板、选中单位指挥简报、将令技能入口链路、军团编制摘要、军团成长决策摘要、军团成长优先级摘要、本方将领协同摘要、机动落点摘要、战术命令建议、战术姿态预览、战功状态、任务目标、战役状态、敌军意图摘要、AI 作战计划摘要、敌方将领威胁摘要、敌情反制建议摘要、反制指令预览、命令链高亮与焦点链路、敌军意图路线/目标地图叠层、机动落点地图叠层、反制落点/目标地图叠层、战场目标线地图叠层、目标线阶段聚焦态、目标线阶段命令预览、目标线阶段联动高亮 cue、主动地图叠层图例、战线压力摘要、战场焦点摘要、战场目标链路、地图控制摘要、威胁热区摘要和战局态势。
+4. `BattleView` 读取 `GameViewModel` 的派生数据：当前回合、资源、选中单位、选中城市、城市经营与招募读板、可移动格、攻击目标、战斗预览、将领技能预览、将领技能目标与收益读板、选中单位指挥简报、将令技能入口链路、军团编制摘要、军团成长决策摘要、军团成长优先级摘要、本方将领协同摘要、机动落点摘要、战术命令建议、战术姿态预览、战功状态、任务目标、战役状态、敌军意图摘要、AI 作战计划摘要、敌方将领威胁摘要、敌情反制建议摘要、反制指令预览、命令链高亮与焦点链路、敌军意图路线/目标地图叠层、机动落点地图叠层、反制落点/目标地图叠层、战场目标线地图叠层、目标线阶段聚焦态、目标线阶段命令预览、目标线阶段联动高亮 cue、战场态势交汇读板、主动地图叠层图例、战线压力摘要、战场焦点摘要、战场目标链路、地图控制摘要、威胁热区摘要和战局态势。
 5. 用户点击地图或命令按钮后，`GameViewModel` 调用 `GameState` 的 mutating 方法。
 6. `GameState` 修改核心状态并返回中文消息数组。
 7. `GameViewModel.apply` 捕获成功消息或 `GameRuleError`，更新 `bannerMessage`。
@@ -55,7 +55,9 @@
 - `GameViewModel.battlefieldFocusSummaries` 将核心焦点报告转成标题、严重度、目标、执行单位、建议姿态、详情和无障碍文案；`BattleView` 在顶部焦点 chip、战场面板和完整战局面板展示，不在 SwiftUI 中重新评分。
 - `GameViewModel.primaryBattleObjectiveChainSummary` 只读组合首要战场焦点、当前将令协同、首要机动落点和选中单位军议，输出“1 焦点、2 将令、3 机动、4 军议”的战场目标线、紧凑文案、优先级文案和无障碍说明；`primaryBattleObjectiveMapOverlay`、`battleObjectiveRouteSegments`、`battleObjectiveOverlaysByPosition` 和 `battleObjectiveOverlayPositions` 再把同一目标线派生为地图阶段标记和连线；`focusedBattleObjectiveRole` 和 `focusPrimaryBattleObjectiveStage(_:)` 只改变 ViewModel 选择态、聚焦位置和 banner，不调用 `GameState` 写命令，也不改变焦点、将令、机动或军议的评分排序。
 - `GameViewModel.battleObjectiveStageCommandPreviews`、`focusedBattleObjectiveStageCommandPreview`、`selectedBattleObjectiveStageCommandPreview`、`primaryBattleObjectiveStageCommandPreview`、`activeBattleObjectiveStageCommandPreview` 和 `activeBattleObjectiveStageRole` 继续把同一目标线阶段转成只读命令预览，说明焦点、将令、机动或军议阶段对应的既有命令入口、推荐姿态、落点可达性、目标可攻击性、将领技能状态、下一步和阻塞原因；阶段 cue 会额外输出命令入口、推荐姿态、攻击和技能入口标签，供 UI 联动高亮使用；这些预览只调用现有只读查询，不移动、不攻击、不发动技能、不切姿态。
+- `GameViewModel.primaryBattlefieldConvergenceSummary` 只读聚合首要战场目标线、首要反制建议、首要反制指令预览、当前活动目标线阶段、当前将领协同、首要机动落点、首要威胁热区和当前/首要地图控区，输出主线、回应、空间压力、下一步、风险和 signal 列表；它只引用既有 summary/preview，不新增评分、命令队列、地图叠层或 `GameState` 状态。
 - `BattleView` 在战场面板展示战场目标链路，并在地图上显示“1 焦点、2 将令、3 机动、4 军议”阶段标记和金色目标线；目标线卡片可定位各阶段并展示阶段命令预览，完整/紧凑军令面板会展示选中罗马单位关联的目标线阶段命令预览；地图徽标、阶段定位按钮、推荐姿态按钮、当前可攻击目标和将领技能入口会读取同一 active/selected 阶段 cue 做联动高亮；`selectedCommanderActionGuidance` 和 `selectedGeneralSkillCommandButtonDetail` 继续把选中单位将领简报、技能预览、当前将令协同与“2 将令”阶段技能 cue 串成只读技能入口提示，供将领卡状态行和完整/紧凑技能按钮共享；反制 cue 与反制按钮高亮仍优先于目标线 cue；这些 cue、叠层、定位和预览只解释当前目标线，不自动移动、攻击、发动技能或切换姿态。
+- `BattleView` 在完整/紧凑战场面板和战局面板顶部展示战场态势交汇读板，用短文案串联当前主线、回应、空间和下一步；SwiftUI 只展示 `primaryBattlefieldConvergenceSummary` 的派生字段和 signal，不重新判断优先级、热区、控区、路径、反制收益或目标线阶段。
 - `state.mapControlReports(for:)` 与 `state.threatHeatZoneReports(for:limit:)` 只读派生每格友军/敌军影响、控制状态、威胁热度和高风险热区；它们读取地形、单位、城市、外交、敌军意图和战线压力，不新增存档字段，不改变 AI、移动、攻击、城市或胜负结算。
 - `GameViewModel.mapControlSummaries`、`threatHeatZoneSummaries` 和 overlay positions 将核心控图/热区报告转成地图叠层、顶部热区 chip、战场卡、战局行和无障碍文案；`BattleView` 只展示核心报告，不在 SwiftUI 中重新计算射程、路径或控制分。
 - `state.aiOperationalPlanReports(against:perFactionLimit:limit:)` 只读聚合敌军意图、战线压力、威胁热区和敌方将领技能机会，输出集火、夺城、将领技能、推进、固守或整备计划、协同角色、来源单位、目标、预计伤害和详情；它在敌方 forecast copy 上读取将领技能机会，不新增存档字段，不改变真实 AI 行为、AI 评分、移动、攻击、技能释放或胜负结算。

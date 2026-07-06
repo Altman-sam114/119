@@ -2303,6 +2303,7 @@ struct BattlefieldFocusPanelView: View {
         PanelView(title: "战场", symbol: "map.fill") {
             let focus = viewModel.primaryBattlefieldFocusSummary
             let objectiveChain = viewModel.primaryBattleObjectiveChainSummary
+            let convergence = viewModel.primaryBattlefieldConvergenceSummary
             let heat = viewModel.primaryThreatHeatZoneSummary
             let mapControl = viewModel.selectedMapControlSummary ?? viewModel.primaryMapControlSummary
             if let tile = viewModel.selectedTile {
@@ -2325,6 +2326,10 @@ struct BattlefieldFocusPanelView: View {
                                 .lineLimit(1)
                                 .minimumScaleFactor(0.72)
                                 .accessibilityLabel(focus.accessibilityLabel)
+                        }
+
+                        if let convergence {
+                            BattlefieldConvergenceCardView(summary: convergence, isCompact: true)
                         }
 
                         if let objectiveChain {
@@ -2382,6 +2387,10 @@ struct BattlefieldFocusPanelView: View {
 
                         if let focus {
                             BattlefieldFocusCardView(summary: focus, isCompact: false)
+                        }
+
+                        if let convergence {
+                            BattlefieldConvergenceCardView(summary: convergence, isCompact: false)
                         }
 
                         if let objectiveChain {
@@ -2443,6 +2452,8 @@ struct BattlefieldFocusPanelView: View {
                         }
                     }
                 }
+            } else if let convergence {
+                BattlefieldConvergenceCardView(summary: convergence, isCompact: isCompact)
             } else if let heat {
                 ThreatHeatCardView(summary: heat, isCompact: isCompact)
             } else if let objectiveChain {
@@ -2584,6 +2595,7 @@ struct StrategicBalancePanelView: View {
             let pressureSummaries = viewModel.frontlinePressureSummaries
             let formationSummaries = viewModel.legionFormationSummaries
             let developmentSummaries = viewModel.unitDevelopmentRecommendationSummaries
+            let convergence = viewModel.primaryBattlefieldConvergenceSummary
             VStack(alignment: .leading, spacing: 9) {
                 HStack(spacing: 8) {
                     StrategicScorePill(
@@ -2613,6 +2625,10 @@ struct StrategicBalancePanelView: View {
                     ResourceDeltaView(symbol: "shield.fill", value: income.iron, tint: .gray)
                     ResourceDeltaView(symbol: "sparkle.magnifyingglass", value: income.science, tint: .cyan)
                     Spacer(minLength: 0)
+                }
+
+                if let convergence {
+                    BattlefieldConvergenceRowView(summary: convergence)
                 }
 
                 VStack(alignment: .leading, spacing: 6) {
@@ -3468,6 +3484,204 @@ struct BattleObjectiveChainCardView: View {
         case .recommendation:
             return summary.recommendationStageLabel
         }
+    }
+}
+
+struct BattlefieldConvergenceCardView: View {
+    var summary: BattlefieldConvergenceSummary
+    var isCompact: Bool
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: isCompact ? 5 : 7) {
+            HStack(spacing: 7) {
+                Image(systemName: "point.3.connected.trianglepath.dotted")
+                    .foregroundStyle(Color(red: 0.36, green: 0.86, blue: 0.92))
+                Text("交汇")
+                    .font(.caption2.weight(.bold))
+                    .foregroundStyle(.white.opacity(0.58))
+                Text(isCompact ? summary.compactLabel : summary.title)
+                    .font(.caption.weight(.heavy))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.68)
+                Spacer(minLength: 0)
+                Text(summary.priorityLabel)
+                    .font(.caption2.weight(.black))
+                    .foregroundStyle(.black.opacity(0.78))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.64)
+                    .padding(.horizontal, 6)
+                    .frame(height: 20)
+                    .background(Color(red: 0.36, green: 0.86, blue: 0.92))
+                    .clipShape(RoundedRectangle(cornerRadius: 5))
+            }
+
+            if isCompact {
+                Text(summary.nextStepLabel)
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(.white.opacity(0.68))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.66)
+            } else {
+                VStack(alignment: .leading, spacing: 5) {
+                    BattlefieldConvergenceLabelRow(
+                        symbol: "point.topleft.down.curvedto.point.bottomright.up.fill",
+                        title: "主线",
+                        value: summary.objectiveLabel,
+                        tint: Color(red: 0.86, green: 0.68, blue: 0.34)
+                    )
+                    BattlefieldConvergenceLabelRow(
+                        symbol: "shield.lefthalf.filled",
+                        title: "回应",
+                        value: summary.responseLabel,
+                        tint: Color(red: 0.36, green: 0.86, blue: 0.92)
+                    )
+                    BattlefieldConvergenceLabelRow(
+                        symbol: "map.fill",
+                        title: "空间",
+                        value: summary.spaceLabel,
+                        tint: Color(red: 0.70, green: 0.76, blue: 0.32)
+                    )
+                    BattlefieldConvergenceLabelRow(
+                        symbol: "arrow.forward.circle.fill",
+                        title: "下一步",
+                        value: summary.nextStepLabel,
+                        tint: Color(red: 0.92, green: 0.46, blue: 0.20)
+                    )
+                }
+
+                VStack(alignment: .leading, spacing: 4) {
+                    ForEach(summary.signals.prefix(4)) { signal in
+                        BattlefieldConvergenceSignalRow(signal: signal)
+                    }
+                }
+            }
+        }
+        .padding(8)
+        .frame(maxWidth: .infinity, minHeight: isCompact ? 48 : 132, alignment: .leading)
+        .background(Color(red: 0.36, green: 0.86, blue: 0.92).opacity(0.10))
+        .overlay {
+            RoundedRectangle(cornerRadius: 7)
+                .stroke(Color(red: 0.36, green: 0.86, blue: 0.92).opacity(0.34), lineWidth: 1)
+        }
+        .clipShape(RoundedRectangle(cornerRadius: 7))
+        .accessibilityLabel(summary.accessibilityLabel)
+    }
+}
+
+struct BattlefieldConvergenceRowView: View {
+    var summary: BattlefieldConvergenceSummary
+
+    var body: some View {
+        HStack(spacing: 8) {
+            ZStack {
+                RoundedRectangle(cornerRadius: 5)
+                    .fill(Color(red: 0.36, green: 0.86, blue: 0.92).opacity(0.92))
+                    .frame(width: 28, height: 28)
+                Image(systemName: "point.3.connected.trianglepath.dotted")
+                    .font(.caption.weight(.black))
+                    .foregroundStyle(.black.opacity(0.76))
+            }
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(summary.compactLabel.isEmpty ? summary.title : summary.compactLabel)
+                    .font(.caption.weight(.heavy))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.70)
+                Text(summary.nextStepLabel)
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(.white.opacity(0.62))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.68)
+            }
+
+            Spacer(minLength: 0)
+
+            VStack(alignment: .trailing, spacing: 3) {
+                Text(summary.priorityLabel)
+                    .font(.caption2.weight(.black))
+                    .foregroundStyle(.black.opacity(0.78))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.66)
+                    .padding(.horizontal, 6)
+                    .frame(height: 20)
+                    .background(Color(red: 0.36, green: 0.86, blue: 0.92))
+                    .clipShape(RoundedRectangle(cornerRadius: 5))
+                Text(summary.riskLabel)
+                    .font(.caption2.monospacedDigit().weight(.semibold))
+                    .foregroundStyle(.white.opacity(0.58))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.70)
+            }
+        }
+        .padding(.horizontal, 8)
+        .frame(minHeight: 48)
+        .background(Color(red: 0.36, green: 0.86, blue: 0.92).opacity(0.10))
+        .clipShape(RoundedRectangle(cornerRadius: 7))
+        .accessibilityLabel(summary.accessibilityLabel)
+    }
+}
+
+struct BattlefieldConvergenceLabelRow: View {
+    var symbol: String
+    var title: String
+    var value: String
+    var tint: Color
+
+    var body: some View {
+        HStack(spacing: 6) {
+            Image(systemName: symbol)
+                .font(.caption2.weight(.heavy))
+                .foregroundStyle(tint)
+                .frame(width: 14)
+            Text(title)
+                .font(.caption2.weight(.bold))
+                .foregroundStyle(.white.opacity(0.52))
+                .frame(width: 38, alignment: .leading)
+            Text(value)
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(.white.opacity(0.72))
+                .lineLimit(1)
+                .minimumScaleFactor(0.66)
+            Spacer(minLength: 0)
+        }
+    }
+}
+
+struct BattlefieldConvergenceSignalRow: View {
+    var signal: BattlefieldConvergenceSignal
+
+    var body: some View {
+        HStack(spacing: 5) {
+            Image(systemName: signal.role.systemImage)
+                .font(.system(size: 9, weight: .black))
+                .foregroundStyle(signal.role.tintColor)
+                .frame(width: 12)
+            Text(signal.role.displayName)
+                .font(.caption2.weight(.black))
+                .foregroundStyle(signal.role.tintColor)
+                .frame(width: 28, alignment: .leading)
+            Text(signal.title)
+                .font(.caption2.weight(.bold))
+                .foregroundStyle(.white.opacity(0.72))
+                .lineLimit(1)
+                .minimumScaleFactor(0.66)
+            Text(signal.detail)
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(.white.opacity(0.54))
+                .lineLimit(1)
+                .minimumScaleFactor(0.64)
+            Spacer(minLength: 0)
+            if let position = signal.position {
+                Text(position.description)
+                    .font(.caption2.monospacedDigit().weight(.black))
+                    .foregroundStyle(.white.opacity(0.58))
+            }
+        }
+        .padding(.horizontal, 6)
+        .frame(minHeight: 22)
+        .background(signal.role.tintColor.opacity(0.10))
+        .clipShape(RoundedRectangle(cornerRadius: 5))
+        .accessibilityLabel(signal.accessibilityLabel)
     }
 }
 
@@ -6015,6 +6229,32 @@ extension CountermeasurePriority {
         case .useful: return Color(red: 0.28, green: 0.78, blue: 0.62)
         case .urgent: return Color(red: 0.92, green: 0.42, blue: 0.14)
         case .decisive: return Color(red: 0.84, green: 0.16, blue: 0.12)
+        }
+    }
+}
+
+extension BattlefieldConvergenceRole {
+    var systemImage: String {
+        switch self {
+        case .objective: return "point.topleft.down.curvedto.point.bottomright.up.fill"
+        case .countermeasure: return "shield.lefthalf.filled"
+        case .stage: return "rectangle.and.hand.point.up.left.fill"
+        case .synergy: return "flag.2.crossed.fill"
+        case .maneuver: return "figure.run"
+        case .threatHeat: return "flame.fill"
+        case .mapControl: return "map.fill"
+        }
+    }
+
+    var tintColor: Color {
+        switch self {
+        case .objective: return Color(red: 0.86, green: 0.68, blue: 0.34)
+        case .countermeasure: return Color(red: 0.36, green: 0.86, blue: 0.92)
+        case .stage: return Color(red: 0.92, green: 0.46, blue: 0.20)
+        case .synergy: return Color(red: 0.72, green: 0.48, blue: 0.92)
+        case .maneuver: return Color(red: 0.70, green: 0.76, blue: 0.32)
+        case .threatHeat: return Color(red: 0.84, green: 0.16, blue: 0.12)
+        case .mapControl: return Color(red: 0.28, green: 0.78, blue: 0.62)
         }
     }
 }

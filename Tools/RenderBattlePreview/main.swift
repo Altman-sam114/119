@@ -403,6 +403,83 @@ struct RenderBattlePreview {
               !recommendationSummary.objectiveCueLabel.isEmpty else {
             throw PreviewRenderError.missingBattleObjectiveChainSummary
         }
+        let unitStateBeforeConvergenceRead = viewModel.state.units
+            .sorted { $0.id < $1.id }
+            .map { unit in
+                "\(unit.id)|\(unit.position.description)|\(unit.health)|\(unit.hasMoved)|\(unit.hasActed)|\(unit.generalSkillCooldownRemaining)|\(unit.tacticalOrder?.rawValue ?? "balanced")"
+            }
+        let cityStateBeforeConvergenceRead = viewModel.state.cities
+            .sorted { $0.id < $1.id }
+            .map { city in
+                "\(city.id)|\(city.owner.rawValue)|\(city.fortification)|\(city.position.description)"
+            }
+        let resourcesBeforeConvergenceRead = viewModel.state.resources
+            .sorted { $0.key.rawValue < $1.key.rawValue }
+            .map { entry in
+                let resources = entry.value
+                return "\(entry.key.rawValue)|\(resources.gold)|\(resources.grain)|\(resources.iron)|\(resources.science)|\(resources.prestige)"
+            }
+        let turnBeforeConvergenceRead = viewModel.state.turn
+        let activeFactionBeforeConvergenceRead = viewModel.state.activeFaction
+        let activeStagePreviewForConvergence = viewModel.activeBattleObjectiveStageCommandPreview
+        let activeMapControlForConvergence = viewModel.selectedMapControlSummary ?? viewModel.primaryMapControlSummary
+        guard let battlefieldConvergence = viewModel.primaryBattlefieldConvergenceSummary,
+              battlefieldConvergence.references(objectiveChain: objectiveChain),
+              battlefieldConvergence.references(countermeasure: countermeasure),
+              battlefieldConvergence.references(countermeasurePreview: countermeasureCommandPreview),
+              activeStagePreviewForConvergence.map({ battlefieldConvergence.references(stagePreview: $0) }) ?? true,
+              battlefieldConvergence.references(synergy: selectedSynergySummary),
+              battlefieldConvergence.references(maneuver: primaryManeuverSummary),
+              battlefieldConvergence.references(threatHeat: threatHeat),
+              activeMapControlForConvergence.map({ battlefieldConvergence.references(mapControl: $0) }) ?? true,
+              !battlefieldConvergence.title.isEmpty,
+              !battlefieldConvergence.compactLabel.isEmpty,
+              !battlefieldConvergence.priorityLabel.isEmpty,
+              !battlefieldConvergence.objectiveLabel.isEmpty,
+              !battlefieldConvergence.responseLabel.isEmpty,
+              !battlefieldConvergence.spaceLabel.isEmpty,
+              !battlefieldConvergence.nextStepLabel.isEmpty,
+              !battlefieldConvergence.riskLabel.isEmpty,
+              !battlefieldConvergence.accessibilityLabel.isEmpty,
+              battlefieldConvergence.hasSignals,
+              battlefieldConvergence.signals.contains(where: { $0.role == .objective && $0.sourceID == objectiveChain.id && $0.position == battlefieldFocus.targetPosition }),
+              battlefieldConvergence.signals.contains(where: { $0.role == .countermeasure && $0.sourceID == countermeasure.id && $0.position == countermeasure.targetPosition }),
+              battlefieldConvergence.signals.contains(where: { $0.role == .synergy && $0.sourceID == selectedSynergySummary.id && $0.position == selectedSynergySummary.targetPosition }),
+              battlefieldConvergence.signals.contains(where: { $0.role == .maneuver && $0.sourceID == primaryManeuverSummary.id && $0.position == primaryManeuverSummary.destination }),
+              battlefieldConvergence.signals.contains(where: { $0.role == .threatHeat && $0.sourceID == threatHeat.id && $0.position == threatHeat.targetPosition }),
+              battlefieldConvergence.signals.allSatisfy({ signal in
+                  !signal.id.isEmpty &&
+                      !signal.title.isEmpty &&
+                      !signal.detail.isEmpty &&
+                      signal.sourceID?.isEmpty == false &&
+                      signal.position != nil &&
+                      !signal.accessibilityLabel.isEmpty
+              }) else {
+            throw PreviewRenderError.missingBattlefieldConvergenceSummary
+        }
+        let unitStateAfterConvergenceRead = viewModel.state.units
+            .sorted { $0.id < $1.id }
+            .map { unit in
+                "\(unit.id)|\(unit.position.description)|\(unit.health)|\(unit.hasMoved)|\(unit.hasActed)|\(unit.generalSkillCooldownRemaining)|\(unit.tacticalOrder?.rawValue ?? "balanced")"
+            }
+        let cityStateAfterConvergenceRead = viewModel.state.cities
+            .sorted { $0.id < $1.id }
+            .map { city in
+                "\(city.id)|\(city.owner.rawValue)|\(city.fortification)|\(city.position.description)"
+            }
+        let resourcesAfterConvergenceRead = viewModel.state.resources
+            .sorted { $0.key.rawValue < $1.key.rawValue }
+            .map { entry in
+                let resources = entry.value
+                return "\(entry.key.rawValue)|\(resources.gold)|\(resources.grain)|\(resources.iron)|\(resources.science)|\(resources.prestige)"
+            }
+        guard unitStateAfterConvergenceRead == unitStateBeforeConvergenceRead,
+              cityStateAfterConvergenceRead == cityStateBeforeConvergenceRead,
+              resourcesAfterConvergenceRead == resourcesBeforeConvergenceRead,
+              viewModel.state.turn == turnBeforeConvergenceRead,
+              viewModel.state.activeFaction == activeFactionBeforeConvergenceRead else {
+            throw PreviewRenderError.missingBattlefieldConvergenceSummary
+        }
         guard let battleObjectiveOverlay = viewModel.primaryBattleObjectiveMapOverlay,
               battleObjectiveOverlay.references(chain: objectiveChain),
               !battleObjectiveOverlay.chainLabel.isEmpty,
@@ -872,6 +949,7 @@ enum PreviewRenderError: Error {
     case missingHexIntentRoute
     case missingFrontlinePressure
     case missingBattlefieldFocus
+    case missingBattlefieldConvergenceSummary
     case missingBattleObjectiveChainSummary
     case missingBattleObjectiveMapOverlay
     case missingBattleObjectiveStageFocus

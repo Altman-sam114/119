@@ -1374,6 +1374,309 @@ struct BattleObjectiveChainSummary: Identifiable {
     }
 }
 
+enum BattlefieldConvergenceRole: String, Identifiable, CaseIterable {
+    case objective
+    case countermeasure
+    case stage
+    case synergy
+    case maneuver
+    case threatHeat
+    case mapControl
+
+    var id: String { rawValue }
+
+    var displayName: String {
+        switch self {
+        case .objective: return "目标"
+        case .countermeasure: return "反制"
+        case .stage: return "阶段"
+        case .synergy: return "将令"
+        case .maneuver: return "机动"
+        case .threatHeat: return "热区"
+        case .mapControl: return "控区"
+        }
+    }
+}
+
+struct BattlefieldConvergenceSignal: Identifiable {
+    var role: BattlefieldConvergenceRole
+    var title: String
+    var detail: String
+    var position: Position?
+    var sourceID: String?
+    var nextStepLabel: String?
+
+    var id: String {
+        [
+            role.rawValue,
+            sourceID,
+            position?.description,
+            title
+        ].compactMap { $0 }.joined(separator: "-")
+    }
+
+    var accessibilityLabel: String {
+        var parts = [
+            role.displayName,
+            title,
+            detail
+        ]
+
+        if let position {
+            parts.append("位置\(position.description)")
+        }
+
+        if let nextStepLabel {
+            parts.append(nextStepLabel)
+        }
+
+        return parts.joined(separator: "，")
+    }
+}
+
+struct BattlefieldConvergenceSummary: Identifiable {
+    var objectiveChain: BattleObjectiveChainSummary?
+    var countermeasure: CountermeasureSummary?
+    var countermeasurePreview: CountermeasureCommandPreview?
+    var stagePreview: BattleObjectiveStageCommandPreview?
+    var synergy: CommanderSynergySummary?
+    var maneuver: ManeuverOptionSummary?
+    var threatHeat: ThreatHeatZoneSummary?
+    var mapControl: MapControlSummary?
+
+    var id: String {
+        [
+            objectiveChain?.id,
+            countermeasure?.id,
+            countermeasurePreview?.id,
+            stagePreview?.id,
+            synergy?.id,
+            maneuver?.id,
+            threatHeat?.id,
+            mapControl?.id
+        ].compactMap { $0 }.joined(separator: "-")
+    }
+
+    var title: String {
+        "战场态势交汇"
+    }
+
+    var compactLabel: String {
+        let label = [
+            objectiveChain?.focus.targetLabel,
+            countermeasure?.kindLabel,
+            threatHeat?.levelLabel ?? mapControl?.levelLabel
+        ].compactMap { $0 }.joined(separator: " · ")
+
+        return label.isEmpty ? title : label
+    }
+
+    var priorityLabel: String {
+        countermeasure?.priorityLabel ??
+            objectiveChain?.priorityLabel ??
+            threatHeat?.levelLabel ??
+            mapControl?.levelLabel ??
+            "态势待确认"
+    }
+
+    var objectiveLabel: String {
+        objectiveChain?.compactLabel ??
+            stagePreview?.focusLabel ??
+            "暂无目标线"
+    }
+
+    var responseLabel: String {
+        if let countermeasurePreview {
+            return "\(countermeasurePreview.summary.kindLabel) · \(countermeasurePreview.nextStepLabel)"
+        }
+
+        if let countermeasure {
+            return "\(countermeasure.kindLabel) · \(countermeasure.responseLabel)"
+        }
+
+        return "暂无反制建议"
+    }
+
+    var spaceLabel: String {
+        if let threatHeat {
+            return "\(threatHeat.levelLabel) · \(threatHeat.impactLabel)"
+        }
+
+        if let mapControl {
+            return "\(mapControl.controlLabel) · \(mapControl.impactLabel)"
+        }
+
+        if let maneuver {
+            return "\(maneuver.destinationLabel) · \(maneuver.controlLabel)"
+        }
+
+        return "空间态势待确认"
+    }
+
+    var nextStepLabel: String {
+        stagePreview?.nextStepLabel ??
+            countermeasurePreview?.nextStepLabel ??
+            maneuver?.objectiveCueLabel ??
+            synergy?.objectiveCueLabel ??
+            objectiveChain?.focusStageLabel ??
+            "等待选择军团"
+    }
+
+    var riskLabel: String {
+        countermeasure?.riskLabel ??
+            maneuver?.riskLabel ??
+            synergy?.riskLabel ??
+            threatHeat?.levelLabel ??
+            mapControl?.levelLabel ??
+            "风险待确认"
+    }
+
+    var signals: [BattlefieldConvergenceSignal] {
+        var values: [BattlefieldConvergenceSignal] = []
+
+        if let objectiveChain {
+            values.append(
+                BattlefieldConvergenceSignal(
+                    role: .objective,
+                    title: objectiveChain.title,
+                    detail: objectiveChain.chainLabel,
+                    position: objectiveChain.focus.targetPosition,
+                    sourceID: objectiveChain.id,
+                    nextStepLabel: objectiveChain.priorityLabel
+                )
+            )
+        }
+
+        if let countermeasure {
+            values.append(
+                BattlefieldConvergenceSignal(
+                    role: .countermeasure,
+                    title: countermeasure.kindLabel,
+                    detail: countermeasure.countermeasureChainLabel,
+                    position: countermeasure.targetPosition,
+                    sourceID: countermeasure.id,
+                    nextStepLabel: countermeasure.commandLabel
+                )
+            )
+        }
+
+        if let stagePreview {
+            values.append(
+                BattlefieldConvergenceSignal(
+                    role: .stage,
+                    title: stagePreview.stageLabel,
+                    detail: stagePreview.commandEntryCueLabel,
+                    position: stagePreview.position,
+                    sourceID: stagePreview.sourceSummaryID,
+                    nextStepLabel: stagePreview.nextStepLabel
+                )
+            )
+        }
+
+        if let synergy {
+            values.append(
+                BattlefieldConvergenceSignal(
+                    role: .synergy,
+                    title: synergy.kindLabel,
+                    detail: synergy.impactLabel,
+                    position: synergy.targetPosition,
+                    sourceID: synergy.id,
+                    nextStepLabel: synergy.statusLabel
+                )
+            )
+        }
+
+        if let maneuver {
+            values.append(
+                BattlefieldConvergenceSignal(
+                    role: .maneuver,
+                    title: maneuver.kindLabel,
+                    detail: "\(maneuver.destinationLabel) · \(maneuver.impactLabel)",
+                    position: maneuver.destination,
+                    sourceID: maneuver.id,
+                    nextStepLabel: maneuver.riskLabel
+                )
+            )
+        }
+
+        if let threatHeat {
+            values.append(
+                BattlefieldConvergenceSignal(
+                    role: .threatHeat,
+                    title: threatHeat.levelLabel,
+                    detail: "\(threatHeat.sourceLabel) · \(threatHeat.impactLabel)",
+                    position: threatHeat.targetPosition,
+                    sourceID: threatHeat.id,
+                    nextStepLabel: threatHeat.controlLabel
+                )
+            )
+        }
+
+        if let mapControl {
+            values.append(
+                BattlefieldConvergenceSignal(
+                    role: .mapControl,
+                    title: mapControl.controlLabel,
+                    detail: "\(mapControl.sourceLabel) · \(mapControl.impactLabel)",
+                    position: mapControl.position,
+                    sourceID: mapControl.id,
+                    nextStepLabel: mapControl.levelLabel
+                )
+            )
+        }
+
+        return values
+    }
+
+    var hasSignals: Bool {
+        !signals.isEmpty
+    }
+
+    var accessibilityLabel: String {
+        [
+            title,
+            "优先级\(priorityLabel)",
+            "目标\(objectiveLabel)",
+            "回应\(responseLabel)",
+            "空间\(spaceLabel)",
+            "下一步\(nextStepLabel)",
+            "风险\(riskLabel)"
+        ].joined(separator: "，")
+    }
+
+    func references(objectiveChain candidate: BattleObjectiveChainSummary) -> Bool {
+        objectiveChain?.id == candidate.id
+    }
+
+    func references(countermeasure candidate: CountermeasureSummary) -> Bool {
+        countermeasure?.id == candidate.id
+    }
+
+    func references(countermeasurePreview candidate: CountermeasureCommandPreview) -> Bool {
+        countermeasurePreview?.id == candidate.id
+    }
+
+    func references(stagePreview candidate: BattleObjectiveStageCommandPreview) -> Bool {
+        stagePreview?.id == candidate.id
+    }
+
+    func references(synergy candidate: CommanderSynergySummary) -> Bool {
+        synergy?.id == candidate.id
+    }
+
+    func references(maneuver candidate: ManeuverOptionSummary) -> Bool {
+        maneuver?.id == candidate.id
+    }
+
+    func references(threatHeat candidate: ThreatHeatZoneSummary) -> Bool {
+        threatHeat?.id == candidate.id
+    }
+
+    func references(mapControl candidate: MapControlSummary) -> Bool {
+        mapControl?.id == candidate.id
+    }
+}
+
 struct BattleObjectiveRouteSegment: Identifiable {
     var id: String
     var from: Position
@@ -2860,6 +3163,21 @@ final class GameViewModel: ObservableObject {
 
     var activeBattleObjectiveStageRole: BattleObjectiveMapRole? {
         activeBattleObjectiveStageCommandPreview?.role
+    }
+
+    var primaryBattlefieldConvergenceSummary: BattlefieldConvergenceSummary? {
+        let summary = BattlefieldConvergenceSummary(
+            objectiveChain: primaryBattleObjectiveChainSummary,
+            countermeasure: primaryCountermeasureSummary,
+            countermeasurePreview: primaryCountermeasureCommandPreview,
+            stagePreview: activeBattleObjectiveStageCommandPreview,
+            synergy: selectedCommanderSynergySummary ?? primaryCommanderSynergySummary,
+            maneuver: primaryManeuverOptionSummary,
+            threatHeat: primaryThreatHeatZoneSummary,
+            mapControl: selectedMapControlSummary ?? primaryMapControlSummary
+        )
+
+        return summary.hasSignals ? summary : nil
     }
 
     var frontlinePressureSummaries: [FrontlinePressureSummary] {
