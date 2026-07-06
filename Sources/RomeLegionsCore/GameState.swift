@@ -4333,6 +4333,8 @@ public struct GameState: Codable, Equatable, Sendable {
 
         if skillPreview.isExecutable {
             score += 110
+        } else if skillPreview.cooldownRemaining > 0 {
+            score -= skillPreview.cooldownRemaining * 140
         }
         if intent?.kind == .useSkill {
             score += 160

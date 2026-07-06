@@ -394,7 +394,7 @@ do {
     var enemySiegeThreatState = GameState.newCampaign()
     enemySiegeThreatState.units = [
         ArmyUnit(id: "rome-garrison", kind: .legion, faction: .rome, position: Position(x: 3, y: 4)),
-        ArmyUnit(id: "carthage-siege", kind: .legion, faction: .carthage, position: Position(x: 4, y: 3), generalName: "汉尼拔", generalTrait: .siegeEngineer)
+        ArmyUnit(id: "carthage-siege", kind: .legion, faction: .carthage, position: Position(x: 2, y: 3), generalName: "汉尼拔", generalTrait: .siegeEngineer)
     ]
     var enemySiegePreviewState = enemySiegeThreatState
     enemySiegePreviewState.activeFaction = .carthage
