@@ -136,6 +136,39 @@ struct RenderBattlePreview {
               }) else {
             throw PreviewRenderError.missingCountermeasureOverlay
         }
+        guard let countermeasureCommandPreview = viewModel.primaryCountermeasureCommandPreview,
+              countermeasureCommandPreview.id == countermeasure.id,
+              countermeasureCommandPreview.summary.id == countermeasure.id,
+              countermeasureCommandPreview.responseUnit?.id == countermeasure.report.responseUnitID,
+              !countermeasureCommandPreview.title.isEmpty,
+              !countermeasureCommandPreview.statusLabel.isEmpty,
+              !countermeasureCommandPreview.orderLabel.isEmpty,
+              !countermeasureCommandPreview.destinationLabel.isEmpty,
+              !countermeasureCommandPreview.targetLabel.isEmpty,
+              !countermeasureCommandPreview.nextStepLabel.isEmpty,
+              !countermeasureCommandPreview.buttonTitle.isEmpty,
+              !countermeasureCommandPreview.buttonDetail.isEmpty,
+              !countermeasureCommandPreview.accessibilityLabel.isEmpty,
+              !countermeasureCommandPreview.steps.isEmpty,
+              countermeasureCommandPreview.steps.allSatisfy({ step in
+                  !step.id.isEmpty &&
+                      !step.symbol.isEmpty &&
+                      !step.title.isEmpty &&
+                      !step.detail.isEmpty
+              }) else {
+            throw PreviewRenderError.missingCountermeasureCommandPreview
+        }
+        viewModel.focusCountermeasure(countermeasure.id)
+        guard viewModel.selectedUnitID == countermeasure.report.responseUnitID,
+              viewModel.focusedPosition == countermeasureCommandPreview.responseUnit?.position,
+              viewModel.focusedCountermeasureID == countermeasure.id,
+              viewModel.selectedCountermeasureCommandPreview?.id == countermeasure.id,
+              viewModel.selectedTacticalOrderPreviews.contains(where: { preview in
+                  preview.order == countermeasure.report.recommendedOrder
+              }),
+              viewModel.bannerMessage.contains("反制") else {
+            throw PreviewRenderError.missingCountermeasureCommandPreview
+        }
         guard let mapControl = viewModel.primaryMapControlSummary,
               !viewModel.mapControlSummaries.isEmpty,
               !viewModel.mapControlOverlayPositions.isEmpty,
@@ -478,6 +511,7 @@ enum PreviewRenderError: Error {
     case missingEnemyCommanderThreatSummary
     case missingCountermeasureSummary
     case missingCountermeasureOverlay
+    case missingCountermeasureCommandPreview
     case missingMapControlSummary
     case missingCommanderBrief
     case missingLegionFormationSummary

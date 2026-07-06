@@ -1819,6 +1819,10 @@ struct CompactActionsPanelView: View {
                 }
 
                 if let unit = viewModel.selectedUnit, unit.faction == .rome {
+                    if let preview = viewModel.selectedCountermeasureCommandPreview {
+                        CountermeasureCommandPreviewView(preview: preview, isCompact: true)
+                    }
+
                     TacticalOrderControlView(unit: unit, isCompact: true)
 
                     if let trait = unit.resolvedGeneralTrait {
@@ -2532,7 +2536,13 @@ struct StrategicBalancePanelView: View {
                             .frame(maxWidth: .infinity, alignment: .leading)
                     } else {
                         ForEach(countermeasureSummaries.prefix(2)) { summary in
-                            CountermeasureRowView(summary: summary)
+                            CountermeasureRowView(
+                                summary: summary,
+                                preview: viewModel.countermeasureCommandPreview(for: summary),
+                                focusAction: {
+                                    viewModel.focusCountermeasure(summary.id)
+                                }
+                            )
                         }
                     }
                 }
@@ -2892,6 +2902,8 @@ struct EnemyCommanderThreatRowView: View {
 
 struct CountermeasureRowView: View {
     var summary: CountermeasureSummary
+    var preview: CountermeasureCommandPreview?
+    var focusAction: (() -> Void)?
 
     var body: some View {
         HStack(spacing: 8) {
@@ -2914,11 +2926,18 @@ struct CountermeasureRowView: View {
                     .foregroundStyle(.white.opacity(0.62))
                     .lineLimit(2)
                     .minimumScaleFactor(0.70)
+                if let preview {
+                    Text(preview.nextStepLabel)
+                        .font(.caption2.weight(.bold))
+                        .foregroundStyle(summary.priority.tintColor)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.70)
+                }
             }
 
             Spacer(minLength: 0)
 
-            VStack(alignment: .trailing, spacing: 3) {
+            VStack(alignment: .trailing, spacing: 4) {
                 Text(summary.priorityLabel)
                     .font(.caption2.weight(.black))
                     .foregroundStyle(.black.opacity(0.78))
@@ -2931,6 +2950,16 @@ struct CountermeasureRowView: View {
                     .foregroundStyle(.white.opacity(0.58))
                     .lineLimit(1)
                     .minimumScaleFactor(0.72)
+                if let preview,
+                   let focusAction {
+                    Button("定位", systemImage: "scope") {
+                        focusAction()
+                    }
+                    .font(.caption2.weight(.bold))
+                    .buttonStyle(SecondaryButtonStyle())
+                    .disabled(!preview.canFocus)
+                    .accessibilityLabel("\(preview.buttonTitle)，\(preview.accessibilityLabel)")
+                }
             }
         }
         .padding(.horizontal, 8)
@@ -3717,7 +3746,13 @@ struct EnemyIntentPanelView: View {
                 }
 
                 if let countermeasure = viewModel.primaryCountermeasureSummary {
-                    CountermeasureCardView(summary: countermeasure)
+                    CountermeasureCardView(
+                        summary: countermeasure,
+                        preview: viewModel.primaryCountermeasureCommandPreview,
+                        focusAction: {
+                            viewModel.focusCountermeasure(countermeasure.id)
+                        }
+                    )
                 }
 
                 if viewModel.enemyIntentSummaries.isEmpty {
@@ -3793,6 +3828,8 @@ struct EnemyCommanderThreatCardView: View {
 
 struct CountermeasureCardView: View {
     var summary: CountermeasureSummary
+    var preview: CountermeasureCommandPreview?
+    var focusAction: (() -> Void)?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 7) {
@@ -3847,11 +3884,89 @@ struct CountermeasureCardView: View {
                 .foregroundStyle(.white.opacity(0.54))
                 .lineLimit(2)
                 .minimumScaleFactor(0.70)
+
+            if let preview {
+                CountermeasureCommandPreviewView(preview: preview, isCompact: true)
+            }
+
+            if let preview,
+               let focusAction {
+                Button("定位回应", systemImage: "scope") {
+                    focusAction()
+                }
+                .buttonStyle(SecondaryButtonStyle())
+                .disabled(!preview.canFocus)
+                .accessibilityLabel("\(preview.buttonTitle)，\(preview.accessibilityLabel)")
+            }
         }
         .padding(8)
         .background(summary.priority.tintColor.opacity(0.11))
         .clipShape(RoundedRectangle(cornerRadius: 7))
         .accessibilityLabel(summary.accessibilityLabel)
+    }
+}
+
+struct CountermeasureCommandPreviewView: View {
+    var preview: CountermeasureCommandPreview
+    var isCompact: Bool = false
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 7) {
+                Image(systemName: preview.isExecutableNow ? "checkmark.shield.fill" : "shield.lefthalf.filled")
+                    .foregroundStyle(preview.summary.priority.tintColor)
+                Text(preview.statusLabel)
+                    .font(.caption.weight(.heavy))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.72)
+                Spacer(minLength: 0)
+                Text(preview.orderLabel)
+                    .font(.caption2.weight(.bold))
+                    .foregroundStyle(.white.opacity(0.62))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.72)
+            }
+
+            Text(preview.nextStepLabel)
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(.white.opacity(0.70))
+                .lineLimit(isCompact ? 2 : 1)
+                .minimumScaleFactor(0.72)
+
+            HStack(spacing: 6) {
+                Label(preview.destinationLabel, systemImage: "arrow.up.right.circle.fill")
+                Spacer(minLength: 0)
+                Label(preview.targetLabel, systemImage: "scope")
+            }
+            .font(.caption2.weight(.semibold))
+            .foregroundStyle(.white.opacity(0.58))
+            .lineLimit(1)
+            .minimumScaleFactor(0.70)
+
+            if !isCompact {
+                VStack(alignment: .leading, spacing: 4) {
+                    ForEach(preview.steps) { step in
+                        HStack(spacing: 5) {
+                            Image(systemName: step.isReady ? "checkmark.circle.fill" : step.symbol)
+                                .foregroundStyle(step.isReady ? .green : .white.opacity(0.52))
+                                .frame(width: 15)
+                            Text(step.title)
+                                .font(.caption2.weight(.bold))
+                            Text(step.detail)
+                                .font(.caption2)
+                                .foregroundStyle(.white.opacity(0.58))
+                                .lineLimit(1)
+                                .minimumScaleFactor(0.72)
+                            Spacer(minLength: 0)
+                        }
+                    }
+                }
+            }
+        }
+        .padding(7)
+        .background(.black.opacity(0.18))
+        .clipShape(RoundedRectangle(cornerRadius: 7))
+        .accessibilityLabel(preview.accessibilityLabel)
     }
 }
 
@@ -4604,6 +4719,10 @@ struct ActionsPanelView: View {
                 }
 
                 if let unit = viewModel.selectedUnit, unit.faction == .rome {
+                    if let preview = viewModel.selectedCountermeasureCommandPreview {
+                        CountermeasureCommandPreviewView(preview: preview)
+                    }
+
                     TacticalOrderControlView(unit: unit)
 
                     if let trait = unit.resolvedGeneralTrait {

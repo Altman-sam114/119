@@ -375,6 +375,126 @@ struct CountermeasureMapOverlay: Identifiable {
     }
 }
 
+struct CountermeasureCommandStep: Identifiable {
+    var id: String
+    var symbol: String
+    var title: String
+    var detail: String
+    var isReady: Bool
+}
+
+struct CountermeasureCommandPreview: Identifiable {
+    var summary: CountermeasureSummary
+    var responseUnit: ArmyUnit?
+    var targetUnit: ArmyUnit?
+    var targetCity: City?
+    var recommendedOrder: TacticalOrder
+    var destination: Position
+    var targetPosition: Position
+    var canFocus: Bool
+    var canSetOrder: Bool
+    var canMoveToDestination: Bool
+    var canAttackCurrentTarget: Bool
+    var isExecutableNow: Bool
+    var blockingReasons: [String]
+    var steps: [CountermeasureCommandStep]
+
+    var id: String { summary.id }
+
+    var title: String {
+        "反制指令：\(summary.kindLabel)"
+    }
+
+    var statusLabel: String {
+        if isExecutableNow {
+            return "可立即推进"
+        }
+
+        if canFocus {
+            return "需确认步骤"
+        }
+
+        return blockingReasons.first ?? "暂不可执行"
+    }
+
+    var orderLabel: String {
+        "姿态 \(recommendedOrder.displayName)"
+    }
+
+    var destinationLabel: String {
+        if let responseUnit,
+           destination == responseUnit.position {
+            return "原地 \(destination.description)"
+        }
+
+        return "落点 \(destination.description)"
+    }
+
+    var targetLabel: String {
+        if let targetUnit {
+            return "\(targetUnit.faction.displayName)\(targetUnit.kind.displayName)"
+        }
+
+        if let targetCity {
+            return targetCity.name
+        }
+
+        return targetPosition.description
+    }
+
+    var nextStepLabel: String {
+        if let firstBlockingReason = blockingReasons.first {
+            return firstBlockingReason
+        }
+
+        if canAttackCurrentTarget {
+            return "可直接攻击 \(targetLabel)"
+        }
+
+        if let responseUnit,
+           destination == responseUnit.position {
+            return "已在落点，确认目标"
+        }
+
+        if canMoveToDestination {
+            return "先移动至 \(destination.description)"
+        }
+
+        if canSetOrder {
+            return "先切换\(recommendedOrder.displayName)"
+        }
+
+        return summary.commandLabel
+    }
+
+    var blockedReason: String? {
+        blockingReasons.first
+    }
+
+    var buttonTitle: String {
+        canFocus ? "定位回应" : "无法定位"
+    }
+
+    var buttonDetail: String {
+        if canFocus {
+            return "\(summary.unitLabel) · \(destinationLabel)"
+        }
+
+        return blockedReason ?? "回应军团不可用"
+    }
+
+    var accessibilityLabel: String {
+        [
+            title,
+            statusLabel,
+            orderLabel,
+            destinationLabel,
+            "目标\(targetLabel)",
+            nextStepLabel
+        ].joined(separator: "，")
+    }
+}
+
 struct TacticalRecommendationSummary: Identifiable {
     var report: TacticalRecommendationReport
     var unit: ArmyUnit?
@@ -1668,6 +1788,7 @@ final class GameViewModel: ObservableObject {
     @Published var selectedCityID: String?
     @Published var selectedPosition: Position?
     @Published var selectedTechnology: Technology?
+    @Published var focusedCountermeasureID: String?
     @Published var bannerMessage = "元老院等待你的命令。"
     @Published var isShowingMenu = true
 
@@ -1880,6 +2001,28 @@ final class GameViewModel: ObservableObject {
 
     var primaryCountermeasureSummary: CountermeasureSummary? {
         countermeasureSummaries.first
+    }
+
+    var countermeasureCommandPreviews: [CountermeasureCommandPreview] {
+        countermeasureSummaries.map(countermeasureCommandPreview(for:))
+    }
+
+    var primaryCountermeasureCommandPreview: CountermeasureCommandPreview? {
+        primaryCountermeasureSummary.map(countermeasureCommandPreview(for:))
+    }
+
+    var selectedCountermeasureCommandPreview: CountermeasureCommandPreview? {
+        guard let selectedUnitID else { return nil }
+        let previews = countermeasureCommandPreviews
+        if let focusedCountermeasureID,
+           let focusedPreview = previews.first(where: {
+               $0.id == focusedCountermeasureID &&
+                   $0.summary.report.responseUnitID == selectedUnitID
+           }) {
+            return focusedPreview
+        }
+
+        return previews.first { $0.summary.report.responseUnitID == selectedUnitID }
     }
 
     var primaryCountermeasureMapOverlay: CountermeasureMapOverlay? {
@@ -2349,6 +2492,134 @@ final class GameViewModel: ObservableObject {
             responseUnit: state.unit(withID: report.responseUnitID),
             targetUnit: report.targetUnitID.flatMap { state.unit(withID: $0) },
             targetCity: report.targetCityID.flatMap { state.city(withID: $0) }
+        )
+    }
+
+    func countermeasureCommandPreview(for summary: CountermeasureSummary) -> CountermeasureCommandPreview {
+        let responseUnit = state.unit(withID: summary.report.responseUnitID)
+        let targetUnit = summary.report.targetUnitID.flatMap { state.unit(withID: $0) }
+        let targetCity = summary.report.targetCityID.flatMap { state.city(withID: $0) }
+        let recommendedOrder = summary.report.recommendedOrder
+        let destination = summary.destination
+        let targetPosition = summary.targetPosition
+        var blockingReasons: [String] = []
+        var steps: [CountermeasureCommandStep] = []
+
+        guard let responseUnit else {
+            return CountermeasureCommandPreview(
+                summary: summary,
+                responseUnit: nil,
+                targetUnit: targetUnit,
+                targetCity: targetCity,
+                recommendedOrder: recommendedOrder,
+                destination: destination,
+                targetPosition: targetPosition,
+                canFocus: false,
+                canSetOrder: false,
+                canMoveToDestination: false,
+                canAttackCurrentTarget: false,
+                isExecutableNow: false,
+                blockingReasons: ["回应单位不存在"],
+                steps: [
+                    CountermeasureCommandStep(
+                        id: "\(summary.id)-missing-unit",
+                        symbol: "questionmark.circle.fill",
+                        title: "回应",
+                        detail: "回应单位不存在",
+                        isReady: false
+                    )
+                ]
+            )
+        }
+
+        if isCampaignOver {
+            blockingReasons.append("战役已结束")
+        }
+
+        if responseUnit.faction != .rome {
+            blockingReasons.append("回应单位不属罗马")
+        }
+
+        if responseUnit.faction != state.activeFaction {
+            blockingReasons.append("非当前阵营")
+        }
+
+        let orderBlockedReason = tacticalOrderBlockedReason(recommendedOrder, for: responseUnit)
+        let orderReady = orderBlockedReason == nil || orderBlockedReason == "当前姿态"
+        let canSetOrder = orderBlockedReason == nil && responseUnit.resolvedTacticalOrder != recommendedOrder
+        if let orderBlockedReason,
+           orderBlockedReason != "当前姿态" {
+            blockingReasons.append(orderBlockedReason)
+        }
+        steps.append(
+            CountermeasureCommandStep(
+                id: "\(summary.id)-order",
+                symbol: tacticalOrderCommandSymbol(recommendedOrder),
+                title: "姿态",
+                detail: orderBlockedReason == "当前姿态" ? "已是\(recommendedOrder.displayName)" : "建议\(recommendedOrder.displayName)",
+                isReady: orderReady
+            )
+        )
+
+        let reachable = state.reachablePositions(for: responseUnit.id)
+        let isAtDestination = responseUnit.position == destination
+        let canMoveToDestination = isAtDestination || reachable.contains(destination)
+        if !canMoveToDestination {
+            blockingReasons.append(responseUnit.hasMoved ? "已移动，无法抵达落点" : "落点暂不可达")
+        }
+        steps.append(
+            CountermeasureCommandStep(
+                id: "\(summary.id)-destination",
+                symbol: isAtDestination ? "location.fill" : "arrow.up.right.circle.fill",
+                title: "落点",
+                detail: isAtDestination ? "已在 \(destination.description)" : (canMoveToDestination ? "可达 \(destination.description)" : "不可达 \(destination.description)"),
+                isReady: canMoveToDestination
+            )
+        )
+
+        let attackableTargets = state.attackTargets(for: responseUnit.id)
+        let canAttackCurrentTarget = targetUnit.map { target in
+            attackableTargets.contains { $0.id == target.id }
+        } ?? false
+        let targetDetail: String
+        if let targetUnit {
+            targetDetail = canAttackCurrentTarget ? "可直接攻击 \(targetUnit.kind.displayName)" : "距目标 \(responseUnit.position.hexDistance(to: targetUnit.position))"
+        } else if let targetCity {
+            targetDetail = "目标 \(targetCity.name)"
+        } else {
+            targetDetail = "目标 \(targetPosition.description)"
+        }
+        steps.append(
+            CountermeasureCommandStep(
+                id: "\(summary.id)-target",
+                symbol: canAttackCurrentTarget ? "bolt.fill" : "scope",
+                title: "目标",
+                detail: targetDetail,
+                isReady: canAttackCurrentTarget || targetUnit == nil
+            )
+        )
+
+        let canFocus = responseUnit.faction == .rome
+        let canAdvanceNow = canSetOrder || (!isAtDestination && canMoveToDestination) || canAttackCurrentTarget
+        let isExecutableNow = canFocus &&
+            blockingReasons.isEmpty &&
+            canAdvanceNow
+
+        return CountermeasureCommandPreview(
+            summary: summary,
+            responseUnit: responseUnit,
+            targetUnit: targetUnit,
+            targetCity: targetCity,
+            recommendedOrder: recommendedOrder,
+            destination: destination,
+            targetPosition: targetPosition,
+            canFocus: canFocus,
+            canSetOrder: canSetOrder,
+            canMoveToDestination: canMoveToDestination,
+            canAttackCurrentTarget: canAttackCurrentTarget,
+            isExecutableNow: isExecutableNow,
+            blockingReasons: blockingReasons,
+            steps: steps
         )
     }
 
@@ -2949,6 +3220,15 @@ final class GameViewModel: ObservableObject {
         return nil
     }
 
+    private func tacticalOrderCommandSymbol(_ order: TacticalOrder) -> String {
+        switch order {
+        case .balanced: return "circle.grid.cross.fill"
+        case .assault: return "bolt.fill"
+        case .defensive: return "shield.fill"
+        case .forcedMarch: return "figure.walk.motion"
+        }
+    }
+
     private func selectedSkillEffectLabel(_ preview: GeneralSkillPreview?) -> String? {
         guard let preview else { return nil }
 
@@ -2978,6 +3258,7 @@ final class GameViewModel: ObservableObject {
         selectedCityID = nil
         selectedPosition = nil
         selectedTechnology = nil
+        focusedCountermeasureID = nil
         isShowingMenu = false
         bannerMessage = "\(mode.displayName)开始：控制罗马军团扩张疆域。"
     }
@@ -3030,6 +3311,26 @@ final class GameViewModel: ObservableObject {
         } else {
             bannerMessage = "战场边界外。"
         }
+    }
+
+    func focusPrimaryCountermeasure() {
+        guard let summary = primaryCountermeasureSummary else { return }
+        focusCountermeasure(summary.id)
+    }
+
+    func focusCountermeasure(_ id: String) {
+        guard let preview = countermeasureCommandPreviews.first(where: { $0.id == id }),
+              let responseUnit = preview.responseUnit,
+              preview.canFocus else {
+            bannerMessage = "反制回应单位暂不可定位。"
+            return
+        }
+
+        selectedUnitID = responseUnit.id
+        selectedCityID = state.city(at: responseUnit.position)?.id
+        selectedPosition = responseUnit.position
+        focusedCountermeasureID = preview.id
+        bannerMessage = "\(preview.summary.unitLabel)反制：\(preview.nextStepLabel)。\(preview.destinationLabel)，目标\(preview.targetLabel)。"
     }
 
     func attack(_ defenderID: String) {

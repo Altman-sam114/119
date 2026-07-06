@@ -14,12 +14,50 @@
 
 - 项目类型：原创 SwiftUI iOS 罗马题材战棋原型。
 - 核心架构：纯 Swift `RomeLegionsCore` 负责玩法规则；`GameViewModel` 负责 UI 状态和派生数据；SwiftUI 视图负责展示和命令入口。
-- 当前玩法：六边形地图、地形、城市、阵营、军团、移动、攻击、反击、占城、招募、科技、任务 requirement、战役目标、胜负结算、结束保护、外交、城市扩建、城市经营与招募读板、军团训练、将领任命、军团成长决策读板、军团成长优先级读板、主动技能、技能冷却、将领详情读板、被动贡献、战功状态、军团编制与成长读板、战术命令建议与补线路径读板、本方将领协同与战术连携读板、机动落点与地图风险读板、战场焦点与将领机会读板、地图控制与威胁热区读板、主动地图叠层图例、AI 作战计划与敌方将领协同读板、敌方将领威胁读板、敌情反制建议读板、反制落点/目标地图叠层、战术姿态与姿态预览、AI 回合、AI 主攻优先执行、敌军意图预判、敌军意图六边形路径/目标叠层、战线压力读板、战局态势面板。
+- 当前玩法：六边形地图、地形、城市、阵营、军团、移动、攻击、反击、占城、招募、科技、任务 requirement、战役目标、胜负结算、结束保护、外交、城市扩建、城市经营与招募读板、军团训练、将领任命、军团成长决策读板、军团成长优先级读板、主动技能、技能冷却、将领详情读板、被动贡献、战功状态、军团编制与成长读板、战术命令建议与补线路径读板、本方将领协同与战术连携读板、机动落点与地图风险读板、战场焦点与将领机会读板、地图控制与威胁热区读板、主动地图叠层图例、AI 作战计划与敌方将领协同读板、敌方将领威胁读板、敌情反制建议读板、反制落点/目标地图叠层、反制指令聚焦与执行预览、战术姿态与姿态预览、AI 回合、AI 主攻优先执行、敌军意图预判、敌军意图六边形路径/目标叠层、战线压力读板、战局态势面板。
 - 当前测试入口：Swift Testing、Gameplay Smoke、项目结构检查、SwiftUI 类型检查、战斗页预览图渲染、无签名 Xcode 构建。
 - 当前协作系统：已建立 `AGENTS.md`、`update_log.md`、`md/prompt/`、`md/test/test.md`、`md/flow/flow.md`、`md/flow/flowchart.md`，默认按 `main` 直推、GitHub Actions 云端重验证、Agent C 下载未加密结果包复判，并具备未来由 Agent X 主控调度 Agent A/B/C 多轮循环的文档基线。
 - 当前 CI 入口：`.github/workflows/ci-results.yml`，在 `main` push 和手动触发时运行结构检查、SwiftPM 测试、Gameplay Smoke、RenderBattlePreview 和无签名 Xcode build，并上传 CI 结果包。
 
 ## 历史记录
+
+### v0.29 / 反制指令聚焦与执行预览
+
+日期：2026-07-06
+
+核心变更：
+
+- `GameViewModel` 新增 `CountermeasureCommandStep`、`CountermeasureCommandPreview`、`countermeasureCommandPreviews`、`primaryCountermeasureCommandPreview`、`selectedCountermeasureCommandPreview` 和 `focusedCountermeasureID`，把 v0.27/v0.28 的反制建议转成推荐姿态、落点可达性、目标窗口、下一步和阻塞原因等只读指令预览。
+- `GameViewModel.focusCountermeasure(_:)` 与 `focusPrimaryCountermeasure()` 只改变 ViewModel 选择态、位置、聚焦 ID 和 banner，使现有可达格、攻击目标和姿态预览自然刷新；它们不移动单位、不攻击、不切换姿态，也不改变 `GameState`。
+- `BattleView` 在敌情反制卡展示指令预览和“定位回应”按钮，在战局反制行展示下一步并支持定位，在完整/紧凑军令面板中为选中的回应军团展示反制执行预览。
+- `Tools/RenderBattlePreview/main.swift` 增加 `primaryCountermeasureCommandPreview`、步骤文案、按钮文案和 `focusCountermeasure(_:)` 行为断言；失败抛出 `missingCountermeasureCommandPreview`。
+- `.github/workflows/ci-results.yml` artifact 版本更新到 v0.29。
+- README、flow、flowchart、test、prompt README、AGENTS 文档同步反制指令聚焦与执行预览和 v0.29 Agent A 提示词。
+
+关键文件：
+
+- `RomeLegionsApp/App/GameViewModel.swift`
+- `RomeLegionsApp/Views/BattleView.swift`
+- `Tools/RenderBattlePreview/main.swift`
+- `.github/workflows/ci-results.yml`
+- `README.md`
+- `md/flow/flow.md`
+- `md/flow/flowchart.md`
+- `md/test/test.md`
+- `md/prompt/README.md`
+- `md/prompt/v0（玩法推进）/v0.29（反制指令聚焦与执行预览）.md`
+- `AGENTS.md`
+- `update_log.md`
+
+验证结果：
+
+- 按人工最新要求，本轮未运行任何本地测试、build、typecheck、RenderBattlePreview、`Tools/verify_project.mjs`、`git diff --check`、YAML/JSON/Plist 解析或脚本语法检查。
+- 待 push 到 `origin/main` 后由 GitHub Actions 运行 v0.29 云端验证，并由 Agent C 下载最新 artifact 复判 manifest、JUnit、主日志、RenderBattlePreview 日志、预览 PNG 和失败摘要。
+
+遗留事项：
+
+- 本轮没有实现自动执行反制、一键移动、一键攻击、一键切姿态、多回合搜索、AI 权重重写、装备、升级树、将领池 UI、外交界面、存档 UI 或建筑树。
+- 反制指令预览只用于把建议转成玩家可读、可聚焦的下一步操作提示，不改变既有 AI、技能、攻击、移动、城市、外交或胜负规则。
 
 ### v0.28 / 反制落点地图叠层
 
