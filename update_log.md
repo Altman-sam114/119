@@ -14,12 +14,50 @@
 
 - 项目类型：原创 SwiftUI iOS 罗马题材战棋原型。
 - 核心架构：纯 Swift `RomeLegionsCore` 负责玩法规则；`GameViewModel` 负责 UI 状态和派生数据；SwiftUI 视图负责展示和命令入口。
-- 当前玩法：六边形地图、地形、城市、阵营、军团、移动、攻击、反击、占城、招募、科技、任务 requirement、战役目标、胜负结算、结束保护、外交、城市扩建、城市经营与招募读板、军团训练、将领任命、军团成长决策读板、军团成长优先级读板、主动技能、技能冷却、将领详情读板、将领指挥链读板、将令技能入口链路、将领技能目标与收益读板、被动贡献、战功状态、军团编制与成长读板、选中军团处境命令入口读板、战术命令建议与补线路径读板、本方将领协同与战术连携读板、机动落点与地图风险读板、战场焦点与将领机会读板、战场目标链路、战场态势交汇链路、目标线地图叠层、阶段聚焦、阶段命令预览与联动高亮、地图控制与威胁热区读板、主动地图叠层图例、AI 作战计划与敌方将领协同读板、敌方将领威胁读板、敌情反制建议读板、反制落点/目标地图叠层、反制指令聚焦、反制命令链高亮与反制焦点链路、战术姿态与姿态预览、AI 回合、AI 主攻优先执行、敌军意图预判、敌军意图六边形路径/目标叠层、战线压力读板、战局态势面板。
+- 当前玩法：六边形地图、地形、城市、阵营、军团、移动、攻击、反击、占城、招募、科技、任务 requirement、战役目标、胜负结算、结束保护、外交、城市扩建、城市经营与招募读板、军团训练、将领任命、军团成长决策读板、军团成长优先级读板、主动技能、技能冷却、将领详情读板、将领指挥链读板、将令技能入口链路、将领技能目标与收益读板、被动贡献、战功状态、军团编制与成长读板、选中军团处境命令入口读板、战术命令建议与补线路径读板、本方将领协同与战术连携读板、机动落点与地图风险读板、战场焦点与将领机会读板、战场目标链路、战场态势交汇链路、敌情交战闭环 HUD、目标线地图叠层、阶段聚焦、阶段命令预览与联动高亮、地图控制与威胁热区读板、主动地图叠层图例、AI 作战计划与敌方将领协同读板、敌方将领威胁读板、敌情反制建议读板、反制落点/目标地图叠层、反制指令聚焦、反制命令链高亮与反制焦点链路、战术姿态与姿态预览、AI 回合、AI 主攻优先执行、敌军意图预判、敌军意图六边形路径/目标叠层、战线压力读板、战局态势面板。
 - 当前测试入口：Swift Testing、Gameplay Smoke、项目结构检查、SwiftUI 类型检查、战斗页预览图渲染、无签名 Xcode 构建。
 - 当前协作系统：已建立 `AGENTS.md`、`update_log.md`、`md/prompt/`、`md/test/test.md`、`md/flow/flow.md`、`md/flow/flowchart.md`，默认按 `main` 直推、GitHub Actions 云端重验证、Agent C 下载未加密结果包复判，并具备未来由 Agent X 主控调度 Agent A/B/C 多轮循环的文档基线。
 - 当前 CI 入口：`.github/workflows/ci-results.yml`，在 `main` push 和手动触发时运行结构检查、SwiftPM 测试、Gameplay Smoke、RenderBattlePreview 和无签名 Xcode build，并上传 CI 结果包。
 
 ## 历史记录
+
+### v0.43 / 敌情交战闭环 HUD
+
+日期：2026-07-07
+
+核心变更：
+
+- `GameViewModel` 新增 `EnemyEngagementLoopSignalKind`、`EnemyEngagementLoopSignal`、`EnemyEngagementLoopReadout` 和 `primaryEnemyEngagementLoopReadout`，只读聚合敌军路线、战线压力、敌将威胁、反制建议、反制指令预览、回应军团将领指挥链和战场态势交汇读板。
+- `EnemyEngagementLoopReadout` 输出敌路、压力、敌将、反制、回应、下一步、风险、compact、signals、同源 references 和无障碍文案；不新增核心评分、命令队列、自动反制、目标线执行或存档字段。
+- `BattleView` 在地图内新增敌情交战闭环 HUD，用一条紧凑提示展示敌路、压力、敌将、反制和回应；HUD 不新增按钮，不拦截地图点击。
+- `Tools/RenderBattlePreview/main.swift` 新增 `missingEnemyEngagementLoopReadout` 断言，覆盖固定预览样本的敌军路线、战线压力、敌将威胁、反制建议、反制指令预览、回应军团将领指挥链和战场态势交汇同源关系，并检查读取读板不改变核心状态。
+- `.github/workflows/ci-results.yml` artifact 版本更新到 v0.43。
+- README、flow、flowchart、test、prompt README、AGENTS 文档同步敌情交战闭环 HUD 和 v0.43 Agent A 提示词。
+
+关键文件：
+
+- `RomeLegionsApp/App/GameViewModel.swift`
+- `RomeLegionsApp/Views/BattleView.swift`
+- `Tools/RenderBattlePreview/main.swift`
+- `.github/workflows/ci-results.yml`
+- `README.md`
+- `AGENTS.md`
+- `md/flow/flow.md`
+- `md/flow/flowchart.md`
+- `md/test/test.md`
+- `md/prompt/README.md`
+- `md/prompt/v0（玩法推进）/v0.43（敌情交战闭环HUD）.md`
+- `update_log.md`
+
+验证结果：
+
+- 按人工最新要求，本轮未运行任何本地测试、build、typecheck、RenderBattlePreview、`Tools/verify_project.mjs`、`git diff --check`、YAML/JSON/Plist 解析或脚本语法检查。
+- 当前实现等待 `origin/main` push 后由 GitHub Actions 生成 v0.43 结果包，并由 Agent C 下载最新 artifact 复判。
+
+遗留事项：
+
+- 本轮没有实现自动反制、自动技能、目标线自动执行、命令队列、多回合搜索、AI 权重重写、装备、升级树、将领池 UI、外交界面、存档 UI 或建筑树。
+- 敌情交战闭环 HUD 只解释当前敌军路线、压力、敌将威胁、反制指令和回应将领链，不改变任何移动、攻击、技能、姿态、AI 或城市结算。
 
 ### v0.42 / 将领指挥链读板
 

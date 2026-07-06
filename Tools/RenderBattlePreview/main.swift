@@ -727,6 +727,89 @@ struct RenderBattlePreview {
               viewModel.state.activeFaction == activeFactionBeforeConvergenceRead else {
             throw PreviewRenderError.missingBattlefieldConvergenceSummary
         }
+        let unitStateBeforeEngagementLoopRead = viewModel.state.units
+            .sorted { $0.id < $1.id }
+            .map { unit in
+                "\(unit.id)|\(unit.position.description)|\(unit.health)|\(unit.hasMoved)|\(unit.hasActed)|\(unit.generalSkillCooldownRemaining)|\(unit.tacticalOrder?.rawValue ?? "balanced")"
+            }
+        let cityStateBeforeEngagementLoopRead = viewModel.state.cities
+            .sorted { $0.id < $1.id }
+            .map { city in
+                "\(city.id)|\(city.owner.rawValue)|\(city.fortification)|\(city.position.description)"
+            }
+        let resourcesBeforeEngagementLoopRead = viewModel.state.resources
+            .sorted { $0.key.rawValue < $1.key.rawValue }
+            .map { entry in
+                let resources = entry.value
+                return "\(entry.key.rawValue)|\(resources.gold)|\(resources.grain)|\(resources.iron)|\(resources.science)|\(resources.prestige)"
+            }
+        let turnBeforeEngagementLoopRead = viewModel.state.turn
+        let activeFactionBeforeEngagementLoopRead = viewModel.state.activeFaction
+        guard let engagementLoop = viewModel.primaryEnemyEngagementLoopReadout,
+              engagementLoop.references(intent: advanceOverlay),
+              engagementLoop.references(pressure: frontlinePressure),
+              engagementLoop.references(enemyCommanderThreat: enemyCommanderThreat),
+              engagementLoop.references(countermeasure: countermeasure),
+              engagementLoop.references(countermeasurePreview: countermeasureCommandPreview),
+              engagementLoop.references(responseCommanderChain: commanderChainReadout),
+              engagementLoop.references(convergence: battlefieldConvergence),
+              !engagementLoop.title.isEmpty,
+              !engagementLoop.statusLabel.isEmpty,
+              !engagementLoop.intentLabel.isEmpty,
+              !engagementLoop.pressureLabel.isEmpty,
+              !engagementLoop.enemyCommanderLabel.isEmpty,
+              !engagementLoop.countermeasureLabel.isEmpty,
+              !engagementLoop.responseLabel.isEmpty,
+              !engagementLoop.nextStepLabel.isEmpty,
+              !engagementLoop.riskLabel.isEmpty,
+              !engagementLoop.compactLabel.isEmpty,
+              !engagementLoop.accessibilityLabel.isEmpty,
+              engagementLoop.accessibilityLabel.contains("敌路"),
+              engagementLoop.accessibilityLabel.contains("压力"),
+              engagementLoop.accessibilityLabel.contains("敌将"),
+              engagementLoop.accessibilityLabel.contains("反制"),
+              engagementLoop.accessibilityLabel.contains("回应"),
+              engagementLoop.accessibilityLabel.contains("下一步"),
+              engagementLoop.hasSignals,
+              engagementLoop.signals.contains(where: { $0.kind == .intentRoute && $0.sourceID == advanceOverlay.id }),
+              engagementLoop.signals.contains(where: { $0.kind == .frontline && $0.sourceID == frontlinePressure.id }),
+              engagementLoop.signals.contains(where: { $0.kind == .enemyCommander && $0.sourceID == enemyCommanderThreat.id }),
+              engagementLoop.signals.contains(where: { $0.kind == .countermeasure && $0.sourceID == countermeasure.id }),
+              engagementLoop.signals.contains(where: { $0.kind == .counterCommand && $0.sourceID == countermeasureCommandPreview.id }),
+              engagementLoop.signals.contains(where: { $0.kind == .responseCommander && $0.sourceID == commanderChainReadout.unitID }),
+              engagementLoop.signals.contains(where: { $0.kind == .convergence && $0.sourceID == battlefieldConvergence.id }),
+              engagementLoop.signals.allSatisfy({ signal in
+                  !signal.id.isEmpty &&
+                      !signal.title.isEmpty &&
+                      !signal.detail.isEmpty &&
+                      !signal.sourceID.isEmpty &&
+                      !signal.accessibilityLabel.isEmpty
+              }) else {
+            throw PreviewRenderError.missingEnemyEngagementLoopReadout
+        }
+        let unitStateAfterEngagementLoopRead = viewModel.state.units
+            .sorted { $0.id < $1.id }
+            .map { unit in
+                "\(unit.id)|\(unit.position.description)|\(unit.health)|\(unit.hasMoved)|\(unit.hasActed)|\(unit.generalSkillCooldownRemaining)|\(unit.tacticalOrder?.rawValue ?? "balanced")"
+            }
+        let cityStateAfterEngagementLoopRead = viewModel.state.cities
+            .sorted { $0.id < $1.id }
+            .map { city in
+                "\(city.id)|\(city.owner.rawValue)|\(city.fortification)|\(city.position.description)"
+            }
+        let resourcesAfterEngagementLoopRead = viewModel.state.resources
+            .sorted { $0.key.rawValue < $1.key.rawValue }
+            .map { entry in
+                let resources = entry.value
+                return "\(entry.key.rawValue)|\(resources.gold)|\(resources.grain)|\(resources.iron)|\(resources.science)|\(resources.prestige)"
+            }
+        guard unitStateBeforeEngagementLoopRead == unitStateAfterEngagementLoopRead,
+              cityStateBeforeEngagementLoopRead == cityStateAfterEngagementLoopRead,
+              resourcesBeforeEngagementLoopRead == resourcesAfterEngagementLoopRead,
+              turnBeforeEngagementLoopRead == viewModel.state.turn,
+              activeFactionBeforeEngagementLoopRead == viewModel.state.activeFaction else {
+            throw PreviewRenderError.missingEnemyEngagementLoopReadout
+        }
         guard let battleObjectiveOverlay = viewModel.primaryBattleObjectiveMapOverlay,
               battleObjectiveOverlay.references(chain: objectiveChain),
               !battleObjectiveOverlay.chainLabel.isEmpty,
@@ -1197,6 +1280,7 @@ enum PreviewRenderError: Error {
     case missingFrontlinePressure
     case missingSelectedUnitSituationReadout
     case missingBattlefieldFocus
+    case missingEnemyEngagementLoopReadout
     case missingBattlefieldConvergenceSummary
     case missingBattleObjectiveChainSummary
     case missingBattleObjectiveMapOverlay

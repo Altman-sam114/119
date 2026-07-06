@@ -223,6 +223,7 @@ struct WarMapView: View {
             let activeBattleObjectiveStageRole = viewModel.activeBattleObjectiveStageRole
             let countermeasureOverlay = viewModel.primaryCountermeasureMapOverlay
             let countermeasureOverlays = viewModel.countermeasureOverlaysByPosition
+            let engagementLoop = viewModel.primaryEnemyEngagementLoopReadout
             let selectedPosition = viewModel.focusedPosition
             let skillRangePositions = viewModel.selectedGeneralSkillRangePositions
             let skillTargetPositions = viewModel.selectedGeneralSkillTargetPositions
@@ -331,12 +332,23 @@ struct WarMapView: View {
 
                 VStack {
                     Spacer()
+                    if let engagementLoop {
+                        HStack {
+                            EnemyEngagementLoopHUDView(readout: engagementLoop)
+                                .frame(maxWidth: min(proxy.size.width - 24, 620), alignment: .leading)
+                            Spacer(minLength: 0)
+                        }
+                        .padding(.horizontal, 12)
+                        .padding(.bottom, 6)
+                        .allowsHitTesting(false)
+                    }
                     HStack {
                         MapOverlayLegendView(items: viewModel.activeMapOverlayLegendItems)
                         Spacer()
                     }
                     .padding(12)
                 }
+                .zIndex(5.1)
             }
             .clipShape(RoundedRectangle(cornerRadius: 8))
             .overlay {
@@ -588,6 +600,126 @@ struct TacticalStatusStripView: View {
                 compact: compact,
                 accessibilityLabel: maneuver.accessibilityLabel
             )
+        }
+    }
+}
+
+struct EnemyEngagementLoopHUDView: View {
+    var readout: EnemyEngagementLoopReadout
+
+    var body: some View {
+        ViewThatFits(in: .horizontal) {
+            HStack(spacing: 7) {
+                header
+                signalStrip(limit: 5)
+                Spacer(minLength: 0)
+                statusPill
+            }
+
+            HStack(spacing: 6) {
+                header
+                Text(readout.compactLabel)
+                    .font(.caption2.weight(.bold))
+                    .foregroundStyle(.white.opacity(0.72))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.62)
+                Spacer(minLength: 0)
+                statusPill
+            }
+        }
+        .foregroundStyle(.white)
+        .padding(.horizontal, 9)
+        .padding(.vertical, 6)
+        .frame(minHeight: 32)
+        .background(.black.opacity(0.42))
+        .clipShape(RoundedRectangle(cornerRadius: 7))
+        .overlay {
+            RoundedRectangle(cornerRadius: 7)
+                .stroke(Color(red: 0.96, green: 0.42, blue: 0.22).opacity(0.34), lineWidth: 1)
+        }
+        .accessibilityLabel(readout.accessibilityLabel)
+    }
+
+    private var header: some View {
+        HStack(spacing: 5) {
+            Image(systemName: "arrow.triangle.2.circlepath")
+                .foregroundStyle(Color(red: 0.96, green: 0.42, blue: 0.22))
+                .accessibilityHidden(true)
+            Text("闭环")
+                .font(.caption2.weight(.black))
+                .foregroundStyle(.white.opacity(0.76))
+        }
+        .lineLimit(1)
+    }
+
+    private var statusPill: some View {
+        Text(readout.statusLabel)
+            .font(.caption2.weight(.black))
+            .foregroundStyle(.black.opacity(0.78))
+            .lineLimit(1)
+            .minimumScaleFactor(0.58)
+            .padding(.horizontal, 6)
+            .frame(height: 20)
+            .background(Color(red: 0.96, green: 0.42, blue: 0.22))
+            .clipShape(RoundedRectangle(cornerRadius: 5))
+    }
+
+    private func signalStrip(limit: Int) -> some View {
+        HStack(spacing: 5) {
+            ForEach(Array(readout.signals.prefix(limit))) { signal in
+                HStack(spacing: 3) {
+                    Image(systemName: symbol(for: signal.kind))
+                        .foregroundStyle(tint(for: signal.kind))
+                        .accessibilityHidden(true)
+                    Text(signal.title)
+                        .font(.caption2.weight(.bold))
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.58)
+                }
+                .foregroundStyle(.white.opacity(0.72))
+                .padding(.horizontal, 5)
+                .frame(height: 20)
+                .background(tint(for: signal.kind).opacity(0.16))
+                .clipShape(RoundedRectangle(cornerRadius: 5))
+            }
+        }
+    }
+
+    private func symbol(for kind: EnemyEngagementLoopSignalKind) -> String {
+        switch kind {
+        case .intentRoute:
+            return "arrow.right.circle.fill"
+        case .frontline:
+            return "shield.lefthalf.filled"
+        case .enemyCommander:
+            return "bolt.shield.fill"
+        case .countermeasure:
+            return "scope"
+        case .counterCommand:
+            return "checkmark.shield.fill"
+        case .responseCommander:
+            return "link.circle.fill"
+        case .convergence:
+            return "arrow.triangle.2.circlepath"
+        }
+    }
+
+    private func tint(for kind: EnemyEngagementLoopSignalKind) -> Color {
+        switch kind {
+        case .intentRoute:
+            return .red
+        case .frontline:
+            return Color(red: 0.96, green: 0.58, blue: 0.24)
+        case .enemyCommander:
+            return .purple
+        case .countermeasure:
+            return .cyan
+        case .counterCommand:
+            return .green
+        case .responseCommander:
+            return Color(red: 0.86, green: 0.68, blue: 0.34)
+        case .convergence:
+            return .mint
         }
     }
 }

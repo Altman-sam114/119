@@ -31,6 +31,7 @@
 - 手机横屏紧凑战斗栏、可攻击目标头顶徽标、选中单位待机/跳过
 - AI 招募、休整、战术姿态、将领技能冷却判断、移动后攻击和目标优先级评估；真实 AI 回合会按当前意图威胁分优先执行主攻单位
 - 敌军意图预判：地图徽标、贴合六边形邻接的路径线段、目的地/目标格叠层、顶部敌情芯片和侧栏敌情面板展示攻击、接敌、夺城、固守等倾向，预计伤害与规划态战斗预览一致
+- 敌情交战闭环 HUD：ViewModel 只读聚合敌军路线、战线压力、敌方将领威胁、反制建议/指令、回应军团将领链和战场态势交汇，地图内用一条紧凑 HUD 展示当前敌情到我方回应的作战链，不新增自动反制或命令队列
 - 敌军作战计划读板：核心层只读聚合敌军意图、战线压力、威胁热区和敌方将领技能机会，展示集火、夺城、推进、固守、整备或将领协同计划，不改变真实 AI 决策
 - 敌方将领威胁读板：核心层只读聚合敌将 trait、技能窗口、AI 意图、作战计划、战线压力和热区，顶部敌将 chip、敌情卡和战局行展示首要敌将威胁
 - 敌情反制建议读板、地图叠层与焦点链路：核心层只读聚合敌将威胁、AI 作战计划、战线压力、热区、本方战术建议、机动落点和将领协同，顶部反制 chip、敌情卡和战局行展示建议回应单位、命令、收益和风险，地图用“1 回应、2 落点、3 目标”阶段标记、反制线和目标标记展示回应空间关系；敌情卡和军令面板还可定位回应军团并显示同一链路摘要、推荐姿态、落点、目标、下一步和阻塞原因，推荐姿态按钮与当前可攻击反制目标会显示反制提示但不自动执行
@@ -92,7 +93,7 @@ swiftc -swift-version 5 -module-cache-path .build/module-cache Sources/RomeLegio
 node Tools/verify_project.mjs
 ```
 
-战斗页三尺寸预览图；渲染前会断言敌军意图 ViewModel 叠层包含移动后攻击六边形邻接路径、目标格和预计伤害文案，并断言主动地图叠层图例、AI 作战计划读板、敌方将领威胁读板、敌情反制建议读板、反制落点/目标地图 overlay、反制指令聚焦与焦点链路、战线压力读板、战场焦点摘要、战场目标链路、战场态势交汇链路、选中军团处境命令入口读板、目标线地图 overlay、阶段聚焦、阶段命令预览与联动高亮 cue、将令技能入口链路、将领指挥链读板、将领技能目标与收益读板、地图控制摘要、威胁热区摘要、选中单位的军团编制摘要、军团成长决策摘要、军团成长优先级摘要、本方将领协同摘要、机动落点摘要/地图 overlay、战术建议摘要/路径/目标、将领详情、被动贡献、战功摘要、战术姿态预览和城市经营/招募读板存在。每个命令会写出请求的城市场景 PNG，并额外写出同尺寸 `*-unit.png` 单位场景 PNG：
+战斗页三尺寸预览图；渲染前会断言敌军意图 ViewModel 叠层包含移动后攻击六边形邻接路径、目标格和预计伤害文案，并断言敌情交战闭环 HUD、主动地图叠层图例、AI 作战计划读板、敌方将领威胁读板、敌情反制建议读板、反制落点/目标地图 overlay、反制指令聚焦与焦点链路、战线压力读板、战场焦点摘要、战场目标链路、战场态势交汇链路、选中军团处境命令入口读板、目标线地图 overlay、阶段聚焦、阶段命令预览与联动高亮 cue、将令技能入口链路、将领指挥链读板、将领技能目标与收益读板、地图控制摘要、威胁热区摘要、选中单位的军团编制摘要、军团成长决策摘要、军团成长优先级摘要、本方将领协同摘要、机动落点摘要/地图 overlay、战术建议摘要/路径/目标、将领详情、被动贡献、战功摘要、战术姿态预览和城市经营/招募读板存在。每个命令会写出请求的城市场景 PNG，并额外写出同尺寸 `*-unit.png` 单位场景 PNG：
 
 ```sh
 env HOME=$PWD/.home CLANG_MODULE_CACHE_PATH=$PWD/.build/module-cache /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/swiftc -parse-as-library -sdk /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX26.5.sdk -target arm64-apple-macosx14.0 -o .build/render-battle-preview Tools/RenderBattlePreview/main.swift Sources/RomeLegionsCore/GameState.swift RomeLegionsApp/App/GameViewModel.swift RomeLegionsApp/Views/BattleView.swift

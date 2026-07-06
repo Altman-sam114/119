@@ -1677,6 +1677,133 @@ struct BattlefieldConvergenceSummary: Identifiable {
     }
 }
 
+enum EnemyEngagementLoopSignalKind: String {
+    case intentRoute
+    case frontline
+    case enemyCommander
+    case countermeasure
+    case counterCommand
+    case responseCommander
+    case convergence
+
+    var displayName: String {
+        switch self {
+        case .intentRoute:
+            return "敌路"
+        case .frontline:
+            return "压力"
+        case .enemyCommander:
+            return "敌将"
+        case .countermeasure:
+            return "反制"
+        case .counterCommand:
+            return "指令"
+        case .responseCommander:
+            return "回应"
+        case .convergence:
+            return "交汇"
+        }
+    }
+}
+
+struct EnemyEngagementLoopSignal: Identifiable {
+    var kind: EnemyEngagementLoopSignalKind
+    var title: String
+    var detail: String
+    var position: Position?
+    var sourceID: String
+
+    var id: String {
+        [
+            kind.rawValue,
+            sourceID,
+            position?.description,
+            title
+        ].compactMap { $0 }.joined(separator: "-")
+    }
+
+    var accessibilityLabel: String {
+        var parts = [
+            kind.displayName,
+            title,
+            detail
+        ]
+
+        if let position {
+            parts.append("位置\(position.description)")
+        }
+
+        return parts.joined(separator: "，")
+    }
+}
+
+struct EnemyEngagementLoopReadout {
+    var title: String
+    var statusLabel: String
+    var intentLabel: String
+    var pressureLabel: String
+    var enemyCommanderLabel: String
+    var countermeasureLabel: String
+    var responseLabel: String
+    var nextStepLabel: String
+    var riskLabel: String
+    var compactLabel: String
+    var signals: [EnemyEngagementLoopSignal]
+    var intentID: String?
+    var pressureID: String?
+    var enemyCommanderThreatID: String?
+    var countermeasureID: String?
+    var countermeasurePreviewID: String?
+    var responseCommanderChainUnitID: String?
+    var convergenceID: String?
+
+    var hasSignals: Bool {
+        !signals.isEmpty
+    }
+
+    var accessibilityLabel: String {
+        [
+            title,
+            "状态\(statusLabel)",
+            "敌路\(intentLabel)",
+            "压力\(pressureLabel)",
+            "敌将\(enemyCommanderLabel)",
+            "反制\(countermeasureLabel)",
+            "回应\(responseLabel)",
+            "下一步\(nextStepLabel)",
+            "风险\(riskLabel)"
+        ].joined(separator: "，")
+    }
+
+    func references(intent candidate: EnemyIntentMapOverlay) -> Bool {
+        intentID == candidate.id
+    }
+
+    func references(pressure candidate: FrontlinePressureSummary) -> Bool {
+        pressureID == candidate.id
+    }
+
+    func references(enemyCommanderThreat candidate: EnemyCommanderThreatSummary) -> Bool {
+        enemyCommanderThreatID == candidate.id
+    }
+
+    func references(countermeasure candidate: CountermeasureSummary) -> Bool {
+        countermeasureID == candidate.id
+    }
+
+    func references(countermeasurePreview candidate: CountermeasureCommandPreview) -> Bool {
+        countermeasurePreviewID == candidate.id
+    }
+
+    func references(responseCommanderChain candidate: SelectedCommanderChainReadout) -> Bool {
+        responseCommanderChainUnitID == candidate.unitID
+    }
+
+    func references(convergence candidate: BattlefieldConvergenceSummary) -> Bool {
+        convergenceID == candidate.id
+    }
+}
+
 struct BattleObjectiveRouteSegment: Identifiable {
     var id: String
     var from: Position
@@ -3507,6 +3634,198 @@ final class GameViewModel: ObservableObject {
         )
 
         return summary.hasSignals ? summary : nil
+    }
+
+    var primaryEnemyEngagementLoopReadout: EnemyEngagementLoopReadout? {
+        let pressure = primaryFrontlinePressureSummary
+        let intent = primaryEnemyEngagementIntentOverlay(matching: pressure)
+        let enemyCommanderThreat = primaryEnemyCommanderThreatSummary
+        let countermeasure = primaryCountermeasureSummary
+        let countermeasurePreview = primaryCountermeasureCommandPreview
+        let responseCommanderChain = selectedCommanderChainReadoutForEngagement(countermeasure: countermeasure)
+        let convergence = primaryBattlefieldConvergenceSummary
+        var signals: [EnemyEngagementLoopSignal] = []
+
+        if let intent {
+            signals.append(
+                EnemyEngagementLoopSignal(
+                    kind: .intentRoute,
+                    title: intent.summary.shortTitle,
+                    detail: intent.summary.routeDetail,
+                    position: intent.targetPosition ?? intent.destinationPosition,
+                    sourceID: intent.id
+                )
+            )
+        }
+
+        if let pressure {
+            signals.append(
+                EnemyEngagementLoopSignal(
+                    kind: .frontline,
+                    title: pressure.pressureLabel,
+                    detail: pressure.detail,
+                    position: pressure.targetPosition,
+                    sourceID: pressure.id
+                )
+            )
+        }
+
+        if let enemyCommanderThreat {
+            signals.append(
+                EnemyEngagementLoopSignal(
+                    kind: .enemyCommander,
+                    title: enemyCommanderThreat.commanderLabel,
+                    detail: "\(enemyCommanderThreat.skillName) · \(enemyCommanderThreat.impactLabel)",
+                    position: enemyCommanderThreat.targetPosition,
+                    sourceID: enemyCommanderThreat.id
+                )
+            )
+        }
+
+        if let countermeasure {
+            signals.append(
+                EnemyEngagementLoopSignal(
+                    kind: .countermeasure,
+                    title: countermeasure.kindLabel,
+                    detail: countermeasure.countermeasureChainLabel,
+                    position: countermeasure.targetPosition,
+                    sourceID: countermeasure.id
+                )
+            )
+        }
+
+        if let countermeasurePreview {
+            signals.append(
+                EnemyEngagementLoopSignal(
+                    kind: .counterCommand,
+                    title: countermeasurePreview.statusLabel,
+                    detail: countermeasurePreview.commandChainLabel,
+                    position: countermeasurePreview.destination,
+                    sourceID: countermeasurePreview.id
+                )
+            )
+        }
+
+        if let responseCommanderChain {
+            signals.append(
+                EnemyEngagementLoopSignal(
+                    kind: .responseCommander,
+                    title: responseCommanderChain.title,
+                    detail: responseCommanderChain.compactLabel,
+                    position: countermeasurePreview?.responseUnit?.position ?? countermeasure?.responsePosition,
+                    sourceID: responseCommanderChain.unitID
+                )
+            )
+        }
+
+        if let convergence,
+           !convergence.id.isEmpty {
+            signals.append(
+                EnemyEngagementLoopSignal(
+                    kind: .convergence,
+                    title: convergence.priorityLabel,
+                    detail: convergence.compactLabel,
+                    position: convergence.signals.first?.position,
+                    sourceID: convergence.id
+                )
+            )
+        }
+
+        guard !signals.isEmpty else {
+            return nil
+        }
+
+        let intentLabel = intent.map { "\($0.summary.shortTitle) · \($0.summary.destinationLabel)" } ?? "敌路待确认"
+        let pressureLabel = pressure?.compactTitle ?? "战线待确认"
+        let enemyCommanderLabel = enemyCommanderThreat.map { "\($0.commanderLabel) · \($0.skillName)" } ?? "敌将待确认"
+        let countermeasureLabel = countermeasure.map { "\($0.kindLabel) · \($0.responseLabel)" } ?? "暂无反制"
+        let previewResponseUnit: ArmyUnit? = {
+            guard let countermeasurePreview else { return nil }
+            return countermeasurePreview.responseUnit
+        }()
+        let previewResponseLabel = previewResponseUnit.map { unit in
+            if let generalName = unit.generalName {
+                return "\(generalName)回应"
+            }
+            return "\(unit.faction.displayName)\(unit.kind.displayName)回应"
+        }
+        let responseLabel = responseCommanderChain?.compactLabel ??
+            previewResponseLabel ??
+            countermeasure?.responseLabel ??
+            "等待回应军团"
+        let nextStepLabel = countermeasurePreview?.nextStepLabel ??
+            convergence?.nextStepLabel ??
+            countermeasure?.commandLabel ??
+            intent?.impactLabel ??
+            "等待敌情"
+        let riskLabel = countermeasure?.riskLabel ??
+            convergence?.riskLabel ??
+            pressure?.pressureLabel ??
+            enemyCommanderThreat?.levelLabel ??
+            "风险待确认"
+        let statusLabel = countermeasure?.priorityLabel ??
+            enemyCommanderThreat?.levelLabel ??
+            pressure?.pressureLabel ??
+            "监视"
+        let compactLabel = [
+            intent?.summary.shortTitle,
+            pressure?.pressureLabel,
+            enemyCommanderThreat?.levelLabel,
+            countermeasure?.kindLabel,
+            responseCommanderChain != nil ? "将领回应" : nil
+        ].compactMap { $0 }.joined(separator: " · ")
+
+        return EnemyEngagementLoopReadout(
+            title: "敌情交战闭环",
+            statusLabel: statusLabel,
+            intentLabel: intentLabel,
+            pressureLabel: pressureLabel,
+            enemyCommanderLabel: enemyCommanderLabel,
+            countermeasureLabel: countermeasureLabel,
+            responseLabel: responseLabel,
+            nextStepLabel: nextStepLabel,
+            riskLabel: riskLabel,
+            compactLabel: compactLabel.isEmpty ? "敌情闭环待确认" : compactLabel,
+            signals: signals,
+            intentID: intent?.id,
+            pressureID: pressure?.id,
+            enemyCommanderThreatID: enemyCommanderThreat?.id,
+            countermeasureID: countermeasure?.id,
+            countermeasurePreviewID: countermeasurePreview?.id,
+            responseCommanderChainUnitID: responseCommanderChain?.unitID,
+            convergenceID: convergence?.id
+        )
+    }
+
+    private func primaryEnemyEngagementIntentOverlay(matching pressure: FrontlinePressureSummary?) -> EnemyIntentMapOverlay? {
+        let overlays = enemyIntentMapOverlays
+
+        if let pressure {
+            let matchingOverlays = overlays.filter { overlay in
+                overlay.targetPosition == pressure.targetPosition ||
+                    overlay.destinationPosition == pressure.targetPosition ||
+                    overlay.summary.intent.targetUnitID == pressure.report.targetID ||
+                    overlay.summary.intent.targetCityID == pressure.report.targetID
+            }
+
+            return matchingOverlays.first { $0.kind == .advanceAttack } ??
+                matchingOverlays.first ??
+                overlays.first
+        }
+
+        return overlays.first
+    }
+
+    private func selectedCommanderChainReadoutForEngagement(countermeasure: CountermeasureSummary?) -> SelectedCommanderChainReadout? {
+        guard let readout = selectedCommanderChainReadout else {
+            return nil
+        }
+
+        guard let countermeasure else {
+            return readout
+        }
+
+        return readout.unitID == countermeasure.report.responseUnitID ? readout : nil
     }
 
     var frontlinePressureSummaries: [FrontlinePressureSummary] {
