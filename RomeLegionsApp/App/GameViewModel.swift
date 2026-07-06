@@ -2177,6 +2177,7 @@ final class GameViewModel: ObservableObject {
     @Published var selectedPosition: Position?
     @Published var selectedTechnology: Technology?
     @Published var focusedCountermeasureID: String?
+    @Published var focusedBattleObjectiveRole: BattleObjectiveMapRole?
     @Published var bannerMessage = "元老院等待你的命令。"
     @Published var isShowingMenu = true
 
@@ -2532,6 +2533,14 @@ final class GameViewModel: ObservableObject {
 
     var battleObjectiveOverlayPositions: Set<Position> {
         Set(battleObjectiveOverlaysByPosition.keys)
+    }
+
+    var focusedBattleObjectiveOverlay: BattleObjectivePositionOverlay? {
+        guard let focusedBattleObjectiveRole else { return nil }
+
+        return primaryBattleObjectiveMapOverlay?.positionOverlays.first { overlay in
+            overlay.role == focusedBattleObjectiveRole
+        }
     }
 
     var frontlinePressureSummaries: [FrontlinePressureSummary] {
@@ -3685,6 +3694,7 @@ final class GameViewModel: ObservableObject {
         selectedPosition = nil
         selectedTechnology = nil
         focusedCountermeasureID = nil
+        focusedBattleObjectiveRole = nil
         isShowingMenu = false
         bannerMessage = "\(mode.displayName)开始：控制罗马军团扩张疆域。"
     }
@@ -3694,6 +3704,8 @@ final class GameViewModel: ObservableObject {
     }
 
     func selectTile(_ position: Position) {
+        focusedBattleObjectiveRole = nil
+
         if let unit = state.unit(at: position) {
             if let target = attackTargets.first(where: { $0.id == unit.id }) {
                 selectedPosition = position
@@ -3756,7 +3768,48 @@ final class GameViewModel: ObservableObject {
         selectedCityID = state.city(at: responseUnit.position)?.id
         selectedPosition = responseUnit.position
         focusedCountermeasureID = preview.id
+        focusedBattleObjectiveRole = nil
         bannerMessage = "\(preview.summary.unitLabel)反制：\(preview.nextStepLabel)。\(preview.destinationLabel)，目标\(preview.targetLabel)。"
+    }
+
+    func focusPrimaryBattleObjectiveStage(_ role: BattleObjectiveMapRole) {
+        guard let overlay = primaryBattleObjectiveMapOverlay?.positionOverlays.first(where: { $0.role == role }) else {
+            bannerMessage = "\(role.stageLabel)目标线阶段暂不可定位。"
+            return
+        }
+
+        selectedPosition = overlay.position
+        focusedBattleObjectiveRole = role
+        focusedCountermeasureID = nil
+
+        selectedUnitID = battleObjectiveFocusUnit(for: overlay)?.id
+        if let city = state.city(at: overlay.position) {
+            selectedCityID = city.id
+        } else if let selectedUnitID,
+                  let unit = state.unit(withID: selectedUnitID) {
+            selectedCityID = state.city(at: unit.position)?.id
+        } else {
+            selectedCityID = nil
+        }
+
+        bannerMessage = "目标线\(overlay.stageLabel)：\(overlay.focusLabel)。位置\(overlay.position.description)。"
+    }
+
+    private func battleObjectiveFocusUnit(for overlay: BattleObjectivePositionOverlay) -> ArmyUnit? {
+        let unit: ArmyUnit?
+
+        switch overlay.role {
+        case .focus:
+            unit = overlay.chain.focus.unit
+        case .synergy:
+            unit = overlay.chain.synergy?.unit ?? overlay.chain.synergy?.commanderUnit
+        case .maneuver:
+            unit = overlay.chain.maneuver?.unit
+        case .recommendation:
+            unit = overlay.chain.recommendation?.unit
+        }
+
+        return unit?.faction == .rome ? unit : nil
     }
 
     func attack(_ defenderID: String) {

@@ -400,6 +400,82 @@ struct RenderBattlePreview {
               }) else {
             throw PreviewRenderError.missingBattleObjectiveMapOverlay
         }
+        let unitStateBeforeBattleObjectiveFocus = viewModel.state.units
+            .sorted { $0.id < $1.id }
+            .map { unit in
+                "\(unit.id)|\(unit.position.description)|\(unit.health)|\(unit.hasMoved)|\(unit.hasActed)|\(unit.tacticalOrder?.rawValue ?? "balanced")"
+            }
+        let cityStateBeforeBattleObjectiveFocus = viewModel.state.cities
+            .sorted { $0.id < $1.id }
+            .map { city in
+                "\(city.id)|\(city.owner.rawValue)|\(city.fortification)|\(city.position.description)"
+            }
+        let resourcesBeforeBattleObjectiveFocus = viewModel.state.resources
+            .sorted { $0.key.rawValue < $1.key.rawValue }
+            .map { entry in
+                let resources = entry.value
+                return "\(entry.key.rawValue)|\(resources.gold)|\(resources.grain)|\(resources.iron)|\(resources.science)|\(resources.prestige)"
+            }
+        let turnBeforeBattleObjectiveFocus = viewModel.state.turn
+        let activeFactionBeforeBattleObjectiveFocus = viewModel.state.activeFaction
+        viewModel.focusPrimaryBattleObjectiveStage(.maneuver)
+        guard viewModel.focusedPosition == primaryManeuverSummary.destination,
+              viewModel.focusedBattleObjectiveRole == .maneuver,
+              viewModel.focusedBattleObjectiveOverlay?.role == .maneuver,
+              viewModel.focusedBattleObjectiveOverlay?.position == primaryManeuverSummary.destination,
+              viewModel.selectedUnitID == primaryManeuverSummary.unit?.id,
+              viewModel.bannerMessage.contains("目标线"),
+              viewModel.bannerMessage.contains("3 机动") else {
+            throw PreviewRenderError.missingBattleObjectiveStageFocus
+        }
+        viewModel.focusPrimaryBattleObjectiveStage(.recommendation)
+        guard viewModel.focusedPosition == recommendationSummary.targetPosition,
+              viewModel.focusedBattleObjectiveRole == .recommendation,
+              viewModel.focusedBattleObjectiveOverlay?.role == .recommendation,
+              viewModel.focusedBattleObjectiveOverlay?.position == recommendationSummary.targetPosition,
+              viewModel.selectedUnitID == recommendationSummary.unit?.id,
+              viewModel.bannerMessage.contains("目标线"),
+              viewModel.bannerMessage.contains("4 军议") else {
+            throw PreviewRenderError.missingBattleObjectiveStageFocus
+        }
+        viewModel.focusPrimaryBattleObjectiveStage(.focus)
+        guard viewModel.focusedPosition == battlefieldFocus.targetPosition,
+              viewModel.focusedBattleObjectiveRole == .focus,
+              viewModel.focusedBattleObjectiveOverlay?.role == .focus,
+              viewModel.focusedBattleObjectiveOverlay?.position == battlefieldFocus.targetPosition,
+              viewModel.bannerMessage.contains("目标线"),
+              viewModel.bannerMessage.contains("1 焦点") else {
+            throw PreviewRenderError.missingBattleObjectiveStageFocus
+        }
+        if let focusUnit = battlefieldFocus.unit,
+           focusUnit.faction == .rome {
+            guard viewModel.selectedUnitID == focusUnit.id else {
+                throw PreviewRenderError.missingBattleObjectiveStageFocus
+            }
+        }
+        let unitStateAfterBattleObjectiveFocus = viewModel.state.units
+            .sorted { $0.id < $1.id }
+            .map { unit in
+                "\(unit.id)|\(unit.position.description)|\(unit.health)|\(unit.hasMoved)|\(unit.hasActed)|\(unit.tacticalOrder?.rawValue ?? "balanced")"
+            }
+        let cityStateAfterBattleObjectiveFocus = viewModel.state.cities
+            .sorted { $0.id < $1.id }
+            .map { city in
+                "\(city.id)|\(city.owner.rawValue)|\(city.fortification)|\(city.position.description)"
+            }
+        let resourcesAfterBattleObjectiveFocus = viewModel.state.resources
+            .sorted { $0.key.rawValue < $1.key.rawValue }
+            .map { entry in
+                let resources = entry.value
+                return "\(entry.key.rawValue)|\(resources.gold)|\(resources.grain)|\(resources.iron)|\(resources.science)|\(resources.prestige)"
+            }
+        guard unitStateAfterBattleObjectiveFocus == unitStateBeforeBattleObjectiveFocus,
+              cityStateAfterBattleObjectiveFocus == cityStateBeforeBattleObjectiveFocus,
+              resourcesAfterBattleObjectiveFocus == resourcesBeforeBattleObjectiveFocus,
+              viewModel.state.turn == turnBeforeBattleObjectiveFocus,
+              viewModel.state.activeFaction == activeFactionBeforeBattleObjectiveFocus else {
+            throw PreviewRenderError.missingBattleObjectiveStageFocus
+        }
         let legendItems = viewModel.activeMapOverlayLegendItems
         let legendKinds = Set(legendItems.map(\.kind))
         let requiredLegendKinds: Set<MapOverlayLegendKind> = [
@@ -621,6 +697,7 @@ enum PreviewRenderError: Error {
     case missingBattlefieldFocus
     case missingBattleObjectiveChainSummary
     case missingBattleObjectiveMapOverlay
+    case missingBattleObjectiveStageFocus
     case missingThreatHeatSummary
     case missingAIOperationalPlanSummary
     case missingEnemyCommanderThreatSummary

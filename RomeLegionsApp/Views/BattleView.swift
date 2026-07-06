@@ -220,6 +220,7 @@ struct WarMapView: View {
             let maneuverOptionOverlays = viewModel.maneuverOptionOverlaysByPosition
             let battleObjectiveOverlay = viewModel.primaryBattleObjectiveMapOverlay
             let battleObjectiveOverlays = viewModel.battleObjectiveOverlaysByPosition
+            let focusedBattleObjectiveRole = viewModel.focusedBattleObjectiveRole
             let countermeasureOverlay = viewModel.primaryCountermeasureMapOverlay
             let countermeasureOverlays = viewModel.countermeasureOverlaysByPosition
             let selectedPosition = viewModel.focusedPosition
@@ -270,6 +271,7 @@ struct WarMapView: View {
                         tacticalRecommendation: tacticalRecommendation,
                         maneuverOption: maneuverOptionOverlays[tile.position],
                         battleObjectiveOverlays: battleObjectiveOverlays[tile.position, default: []],
+                        focusedBattleObjectiveRole: focusedBattleObjectiveRole,
                         countermeasureOverlay: countermeasureOverlays[tile.position],
                         mapControlSummary: mapControlSummaries[tile.position],
                         threatHeatZoneSummary: threatHeatOverlaysByPosition[tile.position],
@@ -673,6 +675,7 @@ struct HexTileView: View {
     var tacticalRecommendation: TacticalRecommendationSummary?
     var maneuverOption: ManeuverOptionSummary?
     var battleObjectiveOverlays: [BattleObjectivePositionOverlay]
+    var focusedBattleObjectiveRole: BattleObjectiveMapRole?
     var countermeasureOverlay: CountermeasurePositionOverlay?
     var mapControlSummary: MapControlSummary?
     var threatHeatZoneSummary: ThreatHeatZoneSummary?
@@ -740,7 +743,11 @@ struct HexTileView: View {
             if !battleObjectiveOverlays.isEmpty,
                !isAttackTarget,
                !isSkillTarget {
-                BattleObjectiveTileOverlay(overlays: battleObjectiveOverlays, scale: scale)
+                BattleObjectiveTileOverlay(
+                    overlays: battleObjectiveOverlays,
+                    focusedRole: focusedBattleObjectiveRole,
+                    scale: scale
+                )
                     .allowsHitTesting(false)
             }
 
@@ -2358,7 +2365,12 @@ struct BattlefieldFocusPanelView: View {
                         }
 
                         if let objectiveChain {
-                            BattleObjectiveChainCardView(summary: objectiveChain, isCompact: false)
+                            BattleObjectiveChainCardView(
+                                summary: objectiveChain,
+                                isCompact: false,
+                                focusedRole: viewModel.focusedBattleObjectiveRole,
+                                focusStageAction: viewModel.focusPrimaryBattleObjectiveStage
+                            )
                         }
 
                         if let heat {
@@ -2413,7 +2425,12 @@ struct BattlefieldFocusPanelView: View {
             } else if let heat {
                 ThreatHeatCardView(summary: heat, isCompact: isCompact)
             } else if let objectiveChain {
-                BattleObjectiveChainCardView(summary: objectiveChain, isCompact: isCompact)
+                BattleObjectiveChainCardView(
+                    summary: objectiveChain,
+                    isCompact: isCompact,
+                    focusedRole: viewModel.focusedBattleObjectiveRole,
+                    focusStageAction: viewModel.focusPrimaryBattleObjectiveStage
+                )
             } else if let focus {
                 BattlefieldFocusCardView(summary: focus, isCompact: isCompact)
             } else if let mapControl {
@@ -3307,6 +3324,8 @@ struct BattlefieldFocusCardView: View {
 struct BattleObjectiveChainCardView: View {
     var summary: BattleObjectiveChainSummary
     var isCompact: Bool
+    var focusedRole: BattleObjectiveMapRole?
+    var focusStageAction: ((BattleObjectiveMapRole) -> Void)?
 
     var body: some View {
         VStack(alignment: .leading, spacing: isCompact ? 5 : 7) {
@@ -3338,6 +3357,33 @@ struct BattleObjectiveChainCardView: View {
                 .lineLimit(isCompact ? 2 : 3)
                 .minimumScaleFactor(0.66)
 
+            if focusStageAction != nil {
+                HStack(spacing: 5) {
+                    ForEach(stageRoles) { role in
+                        Button {
+                            focusStageAction?(role)
+                        } label: {
+                            HStack(spacing: 3) {
+                                Image(systemName: role.symbol)
+                                    .font(.system(size: 9, weight: .black))
+                                Text(role.stageLabel)
+                                    .font(.system(size: 10, weight: .black))
+                                    .lineLimit(1)
+                                    .minimumScaleFactor(0.72)
+                            }
+                            .foregroundStyle(focusedRole == role ? .black.opacity(0.82) : role.tintColor)
+                            .padding(.horizontal, 5)
+                            .frame(maxWidth: .infinity, minHeight: 22)
+                            .background(focusedRole == role ? role.tintColor : role.tintColor.opacity(0.14))
+                            .clipShape(RoundedRectangle(cornerRadius: 5))
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel("\(stageAccessibilityLabel(for: role))，定位")
+                        .accessibilityAddTraits(focusedRole == role ? .isSelected : AccessibilityTraits())
+                    }
+                }
+            }
+
             if !isCompact {
                 HStack(spacing: 6) {
                     Label(summary.focus.targetLabel, systemImage: summary.focus.kind.systemImage)
@@ -3359,6 +3405,37 @@ struct BattleObjectiveChainCardView: View {
         }
         .clipShape(RoundedRectangle(cornerRadius: 7))
         .accessibilityLabel(summary.accessibilityLabel)
+    }
+
+    private var stageRoles: [BattleObjectiveMapRole] {
+        var roles: [BattleObjectiveMapRole] = [.focus]
+
+        if summary.synergy != nil {
+            roles.append(.synergy)
+        }
+
+        if summary.maneuver != nil {
+            roles.append(.maneuver)
+        }
+
+        if summary.recommendation != nil {
+            roles.append(.recommendation)
+        }
+
+        return roles
+    }
+
+    private func stageAccessibilityLabel(for role: BattleObjectiveMapRole) -> String {
+        switch role {
+        case .focus:
+            return summary.focusStageLabel
+        case .synergy:
+            return summary.synergyStageLabel
+        case .maneuver:
+            return summary.maneuverStageLabel
+        case .recommendation:
+            return summary.recommendationStageLabel
+        }
     }
 }
 
@@ -5282,6 +5359,7 @@ struct MapOverlayLegendItemView: View {
 
 struct BattleObjectiveTileOverlay: View {
     var overlays: [BattleObjectivePositionOverlay]
+    var focusedRole: BattleObjectiveMapRole?
     var scale: CGFloat
 
     var body: some View {
@@ -5296,7 +5374,13 @@ struct BattleObjectiveTileOverlay: View {
                 .padding(7 * scale)
 
             ForEach(Array(overlays.prefix(4))) { overlay in
-                BattleObjectiveStageBadge(overlay: overlay, index: overlay.role.stageNumber - 1, count: 4, scale: scale)
+                BattleObjectiveStageBadge(
+                    overlay: overlay,
+                    index: overlay.role.stageNumber - 1,
+                    count: 4,
+                    isFocused: focusedRole == overlay.role,
+                    scale: scale
+                )
             }
         }
         .shadow(color: Color(red: 0.86, green: 0.68, blue: 0.34).opacity(0.24), radius: 4 * scale)
@@ -5308,10 +5392,17 @@ struct BattleObjectiveStageBadge: View {
     var overlay: BattleObjectivePositionOverlay
     var index: Int
     var count: Int
+    var isFocused: Bool
     var scale: CGFloat
 
     var body: some View {
         ZStack {
+            if isFocused {
+                Circle()
+                    .stroke(Color.white.opacity(0.92), lineWidth: max(1.2, 1.6 * scale))
+                    .frame(width: 28 * scale, height: 28 * scale)
+                    .shadow(color: overlay.role.tintColor.opacity(0.66), radius: 5 * scale)
+            }
             Circle()
                 .fill(overlay.role.tintColor.opacity(0.92))
             Image(systemName: overlay.role.symbol)
@@ -5327,6 +5418,7 @@ struct BattleObjectiveStageBadge: View {
         .shadow(color: .black.opacity(0.45), radius: 2, y: 1)
         .offset(offset)
         .accessibilityLabel(overlay.accessibilityLabel)
+        .accessibilityAddTraits(isFocused ? .isSelected : AccessibilityTraits())
     }
 
     private var offset: CGSize {
