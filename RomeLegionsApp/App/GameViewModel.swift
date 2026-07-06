@@ -2359,6 +2359,16 @@ struct SelectedCommanderBrief {
     var accessibilityLabel: String
 }
 
+struct CommanderActionGuidance {
+    var title: String
+    var stageCueLabel: String?
+    var skillCueLabel: String
+    var buttonDetailPrefix: String?
+    var statusLabel: String
+    var isLinkedToBattleObjectiveStage: Bool
+    var accessibilityLabel: String
+}
+
 struct SelectedTacticalOrderPreview: Identifiable {
     var order: TacticalOrder
     var attack: Int
@@ -3957,8 +3967,55 @@ final class GameViewModel: ObservableObject {
         return preview.blockedReason ?? "\(preview.summary) · \(preview.cooldownText)"
     }
 
+    var selectedGeneralSkillCommandButtonDetail: String? {
+        let detail = [
+            selectedCommanderActionGuidance?.buttonDetailPrefix,
+            selectedGeneralSkillButtonDetail
+        ].compactMap { $0 }.joined(separator: " · ")
+        return detail.isEmpty ? nil : detail
+    }
+
     var selectedGeneralSkillCooldownDetail: String? {
         selectedGeneralSkillPreview?.cooldownText
+    }
+
+    var selectedCommanderActionGuidance: CommanderActionGuidance? {
+        guard let selectedUnit,
+              selectedUnit.resolvedGeneralTrait != nil,
+              let brief = selectedCommanderBrief,
+              let skillPreview = selectedGeneralSkillPreview else {
+            return nil
+        }
+
+        let synergySummary = selectedCommanderSynergySummary
+        let stagePreview = selectedBattleObjectiveStageCommandPreview
+        let isLinkedStage = stagePreview?.role == .synergy &&
+            stagePreview?.isCommandUnit(selectedUnit) == true
+        let stageCueLabel = isLinkedStage ? stagePreview?.skillStageCueLabel : nil
+        let skillCueLabel = stageCueLabel ??
+            (synergySummary?.kind == .commanderSkill ? "将令 · \(synergySummary?.statusLabel ?? brief.skillStatusLabel)" : brief.skillStatusLabel)
+        let buttonDetailPrefix = stageCueLabel ??
+            (synergySummary?.kind == .commanderSkill ? "将令 · \(brief.skillStatusLabel)" : nil)
+        let statusLabel = skillPreview.isExecutable ? "技能入口就绪" : (skillPreview.blockedReason ?? brief.skillStatusLabel)
+        let title = synergySummary.map { "将令行动 · \($0.targetLabel)" } ?? "将领行动"
+        let accessibilityLabel = [
+            title,
+            stageCueLabel,
+            "技能\(brief.skillName ?? "无主动技能")",
+            skillCueLabel,
+            "状态\(statusLabel)",
+            synergySummary.map { "目标\($0.targetLabel)" }
+        ].compactMap { $0 }.joined(separator: "，")
+
+        return CommanderActionGuidance(
+            title: title,
+            stageCueLabel: stageCueLabel,
+            skillCueLabel: skillCueLabel,
+            buttonDetailPrefix: buttonDetailPrefix,
+            statusLabel: statusLabel,
+            isLinkedToBattleObjectiveStage: isLinkedStage,
+            accessibilityLabel: accessibilityLabel
+        )
     }
 
     var selectedCommanderBrief: SelectedCommanderBrief? {

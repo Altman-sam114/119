@@ -1866,7 +1866,8 @@ struct CompactSelectionPanelView: View {
                             trait: trait,
                             preview: viewModel.selectedGeneralSkillPreview,
                             warMeritStatus: viewModel.selectedWarMeritStatus,
-                            commanderBrief: viewModel.selectedCommanderBrief
+                            commanderBrief: viewModel.selectedCommanderBrief,
+                            commanderActionGuidance: viewModel.selectedCommanderActionGuidance
                         )
                     } else if let brief = viewModel.selectedCommanderBrief {
                         CompactNoGeneralView(brief: brief)
@@ -1939,20 +1940,13 @@ struct CompactActionsPanelView: View {
                     TacticalOrderControlView(unit: unit, isCompact: true)
 
                     if let trait = unit.resolvedGeneralTrait {
-                        let battleObjectivePreview = viewModel.selectedBattleObjectiveStageCommandPreview
-                        let isBattleObjectiveSkillEntry = battleObjectivePreview?.shouldHighlightSkillEntry == true &&
-                            battleObjectivePreview?.isCommandUnit(unit) == true
-                        let skillButtonDetail = [
-                            isBattleObjectiveSkillEntry ? battleObjectivePreview?.skillStageCueLabel : nil,
-                            viewModel.selectedGeneralSkillButtonDetail
-                        ].compactMap { $0 }.joined(separator: " · ")
                         Button {
                             viewModel.useSelectedGeneralSkill()
                         } label: {
                             CommandButtonLabel(
                                 symbol: trait.systemImage,
                                 text: trait.skillName,
-                                detail: skillButtonDetail.isEmpty ? nil : skillButtonDetail
+                                detail: viewModel.selectedGeneralSkillCommandButtonDetail
                             )
                         }
                         .buttonStyle(SecondaryButtonStyle())
@@ -2059,6 +2053,7 @@ struct CompactGeneralTraitView: View {
     var preview: GeneralSkillPreview?
     var warMeritStatus: WarMeritStatus?
     var commanderBrief: SelectedCommanderBrief?
+    var commanderActionGuidance: CommanderActionGuidance?
 
     var body: some View {
         HStack(spacing: 7) {
@@ -2099,7 +2094,11 @@ struct CompactGeneralTraitView: View {
             .clipShape(RoundedRectangle(cornerRadius: 6))
         }
         if let commanderBrief {
-            CommanderSkillStatusRow(brief: commanderBrief, isCompact: true)
+            CommanderSkillStatusRow(
+                brief: commanderBrief,
+                guidance: commanderActionGuidance,
+                isCompact: true
+            )
         } else if let preview {
             HStack(spacing: 6) {
                 Image(systemName: preview.isExecutable ? "sparkles" : "exclamationmark.triangle.fill")
@@ -4532,7 +4531,8 @@ struct SelectionPanelView: View {
                             trait: trait,
                             preview: viewModel.selectedGeneralSkillPreview,
                             warMeritStatus: viewModel.selectedWarMeritStatus,
-                            commanderBrief: viewModel.selectedCommanderBrief
+                            commanderBrief: viewModel.selectedCommanderBrief,
+                            commanderActionGuidance: viewModel.selectedCommanderActionGuidance
                         )
                     } else if let brief = viewModel.selectedCommanderBrief {
                         NoGeneralCommandView(brief: brief)
@@ -4687,6 +4687,7 @@ struct GeneralTraitCardView: View {
     var preview: GeneralSkillPreview?
     var warMeritStatus: WarMeritStatus?
     var commanderBrief: SelectedCommanderBrief?
+    var commanderActionGuidance: CommanderActionGuidance?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 7) {
@@ -4720,7 +4721,11 @@ struct GeneralTraitCardView: View {
                 .fixedSize(horizontal: false, vertical: true)
 
             if let commanderBrief {
-                CommanderSkillStatusRow(brief: commanderBrief, isCompact: false)
+                CommanderSkillStatusRow(
+                    brief: commanderBrief,
+                    guidance: commanderActionGuidance,
+                    isCompact: false
+                )
             }
 
             if let warMeritStatus {
@@ -4825,6 +4830,7 @@ struct GeneralPassiveContributionStrip: View {
 
 struct CommanderSkillStatusRow: View {
     var brief: SelectedCommanderBrief
+    var guidance: CommanderActionGuidance?
     var isCompact: Bool
 
     var body: some View {
@@ -4834,7 +4840,13 @@ struct CommanderSkillStatusRow: View {
             Text(brief.skillStatusLabel)
                 .font(.caption2.weight(.black))
                 .foregroundStyle(.white)
-            if let effect = brief.skillEffectLabel {
+            if let guidance {
+                Text(guidance.skillCueLabel)
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(guidance.isLinkedToBattleObjectiveStage ? Color(red: 0.86, green: 0.68, blue: 0.34) : .white.opacity(0.62))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.60)
+            } else if let effect = brief.skillEffectLabel {
                 Text(effect)
                     .font(.caption2.weight(.semibold))
                     .foregroundStyle(.white.opacity(0.62))
@@ -4847,7 +4859,7 @@ struct CommanderSkillStatusRow: View {
         .frame(minHeight: isCompact ? 24 : 28)
         .background(.black.opacity(0.14))
         .clipShape(RoundedRectangle(cornerRadius: 6))
-        .accessibilityLabel(brief.accessibilityLabel)
+        .accessibilityLabel(guidance?.accessibilityLabel ?? brief.accessibilityLabel)
     }
 }
 
@@ -5186,20 +5198,13 @@ struct ActionsPanelView: View {
                     TacticalOrderControlView(unit: unit)
 
                     if let trait = unit.resolvedGeneralTrait {
-                        let battleObjectivePreview = viewModel.selectedBattleObjectiveStageCommandPreview
-                        let isBattleObjectiveSkillEntry = battleObjectivePreview?.shouldHighlightSkillEntry == true &&
-                            battleObjectivePreview?.isCommandUnit(unit) == true
-                        let skillButtonDetail = [
-                            isBattleObjectiveSkillEntry ? battleObjectivePreview?.skillStageCueLabel : nil,
-                            viewModel.selectedGeneralSkillButtonDetail
-                        ].compactMap { $0 }.joined(separator: " · ")
                         Button {
                             viewModel.useSelectedGeneralSkill()
                         } label: {
                             CommandButtonLabel(
                                 symbol: trait.systemImage,
                                 text: trait.skillName,
-                                detail: skillButtonDetail.isEmpty ? nil : skillButtonDetail
+                                detail: viewModel.selectedGeneralSkillCommandButtonDetail
                             )
                         }
                         .buttonStyle(SecondaryButtonStyle())

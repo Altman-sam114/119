@@ -244,6 +244,24 @@ struct RenderBattlePreview {
               commanderBrief.warMeritSummary != nil else {
             throw PreviewRenderError.missingCommanderBrief
         }
+        guard let selectedSkillPreview = viewModel.selectedGeneralSkillPreview,
+              let commanderGuidance = viewModel.selectedCommanderActionGuidance,
+              let skillButtonDetail = viewModel.selectedGeneralSkillCommandButtonDetail,
+              !commanderGuidance.title.isEmpty,
+              !commanderGuidance.skillCueLabel.isEmpty,
+              !commanderGuidance.statusLabel.isEmpty,
+              !commanderGuidance.accessibilityLabel.isEmpty,
+              selectedSkillPreview.trait == .eagleStandard,
+              viewModel.canUseSelectedGeneralSkill == selectedSkillPreview.isExecutable,
+              viewModel.selectedGeneralSkillCooldownDetail == selectedSkillPreview.cooldownText,
+              skillButtonDetail.contains(viewModel.selectedGeneralSkillButtonDetail ?? selectedSkillPreview.cooldownText) else {
+            throw PreviewRenderError.missingCommanderActionGuidance
+        }
+        if let prefix = commanderGuidance.buttonDetailPrefix {
+            guard skillButtonDetail.contains(prefix) else {
+                throw PreviewRenderError.missingCommanderActionGuidance
+            }
+        }
         guard let formationSummary = viewModel.selectedLegionFormationSummary,
               let primaryFormationSummary = viewModel.primaryLegionFormationSummary,
               formationSummary.report.unitID == "rome-legion-1",
@@ -529,6 +547,19 @@ struct RenderBattlePreview {
                     throw PreviewRenderError.missingBattleObjectiveStageLinkedHighlight
                 }
             }
+            if focusedPreview.role == .synergy,
+               let commandUnit = focusedPreview.commandUnit,
+               commandUnit.resolvedGeneralTrait != nil {
+                guard let guidance = viewModel.selectedCommanderActionGuidance,
+                      let skillButtonDetail = viewModel.selectedGeneralSkillCommandButtonDetail,
+                      guidance.isLinkedToBattleObjectiveStage,
+                      guidance.stageCueLabel == focusedPreview.skillStageCueLabel,
+                      guidance.skillCueLabel == focusedPreview.skillStageCueLabel,
+                      skillButtonDetail.contains(focusedPreview.skillStageCueLabel),
+                      viewModel.selectedCommanderSynergySummary?.id == focusedPreview.sourceSummaryID else {
+                    throw PreviewRenderError.missingCommanderActionGuidance
+                }
+            }
         }
         viewModel.focusPrimaryBattleObjectiveStage(.maneuver)
         guard viewModel.focusedPosition == primaryManeuverSummary.destination,
@@ -812,6 +843,7 @@ enum PreviewRenderError: Error {
     case missingBattleObjectiveStageFocus
     case missingBattleObjectiveStageCommandPreview
     case missingBattleObjectiveStageLinkedHighlight
+    case missingCommanderActionGuidance
     case missingThreatHeatSummary
     case missingAIOperationalPlanSummary
     case missingEnemyCommanderThreatSummary
