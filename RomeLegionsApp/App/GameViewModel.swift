@@ -1065,6 +1065,113 @@ struct EnemyCommanderThreatSummary: Identifiable {
     }
 }
 
+struct CountermeasureSummary: Identifiable {
+    var report: CountermeasureReport
+    var responseUnit: ArmyUnit?
+    var targetUnit: ArmyUnit?
+    var targetCity: City?
+
+    var id: String { report.id }
+    var kind: CountermeasureKind { report.kind }
+    var priority: CountermeasurePriority { report.priority }
+    var targetPosition: Position { report.targetPosition }
+    var destination: Position { report.destination }
+
+    var title: String {
+        report.title
+    }
+
+    var compactTitle: String {
+        "\(priorityLabel) \(kindLabel)"
+    }
+
+    var kindLabel: String {
+        report.kind.displayName
+    }
+
+    var priorityLabel: String {
+        report.priority.displayName
+    }
+
+    var threatLabel: String {
+        report.threatTitle
+    }
+
+    var responseLabel: String {
+        "\(unitLabel) \(report.recommendedOrder.displayName)"
+    }
+
+    var unitLabel: String {
+        if let responseUnit {
+            if let generalName = responseUnit.generalName {
+                return "\(generalName) \(responseUnit.kind.displayName)"
+            }
+            return "\(responseUnit.faction.displayName)\(responseUnit.kind.displayName)"
+        }
+
+        return report.responseUnitID
+    }
+
+    var targetLabel: String {
+        if let targetUnit {
+            return "\(targetUnit.faction.displayName)\(targetUnit.kind.displayName)"
+        }
+
+        if let targetCity {
+            return targetCity.name
+        }
+
+        return report.targetPosition.description
+    }
+
+    var impactLabel: String {
+        var parts: [String] = []
+        if let damage = report.projectedDamageDealt,
+           damage > 0 {
+            parts.append("反击 \(damage)")
+        }
+        if let prevented = report.projectedDamagePrevented,
+           prevented > 0 {
+            parts.append("止损 \(prevented)")
+        }
+        if let recovery = report.projectedRecovery,
+           recovery > 0 {
+            parts.append("恢复 \(recovery)")
+        }
+
+        return parts.isEmpty ? "收益待确认" : parts.joined(separator: " · ")
+    }
+
+    var riskLabel: String {
+        report.risk.displayName
+    }
+
+    var commandLabel: String {
+        report.command
+    }
+
+    var detail: String {
+        report.detail
+    }
+
+    var reasonLabel: String {
+        report.reasons.prefix(2).joined(separator: " · ")
+    }
+
+    var accessibilityLabel: String {
+        [
+            "反制\(kindLabel)",
+            "优先级\(priorityLabel)",
+            "威胁\(threatLabel)",
+            "回应\(responseLabel)",
+            "目标\(targetLabel)",
+            impactLabel,
+            "风险\(riskLabel)",
+            commandLabel
+        ].joined(separator: "，")
+    }
+}
+
 struct FrontlinePressureSummary: Identifiable {
     var report: FrontlinePressureReport
     var targetUnit: ArmyUnit?
@@ -1656,6 +1763,15 @@ final class GameViewModel: ObservableObject {
         enemyCommanderThreatSummaries.first
     }
 
+    var countermeasureSummaries: [CountermeasureSummary] {
+        state.countermeasureReports(for: .rome, limit: 5)
+            .map(countermeasureSummary(for:))
+    }
+
+    var primaryCountermeasureSummary: CountermeasureSummary? {
+        countermeasureSummaries.first
+    }
+
     var mapControlSummaries: [MapControlSummary] {
         state.mapControlReports(for: .rome)
             .map(mapControlSummary(for:))
@@ -2089,6 +2205,15 @@ final class GameViewModel: ObservableObject {
             targetCity: report.targetCityID.flatMap { state.city(withID: $0) },
             affectedUnits: report.affectedUnitIDs.compactMap { state.unit(withID: $0) },
             affectedCities: report.affectedCityIDs.compactMap { state.city(withID: $0) }
+        )
+    }
+
+    private func countermeasureSummary(for report: CountermeasureReport) -> CountermeasureSummary {
+        CountermeasureSummary(
+            report: report,
+            responseUnit: state.unit(withID: report.responseUnitID),
+            targetUnit: report.targetUnitID.flatMap { state.unit(withID: $0) },
+            targetCity: report.targetCityID.flatMap { state.city(withID: $0) }
         )
     }
 

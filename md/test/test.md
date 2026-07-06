@@ -124,7 +124,7 @@ on:
 artifact 命名规则：
 
 ```text
-RomeLegions-ci-v0.26-main-<short_sha>-run<run_id>-attempt<run_attempt>
+RomeLegions-ci-v0.27-main-<short_sha>-run<run_id>-attempt<run_attempt>
 ```
 
 `ci-artifact-manifest.json` 必须至少包含：
@@ -187,7 +187,7 @@ Agent C 必须核对：
 - manifest 的 `branch` 为 `main`。
 - manifest 的 `runId` 和 `runAttempt` 等于本次下载的 run。
 - workflow 结论、JUnit、主构建日志、RenderBattlePreview 日志、失败摘要互相一致。
-- v0.18 起若 manifest 包含 `renderPreviewOutcome`，必须为 `success`，且 `render-battle-preview.log` 和 `render-previews/*.png` 必须存在；v0.21 机动落点断言失败时应抛出 `missingManeuverOptionSummary`；v0.22 起 Gameplay Smoke 必须覆盖 AI 主攻优先执行顺序；v0.23 主动地图叠层图例断言失败时应抛出 `missingMapOverlayLegend`；v0.24 军团成长决策读板断言失败时应抛出 `missingUnitDevelopmentDecisionSummary`；v0.25 军团成长优先级读板断言失败时应抛出 `missingUnitDevelopmentRecommendationSummary`；v0.26 敌方将领威胁读板断言失败时应抛出 `missingEnemyCommanderThreatSummary`。
+- v0.18 起若 manifest 包含 `renderPreviewOutcome`，必须为 `success`，且 `render-battle-preview.log` 和 `render-previews/*.png` 必须存在；v0.21 机动落点断言失败时应抛出 `missingManeuverOptionSummary`；v0.22 起 Gameplay Smoke 必须覆盖 AI 主攻优先执行顺序；v0.23 主动地图叠层图例断言失败时应抛出 `missingMapOverlayLegend`；v0.24 军团成长决策读板断言失败时应抛出 `missingUnitDevelopmentDecisionSummary`；v0.25 军团成长优先级读板断言失败时应抛出 `missingUnitDevelopmentRecommendationSummary`；v0.26 敌方将领威胁读板断言失败时应抛出 `missingEnemyCommanderThreatSummary`；v0.27 敌情反制建议读板断言失败时应抛出 `missingCountermeasureSummary`。
 - 若 workflow 失败，失败摘要和日志路径足以退回 Agent B 修复。
 - 若本地仓库没有 `origin` 或 `gh` 无权限，明确报告阻塞，不能伪造下载核对。
 - 只能使用 `Altman-sam114` 对应 GitHub 权限完成 push、CI 或 artifact 验收；不得使用其他账号伪装完成。
@@ -246,13 +246,13 @@ swiftc -swift-version 5 -module-cache-path .build/module-cache Sources/RomeLegio
 当前基线：
 
 - 应输出 `Gameplay smoke test passed.`
-- 覆盖占城、城市扩建预览、招募部署预览、招募、科技、训练/任命预览与结算一致性、军团成长优先级推荐、训练、将领、战术姿态、战斗修正、AI 意图 projectedDamage 与移动后攻击预览一致性、AI 主攻优先执行顺序、直接攻击/移动后攻击/夺城意图供 UI 使用的目的地和目标字段、AI 作战计划读板、敌方将领技能协同计划、敌方将领威胁读板、本方将领协同与合击读板、机动落点与地图风险读板、战线压力聚合、战场焦点报告、地图控制报告、威胁热区报告、军团编制与成长报告、战术命令建议报告、主动技能预览与结算一致性、主动技能冷却递减、战功状态、外交、回合推进、战役胜利、战役失败和结束后回合保护。
+- 覆盖占城、城市扩建预览、招募部署预览、招募、科技、训练/任命预览与结算一致性、军团成长优先级推荐、训练、将领、战术姿态、战斗修正、AI 意图 projectedDamage 与移动后攻击预览一致性、AI 主攻优先执行顺序、直接攻击/移动后攻击/夺城意图供 UI 使用的目的地和目标字段、AI 作战计划读板、敌方将领技能协同计划、敌方将领威胁读板、敌情反制建议读板、本方将领协同与合击读板、机动落点与地图风险读板、战线压力聚合、战场焦点报告、地图控制报告、威胁热区报告、军团编制与成长报告、战术命令建议报告、主动技能预览与结算一致性、主动技能冷却递减、战功状态、外交、回合推进、战役胜利、战役失败和结束后回合保护。
 
 ### UI Preview / RenderBattlePreview
 
 触发条件：
 
-- `BattleView`、`GameViewModel` UI 派生数据、AI 作战计划读板、敌方将领威胁读板、本方将领协同读板、机动落点读板、战线压力读板、战场焦点读板、地图控制读板、威胁热区叠层、战术命令建议读板、城市经营读板、招募按钮、地图叠层、将领卡、战术姿态按钮或战斗页布局变化。
+- `BattleView`、`GameViewModel` UI 派生数据、AI 作战计划读板、敌方将领威胁读板、敌情反制建议读板、本方将领协同读板、机动落点读板、战线压力读板、战场焦点读板、地图控制读板、威胁热区叠层、战术命令建议读板、城市经营读板、招募按钮、地图叠层、将领卡、战术姿态按钮或战斗页布局变化。
 
 命令：
 
@@ -272,6 +272,7 @@ env HOME=$PWD/.home CLANG_MODULE_CACHE_PATH=$PWD/.build/module-cache /Applicatio
 - 渲染前应断言首要地图控制摘要存在，控制状态、热度、来源、详情、无障碍文案和控区 overlay positions 可用；失败会抛出 `missingMapControlSummary`。
 - 渲染前应断言首要 AI 作战计划摘要存在，计划列表非空，来源包含预览敌军，标题、类型、来源、影响、详情和无障碍文案可用；失败会抛出 `missingAIOperationalPlanSummary`。
 - 渲染前应断言首要敌方将领威胁摘要存在，敌将威胁列表非空，预览敌将存在，标题、紧凑标题、将领、trait、等级、意图、影响、状态和无障碍文案可用；失败会抛出 `missingEnemyCommanderThreatSummary`。
+- 渲染前应断言首要敌情反制建议摘要存在，反制列表非空，至少一条建议关联敌方将领威胁或 AI 作战计划，标题、类型、优先级、威胁、回应、单位、收益、风险、命令和无障碍文案可用；失败会抛出 `missingCountermeasureSummary`。
 - 移动后攻击的移动路线应包含多个非 targetLeg 路线段；每个移动段的 `from` / `to` 必须互为 `Position.neighbors(width:height:)`，最后一段必须到达 `AIIntent.destination`，目标段继续从 destination 指向目标格。
 - 渲染前应断言首要和选中单位本方将领协同摘要存在，协同列表非空，标题、类型、目标、影响、详情和无障碍文案可用；失败会抛出 `missingCommanderSynergySummary`。
 - 渲染前应断言选中单位机动落点摘要存在，机动列表、首要机动、落点 overlay 字典和 overlay 位置集合非空，且类型、落点、目标、影响、风险、详情和无障碍文案可用；失败会抛出 `missingManeuverOptionSummary`。
@@ -281,7 +282,7 @@ env HOME=$PWD/.home CLANG_MODULE_CACHE_PATH=$PWD/.build/module-cache /Applicatio
 - 渲染前应断言选中单位存在 `selectedLegionFormationSummary`、`selectedCommanderBrief`、鹰旗被动攻击贡献、主动技能状态、战功摘要和完整 `selectedTacticalOrderPreviews`。
 - 渲染前应切换到罗马城市并断言 `selectedCityBrief` 存在，扩建成本/收益、四类兵种招募预览、至少一个陆军招募选项和舰队港口部署预览存在；失败会抛出 `missingCityReadout`。
 - 每个命令会生成请求路径的城市场景 PNG，并额外生成同尺寸 `*-unit.png` 单位场景 PNG；两套图都会对紧凑视口命令区域做轻量像素检查，防止短横屏或竖屏命令区空白仍误判通过。
-- 三尺寸 PNG 和对应 `*-unit.png` 只用于本地目视检查和云端 artifact 复判，确认计划 chip、计划卡/行、敌将 chip、敌将卡/行、将令 chip、将令卡/行、机动 chip、机动卡/行、战线压力 chip、热区 chip、焦点 chip、军团编制 chip、成长 chip、军议 chip、城市读板、扩建预览、招募按钮、地图热区叠层、机动落点叠层、战场焦点卡、热区卡、军团编制卡、军团成长决策卡、军团成长优先级行、战术建议卡、将领读板、战功、姿态预览、敌军路线、本方建议路线、目标叠层、攻击按钮和命令入口没有明显裁切、重叠或遮挡；PNG 不提交版本库。
+- 三尺寸 PNG 和对应 `*-unit.png` 只用于本地目视检查和云端 artifact 复判，确认计划 chip、计划卡/行、敌将 chip、敌将卡/行、反制 chip、反制卡/行、将令 chip、将令卡/行、机动 chip、机动卡/行、战线压力 chip、热区 chip、焦点 chip、军团编制 chip、成长 chip、军议 chip、城市读板、扩建预览、招募按钮、地图热区叠层、机动落点叠层、战场焦点卡、热区卡、军团编制卡、军团成长决策卡、军团成长优先级行、战术建议卡、将领读板、战功、姿态预览、敌军路线、本方建议路线、目标叠层、攻击按钮和命令入口没有明显裁切、重叠或遮挡；PNG 不提交版本库。
 
 ### Stage Regression
 
@@ -301,8 +302,8 @@ env HOME=$PWD/.home CLANG_MODULE_CACHE_PATH=$PWD/.build/module-cache DEVELOPER_D
 
 当前基线：
 
-- `Tests/RomeLegionsCoreTests/GameStateTests.swift` 当前包含 84 个 Swift Testing 用例。
-- 基线覆盖地形移动、占城、攻击、预览结算一致性、招募预览、招募部署位置、舰队港口预览、舰队港口被占阻塞、资源/港口阻塞、科技重复保护、城市扩建预览、城市扩建、训练预览与结算一致性、任命预览与候选一致性、军团成长优先级推荐只读与预览复用、训练、将领、战术姿态、支援/包夹/指挥/守军支援、主动技能预览与释放一致性、技能冷却写入/递减/阻止释放/预览只读、攻城无目标预览、AI 技能意图目标、AI 技能冷却保护、AI 作战计划读板、敌方将领技能协同计划、敌方将领威胁读板、本方将领协同读板、合击修正解释、协同目标位置一致性、协同冷却阻塞、不可执行技能排序降级、机动落点打击/夺城/条约过滤/风险排序/已移动只读、战功状态、军团编制与成长报告、战术命令建议报告、战场焦点报告、地图控制报告、威胁热区报告、旧 `ArmyUnit` JSON 冷却字段兼容、外交保护、回合收入、跳过单位、AI 攻击、AI 意图、AI 主攻优先执行、AI 移动后攻击 projectedDamage 与规划态预览一致性、直接攻击/移动后攻击/夺城意图供 UI 叠层使用的目的地和目标字段、战线压力聚合、城市夺取压力、停战势力过滤、AI 招募、任务 requirement、奖励幂等、战役胜利、战役失败、结束保护、AI 结束后停止和 Codable 兼容。
+- `Tests/RomeLegionsCoreTests/GameStateTests.swift` 当前包含 88 个 Swift Testing 用例。
+- 基线覆盖地形移动、占城、攻击、预览结算一致性、招募预览、招募部署位置、舰队港口预览、舰队港口被占阻塞、资源/港口阻塞、科技重复保护、城市扩建预览、城市扩建、训练预览与结算一致性、任命预览与候选一致性、军团成长优先级推荐只读与预览复用、训练、将领、战术姿态、支援/包夹/指挥/守军支援、主动技能预览与释放一致性、技能冷却写入/递减/阻止释放/预览只读、攻城无目标预览、AI 技能意图目标、AI 技能冷却保护、AI 作战计划读板、敌方将领技能协同计划、敌方将领威胁读板、敌情反制建议读板、本方将领协同读板、合击修正解释、协同目标位置一致性、协同冷却阻塞、不可执行技能排序降级、机动落点打击/夺城/条约过滤/风险排序/已移动只读、战功状态、军团编制与成长报告、战术命令建议报告、战场焦点报告、地图控制报告、威胁热区报告、旧 `ArmyUnit` JSON 冷却字段兼容、外交保护、回合收入、跳过单位、AI 攻击、AI 意图、AI 主攻优先执行、AI 移动后攻击 projectedDamage 与规划态预览一致性、直接攻击/移动后攻击/夺城意图供 UI 叠层使用的目的地和目标字段、战线压力聚合、城市夺取压力、停战势力过滤、AI 招募、任务 requirement、奖励幂等、战役胜利、战役失败、结束保护、AI 结束后停止和 Codable 兼容。
 
 ### Full
 
@@ -351,6 +352,7 @@ env HOME=$PWD/.home DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer xco
 - `Tools/RenderBattlePreview/main.swift` 渲染前还会断言 `primaryMapControlSummary`、`mapControlSummaries` 和 `mapControlOverlayPositions` 可用，且控区状态、热度、来源、详情和无障碍文案可读；断言失败会抛出 `missingMapControlSummary`。
 - `Tools/RenderBattlePreview/main.swift` 渲染前还会断言 `primaryAIOperationalPlanSummary` 和 `aiOperationalPlanSummaries` 可用，且计划来源、标题、类型、影响、详情和无障碍文案可读；断言失败会抛出 `missingAIOperationalPlanSummary`。
 - `Tools/RenderBattlePreview/main.swift` 渲染前还会断言 `primaryEnemyCommanderThreatSummary` 和 `enemyCommanderThreatSummaries` 可用，且敌将、trait、等级、意图、影响、状态和无障碍文案可读；断言失败会抛出 `missingEnemyCommanderThreatSummary`。
+- `Tools/RenderBattlePreview/main.swift` 渲染前还会断言 `primaryCountermeasureSummary` 和 `countermeasureSummaries` 可用，且至少一条建议关联敌方将领威胁或 AI 作战计划，类型、优先级、威胁、回应、收益、风险、命令和无障碍文案可读；断言失败会抛出 `missingCountermeasureSummary`。
 - `Tools/RenderBattlePreview/main.swift` 渲染前还会断言 `activeMapOverlayLegendItems` 可用，且包含敌军路线、敌军目标、热区、控区、军议和机动等当前叠层图例；断言失败会抛出 `missingMapOverlayLegend`。
 - `Tools/RenderBattlePreview/main.swift` 渲染前还会断言 `selectedLegionFormationSummary` 和 `primaryLegionFormationSummary` 存在，军团职责、战备和建议文案可读；断言失败会抛出 `missingLegionFormationSummary`。
 - `Tools/RenderBattlePreview/main.swift` 渲染前还会断言 `selectedUnitDevelopmentDecisionSummary` 存在，训练/任命预览、成本、预计收益、候选将领/特性、状态和无障碍文案可读；断言失败会抛出 `missingUnitDevelopmentDecisionSummary`。

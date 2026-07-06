@@ -1765,6 +1765,98 @@ public struct EnemyCommanderThreatReport: Identifiable, Equatable, Sendable {
     public var id: String { unitID }
 }
 
+public enum CountermeasureKind: String, CaseIterable, Identifiable, Equatable, Sendable {
+    case interruptCommander
+    case holdLine
+    case reinforceCity
+    case strikeThreat
+    case commanderAction
+    case redeploy
+
+    public var id: String { rawValue }
+
+    public var displayName: String {
+        switch self {
+        case .interruptCommander: return "打断敌将"
+        case .holdLine: return "稳住战线"
+        case .reinforceCity: return "补防城市"
+        case .strikeThreat: return "打击威胁"
+        case .commanderAction: return "将令反制"
+        case .redeploy: return "机动换位"
+        }
+    }
+
+    fileprivate var priority: Int {
+        switch self {
+        case .interruptCommander: return 6
+        case .commanderAction: return 5
+        case .reinforceCity: return 4
+        case .holdLine: return 3
+        case .strikeThreat: return 2
+        case .redeploy: return 1
+        }
+    }
+}
+
+public enum CountermeasurePriority: String, CaseIterable, Identifiable, Equatable, Sendable {
+    case watch
+    case useful
+    case urgent
+    case decisive
+
+    public var id: String { rawValue }
+
+    public var displayName: String {
+        switch self {
+        case .watch: return "观察"
+        case .useful: return "可用"
+        case .urgent: return "紧急"
+        case .decisive: return "决断"
+        }
+    }
+
+    fileprivate var priority: Int {
+        switch self {
+        case .decisive: return 4
+        case .urgent: return 3
+        case .useful: return 2
+        case .watch: return 1
+        }
+    }
+}
+
+public struct CountermeasureReport: Identifiable, Equatable, Sendable {
+    public var id: String
+    public var faction: Faction
+    public var kind: CountermeasureKind
+    public var priority: CountermeasurePriority
+    public var score: Int
+    public var threatTitle: String
+    public var threatSummary: String
+    public var targetPosition: Position
+    public var targetUnitID: String?
+    public var targetCityID: String?
+    public var responseUnitID: String
+    public var responsePosition: Position
+    public var recommendedOrder: TacticalOrder
+    public var destination: Position
+    public var linkedEnemyCommanderThreatID: String?
+    public var linkedAIOperationalPlanID: String?
+    public var linkedFrontlinePressureID: String?
+    public var linkedManeuverOptionID: String?
+    public var linkedCommanderSynergyID: String?
+    public var linkedTacticalRecommendationID: String?
+    public var projectedDamagePrevented: Int?
+    public var projectedDamageDealt: Int?
+    public var projectedRecovery: Int?
+    public var risk: TacticalRecommendationRisk
+    public var title: String
+    public var summary: String
+    public var detail: String
+    public var reasons: [String]
+    public var command: String
+}
+
 public enum AIOperationalPlanKind: String, CaseIterable, Identifiable, Equatable, Sendable {
     case focusedAttack
     case cityCapture
@@ -2013,6 +2105,28 @@ private struct FrontlinePressureAccumulator {
             level: level
         )
     }
+}
+
+private struct CountermeasureResponseCandidate {
+    var id: String
+    var unitID: String
+    var faction: Faction
+    var position: Position
+    var destination: Position
+    var targetPosition: Position
+    var targetUnitID: String?
+    var targetCityID: String?
+    var recommendedOrder: TacticalOrder
+    var linkedManeuverOptionID: String?
+    var linkedCommanderSynergyID: String?
+    var linkedTacticalRecommendationID: String?
+    var projectedDamageDealt: Int?
+    var projectedRecovery: Int?
+    var risk: TacticalRecommendationRisk
+    var score: Int
+    var summary: String
+    var command: String
+    var reasons: [String]
 }
 
 private extension AIIntentKind {
@@ -2935,6 +3049,75 @@ public struct GameState: Codable, Equatable, Sendable {
         }
 
         return report
+    }
+
+    public func countermeasureReports(
+        for faction: Faction = .rome,
+        limit: Int = 5
+    ) -> [CountermeasureReport] {
+        guard faction != .neutral,
+              limit > 0 else {
+            return []
+        }
+
+        let threatReports = enemyCommanderThreatReports(against: faction, limit: max(limit * 2, 8))
+        let planReports = aiOperationalPlanReports(against: faction, perFactionLimit: 5, limit: max(limit * 2, 8))
+        let pressureReports = frontlinePressureReports(against: faction, perFactionLimit: 5, limit: max(limit * 2, 8))
+        let heatReports = threatHeatZoneReports(for: faction, limit: max(limit * 2, 8))
+        guard !threatReports.isEmpty || !planReports.isEmpty || !pressureReports.isEmpty || !heatReports.isEmpty else {
+            return []
+        }
+
+        let responsePool = countermeasureResponseCandidates(for: faction)
+        guard !responsePool.isEmpty else {
+            return []
+        }
+
+        var reports: [CountermeasureReport] = []
+        reports.append(contentsOf: threatReports.compactMap { threat in
+            countermeasureReport(
+                for: threat,
+                faction: faction,
+                responses: responsePool,
+                planReports: planReports,
+                pressureReports: pressureReports,
+                heatReports: heatReports
+            )
+        })
+        reports.append(contentsOf: planReports.compactMap { plan in
+            countermeasureReport(
+                for: plan,
+                faction: faction,
+                responses: responsePool,
+                pressureReports: pressureReports,
+                heatReports: heatReports
+            )
+        })
+        reports.append(contentsOf: pressureReports.compactMap { pressure in
+            countermeasureReport(
+                for: pressure,
+                faction: faction,
+                responses: responsePool,
+                heatReports: heatReports
+            )
+        })
+
+        return countermeasureDeduplicatedReports(reports)
+            .sorted { left, right in
+                if left.priority.priority == right.priority.priority {
+                    if left.score == right.score {
+                        return left.id < right.id
+                    }
+                    return left.score > right.score
+                }
+                return left.priority.priority > right.priority.priority
+            }
+            .prefix(limit)
+            .map { $0 }
+    }
+
+    public func countermeasureReport(for faction: Faction = .rome) -> CountermeasureReport? {
+        countermeasureReports(for: faction, limit: 1).first
     }
 
     public func effectiveDefense(for unit: ArmyUnit) -> Int {
@@ -4520,6 +4703,553 @@ public struct GameState: Codable, Equatable, Sendable {
         }
 
         return skillPreview.summary
+    }
+
+    private func countermeasureResponseCandidates(for faction: Faction) -> [CountermeasureResponseCandidate] {
+        guard faction != .neutral else { return [] }
+
+        let factionUnits = units
+            .filter { $0.faction == faction }
+            .sorted { $0.id < $1.id }
+        var candidates: [CountermeasureResponseCandidate] = []
+
+        for unit in factionUnits {
+            let tactical = tacticalRecommendation(for: unit)
+            candidates.append(countermeasureResponseCandidate(for: tactical, unit: unit))
+
+            for maneuver in maneuverOptionReports(for: unit, limit: 4) {
+                candidates.append(countermeasureResponseCandidate(for: maneuver, unit: unit))
+            }
+
+            candidates.append(countermeasureResponseCandidate(for: commanderSynergyReport(for: unit), unit: unit))
+        }
+
+        return candidates
+            .sorted { left, right in
+                if left.score == right.score {
+                    return left.id < right.id
+                }
+                return left.score > right.score
+            }
+    }
+
+    private func countermeasureResponseCandidate(
+        for report: TacticalRecommendationReport,
+        unit: ArmyUnit
+    ) -> CountermeasureResponseCandidate {
+        CountermeasureResponseCandidate(
+            id: "tactical-\(report.unitID)-\(report.kind.rawValue)-\(report.targetUnitID ?? report.targetCityID ?? "position")",
+            unitID: report.unitID,
+            faction: report.faction,
+            position: unit.position,
+            destination: report.destination,
+            targetPosition: report.targetPosition,
+            targetUnitID: report.targetUnitID,
+            targetCityID: report.targetCityID,
+            recommendedOrder: report.recommendedOrder,
+            linkedManeuverOptionID: nil,
+            linkedCommanderSynergyID: nil,
+            linkedTacticalRecommendationID: report.id,
+            projectedDamageDealt: report.projectedDamage,
+            projectedRecovery: nil,
+            risk: report.risk,
+            score: report.priority,
+            summary: report.reason,
+            command: report.command,
+            reasons: [report.kind.displayName, report.reason]
+        )
+    }
+
+    private func countermeasureResponseCandidate(
+        for report: ManeuverOptionReport,
+        unit: ArmyUnit
+    ) -> CountermeasureResponseCandidate {
+        CountermeasureResponseCandidate(
+            id: report.id,
+            unitID: report.unitID,
+            faction: report.faction,
+            position: unit.position,
+            destination: report.destination,
+            targetPosition: report.targetPosition,
+            targetUnitID: report.targetUnitID,
+            targetCityID: report.targetCityID,
+            recommendedOrder: report.recommendedOrder,
+            linkedManeuverOptionID: report.id,
+            linkedCommanderSynergyID: nil,
+            linkedTacticalRecommendationID: nil,
+            projectedDamageDealt: report.projectedDamage,
+            projectedRecovery: nil,
+            risk: report.risk,
+            score: report.score + (report.isExecutable ? 80 : -120),
+            summary: report.summary,
+            command: report.detail,
+            reasons: [report.kind.displayName, report.detail]
+        )
+    }
+
+    private func countermeasureResponseCandidate(
+        for report: CommanderSynergyReport,
+        unit: ArmyUnit
+    ) -> CountermeasureResponseCandidate {
+        CountermeasureResponseCandidate(
+            id: report.id,
+            unitID: report.unitID,
+            faction: report.faction,
+            position: unit.position,
+            destination: unit.position,
+            targetPosition: report.targetPosition,
+            targetUnitID: report.targetUnitID,
+            targetCityID: report.targetCityID,
+            recommendedOrder: report.recommendedOrder,
+            linkedManeuverOptionID: nil,
+            linkedCommanderSynergyID: report.id,
+            linkedTacticalRecommendationID: nil,
+            projectedDamageDealt: report.projectedDamage,
+            projectedRecovery: report.projectedRecoveredHealth,
+            risk: report.risk,
+            score: report.score + (report.isExecutable ? 120 : -80),
+            summary: report.summary,
+            command: report.detail,
+            reasons: [report.kind.displayName, report.detail]
+        )
+    }
+
+    private func countermeasureReport(
+        for threat: EnemyCommanderThreatReport,
+        faction: Faction,
+        responses: [CountermeasureResponseCandidate],
+        planReports: [AIOperationalPlanReport],
+        pressureReports: [FrontlinePressureReport],
+        heatReports: [ThreatHeatZoneReport]
+    ) -> CountermeasureReport? {
+        let pressure = enemyCommanderPressure(
+            targetUnitID: threat.targetUnitID,
+            targetCityID: threat.targetCityID,
+            targetPosition: threat.targetPosition,
+            in: pressureReports
+        )
+        let plan = planReports.first { $0.commanderUnitIDs.contains(threat.unitID) } ??
+            planReports.first { $0.sourceUnitIDs.contains(threat.unitID) }
+        let heat = aiOperationalHeat(for: threat.targetPosition, in: heatReports)
+        let kind = countermeasureKind(for: threat, pressure: pressure)
+        guard let response = countermeasureBestResponse(
+            in: responses,
+            kind: kind,
+            targetPosition: threat.targetPosition,
+            preferredTargetUnitID: threat.unitID,
+            preferredTargetCityID: threat.targetCityID,
+            threatenedUnitID: threat.targetUnitID,
+            threatenedCityID: threat.targetCityID
+        ) else {
+            return nil
+        }
+
+        let prevented = max(
+            threat.projectedDamage ?? 0,
+            pressure?.projectedDamageTotal ?? 0,
+            threat.projectedFortificationReduction * 12
+        )
+        let score = 260 +
+            threat.score +
+            response.score / 3 +
+            kind.priority * 80 +
+            prevented * 4 +
+            (heat?.threatLevel.priority ?? 0) * 35 -
+            response.risk.priority * 28
+        let priority = countermeasurePriority(
+            score: score,
+            threatLevel: threat.threatLevel,
+            pressureLevel: pressure?.level,
+            heatLevel: heat?.threatLevel
+        )
+        let targetName = battlefieldTargetName(
+            unitID: threat.targetUnitID,
+            cityID: threat.targetCityID,
+            fallback: threat.targetPosition.description
+        )
+        let responseName = battlefieldUnitName(unitID: response.unitID, fallback: "本方军团")
+        let title = "\(kind.displayName)：\(threat.generalName)"
+        let summary = "\(priority.displayName) · \(targetName) · \(responseName)"
+        let detail = [
+            threat.impact,
+            response.summary,
+            heat.map { "热区\($0.threatLevel.displayName)" }
+        ].compactMap { $0 }.joined(separator: " · ")
+        var reasons = threat.reasons
+        reasons.append(contentsOf: response.reasons)
+        if let plan {
+            reasons.append("关联敌方计划：\(plan.title)")
+        }
+
+        return CountermeasureReport(
+            id: "counter-\(kind.rawValue)-commander-\(threat.id)-\(response.id)",
+            faction: faction,
+            kind: kind,
+            priority: priority,
+            score: max(1, score),
+            threatTitle: threat.title,
+            threatSummary: threat.summary,
+            targetPosition: threat.targetPosition,
+            targetUnitID: threat.targetUnitID,
+            targetCityID: threat.targetCityID,
+            responseUnitID: response.unitID,
+            responsePosition: response.position,
+            recommendedOrder: response.recommendedOrder,
+            destination: response.destination,
+            linkedEnemyCommanderThreatID: threat.id,
+            linkedAIOperationalPlanID: plan?.id,
+            linkedFrontlinePressureID: pressure?.id,
+            linkedManeuverOptionID: response.linkedManeuverOptionID,
+            linkedCommanderSynergyID: response.linkedCommanderSynergyID,
+            linkedTacticalRecommendationID: response.linkedTacticalRecommendationID,
+            projectedDamagePrevented: prevented > 0 ? prevented : nil,
+            projectedDamageDealt: response.projectedDamageDealt,
+            projectedRecovery: response.projectedRecovery,
+            risk: response.risk,
+            title: title,
+            summary: summary,
+            detail: detail,
+            reasons: Array(reasons.prefix(6)),
+            command: countermeasureCommand(kind: kind, response: response, targetName: targetName)
+        )
+    }
+
+    private func countermeasureReport(
+        for plan: AIOperationalPlanReport,
+        faction: Faction,
+        responses: [CountermeasureResponseCandidate],
+        pressureReports: [FrontlinePressureReport],
+        heatReports: [ThreatHeatZoneReport]
+    ) -> CountermeasureReport? {
+        let pressure = aiOperationalPressure(for: AIOperationalPlanKey(
+            faction: plan.faction,
+            kind: plan.kind,
+            targetPosition: plan.targetPosition,
+            targetUnitID: plan.targetUnitID,
+            targetCityID: plan.targetCityID
+        ), in: pressureReports)
+        let heat = aiOperationalHeat(for: plan.targetPosition, in: heatReports)
+        let kind = countermeasureKind(for: plan, pressure: pressure)
+        guard let response = countermeasureBestResponse(
+            in: responses,
+            kind: kind,
+            targetPosition: plan.targetPosition,
+            preferredTargetUnitID: plan.sourceUnitIDs.first,
+            preferredTargetCityID: plan.targetCityID,
+            threatenedUnitID: plan.targetUnitID,
+            threatenedCityID: plan.targetCityID
+        ) else {
+            return nil
+        }
+
+        let prevented = max(plan.projectedDamageTotal, pressure?.projectedDamageTotal ?? 0)
+        let score = 220 +
+            plan.score +
+            response.score / 3 +
+            kind.priority * 70 +
+            prevented * 4 +
+            (heat?.threatLevel.priority ?? 0) * 32 -
+            response.risk.priority * 24
+        let priority = countermeasurePriority(
+            score: score,
+            threatLevel: nil,
+            pressureLevel: pressure?.level,
+            heatLevel: heat?.threatLevel
+        )
+        let targetName = battlefieldTargetName(
+            unitID: plan.targetUnitID,
+            cityID: plan.targetCityID,
+            fallback: plan.targetPosition.description
+        )
+        let title = "\(kind.displayName)：\(plan.kind.displayName)"
+        let summary = "\(priority.displayName) · \(targetName) · \(plan.faction.displayName)"
+        let detail = [
+            plan.summary,
+            response.summary,
+            heat.map { "热区\($0.threatLevel.displayName)" }
+        ].compactMap { $0 }.joined(separator: " · ")
+
+        return CountermeasureReport(
+            id: "counter-\(kind.rawValue)-plan-\(plan.id)-\(response.id)",
+            faction: faction,
+            kind: kind,
+            priority: priority,
+            score: max(1, score),
+            threatTitle: plan.title,
+            threatSummary: plan.summary,
+            targetPosition: plan.targetPosition,
+            targetUnitID: plan.targetUnitID,
+            targetCityID: plan.targetCityID,
+            responseUnitID: response.unitID,
+            responsePosition: response.position,
+            recommendedOrder: response.recommendedOrder,
+            destination: response.destination,
+            linkedEnemyCommanderThreatID: nil,
+            linkedAIOperationalPlanID: plan.id,
+            linkedFrontlinePressureID: pressure?.id,
+            linkedManeuverOptionID: response.linkedManeuverOptionID,
+            linkedCommanderSynergyID: response.linkedCommanderSynergyID,
+            linkedTacticalRecommendationID: response.linkedTacticalRecommendationID,
+            projectedDamagePrevented: prevented > 0 ? prevented : nil,
+            projectedDamageDealt: response.projectedDamageDealt,
+            projectedRecovery: response.projectedRecovery,
+            risk: response.risk,
+            title: title,
+            summary: summary,
+            detail: detail,
+            reasons: Array(([plan.detail] + response.reasons).prefix(6)),
+            command: countermeasureCommand(kind: kind, response: response, targetName: targetName)
+        )
+    }
+
+    private func countermeasureReport(
+        for pressure: FrontlinePressureReport,
+        faction: Faction,
+        responses: [CountermeasureResponseCandidate],
+        heatReports: [ThreatHeatZoneReport]
+    ) -> CountermeasureReport? {
+        let heat = aiOperationalHeat(for: pressure.targetPosition, in: heatReports)
+        let targetUnitID = pressure.targetKind == .unit ? pressure.targetID : nil
+        let targetCityID = pressure.targetKind == .city ? pressure.targetID : nil
+        let kind: CountermeasureKind = pressure.targetKind == .city ? .reinforceCity : .holdLine
+        guard let response = countermeasureBestResponse(
+            in: responses,
+            kind: kind,
+            targetPosition: pressure.targetPosition,
+            preferredTargetUnitID: pressure.sourceUnitIDs.first,
+            preferredTargetCityID: targetCityID,
+            threatenedUnitID: targetUnitID,
+            threatenedCityID: targetCityID
+        ) else {
+            return nil
+        }
+
+        let prevented = pressure.projectedDamageTotal
+        let score = 180 +
+            pressure.pressureScore +
+            response.score / 3 +
+            kind.priority * 70 +
+            prevented * 5 +
+            (heat?.threatLevel.priority ?? 0) * 32 -
+            response.risk.priority * 24
+        let priority = countermeasurePriority(
+            score: score,
+            threatLevel: nil,
+            pressureLevel: pressure.level,
+            heatLevel: heat?.threatLevel
+        )
+        let targetName = battlefieldTargetName(
+            unitID: targetUnitID,
+            cityID: targetCityID,
+            fallback: pressure.targetPosition.description
+        )
+        let title = "\(kind.displayName)：\(targetName)"
+        let summary = "\(priority.displayName) · \(pressure.level.displayName) · \(response.recommendedOrder.displayName)"
+        let detail = [
+            "敌方 \(pressure.intentCount) 路动向",
+            pressure.projectedDamageTotal > 0 ? "预计伤害 \(pressure.projectedDamageTotal)" : nil,
+            response.summary
+        ].compactMap { $0 }.joined(separator: " · ")
+
+        return CountermeasureReport(
+            id: "counter-\(kind.rawValue)-pressure-\(pressure.id)-\(response.id)",
+            faction: faction,
+            kind: kind,
+            priority: priority,
+            score: max(1, score),
+            threatTitle: "\(targetName) \(pressure.level.displayName)",
+            threatSummary: detail,
+            targetPosition: pressure.targetPosition,
+            targetUnitID: targetUnitID,
+            targetCityID: targetCityID,
+            responseUnitID: response.unitID,
+            responsePosition: response.position,
+            recommendedOrder: response.recommendedOrder,
+            destination: response.destination,
+            linkedEnemyCommanderThreatID: nil,
+            linkedAIOperationalPlanID: nil,
+            linkedFrontlinePressureID: pressure.id,
+            linkedManeuverOptionID: response.linkedManeuverOptionID,
+            linkedCommanderSynergyID: response.linkedCommanderSynergyID,
+            linkedTacticalRecommendationID: response.linkedTacticalRecommendationID,
+            projectedDamagePrevented: prevented > 0 ? prevented : nil,
+            projectedDamageDealt: response.projectedDamageDealt,
+            projectedRecovery: response.projectedRecovery,
+            risk: response.risk,
+            title: title,
+            summary: summary,
+            detail: detail,
+            reasons: Array((["战线\(pressure.level.displayName)", "\(pressure.intentCount) 路敌军压力"] + response.reasons).prefix(6)),
+            command: countermeasureCommand(kind: kind, response: response, targetName: targetName)
+        )
+    }
+
+    private func countermeasureBestResponse(
+        in responses: [CountermeasureResponseCandidate],
+        kind: CountermeasureKind,
+        targetPosition: Position,
+        preferredTargetUnitID: String?,
+        preferredTargetCityID: String?,
+        threatenedUnitID: String?,
+        threatenedCityID: String?
+    ) -> CountermeasureResponseCandidate? {
+        responses
+            .map { response -> (response: CountermeasureResponseCandidate, score: Int) in
+                var score = response.score + kind.priority * 45
+                let destinationDistance = response.destination.hexDistance(to: targetPosition)
+                let targetDistance = response.targetPosition.hexDistance(to: targetPosition)
+                score += max(0, 8 - min(destinationDistance, targetDistance)) * 35
+                score -= response.risk.priority * 20
+
+                if response.targetUnitID == preferredTargetUnitID {
+                    score += 420
+                }
+                if response.targetCityID == preferredTargetCityID {
+                    score += 360
+                }
+                if response.targetUnitID == threatenedUnitID {
+                    score += 300
+                }
+                if response.targetCityID == threatenedCityID {
+                    score += 300
+                }
+                if response.projectedDamageDealt != nil && (kind == .interruptCommander || kind == .strikeThreat) {
+                    score += 180
+                }
+                if response.projectedRecovery != nil && kind == .commanderAction {
+                    score += 180
+                }
+                if response.linkedManeuverOptionID != nil && (kind == .redeploy || kind == .reinforceCity || kind == .holdLine) {
+                    score += 120
+                }
+                if response.linkedCommanderSynergyID != nil && kind == .commanderAction {
+                    score += 160
+                }
+
+                return (response, score)
+            }
+            .sorted { left, right in
+                if left.score == right.score {
+                    return left.response.id < right.response.id
+                }
+                return left.score > right.score
+            }
+            .first?
+            .response
+    }
+
+    private func countermeasureKind(
+        for threat: EnemyCommanderThreatReport,
+        pressure: FrontlinePressureReport?
+    ) -> CountermeasureKind {
+        if threat.skillReady || threat.intentKind == .useSkill {
+            return .interruptCommander
+        }
+
+        if threat.projectedRecovery > 0 {
+            return .commanderAction
+        }
+
+        if threat.targetCityID != nil || pressure?.targetKind == .city {
+            return .reinforceCity
+        }
+
+        if threat.projectedDamage != nil {
+            return .strikeThreat
+        }
+
+        return .redeploy
+    }
+
+    private func countermeasureKind(
+        for plan: AIOperationalPlanReport,
+        pressure: FrontlinePressureReport?
+    ) -> CountermeasureKind {
+        switch plan.kind {
+        case .commanderSkill:
+            return .interruptCommander
+        case .cityCapture:
+            return .reinforceCity
+        case .focusedAttack:
+            return pressure?.level == .critical ? .holdLine : .strikeThreat
+        case .advance:
+            return .redeploy
+        case .defend, .regroup:
+            return .commanderAction
+        }
+    }
+
+    private func countermeasurePriority(
+        score: Int,
+        threatLevel: EnemyCommanderThreatLevel?,
+        pressureLevel: FrontlinePressureLevel?,
+        heatLevel: ThreatHeatLevel?
+    ) -> CountermeasurePriority {
+        if threatLevel == .critical ||
+            pressureLevel == .critical ||
+            heatLevel == .critical ||
+            score >= 1_050 {
+            return .decisive
+        }
+
+        if threatLevel == .severe ||
+            pressureLevel == .threatened ||
+            heatLevel == .danger ||
+            score >= 760 {
+            return .urgent
+        }
+
+        if threatLevel == .dangerous ||
+            pressureLevel == .contested ||
+            heatLevel == .contested ||
+            score >= 440 {
+            return .useful
+        }
+
+        return .watch
+    }
+
+    private func countermeasureCommand(
+        kind: CountermeasureKind,
+        response: CountermeasureResponseCandidate,
+        targetName: String
+    ) -> String {
+        switch kind {
+        case .interruptCommander:
+            return "\(battlefieldUnitName(unitID: response.unitID, fallback: "本方军团"))执行\(response.recommendedOrder.displayName)，优先压制敌将窗口。"
+        case .holdLine:
+            return "\(battlefieldUnitName(unitID: response.unitID, fallback: "本方军团"))向\(targetName)补线，落点 \(response.destination)。"
+        case .reinforceCity:
+            return "\(battlefieldUnitName(unitID: response.unitID, fallback: "本方军团"))补防\(targetName)，保持\(response.recommendedOrder.displayName)。"
+        case .strikeThreat:
+            return "\(battlefieldUnitName(unitID: response.unitID, fallback: "本方军团"))打击\(targetName)，\(response.command)"
+        case .commanderAction:
+            return "\(battlefieldUnitName(unitID: response.unitID, fallback: "本方军团"))使用将令或协同，\(response.command)"
+        case .redeploy:
+            return "\(battlefieldUnitName(unitID: response.unitID, fallback: "本方军团"))机动至 \(response.destination)，缩短到\(targetName)的距离。"
+        }
+    }
+
+    private func countermeasureDeduplicatedReports(_ reports: [CountermeasureReport]) -> [CountermeasureReport] {
+        var bestByKey: [String: CountermeasureReport] = [:]
+
+        for report in reports {
+            let key = [
+                report.kind.rawValue,
+                report.linkedEnemyCommanderThreatID ?? report.linkedAIOperationalPlanID ?? report.linkedFrontlinePressureID ?? "none",
+                report.responseUnitID
+            ].joined(separator: "-")
+            if let current = bestByKey[key] {
+                if report.score > current.score ||
+                    (report.score == current.score && report.id < current.id) {
+                    bestByKey[key] = report
+                }
+            } else {
+                bestByKey[key] = report
+            }
+        }
+
+        return Array(bestByKey.values)
     }
 
     private func aiOperationalPlanKind(for intent: AIIntent) -> AIOperationalPlanKind {

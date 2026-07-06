@@ -476,6 +476,17 @@ struct TacticalStatusStripView: View {
             )
         }
 
+        if let countermeasure = viewModel.primaryCountermeasureSummary {
+            TacticalChipView(
+                symbol: countermeasure.kind.systemImage,
+                label: "反制",
+                value: countermeasure.compactTitle,
+                tint: countermeasure.priority.tintColor,
+                compact: compact,
+                accessibilityLabel: countermeasure.accessibilityLabel
+            )
+        }
+
         if let pressure = viewModel.primaryFrontlinePressureSummary {
             TacticalChipView(
                 symbol: pressure.level.systemImage,
@@ -2298,6 +2309,7 @@ struct StrategicBalancePanelView: View {
             let synergySummaries = viewModel.commanderSynergySummaries
             let planSummaries = viewModel.aiOperationalPlanSummaries
             let commanderThreatSummaries = viewModel.enemyCommanderThreatSummaries
+            let countermeasureSummaries = viewModel.countermeasureSummaries
             let focusSummaries = viewModel.battlefieldFocusSummaries
             let heatSummaries = viewModel.threatHeatZoneSummaries
             let pressureSummaries = viewModel.frontlinePressureSummaries
@@ -2395,6 +2407,19 @@ struct StrategicBalancePanelView: View {
                     } else {
                         ForEach(commanderThreatSummaries.prefix(2)) { summary in
                             EnemyCommanderThreatRowView(summary: summary)
+                        }
+                    }
+                }
+
+                VStack(alignment: .leading, spacing: 6) {
+                    if countermeasureSummaries.isEmpty {
+                        Text("暂无敌情反制建议。")
+                            .font(.caption)
+                            .foregroundStyle(.white.opacity(0.62))
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    } else {
+                        ForEach(countermeasureSummaries.prefix(2)) { summary in
+                            CountermeasureRowView(summary: summary)
                         }
                     }
                 }
@@ -2747,6 +2772,57 @@ struct EnemyCommanderThreatRowView: View {
         .padding(.horizontal, 8)
         .frame(minHeight: 46)
         .background(.black.opacity(0.18))
+        .clipShape(RoundedRectangle(cornerRadius: 7))
+        .accessibilityLabel(summary.accessibilityLabel)
+    }
+}
+
+struct CountermeasureRowView: View {
+    var summary: CountermeasureSummary
+
+    var body: some View {
+        HStack(spacing: 8) {
+            ZStack {
+                RoundedRectangle(cornerRadius: 5)
+                    .fill(summary.priority.tintColor.opacity(0.92))
+                    .frame(width: 28, height: 28)
+                Image(systemName: summary.kind.systemImage)
+                    .font(.caption.weight(.black))
+                    .foregroundStyle(.white)
+            }
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(summary.title)
+                    .font(.caption.weight(.heavy))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.72)
+                Text(summary.commandLabel)
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(.white.opacity(0.62))
+                    .lineLimit(2)
+                    .minimumScaleFactor(0.70)
+            }
+
+            Spacer(minLength: 0)
+
+            VStack(alignment: .trailing, spacing: 3) {
+                Text(summary.priorityLabel)
+                    .font(.caption2.weight(.black))
+                    .foregroundStyle(.black.opacity(0.78))
+                    .padding(.horizontal, 6)
+                    .frame(height: 20)
+                    .background(summary.priority.tintColor)
+                    .clipShape(RoundedRectangle(cornerRadius: 5))
+                Text(summary.impactLabel)
+                    .font(.caption2.monospacedDigit().weight(.semibold))
+                    .foregroundStyle(.white.opacity(0.58))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.72)
+            }
+        }
+        .padding(.horizontal, 8)
+        .frame(minHeight: 50)
+        .background(summary.priority.tintColor.opacity(0.10))
         .clipShape(RoundedRectangle(cornerRadius: 7))
         .accessibilityLabel(summary.accessibilityLabel)
     }
@@ -3527,6 +3603,10 @@ struct EnemyIntentPanelView: View {
                     EnemyCommanderThreatCardView(summary: commanderThreat)
                 }
 
+                if let countermeasure = viewModel.primaryCountermeasureSummary {
+                    CountermeasureCardView(summary: countermeasure)
+                }
+
                 if viewModel.enemyIntentSummaries.isEmpty {
                     Text("暂无明确敌军动向。")
                         .font(.caption)
@@ -3593,6 +3673,70 @@ struct EnemyCommanderThreatCardView: View {
         }
         .padding(8)
         .background(summary.level.tintColor.opacity(0.11))
+        .clipShape(RoundedRectangle(cornerRadius: 7))
+        .accessibilityLabel(summary.accessibilityLabel)
+    }
+}
+
+struct CountermeasureCardView: View {
+    var summary: CountermeasureSummary
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 7) {
+            HStack(spacing: 7) {
+                Image(systemName: summary.kind.systemImage)
+                    .foregroundStyle(summary.priority.tintColor)
+                Text("反制")
+                    .font(.caption2.weight(.bold))
+                    .foregroundStyle(.white.opacity(0.58))
+                Text(summary.title)
+                    .font(.caption.weight(.heavy))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.70)
+                Spacer(minLength: 0)
+                Text(summary.priorityLabel)
+                    .font(.caption2.weight(.black))
+                    .foregroundStyle(.black.opacity(0.78))
+                    .padding(.horizontal, 6)
+                    .frame(height: 20)
+                    .background(summary.priority.tintColor)
+                    .clipShape(RoundedRectangle(cornerRadius: 5))
+            }
+
+            Text(summary.commandLabel)
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(.white.opacity(0.72))
+                .lineLimit(2)
+                .minimumScaleFactor(0.72)
+
+            HStack(spacing: 6) {
+                Label(summary.threatLabel, systemImage: "eye.trianglebadge.exclamationmark.fill")
+                Spacer(minLength: 0)
+                Label(summary.responseLabel, systemImage: "shield.lefthalf.filled")
+            }
+            .font(.caption2.weight(.semibold))
+            .foregroundStyle(.white.opacity(0.66))
+            .lineLimit(1)
+            .minimumScaleFactor(0.70)
+
+            HStack(spacing: 6) {
+                Label(summary.impactLabel, systemImage: "chart.line.uptrend.xyaxis")
+                Spacer(minLength: 0)
+                Label(summary.riskLabel, systemImage: "exclamationmark.triangle.fill")
+            }
+            .font(.caption2.weight(.semibold))
+            .foregroundStyle(.white.opacity(0.60))
+            .lineLimit(1)
+            .minimumScaleFactor(0.70)
+
+            Text(summary.reasonLabel.isEmpty ? summary.detail : summary.reasonLabel)
+                .font(.caption2)
+                .foregroundStyle(.white.opacity(0.54))
+                .lineLimit(2)
+                .minimumScaleFactor(0.70)
+        }
+        .padding(8)
+        .background(summary.priority.tintColor.opacity(0.11))
         .clipShape(RoundedRectangle(cornerRadius: 7))
         .accessibilityLabel(summary.accessibilityLabel)
     }
@@ -4937,6 +5081,30 @@ extension EnemyCommanderThreatLevel {
         case .dangerous: return Color(red: 0.86, green: 0.68, blue: 0.34)
         case .severe: return Color(red: 0.92, green: 0.42, blue: 0.14)
         case .critical: return Color(red: 0.84, green: 0.16, blue: 0.12)
+        }
+    }
+}
+
+extension CountermeasureKind {
+    var systemImage: String {
+        switch self {
+        case .interruptCommander: return "hand.raised.fill"
+        case .holdLine: return "shield.fill"
+        case .reinforceCity: return "building.columns.fill"
+        case .strikeThreat: return "bolt.fill"
+        case .commanderAction: return "flag.2.crossed.fill"
+        case .redeploy: return "figure.run"
+        }
+    }
+}
+
+extension CountermeasurePriority {
+    var tintColor: Color {
+        switch self {
+        case .watch: return Color(red: 0.52, green: 0.70, blue: 0.86)
+        case .useful: return Color(red: 0.28, green: 0.78, blue: 0.62)
+        case .urgent: return Color(red: 0.92, green: 0.42, blue: 0.14)
+        case .decisive: return Color(red: 0.84, green: 0.16, blue: 0.12)
         }
     }
 }

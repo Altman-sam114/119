@@ -1712,6 +1712,87 @@ private func riskTestPriority(_ risk: TacticalRecommendationRisk) -> Int {
     #expect(state == before)
 }
 
+@Test func countermeasureReportsLinkEnemyCommanderThreatWithoutMutation() {
+    var state = GameState.newCampaign()
+    state.units = [
+        ArmyUnit(id: "rome-striker", kind: .legion, faction: .rome, position: Position(x: 3, y: 3), health: 88, generalName: "凯撒", generalTrait: .eagleStandard),
+        ArmyUnit(id: "carthage-commander", kind: .cavalry, faction: .carthage, position: Position(x: 4, y: 3), generalName: "汉尼拔", generalTrait: .eagleStandard)
+    ]
+    state.activeFaction = .rome
+    let before = state
+
+    let reports = state.countermeasureReports(for: .rome, limit: 5)
+    let report = reports.first { $0.linkedEnemyCommanderThreatID == "carthage-commander" }
+
+    #expect(report?.kind == .interruptCommander || report?.kind == .commanderAction || report?.kind == .strikeThreat)
+    #expect(report?.linkedAIOperationalPlanID != nil)
+    #expect(report?.responseUnitID == "rome-striker")
+    #expect(report?.faction == .rome)
+    #expect(report?.title.isEmpty == false)
+    #expect(report?.summary.isEmpty == false)
+    #expect(report?.detail.isEmpty == false)
+    #expect(report?.command.isEmpty == false)
+    #expect(state == before)
+}
+
+@Test func countermeasureReportsHoldLineFromFrontlinePressureWithoutMutation() {
+    var state = GameState.newCampaign()
+    state.units = [
+        ArmyUnit(id: "rome-line", kind: .legion, faction: .rome, position: Position(x: 3, y: 3)),
+        ArmyUnit(id: "rome-reserve", kind: .legion, faction: .rome, position: Position(x: 1, y: 3)),
+        ArmyUnit(id: "carthage-east", kind: .cavalry, faction: .carthage, position: Position(x: 4, y: 3)),
+        ArmyUnit(id: "carthage-north", kind: .legion, faction: .carthage, position: Position(x: 3, y: 2))
+    ]
+    state.activeFaction = .rome
+    let pressure = state.frontlinePressureReports(against: .rome, perFactionLimit: 4, limit: 5)
+        .first { $0.targetID == "rome-line" }
+    let before = state
+
+    let reports = state.countermeasureReports(for: .rome, limit: 8)
+    let report = reports.first { $0.kind == .holdLine && $0.linkedFrontlinePressureID == pressure?.id }
+
+    #expect(pressure != nil)
+    #expect(report?.targetUnitID == "rome-line")
+    #expect(report?.targetPosition == pressure?.targetPosition)
+    #expect(report?.projectedDamagePrevented == pressure?.projectedDamageTotal)
+    #expect(report?.responseUnitID == "rome-reserve" || report?.responseUnitID == "rome-line")
+    #expect(report?.command.contains("补线") == true || report?.command.contains("战线") == true)
+    #expect(state == before)
+}
+
+@Test func countermeasureReportsOnlyUseFriendlyResponseUnits() {
+    var state = GameState.newCampaign()
+    state.units = [
+        ArmyUnit(id: "rome-line", kind: .legion, faction: .rome, position: Position(x: 3, y: 3)),
+        ArmyUnit(id: "carthage-commander", kind: .legion, faction: .carthage, position: Position(x: 4, y: 3), generalName: "汉尼拔", generalTrait: .siegeEngineer),
+        ArmyUnit(id: "gaul-raider", kind: .cavalry, faction: .gaul, position: Position(x: 5, y: 3))
+    ]
+    state.activeFaction = .rome
+    let before = state
+
+    let reports = state.countermeasureReports(for: .rome, limit: 8)
+
+    #expect(!reports.isEmpty)
+    #expect(reports.allSatisfy { state.unit(withID: $0.responseUnitID)?.faction == .rome })
+    #expect(reports.allSatisfy { !$0.command.isEmpty && !$0.reasons.isEmpty })
+    #expect(state == before)
+}
+
+@Test func countermeasureReportsIgnoreTreatyProtectedThreats() throws {
+    var state = GameState.newCampaign()
+    state.units = [
+        ArmyUnit(id: "rome-line", kind: .legion, faction: .rome, position: Position(x: 3, y: 3)),
+        ArmyUnit(id: "carthage-commander", kind: .legion, faction: .carthage, position: Position(x: 4, y: 3), generalName: "汉尼拔", generalTrait: .eagleStandard)
+    ]
+    _ = try state.sendEnvoy(to: .carthage)
+    let before = state
+
+    let reports = state.countermeasureReports(for: .rome, limit: 5)
+
+    #expect(reports.isEmpty)
+    #expect(state == before)
+}
+
 @Test func aiRecruitsWhenBelowTargetForce() {
     var state = GameState.newCampaign()
     state.activeFaction = .gaul

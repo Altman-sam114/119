@@ -391,6 +391,14 @@ do {
     expect(!(enemyCommanderThreat?.detail ?? "").isEmpty, "Enemy commander threat should expose readable detail")
     expect(enemyCommanderPlanState == enemyCommanderPlanBefore, "Enemy commander threat reports should not mutate state")
 
+    let enemyCountermeasureReports = enemyCommanderPlanState.countermeasureReports(for: .rome, limit: 5)
+    let enemyCountermeasure = enemyCountermeasureReports.first { $0.linkedEnemyCommanderThreatID == "carthage-quartermaster" }
+    expect(enemyCountermeasure?.linkedAIOperationalPlanID != nil, "Countermeasure should link the enemy commander plan")
+    expect(enemyCountermeasure?.responseUnitID == "rome-line", "Countermeasure should assign the Roman response unit")
+    expect(enemyCountermeasure?.faction == .rome, "Countermeasure should belong to Rome")
+    expect(!(enemyCountermeasure?.command ?? "").isEmpty, "Countermeasure should expose a command")
+    expect(enemyCommanderPlanState == enemyCommanderPlanBefore, "Countermeasure reports should not mutate state")
+
     var enemySiegeThreatState = GameState.newCampaign()
     enemySiegeThreatState.units = [
         ArmyUnit(id: "rome-garrison", kind: .legion, faction: .rome, position: Position(x: 3, y: 4)),
@@ -404,6 +412,9 @@ do {
     expect(enemySiegeThreat?.affectedCityIDs == enemySiegePreview.affectedCityIDs, "Enemy siege threat should reuse siege preview targets")
     expect(enemySiegeThreat?.projectedFortificationReduction == enemySiegePreview.projectedFortificationReduction, "Enemy siege threat should reuse projected fortification reduction")
     expect(enemySiegeThreat?.skillSummary == enemySiegePreview.summary, "Enemy siege threat should reuse siege skill summary")
+    let siegeCountermeasure = enemySiegeThreatState.countermeasureReports(for: .rome, limit: 5).first { $0.linkedEnemyCommanderThreatID == "carthage-siege" }
+    expect(siegeCountermeasure?.kind == .interruptCommander || siegeCountermeasure?.kind == .reinforceCity, "Siege countermeasure should interrupt the commander or reinforce the city")
+    expect(siegeCountermeasure?.targetCityID == "rome", "Siege countermeasure should preserve threatened city")
 
     var siegeSkillState = GameState.newCampaign()
     siegeSkillState.units = [

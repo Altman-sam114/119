@@ -99,6 +99,24 @@ struct RenderBattlePreview {
               !enemyCommanderThreat.accessibilityLabel.isEmpty else {
             throw PreviewRenderError.missingEnemyCommanderThreatSummary
         }
+        guard let countermeasure = viewModel.primaryCountermeasureSummary,
+              !viewModel.countermeasureSummaries.isEmpty,
+              viewModel.countermeasureSummaries.contains(where: { summary in
+                  summary.report.linkedEnemyCommanderThreatID != nil ||
+                      summary.report.linkedAIOperationalPlanID != nil
+              }),
+              !countermeasure.title.isEmpty,
+              !countermeasure.kindLabel.isEmpty,
+              !countermeasure.priorityLabel.isEmpty,
+              !countermeasure.threatLabel.isEmpty,
+              !countermeasure.responseLabel.isEmpty,
+              !countermeasure.unitLabel.isEmpty,
+              !countermeasure.impactLabel.isEmpty,
+              !countermeasure.riskLabel.isEmpty,
+              !countermeasure.commandLabel.isEmpty,
+              !countermeasure.accessibilityLabel.isEmpty else {
+            throw PreviewRenderError.missingCountermeasureSummary
+        }
         guard let mapControl = viewModel.primaryMapControlSummary,
               !viewModel.mapControlSummaries.isEmpty,
               !viewModel.mapControlOverlayPositions.isEmpty,
@@ -438,6 +456,7 @@ enum PreviewRenderError: Error {
     case missingThreatHeatSummary
     case missingAIOperationalPlanSummary
     case missingEnemyCommanderThreatSummary
+    case missingCountermeasureSummary
     case missingMapControlSummary
     case missingCommanderBrief
     case missingLegionFormationSummary

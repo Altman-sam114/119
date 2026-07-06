@@ -14,12 +14,55 @@
 
 - 项目类型：原创 SwiftUI iOS 罗马题材战棋原型。
 - 核心架构：纯 Swift `RomeLegionsCore` 负责玩法规则；`GameViewModel` 负责 UI 状态和派生数据；SwiftUI 视图负责展示和命令入口。
-- 当前玩法：六边形地图、地形、城市、阵营、军团、移动、攻击、反击、占城、招募、科技、任务 requirement、战役目标、胜负结算、结束保护、外交、城市扩建、城市经营与招募读板、军团训练、将领任命、军团成长决策读板、军团成长优先级读板、主动技能、技能冷却、将领详情读板、被动贡献、战功状态、军团编制与成长读板、战术命令建议与补线路径读板、本方将领协同与战术连携读板、机动落点与地图风险读板、战场焦点与将领机会读板、地图控制与威胁热区读板、主动地图叠层图例、AI 作战计划与敌方将领协同读板、敌方将领威胁读板、战术姿态与姿态预览、AI 回合、AI 主攻优先执行、敌军意图预判、敌军意图六边形路径/目标叠层、战线压力读板、战局态势面板。
+- 当前玩法：六边形地图、地形、城市、阵营、军团、移动、攻击、反击、占城、招募、科技、任务 requirement、战役目标、胜负结算、结束保护、外交、城市扩建、城市经营与招募读板、军团训练、将领任命、军团成长决策读板、军团成长优先级读板、主动技能、技能冷却、将领详情读板、被动贡献、战功状态、军团编制与成长读板、战术命令建议与补线路径读板、本方将领协同与战术连携读板、机动落点与地图风险读板、战场焦点与将领机会读板、地图控制与威胁热区读板、主动地图叠层图例、AI 作战计划与敌方将领协同读板、敌方将领威胁读板、敌情反制建议读板、战术姿态与姿态预览、AI 回合、AI 主攻优先执行、敌军意图预判、敌军意图六边形路径/目标叠层、战线压力读板、战局态势面板。
 - 当前测试入口：Swift Testing、Gameplay Smoke、项目结构检查、SwiftUI 类型检查、战斗页预览图渲染、无签名 Xcode 构建。
 - 当前协作系统：已建立 `AGENTS.md`、`update_log.md`、`md/prompt/`、`md/test/test.md`、`md/flow/flow.md`、`md/flow/flowchart.md`，默认按 `main` 直推、GitHub Actions 云端重验证、Agent C 下载未加密结果包复判，并具备未来由 Agent X 主控调度 Agent A/B/C 多轮循环的文档基线。
 - 当前 CI 入口：`.github/workflows/ci-results.yml`，在 `main` push 和手动触发时运行结构检查、SwiftPM 测试、Gameplay Smoke、RenderBattlePreview 和无签名 Xcode build，并上传 CI 结果包。
 
 ## 历史记录
+
+### v0.27 / 敌情反制建议读板
+
+日期：2026-07-06
+
+核心变更：
+
+- `GameState` 新增 `CountermeasureKind`、`CountermeasurePriority` 和 `CountermeasureReport`，通过 `countermeasureReports(for:limit:)` 与 `countermeasureReport(for:)` 只读汇总敌情反制建议。
+- 反制建议复用敌方将领威胁、AI 作战计划、战线压力、威胁热区、本方战术建议、机动落点和将领协同报告，输出打断敌将、稳住战线、补防城市、打击威胁、将令反制或机动换位建议。
+- `GameViewModel` 新增 `CountermeasureSummary`、`countermeasureSummaries` 和 `primaryCountermeasureSummary`，把核心报告转成反制 chip、敌情卡、战局行、收益、风险、命令和无障碍文案。
+- `BattleView` 在顶部态势加入“反制”chip，在敌情面板展示首要反制建议卡，并在完整战局面板展示前两条反制建议行；SwiftUI 只展示 ViewModel 摘要，不重新计算反制评分、目标或回应单位。
+- Swift Testing 增加反制建议只读、敌将/AI 计划链接、战线压力补线、回应单位归属罗马和条约保护过滤断言。
+- Gameplay Smoke 增加敌方将领威胁到反制建议的主链路断言；RenderBattlePreview 增加 `primaryCountermeasureSummary` / `countermeasureSummaries` 断言，失败抛出 `missingCountermeasureSummary`。
+- `.github/workflows/ci-results.yml` artifact 版本更新到 v0.27。
+- README、flow、flowchart、test、prompt README 文档同步敌情反制建议读板和 v0.27 Agent A 提示词。
+
+关键文件：
+
+- `Sources/RomeLegionsCore/GameState.swift`
+- `RomeLegionsApp/App/GameViewModel.swift`
+- `RomeLegionsApp/Views/BattleView.swift`
+- `Tests/RomeLegionsCoreTests/GameStateTests.swift`
+- `Tools/GameplaySmoke/main.swift`
+- `Tools/RenderBattlePreview/main.swift`
+- `.github/workflows/ci-results.yml`
+- `README.md`
+- `md/flow/flow.md`
+- `md/flow/flowchart.md`
+- `md/test/test.md`
+- `md/prompt/README.md`
+- `md/prompt/v0（玩法推进）/v0.27（敌情反制建议读板）.md`
+- `update_log.md`
+- `AGENTS.md`
+
+验证结果：
+
+- 按人工最新要求，本轮未运行任何本地测试、build、typecheck、RenderBattlePreview、`Tools/verify_project.mjs`、`git diff --check`、YAML/JSON/Plist 解析或脚本语法检查。
+- 当前记录随实现提交准备 push 到 `origin/main`，GitHub Actions 和 Agent C artifact 复判结果待补充。
+
+遗留事项：
+
+- 本轮没有实现自动执行反制、多回合搜索、AI 权重重写、装备、升级树、将领池 UI、外交界面、存档 UI 或建筑树。
+- 敌情反制建议读板只用于解释“敌方威胁 -> 本方回应”的只读建议，不改变既有 AI、技能、攻击、移动、城市、外交或胜负规则。
 
 ### v0.26 / 敌方将领威胁读板
 
@@ -59,6 +102,7 @@
 - 初始提交 `aedcfe52ba929f2cfc083e415a8a86ee284b0a0e` 触发 GitHub Actions run `28766199521` attempt `1`，static checks、RenderBattlePreview、Xcode build 成功，但 Swift Testing 与 Gameplay Smoke 失败；失败原因为冷却敌将评分高于技能就绪敌将的测试期望、敌方攻城威胁 fixture 同时贴近罗马和那不勒斯导致目标城市期望不稳。
 - 修复提交 `a73921048ef640e10ea7df1d1f90f295710b0782` 已 push 到 `origin/main`，GitHub Actions run `28766410731` attempt `1` 通过，artifact 为 `RomeLegions-ci-v0.26-main-a739210-run28766410731-attempt1`。
 - Agent C 复判已核对 manifest `version=v0.26`、`branch=main`、`commitSha=a73921048ef640e10ea7df1d1f90f295710b0782`、`runId=28766410731`、`runAttempt=1`，JUnit `failures=0`，static checks、Swift Testing、Gameplay Smoke、RenderBattlePreview 和 Xcode build 均为 success；Swift Testing 日志显示 84 tests 通过，Gameplay Smoke 输出 `Gameplay smoke test passed.`，RenderBattlePreview 产出 6 张非空 PNG，Xcode build 日志以 `** BUILD SUCCEEDED **` 结束。
+- 后续文档验收记录提交 `609e63203df8a3a426f6e9ef99344eb55db191f9` 已 push 到 `origin/main`，GitHub Actions run `28766551449` attempt `1` 通过，artifact 为 `RomeLegions-ci-v0.26-main-609e632-run28766551449-attempt1`；这是 v0.26 最新已验收云端证据。
 
 遗留事项：
 

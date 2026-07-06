@@ -39,7 +39,7 @@ flowchart TD
 
 ## 3. 战斗、敌军意图、AI 作战计划、将领协同、机动落点、战术建议、战场焦点与地图热区流
 
-读图说明：这张图展示战斗预览、实际攻击、敌军意图、AI 作战计划、敌方将领威胁、本方将领协同、机动落点、战线压力、玩家侧战术建议、战场焦点、地图控制和威胁热区之间的关系。关键铁律是预览与结算必须一致，敌军意图、AI 作战计划、敌方将领威胁、本方将领协同、机动落点、战线压力、战术建议、战场焦点和地图热区只能读取和预测，地图路线、机动落点、热区叠层、敌将卡、将令卡、计划卡和焦点卡只是只读报告的可视化，不能改变状态、结算或 AI 决策。
+读图说明：这张图展示战斗预览、实际攻击、敌军意图、AI 作战计划、敌方将领威胁、敌情反制建议、本方将领协同、机动落点、战线压力、玩家侧战术建议、战场焦点、地图控制和威胁热区之间的关系。关键铁律是预览与结算必须一致，敌军意图、AI 作战计划、敌方将领威胁、敌情反制建议、本方将领协同、机动落点、战线压力、战术建议、战场焦点和地图热区只能读取和预测，地图路线、机动落点、热区叠层、敌将卡、反制卡、将令卡、计划卡和焦点卡只是只读报告的可视化，不能改变状态、结算或 AI 决策。
 
 ```mermaid
 flowchart TD
@@ -79,6 +79,15 @@ flowchart TD
     AU --> BO
     BO --> BP["GameViewModel.enemyCommanderThreatSummaries<br/>敌将等级、技能窗口、目标、影响、状态和无障碍文案"]
     BP --> BQ["BattleView 敌将 chip、敌情敌将卡、战局敌将行<br/>只展示核心报告，不重算威胁分或技能目标"]
+    BO --> BR["GameState.countermeasureReports<br/>聚合敌将威胁、AI 计划、战线压力、热区<br/>复用本方战术、机动和将令报告生成反制建议"]
+    AR --> BR
+    AB --> BR
+    AO --> BR
+    AI --> BR
+    AY --> BR
+    AV --> BR
+    BR --> BS["GameViewModel.countermeasureSummaries<br/>回应单位、命令、收益、风险和关联来源"]
+    BS --> BT["BattleView 反制 chip、敌情反制卡、战局反制行<br/>只展示核心报告，不自动下令"]
 
     AH["选中本方单位"] --> AI["GameState.tacticalRecommendation(unitID:)<br/>只读派生攻击、补线、推进、坚守或整备建议<br/>目标、目的地、路径、推荐姿态、风险和命令文案"]
     AI --> AJ["GameViewModel.selectedTacticalRecommendationSummary<br/>转成军议 chip、建议卡、路径线段和目标位置"]
