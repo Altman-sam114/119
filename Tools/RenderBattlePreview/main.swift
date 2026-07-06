@@ -441,6 +441,105 @@ struct RenderBattlePreview {
                 throw PreviewRenderError.missingGeneralSkillTargetReadout
             }
         }
+        let unitStateBeforeCommanderChainRead = viewModel.state.units
+            .sorted { $0.id < $1.id }
+            .map { unit in
+                "\(unit.id)|\(unit.position.description)|\(unit.health)|\(unit.hasMoved)|\(unit.hasActed)|\(unit.generalSkillCooldownRemaining)|\(unit.tacticalOrder?.rawValue ?? "balanced")"
+            }
+        let cityStateBeforeCommanderChainRead = viewModel.state.cities
+            .sorted { $0.id < $1.id }
+            .map { city in
+                "\(city.id)|\(city.owner.rawValue)|\(city.fortification)|\(city.position.description)"
+            }
+        let resourcesBeforeCommanderChainRead = viewModel.state.resources
+            .sorted { $0.key.rawValue < $1.key.rawValue }
+            .map { entry in
+                let resources = entry.value
+                return "\(entry.key.rawValue)|\(resources.gold)|\(resources.grain)|\(resources.iron)|\(resources.science)|\(resources.prestige)"
+            }
+        let turnBeforeCommanderChainRead = viewModel.state.turn
+        let activeFactionBeforeCommanderChainRead = viewModel.state.activeFaction
+        let commanderChainWarMerit = viewModel.selectedWarMeritStatus
+        let commanderChainSynergy = viewModel.selectedCommanderSynergySummary
+        let commanderChainStagePreview = viewModel.selectedBattleObjectiveStageCommandPreview
+        let commanderChainSituation = viewModel.selectedUnitSituationReadout
+        guard let commanderChainReadout = viewModel.selectedCommanderChainReadout,
+              commanderChainReadout.unitID == "rome-legion-1",
+              commanderChainReadout.references(brief: commanderBrief),
+              commanderChainReadout.references(skillTargetReadout: skillTargetReadout),
+              commanderChainReadout.references(guidance: commanderGuidance, unitID: "rome-legion-1"),
+              !commanderChainReadout.title.isEmpty,
+              !commanderChainReadout.statusLabel.isEmpty,
+              !commanderChainReadout.passiveLabel.isEmpty,
+              !commanderChainReadout.skillTargetLabel.isEmpty,
+              !commanderChainReadout.warMeritLabel.isEmpty,
+              !commanderChainReadout.entryLabel.isEmpty,
+              !commanderChainReadout.summaryLabel.isEmpty,
+              !commanderChainReadout.accessibilityLabel.isEmpty,
+              commanderChainReadout.accessibilityLabel.contains("被动"),
+              commanderChainReadout.accessibilityLabel.contains("目标"),
+              commanderChainReadout.accessibilityLabel.contains("战功"),
+              commanderChainReadout.accessibilityLabel.contains("将令"),
+              commanderChainReadout.accessibilityLabel.contains("入口"),
+              !commanderChainReadout.signals.isEmpty,
+              commanderChainReadout.signals.allSatisfy({ signal in
+                  !signal.title.isEmpty &&
+                      !signal.detail.isEmpty &&
+                      !signal.accessibilityLabel.isEmpty &&
+                      signal.sourceID != nil
+              }),
+              commanderChainReadout.signals.contains(where: { $0.kind == .passive && $0.sourceID == commanderBrief.unitID }),
+              commanderChainReadout.signals.contains(where: { $0.kind == .skillTarget && $0.sourceID == skillTargetReadout.title }),
+              commanderChainReadout.signals.contains(where: { $0.kind == .guidance }) else {
+            throw PreviewRenderError.missingCommanderChainReadout
+        }
+        if let commanderChainWarMerit {
+            guard commanderChainReadout.references(warMerit: commanderChainWarMerit),
+                  commanderChainReadout.signals.contains(where: { $0.kind == .warMerit }) else {
+                throw PreviewRenderError.missingCommanderChainReadout
+            }
+        }
+        if let commanderChainSynergy {
+            guard commanderChainReadout.references(synergy: commanderChainSynergy),
+                  commanderChainReadout.signals.contains(where: { $0.kind == .synergy && $0.sourceID == commanderChainSynergy.id }) else {
+                throw PreviewRenderError.missingCommanderChainReadout
+            }
+        }
+        if let commanderChainStagePreview {
+            guard commanderChainReadout.references(stagePreview: commanderChainStagePreview),
+                  commanderChainReadout.signals.contains(where: { $0.kind == .objectiveStage && $0.sourceID == commanderChainStagePreview.id }) else {
+                throw PreviewRenderError.missingCommanderChainReadout
+            }
+        }
+        if let commanderChainSituation {
+            guard commanderChainReadout.references(situation: commanderChainSituation),
+                  commanderChainReadout.signals.contains(where: { $0.kind == .situationEntry }) else {
+                throw PreviewRenderError.missingCommanderChainReadout
+            }
+        }
+        let unitStateAfterCommanderChainRead = viewModel.state.units
+            .sorted { $0.id < $1.id }
+            .map { unit in
+                "\(unit.id)|\(unit.position.description)|\(unit.health)|\(unit.hasMoved)|\(unit.hasActed)|\(unit.generalSkillCooldownRemaining)|\(unit.tacticalOrder?.rawValue ?? "balanced")"
+            }
+        let cityStateAfterCommanderChainRead = viewModel.state.cities
+            .sorted { $0.id < $1.id }
+            .map { city in
+                "\(city.id)|\(city.owner.rawValue)|\(city.fortification)|\(city.position.description)"
+            }
+        let resourcesAfterCommanderChainRead = viewModel.state.resources
+            .sorted { $0.key.rawValue < $1.key.rawValue }
+            .map { entry in
+                let resources = entry.value
+                return "\(entry.key.rawValue)|\(resources.gold)|\(resources.grain)|\(resources.iron)|\(resources.science)|\(resources.prestige)"
+            }
+        guard unitStateBeforeCommanderChainRead == unitStateAfterCommanderChainRead,
+              cityStateBeforeCommanderChainRead == cityStateAfterCommanderChainRead,
+              resourcesBeforeCommanderChainRead == resourcesAfterCommanderChainRead,
+              turnBeforeCommanderChainRead == viewModel.state.turn,
+              activeFactionBeforeCommanderChainRead == viewModel.state.activeFaction else {
+            throw PreviewRenderError.missingCommanderChainReadout
+        }
         guard let formationSummary = viewModel.selectedLegionFormationSummary,
               let primaryFormationSummary = viewModel.primaryLegionFormationSummary,
               formationSummary.report.unitID == "rome-legion-1",
@@ -1104,6 +1203,7 @@ enum PreviewRenderError: Error {
     case missingBattleObjectiveStageFocus
     case missingBattleObjectiveStageCommandPreview
     case missingBattleObjectiveStageLinkedHighlight
+    case missingCommanderChainReadout
     case missingCommanderActionGuidance
     case missingGeneralSkillTargetReadout
     case missingThreatHeatSummary

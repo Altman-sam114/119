@@ -1872,6 +1872,7 @@ struct CompactSelectionPanelView: View {
                             warMeritStatus: viewModel.selectedWarMeritStatus,
                             commanderBrief: viewModel.selectedCommanderBrief,
                             commanderActionGuidance: viewModel.selectedCommanderActionGuidance,
+                            commanderChainReadout: viewModel.selectedCommanderChainReadout,
                             skillTargetReadout: viewModel.selectedGeneralSkillTargetReadout
                         )
                     } else if let brief = viewModel.selectedCommanderBrief {
@@ -2059,6 +2060,7 @@ struct CompactGeneralTraitView: View {
     var warMeritStatus: WarMeritStatus?
     var commanderBrief: SelectedCommanderBrief?
     var commanderActionGuidance: CommanderActionGuidance?
+    var commanderChainReadout: SelectedCommanderChainReadout?
     var skillTargetReadout: SelectedGeneralSkillTargetReadout?
 
     var body: some View {
@@ -2082,6 +2084,9 @@ struct CompactGeneralTraitView: View {
         .clipShape(RoundedRectangle(cornerRadius: 6))
         if let commanderBrief, !commanderBrief.passiveContributions.isEmpty {
             GeneralPassiveContributionStrip(contributions: commanderBrief.passiveContributions, isCompact: true)
+        }
+        if let commanderChainReadout {
+            CommanderChainReadoutView(readout: commanderChainReadout, isCompact: true)
         }
         if let warMeritStatus {
             HStack(spacing: 6) {
@@ -4901,6 +4906,7 @@ struct SelectionPanelView: View {
                             warMeritStatus: viewModel.selectedWarMeritStatus,
                             commanderBrief: viewModel.selectedCommanderBrief,
                             commanderActionGuidance: viewModel.selectedCommanderActionGuidance,
+                            commanderChainReadout: viewModel.selectedCommanderChainReadout,
                             skillTargetReadout: viewModel.selectedGeneralSkillTargetReadout
                         )
                     } else if let brief = viewModel.selectedCommanderBrief {
@@ -5057,6 +5063,7 @@ struct GeneralTraitCardView: View {
     var warMeritStatus: WarMeritStatus?
     var commanderBrief: SelectedCommanderBrief?
     var commanderActionGuidance: CommanderActionGuidance?
+    var commanderChainReadout: SelectedCommanderChainReadout?
     var skillTargetReadout: SelectedGeneralSkillTargetReadout?
 
     var body: some View {
@@ -5083,6 +5090,10 @@ struct GeneralTraitCardView: View {
 
             if let commanderBrief, !commanderBrief.passiveContributions.isEmpty {
                 GeneralPassiveContributionStrip(contributions: commanderBrief.passiveContributions, isCompact: false)
+            }
+
+            if let commanderChainReadout {
+                CommanderChainReadoutView(readout: commanderChainReadout, isCompact: false)
             }
 
             Text(trait.skillDetail)
@@ -5199,6 +5210,58 @@ struct GeneralPassiveContributionStrip: View {
             }
             Spacer(minLength: 0)
         }
+    }
+}
+
+struct CommanderChainReadoutView: View {
+    var readout: SelectedCommanderChainReadout
+    var isCompact: Bool
+
+    var body: some View {
+        HStack(spacing: 6) {
+            Image(systemName: "link.circle.fill")
+                .foregroundStyle(Color(red: 0.86, green: 0.68, blue: 0.34))
+                .frame(width: 14)
+            Text("指挥链")
+                .font(.caption2.weight(.bold))
+                .foregroundStyle(.white.opacity(0.58))
+            if isCompact {
+                Text(readout.compactLabel)
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(.white.opacity(0.72))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.56)
+            } else {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(readout.summaryLabel)
+                        .font(.caption2.weight(.semibold))
+                        .foregroundStyle(.white.opacity(0.72))
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.60)
+                    Text(readout.entryLabel)
+                        .font(.caption2.weight(.bold))
+                        .foregroundStyle(Color(red: 0.86, green: 0.68, blue: 0.34))
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.58)
+                }
+            }
+            Spacer(minLength: 0)
+            Text(readout.statusLabel)
+                .font(.caption2.weight(.black))
+                .foregroundStyle(.black.opacity(0.78))
+                .lineLimit(1)
+                .minimumScaleFactor(0.58)
+                .padding(.horizontal, 6)
+                .frame(height: 20)
+                .background(Color(red: 0.86, green: 0.68, blue: 0.34))
+                .clipShape(RoundedRectangle(cornerRadius: 5))
+        }
+        .padding(.horizontal, 8)
+        .padding(.vertical, isCompact ? 3 : 5)
+        .frame(maxWidth: .infinity, minHeight: isCompact ? 24 : 34, alignment: .leading)
+        .background(.black.opacity(0.14))
+        .clipShape(RoundedRectangle(cornerRadius: 6))
+        .accessibilityLabel(readout.accessibilityLabel)
     }
 }
 

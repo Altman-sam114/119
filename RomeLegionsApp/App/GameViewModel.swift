@@ -2905,6 +2905,122 @@ struct SelectedGeneralSkillTargetReadout {
     var accessibilityLabel: String
 }
 
+enum SelectedCommanderChainSignalKind: String {
+    case passive
+    case skillTarget
+    case warMerit
+    case guidance
+    case synergy
+    case objectiveStage
+    case situationEntry
+
+    var displayName: String {
+        switch self {
+        case .passive:
+            return "被动"
+        case .skillTarget:
+            return "目标"
+        case .warMerit:
+            return "战功"
+        case .guidance:
+            return "将令"
+        case .synergy:
+            return "协同"
+        case .objectiveStage:
+            return "目标线"
+        case .situationEntry:
+            return "入口"
+        }
+    }
+}
+
+struct SelectedCommanderChainSignal: Identifiable {
+    var kind: SelectedCommanderChainSignalKind
+    var title: String
+    var detail: String
+    var sourceID: String?
+
+    var id: String {
+        [
+            kind.rawValue,
+            sourceID,
+            title
+        ].compactMap { $0 }.joined(separator: "-")
+    }
+
+    var accessibilityLabel: String {
+        [
+            kind.displayName,
+            title,
+            detail
+        ].joined(separator: "，")
+    }
+}
+
+struct SelectedCommanderChainReadout {
+    var unitID: String
+    var title: String
+    var statusLabel: String
+    var passiveLabel: String
+    var skillTargetLabel: String
+    var warMeritLabel: String
+    var entryLabel: String
+    var summaryLabel: String
+    var signals: [SelectedCommanderChainSignal]
+    var commanderBriefID: String?
+    var skillTargetReadoutID: String?
+    var warMeritID: String?
+    var guidanceID: String?
+    var synergyID: String?
+    var stagePreviewID: String?
+    var situationEntryID: String?
+
+    var compactLabel: String {
+        "\(passiveLabel) · \(skillTargetLabel) · \(entryLabel)"
+    }
+
+    var accessibilityLabel: String {
+        [
+            title,
+            "状态 \(statusLabel)",
+            "被动 \(passiveLabel)",
+            "目标 \(skillTargetLabel)",
+            "战功 \(warMeritLabel)",
+            "将令 \(entryLabel)",
+            "入口 \(summaryLabel)"
+        ].joined(separator: "，")
+    }
+
+    func references(brief candidate: SelectedCommanderBrief) -> Bool {
+        commanderBriefID == candidate.unitID
+    }
+
+    func references(skillTargetReadout candidate: SelectedGeneralSkillTargetReadout) -> Bool {
+        skillTargetReadoutID == candidate.title
+    }
+
+    func references(warMerit candidate: WarMeritStatus) -> Bool {
+        warMeritID == "\(candidate.experience)-\(candidate.rankName)"
+    }
+
+    func references(guidance candidate: CommanderActionGuidance, unitID: String) -> Bool {
+        guidanceID == "\(unitID)-commander-action" &&
+            signals.contains { $0.kind == .guidance && $0.sourceID == guidanceID && $0.detail == candidate.skillCueLabel }
+    }
+
+    func references(synergy candidate: CommanderSynergySummary) -> Bool {
+        synergyID == candidate.id
+    }
+
+    func references(stagePreview candidate: BattleObjectiveStageCommandPreview) -> Bool {
+        stagePreviewID == candidate.id
+    }
+
+    func references(situation candidate: SelectedUnitSituationReadout) -> Bool {
+        situationEntryID == candidate.primaryCommandEntry?.id
+    }
+}
+
 struct SelectedTacticalOrderPreview: Identifiable {
     var order: TacticalOrder
     var attack: Int
@@ -4942,6 +5058,137 @@ final class GameViewModel: ObservableObject {
             statusLabel: statusLabel,
             isLinkedToBattleObjectiveStage: isLinkedStage,
             accessibilityLabel: accessibilityLabel
+        )
+    }
+
+    var selectedCommanderChainReadout: SelectedCommanderChainReadout? {
+        guard let selectedUnit,
+              selectedUnit.resolvedGeneralTrait != nil,
+              let brief = selectedCommanderBrief else {
+            return nil
+        }
+
+        let skillTargetReadout = selectedGeneralSkillTargetReadout
+        let warMerit = selectedWarMeritStatus
+        let guidance = selectedCommanderActionGuidance
+        let synergy = selectedCommanderSynergySummary
+        let stagePreview = selectedBattleObjectiveStageCommandPreview
+        let situation = selectedUnitSituationReadout
+        let passiveLabel = brief.passiveContributions.isEmpty ?
+            "无被动" :
+            brief.passiveContributions
+                .prefix(2)
+                .map { "\($0.label)\($0.value)" }
+                .joined(separator: " · ")
+        let skillTargetLabel = skillTargetReadout?.targetCountLabel ?? brief.skillStatusLabel
+        let warMeritLabel = warMerit?.summary ?? "战功待积累"
+        let entryLabel = guidance?.stageCueLabel ??
+            guidance?.skillCueLabel ??
+            stagePreview?.skillStageCueLabel ??
+            situation?.commandEntrySummaryLabel ??
+            brief.skillStatusLabel
+        let summaryLabel = [
+            passiveLabel,
+            skillTargetLabel,
+            warMerit.map { "\($0.rankName) +\($0.damageBonus)" },
+            entryLabel
+        ].compactMap { $0 }.joined(separator: " · ")
+        var signals: [SelectedCommanderChainSignal] = []
+
+        signals.append(
+            SelectedCommanderChainSignal(
+                kind: .passive,
+                title: passiveLabel,
+                detail: brief.passiveContributions.isEmpty ?
+                    passiveLabel :
+                    brief.passiveContributions.map { "\($0.label)\($0.value) \($0.detail)" }.joined(separator: " · "),
+                sourceID: brief.unitID
+            )
+        )
+
+        if let skillTargetReadout {
+            signals.append(
+                SelectedCommanderChainSignal(
+                    kind: .skillTarget,
+                    title: skillTargetReadout.targetCountLabel,
+                    detail: "\(skillTargetReadout.effectLabel) · \(skillTargetReadout.mapCueLabel)",
+                    sourceID: skillTargetReadout.title
+                )
+            )
+        }
+
+        if let warMerit {
+            signals.append(
+                SelectedCommanderChainSignal(
+                    kind: .warMerit,
+                    title: warMerit.rankName,
+                    detail: warMerit.summary,
+                    sourceID: "\(warMerit.experience)-\(warMerit.rankName)"
+                )
+            )
+        }
+
+        if let guidance {
+            signals.append(
+                SelectedCommanderChainSignal(
+                    kind: .guidance,
+                    title: guidance.title,
+                    detail: guidance.skillCueLabel,
+                    sourceID: "\(selectedUnit.id)-commander-action"
+                )
+            )
+        }
+
+        if let synergy {
+            signals.append(
+                SelectedCommanderChainSignal(
+                    kind: .synergy,
+                    title: synergy.kindLabel,
+                    detail: "\(synergy.impactLabel) · \(synergy.statusLabel)",
+                    sourceID: synergy.id
+                )
+            )
+        }
+
+        if let stagePreview {
+            signals.append(
+                SelectedCommanderChainSignal(
+                    kind: .objectiveStage,
+                    title: stagePreview.stageLabel,
+                    detail: stagePreview.commandEntryCueLabel,
+                    sourceID: stagePreview.id
+                )
+            )
+        }
+
+        if let situationEntry = situation?.primaryCommandEntry {
+            signals.append(
+                SelectedCommanderChainSignal(
+                    kind: .situationEntry,
+                    title: situationEntry.kind.displayName,
+                    detail: situationEntry.cueLabel,
+                    sourceID: situationEntry.id
+                )
+            )
+        }
+
+        return SelectedCommanderChainReadout(
+            unitID: selectedUnit.id,
+            title: "\(brief.generalName ?? selectedUnit.kind.displayName)指挥链",
+            statusLabel: guidance?.statusLabel ?? brief.skillStatusLabel,
+            passiveLabel: passiveLabel,
+            skillTargetLabel: skillTargetLabel,
+            warMeritLabel: warMeritLabel,
+            entryLabel: entryLabel,
+            summaryLabel: summaryLabel,
+            signals: signals,
+            commanderBriefID: brief.unitID,
+            skillTargetReadoutID: skillTargetReadout?.title,
+            warMeritID: warMerit.map { "\($0.experience)-\($0.rankName)" },
+            guidanceID: guidance.map { _ in "\(selectedUnit.id)-commander-action" },
+            synergyID: synergy?.id,
+            stagePreviewID: stagePreview?.id,
+            situationEntryID: situation?.primaryCommandEntry?.id
         )
     }
 
