@@ -1894,9 +1894,12 @@ struct CompactActionsPanelView: View {
                 if let target = viewModel.attackTargets.first {
                     let preview = viewModel.attackPreview(for: target.id)
                     let countermeasurePreview = viewModel.selectedCountermeasureCommandPreview
+                    let battleObjectivePreview = viewModel.selectedBattleObjectiveStageCommandPreview
                     let isCountermeasureTarget = countermeasurePreview?.isAttackTarget(target) == true
+                    let isBattleObjectiveTarget = battleObjectivePreview?.isAttackTarget(target) == true
                     let attackDetail = [
                         isCountermeasureTarget ? countermeasurePreview?.targetStageCueLabel : nil,
+                        !isCountermeasureTarget && isBattleObjectiveTarget ? battleObjectivePreview?.attackCueLabel : nil,
                         preview?.commandModifierSummary
                     ].compactMap { $0 }.joined(separator: " · ")
                     Button {
@@ -1925,6 +1928,10 @@ struct CompactActionsPanelView: View {
                 if let unit = viewModel.selectedUnit, unit.faction == .rome {
                     if let preview = viewModel.selectedCountermeasureCommandPreview {
                         CountermeasureCommandPreviewView(preview: preview, isCompact: true)
+                    }
+
+                    if let preview = viewModel.selectedBattleObjectiveStageCommandPreview {
+                        BattleObjectiveStageCommandPreviewView(preview: preview, isCompact: true)
                     }
 
                     TacticalOrderControlView(unit: unit, isCompact: true)
@@ -2369,6 +2376,7 @@ struct BattlefieldFocusPanelView: View {
                                 summary: objectiveChain,
                                 isCompact: false,
                                 focusedRole: viewModel.focusedBattleObjectiveRole,
+                                stageCommandPreview: viewModel.focusedBattleObjectiveStageCommandPreview ?? viewModel.primaryBattleObjectiveStageCommandPreview,
                                 focusStageAction: viewModel.focusPrimaryBattleObjectiveStage
                             )
                         }
@@ -2429,6 +2437,7 @@ struct BattlefieldFocusPanelView: View {
                     summary: objectiveChain,
                     isCompact: isCompact,
                     focusedRole: viewModel.focusedBattleObjectiveRole,
+                    stageCommandPreview: viewModel.focusedBattleObjectiveStageCommandPreview ?? viewModel.primaryBattleObjectiveStageCommandPreview,
                     focusStageAction: viewModel.focusPrimaryBattleObjectiveStage
                 )
             } else if let focus {
@@ -3325,6 +3334,7 @@ struct BattleObjectiveChainCardView: View {
     var summary: BattleObjectiveChainSummary
     var isCompact: Bool
     var focusedRole: BattleObjectiveMapRole?
+    var stageCommandPreview: BattleObjectiveStageCommandPreview?
     var focusStageAction: ((BattleObjectiveMapRole) -> Void)?
 
     var body: some View {
@@ -3382,6 +3392,13 @@ struct BattleObjectiveChainCardView: View {
                         .accessibilityAddTraits(focusedRole == role ? .isSelected : AccessibilityTraits())
                     }
                 }
+            }
+
+            if let stageCommandPreview {
+                BattleObjectiveStageCommandPreviewView(
+                    preview: stageCommandPreview,
+                    isCompact: isCompact
+                )
             }
 
             if !isCompact {
@@ -4264,6 +4281,82 @@ struct CountermeasureCommandPreviewView: View {
     }
 }
 
+struct BattleObjectiveStageCommandPreviewView: View {
+    var preview: BattleObjectiveStageCommandPreview
+    var isCompact: Bool = false
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 7) {
+                Image(systemName: preview.isExecutableNow ? "checkmark.circle.fill" : preview.role.symbol)
+                    .foregroundStyle(preview.role.tintColor)
+                Text(preview.statusLabel)
+                    .font(.caption.weight(.heavy))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.72)
+                Spacer(minLength: 0)
+                Text(preview.stageLabel)
+                    .font(.caption2.weight(.black))
+                    .foregroundStyle(.black.opacity(0.78))
+                    .padding(.horizontal, 6)
+                    .frame(height: 18)
+                    .background(preview.role.tintColor)
+                    .clipShape(RoundedRectangle(cornerRadius: 5))
+            }
+
+            Text(preview.nextStepLabel)
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(.white.opacity(0.70))
+                .lineLimit(isCompact ? 2 : 1)
+                .minimumScaleFactor(0.72)
+
+            HStack(spacing: 6) {
+                Label(preview.commandEntryLabel, systemImage: "rectangle.and.hand.point.up.left.fill")
+                Spacer(minLength: 0)
+                Label(preview.targetLabel, systemImage: "scope")
+            }
+            .font(.caption2.weight(.semibold))
+            .foregroundStyle(.white.opacity(0.58))
+            .lineLimit(1)
+            .minimumScaleFactor(0.68)
+
+            if !isCompact {
+                HStack(spacing: 6) {
+                    Label(preview.orderCueLabel, systemImage: "flag.checkered")
+                    Spacer(minLength: 0)
+                    Label(preview.attackCueLabel, systemImage: "bolt.fill")
+                }
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(.white.opacity(0.58))
+                .lineLimit(1)
+                .minimumScaleFactor(0.68)
+
+                VStack(alignment: .leading, spacing: 4) {
+                    ForEach(preview.steps) { step in
+                        HStack(spacing: 5) {
+                            Image(systemName: step.isReady ? "checkmark.circle.fill" : step.symbol)
+                                .foregroundStyle(step.isReady ? .green : .white.opacity(0.52))
+                                .frame(width: 15)
+                            Text(step.title)
+                                .font(.caption2.weight(.bold))
+                            Text(step.detail)
+                                .font(.caption2)
+                                .foregroundStyle(.white.opacity(0.58))
+                                .lineLimit(1)
+                                .minimumScaleFactor(0.72)
+                            Spacer(minLength: 0)
+                        }
+                    }
+                }
+            }
+        }
+        .padding(7)
+        .background(.black.opacity(0.16))
+        .clipShape(RoundedRectangle(cornerRadius: 7))
+        .accessibilityLabel(preview.accessibilityLabel)
+    }
+}
+
 struct AIOperationalPlanCardView: View {
     var summary: AIOperationalPlanSummary
 
@@ -4990,9 +5083,12 @@ struct ActionsPanelView: View {
                     ForEach(viewModel.attackTargets) { target in
                         let preview = viewModel.attackPreview(for: target.id)
                         let countermeasurePreview = viewModel.selectedCountermeasureCommandPreview
+                        let battleObjectivePreview = viewModel.selectedBattleObjectiveStageCommandPreview
                         let isCountermeasureTarget = countermeasurePreview?.isAttackTarget(target) == true
+                        let isBattleObjectiveTarget = battleObjectivePreview?.isAttackTarget(target) == true
                         let attackDetail = [
                             isCountermeasureTarget ? countermeasurePreview?.targetStageCueLabel : nil,
+                            !isCountermeasureTarget && isBattleObjectiveTarget ? battleObjectivePreview?.attackCueLabel : nil,
                             preview?.commandModifierSummary
                         ].compactMap { $0 }.joined(separator: " · ")
                         Button {
@@ -5034,6 +5130,10 @@ struct ActionsPanelView: View {
                 if let unit = viewModel.selectedUnit, unit.faction == .rome {
                     if let preview = viewModel.selectedCountermeasureCommandPreview {
                         CountermeasureCommandPreviewView(preview: preview)
+                    }
+
+                    if let preview = viewModel.selectedBattleObjectiveStageCommandPreview {
+                        BattleObjectiveStageCommandPreviewView(preview: preview)
                     }
 
                     TacticalOrderControlView(unit: unit)

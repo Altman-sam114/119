@@ -403,7 +403,7 @@ struct RenderBattlePreview {
         let unitStateBeforeBattleObjectiveFocus = viewModel.state.units
             .sorted { $0.id < $1.id }
             .map { unit in
-                "\(unit.id)|\(unit.position.description)|\(unit.health)|\(unit.hasMoved)|\(unit.hasActed)|\(unit.tacticalOrder?.rawValue ?? "balanced")"
+                "\(unit.id)|\(unit.position.description)|\(unit.health)|\(unit.hasMoved)|\(unit.hasActed)|\(unit.generalSkillCooldownRemaining)|\(unit.tacticalOrder?.rawValue ?? "balanced")"
             }
         let cityStateBeforeBattleObjectiveFocus = viewModel.state.cities
             .sorted { $0.id < $1.id }
@@ -418,6 +418,61 @@ struct RenderBattlePreview {
             }
         let turnBeforeBattleObjectiveFocus = viewModel.state.turn
         let activeFactionBeforeBattleObjectiveFocus = viewModel.state.activeFaction
+        let battleObjectiveStageCommandPreviews = viewModel.battleObjectiveStageCommandPreviews
+        guard !battleObjectiveStageCommandPreviews.isEmpty,
+              viewModel.primaryBattleObjectiveStageCommandPreview != nil else {
+            throw PreviewRenderError.missingBattleObjectiveStageCommandPreview
+        }
+        let expectedBattleObjectiveStages: [(role: BattleObjectiveMapRole, position: Position, sourceSummaryID: String)] = [
+            (.focus, battlefieldFocus.targetPosition, battlefieldFocus.id),
+            (.synergy, selectedSynergySummary.targetPosition, selectedSynergySummary.id),
+            (.maneuver, primaryManeuverSummary.destination, primaryManeuverSummary.id),
+            (.recommendation, recommendationSummary.targetPosition, recommendationSummary.id)
+        ]
+        for stage in expectedBattleObjectiveStages {
+            guard let overlay = battleObjectiveOverlay.positionOverlays.first(where: { $0.role == stage.role }),
+                  let preview = battleObjectiveStageCommandPreviews.first(where: { $0.role == stage.role }),
+                  preview.chainID == objectiveChain.id,
+                  preview.role == overlay.role,
+                  preview.position == overlay.position,
+                  preview.position == stage.position,
+                  preview.sourceSummaryID == stage.sourceSummaryID,
+                  preview.stageLabel == overlay.stageLabel,
+                  preview.focusLabel == overlay.focusLabel,
+                  preview.chainLabel == overlay.chainLabel,
+                  !preview.title.isEmpty,
+                  !preview.statusLabel.isEmpty,
+                  !preview.commandEntryLabel.isEmpty,
+                  !preview.nextStepLabel.isEmpty,
+                  !preview.buttonTitle.isEmpty,
+                  !preview.buttonDetail.isEmpty,
+                  !preview.accessibilityLabel.isEmpty,
+                  !preview.steps.isEmpty,
+                  preview.steps.allSatisfy({ step in
+                      !step.id.isEmpty &&
+                          !step.symbol.isEmpty &&
+                          !step.title.isEmpty &&
+                          !step.detail.isEmpty
+                  }) else {
+                throw PreviewRenderError.missingBattleObjectiveStageCommandPreview
+            }
+        }
+        for stage in expectedBattleObjectiveStages {
+            viewModel.focusPrimaryBattleObjectiveStage(stage.role)
+            guard viewModel.focusedBattleObjectiveRole == stage.role,
+                  viewModel.focusedBattleObjectiveOverlay?.role == stage.role,
+                  viewModel.focusedBattleObjectiveOverlay?.position == stage.position,
+                  let focusedPreview = viewModel.focusedBattleObjectiveStageCommandPreview,
+                  focusedPreview.role == stage.role,
+                  focusedPreview.position == stage.position,
+                  focusedPreview.sourceSummaryID == stage.sourceSummaryID,
+                  !focusedPreview.commandEntryLabel.isEmpty,
+                  !focusedPreview.nextStepLabel.isEmpty,
+                  !focusedPreview.buttonDetail.isEmpty,
+                  viewModel.bannerMessage.contains("目标线") else {
+                throw PreviewRenderError.missingBattleObjectiveStageCommandPreview
+            }
+        }
         viewModel.focusPrimaryBattleObjectiveStage(.maneuver)
         guard viewModel.focusedPosition == primaryManeuverSummary.destination,
               viewModel.focusedBattleObjectiveRole == .maneuver,
@@ -456,7 +511,7 @@ struct RenderBattlePreview {
         let unitStateAfterBattleObjectiveFocus = viewModel.state.units
             .sorted { $0.id < $1.id }
             .map { unit in
-                "\(unit.id)|\(unit.position.description)|\(unit.health)|\(unit.hasMoved)|\(unit.hasActed)|\(unit.tacticalOrder?.rawValue ?? "balanced")"
+                "\(unit.id)|\(unit.position.description)|\(unit.health)|\(unit.hasMoved)|\(unit.hasActed)|\(unit.generalSkillCooldownRemaining)|\(unit.tacticalOrder?.rawValue ?? "balanced")"
             }
         let cityStateAfterBattleObjectiveFocus = viewModel.state.cities
             .sorted { $0.id < $1.id }
@@ -698,6 +753,7 @@ enum PreviewRenderError: Error {
     case missingBattleObjectiveChainSummary
     case missingBattleObjectiveMapOverlay
     case missingBattleObjectiveStageFocus
+    case missingBattleObjectiveStageCommandPreview
     case missingThreatHeatSummary
     case missingAIOperationalPlanSummary
     case missingEnemyCommanderThreatSummary

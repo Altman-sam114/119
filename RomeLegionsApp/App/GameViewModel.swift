@@ -617,6 +617,224 @@ struct CountermeasureCommandPreview: Identifiable {
     }
 }
 
+struct BattleObjectiveStageCommandStep: Identifiable {
+    var id: String
+    var symbol: String
+    var title: String
+    var detail: String
+    var isReady: Bool
+}
+
+struct BattleObjectiveStageCommandPreview: Identifiable {
+    var chain: BattleObjectiveChainSummary
+    var role: BattleObjectiveMapRole
+    var position: Position
+    var sourceSummaryID: String
+    var commandUnit: ArmyUnit?
+    var targetUnit: ArmyUnit?
+    var targetCity: City?
+    var recommendedOrder: TacticalOrder?
+    var destination: Position?
+    var targetPosition: Position
+    var commandEntryLabel: String
+    var canFocus: Bool
+    var canSetOrder: Bool
+    var canMoveToDestination: Bool
+    var canAttackCurrentTarget: Bool
+    var canUseGeneralSkill: Bool
+    var isExecutableNow: Bool
+    var blockingReasons: [String]
+    var steps: [BattleObjectiveStageCommandStep]
+
+    var id: String {
+        "\(chain.id)-\(role.rawValue)-command"
+    }
+
+    var chainID: String {
+        chain.id
+    }
+
+    var stageLabel: String {
+        role.stageLabel
+    }
+
+    var focusLabel: String {
+        switch role {
+        case .focus: return chain.focusStageLabel
+        case .synergy: return chain.synergyStageLabel
+        case .maneuver: return chain.maneuverStageLabel
+        case .recommendation: return chain.recommendationStageLabel
+        }
+    }
+
+    var chainLabel: String {
+        chain.chainLabel
+    }
+
+    var title: String {
+        "目标线\(stageLabel)指令"
+    }
+
+    var statusLabel: String {
+        if isExecutableNow {
+            return "可推进"
+        }
+
+        if canFocus {
+            return "需确认"
+        }
+
+        return blockingReasons.first ?? "仅提示"
+    }
+
+    var orderCueLabel: String {
+        guard let recommendedOrder else {
+            return "姿态按当前军令"
+        }
+
+        if commandUnit?.resolvedTacticalOrder == recommendedOrder {
+            return "姿态已是\(recommendedOrder.displayName)"
+        }
+
+        if canSetOrder {
+            return "建议切换\(recommendedOrder.displayName)"
+        }
+
+        return "建议\(recommendedOrder.displayName)"
+    }
+
+    var movementCueLabel: String {
+        guard let destination else {
+            return "无需移动落点"
+        }
+
+        if commandUnit?.position == destination {
+            return "已在\(destination.description)"
+        }
+
+        if canMoveToDestination {
+            return "可移动至\(destination.description)"
+        }
+
+        return "暂不可达\(destination.description)"
+    }
+
+    var attackCueLabel: String {
+        if canAttackCurrentTarget {
+            return "目标可攻击"
+        }
+
+        if targetUnit != nil {
+            return "目标未入攻击范围"
+        }
+
+        if targetCity != nil {
+            return "目标为城市"
+        }
+
+        return "目标待确认"
+    }
+
+    var skillCueLabel: String {
+        if canUseGeneralSkill {
+            return "将领技能可用"
+        }
+
+        if role == .synergy {
+            return "将令需确认"
+        }
+
+        return "技能非主入口"
+    }
+
+    var targetLabel: String {
+        if let targetUnit {
+            return "\(targetUnit.faction.displayName)\(targetUnit.kind.displayName)"
+        }
+
+        if let targetCity {
+            return targetCity.name
+        }
+
+        return targetPosition.description
+    }
+
+    var unitLabel: String {
+        if let commandUnit {
+            return "\(commandUnit.faction.displayName)\(commandUnit.kind.displayName)"
+        }
+
+        return "无罗马执行单位"
+    }
+
+    var nextStepLabel: String {
+        if let firstBlockingReason = blockingReasons.first {
+            return firstBlockingReason
+        }
+
+        if canAttackCurrentTarget {
+            return "可攻击\(targetLabel)"
+        }
+
+        if canUseGeneralSkill {
+            return "可发动将领技能"
+        }
+
+        if canMoveToDestination,
+           let destination,
+           commandUnit?.position != destination {
+            return "先移动至\(destination.description)"
+        }
+
+        if canSetOrder,
+           let recommendedOrder {
+            return "先切换\(recommendedOrder.displayName)"
+        }
+
+        return commandEntryLabel
+    }
+
+    var buttonTitle: String {
+        canFocus ? "定位\(role.displayName)" : "无法定位"
+    }
+
+    var buttonDetail: String {
+        if canFocus {
+            return "\(unitLabel) · \(nextStepLabel)"
+        }
+
+        return blockingReasons.first ?? "阶段仅提示"
+    }
+
+    var accessibilityLabel: String {
+        [
+            title,
+            statusLabel,
+            focusLabel,
+            "入口\(commandEntryLabel)",
+            "执行\(unitLabel)",
+            "目标\(targetLabel)",
+            orderCueLabel,
+            movementCueLabel,
+            attackCueLabel,
+            skillCueLabel,
+            nextStepLabel
+        ].joined(separator: "，")
+    }
+
+    func isRecommendedOrder(_ order: TacticalOrder) -> Bool {
+        recommendedOrder == order
+    }
+
+    func isAttackTarget(_ unit: ArmyUnit) -> Bool {
+        targetUnit?.id == unit.id
+    }
+
+    func isStage(_ candidate: BattleObjectiveMapRole) -> Bool {
+        role == candidate
+    }
+}
+
 struct TacticalRecommendationSummary: Identifiable {
     var report: TacticalRecommendationReport
     var unit: ArmyUnit?
@@ -2543,6 +2761,43 @@ final class GameViewModel: ObservableObject {
         }
     }
 
+    var battleObjectiveStageCommandPreviews: [BattleObjectiveStageCommandPreview] {
+        guard let overlay = primaryBattleObjectiveMapOverlay else { return [] }
+
+        return overlay.positionOverlays.compactMap { positionOverlay in
+            battleObjectiveStageCommandPreview(for: positionOverlay)
+        }
+    }
+
+    var focusedBattleObjectiveStageCommandPreview: BattleObjectiveStageCommandPreview? {
+        guard let focusedBattleObjectiveRole else { return nil }
+
+        return battleObjectiveStageCommandPreviews.first { preview in
+            preview.role == focusedBattleObjectiveRole
+        }
+    }
+
+    var selectedBattleObjectiveStageCommandPreview: BattleObjectiveStageCommandPreview? {
+        guard let selectedUnitID else { return nil }
+
+        let previews = battleObjectiveStageCommandPreviews
+        if let focusedBattleObjectiveRole,
+           let focusedPreview = previews.first(where: {
+               $0.role == focusedBattleObjectiveRole &&
+                   $0.commandUnit?.id == selectedUnitID
+           }) {
+            return focusedPreview
+        }
+
+        return previews.first { preview in
+            preview.commandUnit?.id == selectedUnitID
+        }
+    }
+
+    var primaryBattleObjectiveStageCommandPreview: BattleObjectiveStageCommandPreview? {
+        focusedBattleObjectiveStageCommandPreview ?? battleObjectiveStageCommandPreviews.first
+    }
+
     var frontlinePressureSummaries: [FrontlinePressureSummary] {
         state.frontlinePressureReports(against: .rome, perFactionLimit: 4, limit: 4)
             .map { report in
@@ -3052,6 +3307,232 @@ final class GameViewModel: ObservableObject {
             canSetOrder: canSetOrder,
             canMoveToDestination: canMoveToDestination,
             canAttackCurrentTarget: canAttackCurrentTarget,
+            isExecutableNow: isExecutableNow,
+            blockingReasons: blockingReasons,
+            steps: steps
+        )
+    }
+
+    private func battleObjectiveStageCommandPreview(for overlay: BattleObjectivePositionOverlay) -> BattleObjectiveStageCommandPreview? {
+        let chain = overlay.chain
+        let commandUnit = battleObjectiveFocusUnit(for: overlay)
+        let sourceSummaryID: String
+        let targetUnit: ArmyUnit?
+        let targetCity: City?
+        let recommendedOrder: TacticalOrder?
+        let destination: Position?
+        let targetPosition: Position
+        let commandEntryLabel: String
+        let sourceStatusLabel: String
+
+        switch overlay.role {
+        case .focus:
+            sourceSummaryID = chain.focus.id
+            targetUnit = chain.focus.targetUnit
+            targetCity = chain.focus.targetCity
+            recommendedOrder = chain.focus.report.recommendedOrder
+            destination = chain.focus.targetPosition
+            targetPosition = chain.focus.targetPosition
+            commandEntryLabel = "定位焦点"
+            sourceStatusLabel = "\(chain.focus.kindLabel) · \(chain.focus.severityLabel)"
+        case .synergy:
+            guard let synergy = chain.synergy else { return nil }
+            sourceSummaryID = synergy.id
+            targetUnit = synergy.targetUnit
+            targetCity = synergy.targetCity
+            recommendedOrder = synergy.report.recommendedOrder
+            destination = commandUnit?.position
+            targetPosition = synergy.targetPosition
+            commandEntryLabel = synergy.kind == .commanderSkill ? "将领技能" : "将令协同"
+            sourceStatusLabel = synergy.statusLabel
+        case .maneuver:
+            guard let maneuver = chain.maneuver else { return nil }
+            sourceSummaryID = maneuver.id
+            targetUnit = maneuver.targetUnit
+            targetCity = maneuver.targetCity
+            recommendedOrder = maneuver.report.recommendedOrder
+            destination = maneuver.destination
+            targetPosition = maneuver.targetPosition
+            commandEntryLabel = "移动落点"
+            sourceStatusLabel = maneuver.report.isExecutable ? "可机动" : (maneuver.report.blockedReason ?? maneuver.riskLabel)
+        case .recommendation:
+            guard let recommendation = chain.recommendation else { return nil }
+            sourceSummaryID = recommendation.id
+            targetUnit = recommendation.targetUnit
+            targetCity = recommendation.targetCity
+            recommendedOrder = recommendation.report.recommendedOrder
+            destination = recommendation.destination
+            targetPosition = recommendation.targetPosition
+            commandEntryLabel = "军令执行"
+            sourceStatusLabel = recommendation.riskLabel
+        }
+
+        var blockingReasons: [String] = []
+        var steps: [BattleObjectiveStageCommandStep] = []
+
+        if isCampaignOver {
+            blockingReasons.append("战役已结束")
+        }
+
+        guard let commandUnit else {
+            return BattleObjectiveStageCommandPreview(
+                chain: chain,
+                role: overlay.role,
+                position: overlay.position,
+                sourceSummaryID: sourceSummaryID,
+                commandUnit: nil,
+                targetUnit: targetUnit,
+                targetCity: targetCity,
+                recommendedOrder: recommendedOrder,
+                destination: destination,
+                targetPosition: targetPosition,
+                commandEntryLabel: commandEntryLabel,
+                canFocus: false,
+                canSetOrder: false,
+                canMoveToDestination: false,
+                canAttackCurrentTarget: false,
+                canUseGeneralSkill: false,
+                isExecutableNow: false,
+                blockingReasons: ["无罗马执行单位"],
+                steps: [
+                    BattleObjectiveStageCommandStep(
+                        id: "\(chain.id)-\(overlay.role.rawValue)-missing-unit",
+                        symbol: "questionmark.circle.fill",
+                        title: overlay.role.displayName,
+                        detail: "阶段仅可定位观察",
+                        isReady: false
+                    )
+                ]
+            )
+        }
+
+        if commandUnit.faction != .rome {
+            blockingReasons.append("执行单位不属罗马")
+        }
+
+        if commandUnit.faction != state.activeFaction {
+            blockingReasons.append("非当前阵营")
+        }
+
+        steps.append(
+            BattleObjectiveStageCommandStep(
+                id: "\(chain.id)-\(overlay.role.rawValue)-entry",
+                symbol: "target",
+                title: "入口",
+                detail: "\(commandEntryLabel) · \(sourceStatusLabel)",
+                isReady: commandUnit.faction == .rome
+            )
+        )
+
+        let canSetOrder: Bool
+        if let recommendedOrder {
+            let orderBlockedReason = tacticalOrderBlockedReason(recommendedOrder, for: commandUnit)
+            let orderReady = orderBlockedReason == nil || orderBlockedReason == "当前姿态"
+            canSetOrder = orderBlockedReason == nil && commandUnit.resolvedTacticalOrder != recommendedOrder
+            if let orderBlockedReason,
+               orderBlockedReason != "当前姿态" {
+                blockingReasons.append(orderBlockedReason)
+            }
+            steps.append(
+                BattleObjectiveStageCommandStep(
+                    id: "\(chain.id)-\(overlay.role.rawValue)-order",
+                    symbol: tacticalOrderCommandSymbol(recommendedOrder),
+                    title: "姿态",
+                    detail: orderBlockedReason == "当前姿态" ? "已是\(recommendedOrder.displayName)" : "建议\(recommendedOrder.displayName)",
+                    isReady: orderReady
+                )
+            )
+        } else {
+            canSetOrder = false
+        }
+
+        let canMoveToDestination: Bool
+        if let destination {
+            let isAtDestination = commandUnit.position == destination
+            let reachable = state.reachablePositions(for: commandUnit.id)
+            canMoveToDestination = isAtDestination || reachable.contains(destination)
+            if !canMoveToDestination,
+               overlay.role == .maneuver || overlay.role == .recommendation {
+                blockingReasons.append(commandUnit.hasMoved ? "已移动，无法抵达落点" : "落点暂不可达")
+            }
+            steps.append(
+                BattleObjectiveStageCommandStep(
+                    id: "\(chain.id)-\(overlay.role.rawValue)-destination",
+                    symbol: isAtDestination ? "location.fill" : "arrow.up.right.circle.fill",
+                    title: "落点",
+                    detail: isAtDestination ? "已在\(destination.description)" : (canMoveToDestination ? "可达\(destination.description)" : "不可达\(destination.description)"),
+                    isReady: canMoveToDestination
+                )
+            )
+        } else {
+            canMoveToDestination = false
+        }
+
+        let attackableTargets = state.attackTargets(for: commandUnit.id)
+        let canAttackCurrentTarget = targetUnit.map { target in
+            attackableTargets.contains { $0.id == target.id }
+        } ?? false
+        let targetDetail: String
+        if let targetUnit {
+            targetDetail = canAttackCurrentTarget ? "可攻击\(targetUnit.kind.displayName)" : "距目标\(commandUnit.position.hexDistance(to: targetUnit.position))"
+        } else if let targetCity {
+            targetDetail = "目标\(targetCity.name)"
+        } else {
+            targetDetail = "目标\(targetPosition.description)"
+        }
+        steps.append(
+            BattleObjectiveStageCommandStep(
+                id: "\(chain.id)-\(overlay.role.rawValue)-target",
+                symbol: canAttackCurrentTarget ? "bolt.fill" : "scope",
+                title: "目标",
+                detail: targetDetail,
+                isReady: canAttackCurrentTarget || targetUnit == nil
+            )
+        )
+
+        let skillPreview = try? state.generalSkillPreview(unitID: commandUnit.id)
+        let canUseGeneralSkill = overlay.role == .synergy && (skillPreview?.isExecutable ?? false)
+        if overlay.role == .synergy {
+            steps.append(
+                BattleObjectiveStageCommandStep(
+                    id: "\(chain.id)-\(overlay.role.rawValue)-skill",
+                    symbol: canUseGeneralSkill ? "sparkles" : "hourglass",
+                    title: "技能",
+                    detail: skillPreview.map { preview in
+                        preview.isExecutable ? "\(preview.trait.skillName)可用" : (preview.blockedReason ?? preview.cooldownText)
+                    } ?? "无主动技能",
+                    isReady: canUseGeneralSkill
+                )
+            )
+        }
+
+        let canFocus = commandUnit.faction == .rome
+        let shouldMove = destination.map { $0 != commandUnit.position } ?? false
+        let canAdvanceNow = canSetOrder ||
+            (shouldMove && canMoveToDestination) ||
+            canAttackCurrentTarget ||
+            canUseGeneralSkill
+        let isExecutableNow = canFocus &&
+            blockingReasons.isEmpty &&
+            canAdvanceNow
+
+        return BattleObjectiveStageCommandPreview(
+            chain: chain,
+            role: overlay.role,
+            position: overlay.position,
+            sourceSummaryID: sourceSummaryID,
+            commandUnit: commandUnit,
+            targetUnit: targetUnit,
+            targetCity: targetCity,
+            recommendedOrder: recommendedOrder,
+            destination: destination,
+            targetPosition: targetPosition,
+            commandEntryLabel: commandEntryLabel,
+            canFocus: canFocus,
+            canSetOrder: canSetOrder,
+            canMoveToDestination: canMoveToDestination,
+            canAttackCurrentTarget: canAttackCurrentTarget,
+            canUseGeneralSkill: canUseGeneralSkill,
             isExecutableNow: isExecutableNow,
             blockingReasons: blockingReasons,
             steps: steps
