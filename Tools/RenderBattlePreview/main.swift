@@ -117,6 +117,25 @@ struct RenderBattlePreview {
               !countermeasure.accessibilityLabel.isEmpty else {
             throw PreviewRenderError.missingCountermeasureSummary
         }
+        guard let countermeasureOverlay = viewModel.primaryCountermeasureMapOverlay,
+              !countermeasureOverlay.routeSegments.isEmpty,
+              !viewModel.countermeasureRouteSegments.isEmpty,
+              !viewModel.countermeasureOverlaysByPosition.isEmpty,
+              !viewModel.countermeasureOverlayPositions.isEmpty,
+              countermeasureOverlay.id == countermeasure.id,
+              countermeasureOverlay.destination == countermeasure.destination,
+              countermeasureOverlay.targetPosition == countermeasure.targetPosition,
+              viewModel.countermeasureOverlayPositions.contains(countermeasure.destination),
+              viewModel.countermeasureOverlayPositions.contains(countermeasure.targetPosition),
+              viewModel.countermeasureOverlaysByPosition[countermeasure.destination] != nil,
+              viewModel.countermeasureOverlaysByPosition[countermeasure.targetPosition] != nil,
+              countermeasureOverlay.routeSegments.contains(where: { segment in
+                  segment.from == countermeasure.responsePosition ||
+                      segment.to == countermeasure.destination ||
+                      segment.to == countermeasure.targetPosition
+              }) else {
+            throw PreviewRenderError.missingCountermeasureOverlay
+        }
         guard let mapControl = viewModel.primaryMapControlSummary,
               !viewModel.mapControlSummaries.isEmpty,
               !viewModel.mapControlOverlayPositions.isEmpty,
@@ -244,7 +263,8 @@ struct RenderBattlePreview {
             .threatHeat,
             .mapControl,
             .tacticalPath,
-            .maneuverOption
+            .maneuverOption,
+            .countermeasure
         ]
         guard !legendItems.isEmpty,
               requiredLegendKinds.isSubset(of: legendKinds),
@@ -457,6 +477,7 @@ enum PreviewRenderError: Error {
     case missingAIOperationalPlanSummary
     case missingEnemyCommanderThreatSummary
     case missingCountermeasureSummary
+    case missingCountermeasureOverlay
     case missingMapControlSummary
     case missingCommanderBrief
     case missingLegionFormationSummary

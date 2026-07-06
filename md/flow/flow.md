@@ -1,6 +1,6 @@
 # 项目核心流程文档
 
-一句话总览：`RomeLegions` 当前是 SwiftUI App + 纯 Swift 核心规则的罗马题材战棋原型，用户在菜单选择模式后进入战场，SwiftUI 通过 `GameViewModel` 调用 `GameState` 完成移动、战斗、城市、科技、外交、战役胜负结算、AI、敌军意图、AI 作战计划、敌方将领威胁、敌情反制建议、战线压力、战场焦点、地图控制、威胁热区、玩家侧战术建议、本方将领协同和机动落点展示；真实 AI 回合会按当前意图威胁分优先执行主攻单位；协作层默认通过 `main` 直推触发 GitHub Actions，并由 Agent C 下载未加密结果包复判；未来可由 Agent X 围绕人工总目标调度 A/B/C 多轮迭代。
+一句话总览：`RomeLegions` 当前是 SwiftUI App + 纯 Swift 核心规则的罗马题材战棋原型，用户在菜单选择模式后进入战场，SwiftUI 通过 `GameViewModel` 调用 `GameState` 完成移动、战斗、城市、科技、外交、战役胜负结算、AI、敌军意图、AI 作战计划、敌方将领威胁、敌情反制建议及地图叠层、战线压力、战场焦点、地图控制、威胁热区、玩家侧战术建议、本方将领协同和机动落点展示；真实 AI 回合会按当前意图威胁分优先执行主攻单位；协作层默认通过 `main` 直推触发 GitHub Actions，并由 Agent C 下载未加密结果包复判；未来可由 Agent X 围绕人工总目标调度 A/B/C 多轮迭代。
 
 本文只记录当前真实链路，不写历史叙事。
 
@@ -9,7 +9,7 @@
 1. `RomeLegionsApp` 创建 `GameViewModel`，并通过 `.environmentObject(viewModel)` 注入根视图。
 2. `RootView` 根据 `viewModel.isShowingMenu` 展示 `MainMenuView` 或 `BattleView`。
 3. `MainMenuView` 调用 `viewModel.start(mode:)`，创建 `GameState.newCampaign(mode:)` 并进入战斗。
-4. `BattleView` 读取 `GameViewModel` 的派生数据：当前回合、资源、选中单位、选中城市、城市经营与招募读板、可移动格、攻击目标、战斗预览、将领技能预览、选中单位指挥简报、军团编制摘要、军团成长决策摘要、军团成长优先级摘要、本方将领协同摘要、机动落点摘要、战术命令建议、战术姿态预览、战功状态、任务目标、战役状态、敌军意图摘要、AI 作战计划摘要、敌方将领威胁摘要、敌情反制建议摘要、敌军意图路线/目标地图叠层、机动落点地图叠层、主动地图叠层图例、战线压力摘要、战场焦点摘要、地图控制摘要、威胁热区摘要和战局态势。
+4. `BattleView` 读取 `GameViewModel` 的派生数据：当前回合、资源、选中单位、选中城市、城市经营与招募读板、可移动格、攻击目标、战斗预览、将领技能预览、选中单位指挥简报、军团编制摘要、军团成长决策摘要、军团成长优先级摘要、本方将领协同摘要、机动落点摘要、战术命令建议、战术姿态预览、战功状态、任务目标、战役状态、敌军意图摘要、AI 作战计划摘要、敌方将领威胁摘要、敌情反制建议摘要、敌军意图路线/目标地图叠层、机动落点地图叠层、反制落点/目标地图叠层、主动地图叠层图例、战线压力摘要、战场焦点摘要、地图控制摘要、威胁热区摘要和战局态势。
 5. 用户点击地图或命令按钮后，`GameViewModel` 调用 `GameState` 的 mutating 方法。
 6. `GameState` 修改核心状态并返回中文消息数组。
 7. `GameViewModel.apply` 捕获成功消息或 `GameRuleError`，更新 `bannerMessage`。
@@ -60,10 +60,10 @@
 - `state.enemyCommanderThreatReports(against:limit:)` 只读聚合敌方将领 trait、技能预览、AI 意图、AI 作战计划、战线压力和热区，输出敌将威胁等级、目标、技能窗口、预计伤害/恢复/削城防、理由和影响；它在敌方 forecast copy 上读取技能预览，不新增存档字段，不改变真实 AI 行为、技能释放、攻击、移动或胜负结算。
 - `GameViewModel.enemyCommanderThreatSummaries` 将核心敌将威胁报告转成敌将 chip、敌情卡、战局敌将行和无障碍文案；`BattleView` 只展示核心报告，不在 SwiftUI 中重新计算威胁分或技能目标。
 - `state.countermeasureReports(for:limit:)` 和 `countermeasureReport(for:)` 只读聚合敌方将领威胁、AI 作战计划、战线压力、威胁热区、本方战术建议、机动落点和将领协同，输出打断敌将、稳住战线、补防城市、打击威胁、将令反制或机动换位建议；它不自动下令，不改变敌军意图、AI 评分、真实移动、攻击、技能或姿态结算。
-- `GameViewModel.countermeasureSummaries` 和 `primaryCountermeasureSummary` 将核心反制建议转成反制 chip、敌情反制卡、战局反制行、收益/风险/命令和无障碍文案；`BattleView` 只展示摘要，不在 SwiftUI 中重新匹配目标或回应单位。
+- `GameViewModel.countermeasureSummaries`、`primaryCountermeasureSummary`、`primaryCountermeasureMapOverlay`、`countermeasureRouteSegments` 和 `countermeasureOverlaysByPosition` 将核心反制建议转成反制 chip、敌情反制卡、战局反制行、收益/风险/命令、回应位置、推荐落点、威胁目标、地图引导线和无障碍文案；`BattleView` 只展示摘要和叠层，不在 SwiftUI 中重新匹配目标、回应单位或评分。
 - 敌军意图移动路线由 `GameViewModel` 只读计算：从 origin 到 `AIIntent.destination` 按 `Position.neighbors`、地形进入能力、移动成本、单位占用和有效机动生成六边形相邻路径；找不到路径时保留直线兜底，目标段继续显示 `destination -> target`。
 - `BattleView` 只消费这些派生集合，在地图上显示敌军意图路径、目的地叠层和目标格叠层；这些线段只是意图可视化，不改变 `AIIntent`、AI 评分、真实移动或核心状态。
-- `GameViewModel.activeMapOverlayLegendItems` 只读汇总当前实际存在的地图叠层，输出敌军路线/目标、热区、控区、军议路径、机动落点、可移动/可攻击和技能范围等图例项；`BattleView` 在地图底部展示图标、标题、说明和阵营色，不在 SwiftUI 中重新计算叠层规则。
+- `GameViewModel.activeMapOverlayLegendItems` 只读汇总当前实际存在的地图叠层，输出敌军路线/目标、热区、控区、军议路径、机动落点、反制落点/目标、可移动/可攻击和技能范围等图例项；`BattleView` 在地图底部展示图标、标题、说明和阵营色，不在 SwiftUI 中重新计算叠层规则。
 - UI 通过 `viewModel.attackPreview(for:)` 展示攻击风险和目标徽标。
 
 ### 战术、将领与技能

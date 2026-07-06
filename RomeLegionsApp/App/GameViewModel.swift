@@ -27,6 +27,7 @@ enum MapOverlayLegendKind: String, Identifiable {
     case mapControl
     case tacticalPath
     case maneuverOption
+    case countermeasure
     case reachable
     case attackTarget
     case skillRange
@@ -309,6 +310,69 @@ struct TacticalRecommendationRouteSegment: Identifiable {
     var to: Position
     var isTargetLeg: Bool
     var risk: TacticalRecommendationRisk
+}
+
+struct CountermeasureRouteSegment: Identifiable {
+    var id: String
+    var from: Position
+    var to: Position
+    var isTargetLeg: Bool
+    var kind: CountermeasureKind
+    var priority: CountermeasurePriority
+}
+
+enum CountermeasureMapRole: String, Identifiable {
+    case response
+    case destination
+    case target
+
+    var id: String { rawValue }
+
+    var displayName: String {
+        switch self {
+        case .response: return "回应"
+        case .destination: return "落点"
+        case .target: return "目标"
+        }
+    }
+}
+
+struct CountermeasurePositionOverlay: Identifiable {
+    var summary: CountermeasureSummary
+    var role: CountermeasureMapRole
+    var position: Position
+
+    var id: String {
+        "\(summary.id)-\(role.rawValue)-\(position.x)-\(position.y)"
+    }
+
+    var accessibilityLabel: String {
+        "反制\(role.displayName)\(position.description)，\(summary.kindLabel)，\(summary.responseLabel)，目标\(summary.targetLabel)"
+    }
+}
+
+struct CountermeasureMapOverlay: Identifiable {
+    var summary: CountermeasureSummary
+
+    var id: String { summary.id }
+    var kind: CountermeasureKind { summary.kind }
+    var priority: CountermeasurePriority { summary.priority }
+    var responsePosition: Position { summary.responsePosition }
+    var destination: Position { summary.destination }
+    var targetPosition: Position { summary.targetPosition }
+    var routeSegments: [CountermeasureRouteSegment] { summary.routeSegments }
+
+    var positionOverlays: [CountermeasurePositionOverlay] {
+        [
+            CountermeasurePositionOverlay(summary: summary, role: .response, position: responsePosition),
+            CountermeasurePositionOverlay(summary: summary, role: .destination, position: destination),
+            CountermeasurePositionOverlay(summary: summary, role: .target, position: targetPosition)
+        ]
+    }
+
+    var accessibilityLabel: String {
+        "反制路线，\(summary.responseLabel)，落点\(destination.description)，目标\(summary.targetLabel)"
+    }
 }
 
 struct TacticalRecommendationSummary: Identifiable {
@@ -1075,6 +1139,7 @@ struct CountermeasureSummary: Identifiable {
     var kind: CountermeasureKind { report.kind }
     var priority: CountermeasurePriority { report.priority }
     var targetPosition: Position { report.targetPosition }
+    var responsePosition: Position { report.responsePosition }
     var destination: Position { report.destination }
 
     var title: String {
@@ -1169,6 +1234,51 @@ struct CountermeasureSummary: Identifiable {
             "风险\(riskLabel)",
             commandLabel
         ].joined(separator: "，")
+    }
+
+    var routeSegments: [CountermeasureRouteSegment] {
+        var segments: [CountermeasureRouteSegment] = []
+
+        if responsePosition != destination {
+            segments.append(
+                CountermeasureRouteSegment(
+                    id: "\(id)-response",
+                    from: responsePosition,
+                    to: destination,
+                    isTargetLeg: false,
+                    kind: kind,
+                    priority: priority
+                )
+            )
+        }
+
+        if destination != targetPosition {
+            segments.append(
+                CountermeasureRouteSegment(
+                    id: "\(id)-target",
+                    from: destination,
+                    to: targetPosition,
+                    isTargetLeg: true,
+                    kind: kind,
+                    priority: priority
+                )
+            )
+        }
+
+        if segments.isEmpty {
+            segments.append(
+                CountermeasureRouteSegment(
+                    id: "\(id)-focus",
+                    from: responsePosition,
+                    to: targetPosition,
+                    isTargetLeg: true,
+                    kind: kind,
+                    priority: priority
+                )
+            )
+        }
+
+        return segments
     }
 }
 
@@ -1772,6 +1882,26 @@ final class GameViewModel: ObservableObject {
         countermeasureSummaries.first
     }
 
+    var primaryCountermeasureMapOverlay: CountermeasureMapOverlay? {
+        primaryCountermeasureSummary.map { CountermeasureMapOverlay(summary: $0) }
+    }
+
+    var countermeasureRouteSegments: [CountermeasureRouteSegment] {
+        primaryCountermeasureMapOverlay?.routeSegments ?? []
+    }
+
+    var countermeasureOverlaysByPosition: [Position: CountermeasurePositionOverlay] {
+        guard let overlay = primaryCountermeasureMapOverlay else { return [:] }
+
+        return overlay.positionOverlays.reduce(into: [Position: CountermeasurePositionOverlay]()) { result, positionOverlay in
+            result[positionOverlay.position] = positionOverlay
+        }
+    }
+
+    var countermeasureOverlayPositions: Set<Position> {
+        Set(countermeasureOverlaysByPosition.keys)
+    }
+
     var mapControlSummaries: [MapControlSummary] {
         state.mapControlReports(for: .rome)
             .map(mapControlSummary(for:))
@@ -1975,6 +2105,11 @@ final class GameViewModel: ObservableObject {
 
         if !maneuverOptionOverlayPositions.isEmpty {
             append(.maneuverOption, symbol: "figure.run", title: "机动", detail: "虚线点提示推荐落点")
+        }
+
+        if primaryCountermeasureMapOverlay != nil,
+           !countermeasureOverlayPositions.isEmpty {
+            append(.countermeasure, symbol: "shield.lefthalf.filled", title: "反制", detail: "青线连接回应落点与目标")
         }
 
         if !reachablePositions.isEmpty {
