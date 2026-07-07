@@ -223,6 +223,7 @@ struct WarMapView: View {
             let activeBattleObjectiveStageRole = viewModel.activeBattleObjectiveStageRole
             let countermeasureOverlay = viewModel.primaryCountermeasureMapOverlay
             let countermeasureOverlays = viewModel.countermeasureOverlaysByPosition
+            let reconHUD = viewModel.mapReconPerspectiveHUDReadout
             let engagementLoop = viewModel.primaryEnemyEngagementLoopReadout
             let selectedPosition = viewModel.focusedPosition
             let skillRangePositions = viewModel.selectedGeneralSkillRangePositions
@@ -332,6 +333,19 @@ struct WarMapView: View {
 
                 VStack {
                     Spacer()
+                    HStack {
+                        MapReconPerspectiveHUDView(
+                            readout: reconHUD,
+                            onSelect: { kind in
+                                viewModel.selectMapReconPerspective(kind)
+                            }
+                        )
+                        .frame(maxWidth: min(proxy.size.width - 24, 660), alignment: .leading)
+                        Spacer(minLength: 0)
+                    }
+                    .padding(.horizontal, 12)
+                    .padding(.bottom, 6)
+
                     if let engagementLoop {
                         HStack {
                             EnemyEngagementLoopHUDView(readout: engagementLoop)
@@ -519,6 +533,15 @@ struct TacticalStatusStripView: View {
             )
         }
 
+        TacticalChipView(
+            symbol: viewModel.selectedMapReconPerspective.systemImage,
+            label: "侦察",
+            value: compact ? viewModel.selectedMapReconPerspective.shortLabel : viewModel.mapReconPerspectiveHUDReadout.selectorLabel,
+            tint: reconTint(for: viewModel.selectedMapReconPerspective),
+            compact: compact,
+            accessibilityLabel: viewModel.mapReconPerspectiveHUDReadout.accessibilityLabel
+        )
+
         if let pressure = viewModel.primaryFrontlinePressureSummary {
             TacticalChipView(
                 symbol: pressure.level.systemImage,
@@ -600,6 +623,188 @@ struct TacticalStatusStripView: View {
                 compact: compact,
                 accessibilityLabel: maneuver.accessibilityLabel
             )
+        }
+    }
+
+    private func reconTint(for kind: MapReconPerspectiveKind) -> Color {
+        switch kind {
+        case .enemyIntent:
+            return .red
+        case .countermeasure:
+            return .cyan
+        case .objective:
+            return Color(red: 0.86, green: 0.68, blue: 0.34)
+        case .terrainPressure:
+            return Color(red: 0.96, green: 0.58, blue: 0.24)
+        }
+    }
+}
+
+struct MapReconPerspectiveHUDView: View {
+    var readout: MapReconPerspectiveHUDReadout
+    var onSelect: (MapReconPerspectiveKind) -> Void
+
+    var body: some View {
+        ViewThatFits(in: .horizontal) {
+            HStack(spacing: 8) {
+                header
+                selector
+                signalStrip(limit: 3)
+                Spacer(minLength: 0)
+                statusPill
+            }
+
+            VStack(alignment: .leading, spacing: 5) {
+                HStack(spacing: 7) {
+                    header
+                    selector
+                    Spacer(minLength: 0)
+                    statusPill
+                }
+                Text(readout.compactLabel)
+                    .font(.caption2.weight(.bold))
+                    .foregroundStyle(.white.opacity(0.74))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.62)
+            }
+        }
+        .foregroundStyle(.white)
+        .padding(.horizontal, 9)
+        .padding(.vertical, 6)
+        .frame(minHeight: 34)
+        .background(.black.opacity(0.48))
+        .clipShape(RoundedRectangle(cornerRadius: 7))
+        .overlay {
+            RoundedRectangle(cornerRadius: 7)
+                .stroke(tint(for: readout.selectedKind).opacity(0.42), lineWidth: 1)
+        }
+        .accessibilityLabel(readout.accessibilityLabel)
+    }
+
+    private var header: some View {
+        HStack(spacing: 5) {
+            Image(systemName: "binoculars.fill")
+                .foregroundStyle(tint(for: readout.selectedKind))
+                .accessibilityHidden(true)
+            Text("侦察")
+                .font(.caption2.weight(.black))
+                .foregroundStyle(.white.opacity(0.78))
+        }
+        .lineLimit(1)
+    }
+
+    private var selector: some View {
+        HStack(spacing: 4) {
+            ForEach(readout.availableKinds) { kind in
+                Button {
+                    onSelect(kind)
+                } label: {
+                    HStack(spacing: 3) {
+                        Image(systemName: kind.systemImage)
+                            .font(.caption2.weight(.heavy))
+                            .accessibilityHidden(true)
+                        Text(kind.shortLabel)
+                            .font(.caption2.weight(.black))
+                    }
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.62)
+                    .foregroundStyle(readout.selectedKind == kind ? .black.opacity(0.82) : .white.opacity(0.72))
+                    .padding(.horizontal, 6)
+                    .frame(height: 21)
+                    .background(readout.selectedKind == kind ? tint(for: kind) : tint(for: kind).opacity(0.16))
+                    .clipShape(RoundedRectangle(cornerRadius: 5))
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("切换\(kind.displayName)侦察")
+            }
+        }
+    }
+
+    private var statusPill: some View {
+        Text(readout.statusLabel)
+            .font(.caption2.weight(.black))
+            .foregroundStyle(.black.opacity(0.78))
+            .lineLimit(1)
+            .minimumScaleFactor(0.58)
+            .padding(.horizontal, 6)
+            .frame(height: 20)
+            .background(tint(for: readout.selectedKind))
+            .clipShape(RoundedRectangle(cornerRadius: 5))
+    }
+
+    private func signalStrip(limit: Int) -> some View {
+        HStack(spacing: 5) {
+            ForEach(Array(readout.signals.prefix(limit))) { signal in
+                HStack(spacing: 3) {
+                    Image(systemName: symbol(for: signal.kind))
+                        .foregroundStyle(tint(for: signal.kind))
+                        .accessibilityHidden(true)
+                    Text(signal.title)
+                        .font(.caption2.weight(.bold))
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.58)
+                }
+                .foregroundStyle(.white.opacity(0.72))
+                .padding(.horizontal, 5)
+                .frame(height: 20)
+                .background(tint(for: signal.kind).opacity(0.16))
+                .clipShape(RoundedRectangle(cornerRadius: 5))
+            }
+        }
+    }
+
+    private func symbol(for kind: MapReconPerspectiveSignalKind) -> String {
+        switch kind {
+        case .enemyIntent:
+            return "arrow.right.circle.fill"
+        case .engagementLoop:
+            return "arrow.triangle.2.circlepath"
+        case .countermeasure:
+            return "scope"
+        case .counterCommand:
+            return "checkmark.shield.fill"
+        case .objectiveChain:
+            return "point.topleft.down.curvedto.point.bottomright.up.fill"
+        case .objectiveStage:
+            return "flag.checkered"
+        case .threatHeat:
+            return "flame.fill"
+        case .mapControl:
+            return "shield.fill"
+        case .convergence:
+            return "link.circle.fill"
+        }
+    }
+
+    private func tint(for kind: MapReconPerspectiveKind) -> Color {
+        switch kind {
+        case .enemyIntent:
+            return .red
+        case .countermeasure:
+            return .cyan
+        case .objective:
+            return Color(red: 0.86, green: 0.68, blue: 0.34)
+        case .terrainPressure:
+            return Color(red: 0.96, green: 0.58, blue: 0.24)
+        }
+    }
+
+    private func tint(for kind: MapReconPerspectiveSignalKind) -> Color {
+        switch kind {
+        case .enemyIntent:
+            return .red
+        case .engagementLoop:
+            return Color(red: 0.96, green: 0.42, blue: 0.22)
+        case .countermeasure, .counterCommand:
+            return .cyan
+        case .objectiveChain, .objectiveStage:
+            return Color(red: 0.86, green: 0.68, blue: 0.34)
+        case .threatHeat:
+            return Color(red: 0.96, green: 0.58, blue: 0.24)
+        case .mapControl:
+            return .green
+        case .convergence:
+            return .mint
         }
     }
 }

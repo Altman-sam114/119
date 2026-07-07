@@ -1048,6 +1048,113 @@ struct RenderBattlePreview {
               }) else {
             throw PreviewRenderError.missingBattleObjectiveMapOverlay
         }
+        let unitStateBeforeReconRead = viewModel.state.units
+            .sorted { $0.id < $1.id }
+            .map { unit in
+                "\(unit.id)|\(unit.position.description)|\(unit.health)|\(unit.hasMoved)|\(unit.hasActed)|\(unit.generalSkillCooldownRemaining)|\(unit.tacticalOrder?.rawValue ?? "balanced")"
+            }
+        let cityStateBeforeReconRead = viewModel.state.cities
+            .sorted { $0.id < $1.id }
+            .map { city in
+                "\(city.id)|\(city.owner.rawValue)|\(city.fortification)|\(city.position.description)"
+            }
+        let resourcesBeforeReconRead = viewModel.state.resources
+            .sorted { $0.key.rawValue < $1.key.rawValue }
+            .map { entry in
+                let resources = entry.value
+                return "\(entry.key.rawValue)|\(resources.gold)|\(resources.grain)|\(resources.iron)|\(resources.science)|\(resources.prestige)"
+            }
+        let turnBeforeReconRead = viewModel.state.turn
+        let activeFactionBeforeReconRead = viewModel.state.activeFaction
+        viewModel.selectMapReconPerspective(.enemyIntent)
+        let enemyReconReadout = viewModel.mapReconPerspectiveHUDReadout
+        guard viewModel.selectedMapReconPerspective == .enemyIntent,
+              enemyReconReadout.selectedKind == .enemyIntent,
+              enemyReconReadout.availableKinds == MapReconPerspectiveKind.allCases,
+              enemyReconReadout.references(intent: advanceOverlay),
+              enemyReconReadout.references(engagementLoop: engagementLoop),
+              enemyReconReadout.hasSignals,
+              enemyReconReadout.signals.contains(where: { $0.kind == .enemyIntent && $0.sourceID == advanceOverlay.id }),
+              enemyReconReadout.signals.contains(where: { $0.kind == .engagementLoop }),
+              !enemyReconReadout.title.isEmpty,
+              !enemyReconReadout.statusLabel.isEmpty,
+              !enemyReconReadout.compactLabel.isEmpty,
+              !enemyReconReadout.detailLabel.isEmpty,
+              !enemyReconReadout.nextStepLabel.isEmpty,
+              !enemyReconReadout.riskLabel.isEmpty,
+              !enemyReconReadout.selectorLabel.isEmpty,
+              !enemyReconReadout.accessibilityLabel.isEmpty,
+              enemyReconReadout.accessibilityLabel.contains("侦察"),
+              viewModel.bannerMessage.contains("敌路") else {
+            throw PreviewRenderError.missingMapReconnaissanceViewHUD
+        }
+        viewModel.selectMapReconPerspective(.countermeasure)
+        let counterReconReadout = viewModel.mapReconPerspectiveHUDReadout
+        guard viewModel.selectedMapReconPerspective == .countermeasure,
+              counterReconReadout.selectedKind == .countermeasure,
+              counterReconReadout.references(countermeasure: countermeasure),
+              counterReconReadout.references(countermeasurePreview: countermeasureCommandPreview),
+              counterReconReadout.hasSignals,
+              counterReconReadout.signals.contains(where: { $0.kind == .countermeasure && $0.sourceID == countermeasure.id }),
+              counterReconReadout.signals.contains(where: { $0.kind == .counterCommand && $0.sourceID == countermeasureCommandPreview.id }),
+              !counterReconReadout.detailLabel.isEmpty,
+              !counterReconReadout.nextStepLabel.isEmpty,
+              viewModel.bannerMessage.contains("反制") else {
+            throw PreviewRenderError.missingMapReconnaissanceViewHUD
+        }
+        viewModel.selectMapReconPerspective(.objective)
+        let reconObjectiveStagePreview = viewModel.activeBattleObjectiveStageCommandPreview
+        let objectiveReconReadout = viewModel.mapReconPerspectiveHUDReadout
+        guard viewModel.selectedMapReconPerspective == .objective,
+              objectiveReconReadout.selectedKind == .objective,
+              objectiveReconReadout.references(objectiveChain: objectiveChain),
+              reconObjectiveStagePreview.map({ objectiveReconReadout.references(stagePreview: $0) }) ?? false,
+              objectiveReconReadout.hasSignals,
+              objectiveReconReadout.signals.contains(where: { $0.kind == .objectiveChain && $0.sourceID == objectiveChain.id }),
+              reconObjectiveStagePreview.map({ stagePreview in
+                  objectiveReconReadout.signals.contains(where: { $0.kind == .objectiveStage && $0.sourceID == stagePreview.id })
+              }) ?? false,
+              !objectiveReconReadout.detailLabel.isEmpty,
+              !objectiveReconReadout.nextStepLabel.isEmpty,
+              viewModel.bannerMessage.contains("目标线") else {
+            throw PreviewRenderError.missingMapReconnaissanceViewHUD
+        }
+        viewModel.selectMapReconPerspective(.terrainPressure)
+        let terrainReconReadout = viewModel.mapReconPerspectiveHUDReadout
+        guard viewModel.selectedMapReconPerspective == .terrainPressure,
+              terrainReconReadout.selectedKind == .terrainPressure,
+              terrainReconReadout.hasSignals,
+              terrainReconReadout.references(convergence: battlefieldConvergence),
+              terrainReconReadout.threatHeatID != nil || terrainReconReadout.mapControlID != nil,
+              terrainReconReadout.signals.contains(where: { $0.kind == .threatHeat || $0.kind == .mapControl || $0.kind == .convergence }),
+              !terrainReconReadout.detailLabel.isEmpty,
+              !terrainReconReadout.nextStepLabel.isEmpty,
+              viewModel.bannerMessage.contains("热区") else {
+            throw PreviewRenderError.missingMapReconnaissanceViewHUD
+        }
+        let unitStateAfterReconRead = viewModel.state.units
+            .sorted { $0.id < $1.id }
+            .map { unit in
+                "\(unit.id)|\(unit.position.description)|\(unit.health)|\(unit.hasMoved)|\(unit.hasActed)|\(unit.generalSkillCooldownRemaining)|\(unit.tacticalOrder?.rawValue ?? "balanced")"
+            }
+        let cityStateAfterReconRead = viewModel.state.cities
+            .sorted { $0.id < $1.id }
+            .map { city in
+                "\(city.id)|\(city.owner.rawValue)|\(city.fortification)|\(city.position.description)"
+            }
+        let resourcesAfterReconRead = viewModel.state.resources
+            .sorted { $0.key.rawValue < $1.key.rawValue }
+            .map { entry in
+                let resources = entry.value
+                return "\(entry.key.rawValue)|\(resources.gold)|\(resources.grain)|\(resources.iron)|\(resources.science)|\(resources.prestige)"
+            }
+        guard unitStateBeforeReconRead == unitStateAfterReconRead,
+              cityStateBeforeReconRead == cityStateAfterReconRead,
+              resourcesBeforeReconRead == resourcesAfterReconRead,
+              turnBeforeReconRead == viewModel.state.turn,
+              activeFactionBeforeReconRead == viewModel.state.activeFaction else {
+            throw PreviewRenderError.missingMapReconnaissanceViewHUD
+        }
         let unitStateBeforeBattleObjectiveFocus = viewModel.state.units
             .sorted { $0.id < $1.id }
             .map { unit in
@@ -1479,6 +1586,7 @@ enum PreviewRenderError: Error {
     case missingCommanderChainReadout
     case missingCommanderOpportunityBridgeReadout
     case missingSelectedUnitOrderWindowReadout
+    case missingMapReconnaissanceViewHUD
     case missingCommanderActionGuidance
     case missingGeneralSkillTargetReadout
     case missingThreatHeatSummary

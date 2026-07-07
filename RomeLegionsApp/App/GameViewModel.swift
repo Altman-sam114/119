@@ -36,6 +36,54 @@ enum MapOverlayLegendKind: String, Identifiable {
     var id: String { rawValue }
 }
 
+enum MapReconPerspectiveKind: String, CaseIterable, Identifiable {
+    case enemyIntent
+    case countermeasure
+    case objective
+    case terrainPressure
+
+    var id: String { rawValue }
+
+    var displayName: String {
+        switch self {
+        case .enemyIntent:
+            return "敌路"
+        case .countermeasure:
+            return "反制"
+        case .objective:
+            return "目标线"
+        case .terrainPressure:
+            return "热区"
+        }
+    }
+
+    var shortLabel: String {
+        switch self {
+        case .enemyIntent:
+            return "敌路"
+        case .countermeasure:
+            return "反制"
+        case .objective:
+            return "目标"
+        case .terrainPressure:
+            return "热区"
+        }
+    }
+
+    var systemImage: String {
+        switch self {
+        case .enemyIntent:
+            return "arrow.right.circle.fill"
+        case .countermeasure:
+            return "shield.lefthalf.filled"
+        case .objective:
+            return "point.topleft.down.curvedto.point.bottomright.up.fill"
+        case .terrainPressure:
+            return "flame.fill"
+        }
+    }
+}
+
 struct MapOverlayLegendItem: Identifiable {
     var kind: MapOverlayLegendKind
     var symbol: String
@@ -1804,6 +1852,148 @@ struct EnemyEngagementLoopReadout {
     }
 }
 
+enum MapReconPerspectiveSignalKind: String {
+    case enemyIntent
+    case engagementLoop
+    case countermeasure
+    case counterCommand
+    case objectiveChain
+    case objectiveStage
+    case threatHeat
+    case mapControl
+    case convergence
+
+    var displayName: String {
+        switch self {
+        case .enemyIntent:
+            return "敌路"
+        case .engagementLoop:
+            return "闭环"
+        case .countermeasure:
+            return "反制"
+        case .counterCommand:
+            return "指令"
+        case .objectiveChain:
+            return "目标线"
+        case .objectiveStage:
+            return "阶段"
+        case .threatHeat:
+            return "热区"
+        case .mapControl:
+            return "控区"
+        case .convergence:
+            return "交汇"
+        }
+    }
+}
+
+struct MapReconPerspectiveSignal: Identifiable {
+    var kind: MapReconPerspectiveSignalKind
+    var title: String
+    var detail: String
+    var position: Position?
+    var sourceID: String
+
+    var id: String {
+        [
+            kind.rawValue,
+            sourceID,
+            position?.description,
+            title
+        ].compactMap { $0 }.joined(separator: "-")
+    }
+
+    var accessibilityLabel: String {
+        var parts = [
+            kind.displayName,
+            title,
+            detail
+        ]
+
+        if let position {
+            parts.append("位置\(position.description)")
+        }
+
+        return parts.joined(separator: "，")
+    }
+}
+
+struct MapReconPerspectiveHUDReadout {
+    var selectedKind: MapReconPerspectiveKind
+    var availableKinds: [MapReconPerspectiveKind]
+    var title: String
+    var statusLabel: String
+    var compactLabel: String
+    var detailLabel: String
+    var nextStepLabel: String
+    var riskLabel: String
+    var signals: [MapReconPerspectiveSignal]
+    var intentID: String?
+    var engagementLoopID: String?
+    var countermeasureID: String?
+    var countermeasurePreviewID: String?
+    var objectiveChainID: String?
+    var objectiveStagePreviewID: String?
+    var threatHeatID: String?
+    var mapControlID: String?
+    var convergenceID: String?
+
+    var hasSignals: Bool {
+        !signals.isEmpty
+    }
+
+    var selectorLabel: String {
+        availableKinds.map(\.shortLabel).joined(separator: "/")
+    }
+
+    var accessibilityLabel: String {
+        [
+            title,
+            "视角\(selectedKind.displayName)",
+            "状态\(statusLabel)",
+            detailLabel,
+            "下一步\(nextStepLabel)",
+            "风险\(riskLabel)"
+        ].joined(separator: "，")
+    }
+
+    func references(intent candidate: EnemyIntentMapOverlay) -> Bool {
+        intentID == candidate.id
+    }
+
+    func references(engagementLoop candidate: EnemyEngagementLoopReadout) -> Bool {
+        engagementLoopID == candidate.compactLabel
+    }
+
+    func references(countermeasure candidate: CountermeasureSummary) -> Bool {
+        countermeasureID == candidate.id
+    }
+
+    func references(countermeasurePreview candidate: CountermeasureCommandPreview) -> Bool {
+        countermeasurePreviewID == candidate.id
+    }
+
+    func references(objectiveChain candidate: BattleObjectiveChainSummary) -> Bool {
+        objectiveChainID == candidate.id
+    }
+
+    func references(stagePreview candidate: BattleObjectiveStageCommandPreview) -> Bool {
+        objectiveStagePreviewID == candidate.id
+    }
+
+    func references(threatHeat candidate: ThreatHeatZoneSummary) -> Bool {
+        threatHeatID == candidate.id
+    }
+
+    func references(mapControl candidate: MapControlSummary) -> Bool {
+        mapControlID == candidate.id
+    }
+
+    func references(convergence candidate: BattlefieldConvergenceSummary) -> Bool {
+        convergenceID == candidate.id
+    }
+}
+
 struct BattleObjectiveRouteSegment: Identifiable {
     var id: String
     var from: Position
@@ -3517,6 +3707,7 @@ final class GameViewModel: ObservableObject {
     @Published var selectedTechnology: Technology?
     @Published var focusedCountermeasureID: String?
     @Published var focusedBattleObjectiveRole: BattleObjectiveMapRole?
+    @Published var selectedMapReconPerspective: MapReconPerspectiveKind = .enemyIntent
     @Published var bannerMessage = "元老院等待你的命令。"
     @Published var isShowingMenu = true
 
@@ -4101,6 +4292,188 @@ final class GameViewModel: ObservableObject {
             countermeasureID: countermeasure?.id,
             countermeasurePreviewID: countermeasurePreview?.id,
             responseCommanderChainUnitID: responseCommanderChain?.unitID,
+            convergenceID: convergence?.id
+        )
+    }
+
+    var mapReconPerspectiveHUDReadout: MapReconPerspectiveHUDReadout {
+        let intent = primaryEnemyEngagementIntentOverlay(matching: primaryFrontlinePressureSummary)
+        let engagementLoop = primaryEnemyEngagementLoopReadout
+        let countermeasure = primaryCountermeasureSummary
+        let countermeasurePreview = primaryCountermeasureCommandPreview
+        let objectiveChain = primaryBattleObjectiveChainSummary
+        let objectiveStagePreview = activeBattleObjectiveStageCommandPreview
+        let threatHeat = primaryThreatHeatZoneSummary
+        let mapControl = selectedMapControlSummary ?? primaryMapControlSummary
+        let convergence = primaryBattlefieldConvergenceSummary
+        var signals: [MapReconPerspectiveSignal] = []
+
+        func append(
+            _ kind: MapReconPerspectiveSignalKind,
+            title: String,
+            detail: String,
+            position: Position?,
+            sourceID: String
+        ) {
+            signals.append(
+                MapReconPerspectiveSignal(
+                    kind: kind,
+                    title: title,
+                    detail: detail,
+                    position: position,
+                    sourceID: sourceID
+                )
+            )
+        }
+
+        switch selectedMapReconPerspective {
+        case .enemyIntent:
+            if let intent {
+                append(
+                    .enemyIntent,
+                    title: intent.summary.shortTitle,
+                    detail: intent.summary.routeDetail,
+                    position: intent.targetPosition ?? intent.destinationPosition,
+                    sourceID: intent.id
+                )
+            }
+            if let engagementLoop {
+                append(
+                    .engagementLoop,
+                    title: engagementLoop.statusLabel,
+                    detail: engagementLoop.compactLabel,
+                    position: intent?.targetPosition ?? intent?.destinationPosition,
+                    sourceID: engagementLoop.compactLabel
+                )
+            }
+
+        case .countermeasure:
+            if let countermeasure {
+                append(
+                    .countermeasure,
+                    title: countermeasure.kindLabel,
+                    detail: countermeasure.countermeasureChainLabel,
+                    position: countermeasure.targetPosition,
+                    sourceID: countermeasure.id
+                )
+            }
+            if let countermeasurePreview {
+                append(
+                    .counterCommand,
+                    title: countermeasurePreview.statusLabel,
+                    detail: countermeasurePreview.commandChainLabel,
+                    position: countermeasurePreview.destination,
+                    sourceID: countermeasurePreview.id
+                )
+            }
+
+        case .objective:
+            if let objectiveChain {
+                append(
+                    .objectiveChain,
+                    title: objectiveChain.priorityLabel,
+                    detail: objectiveChain.compactLabel,
+                    position: objectiveChain.focus.targetPosition,
+                    sourceID: objectiveChain.id
+                )
+            }
+            if let objectiveStagePreview {
+                append(
+                    .objectiveStage,
+                    title: objectiveStagePreview.stageLabel,
+                    detail: objectiveStagePreview.commandEntryLabel,
+                    position: objectiveStagePreview.position,
+                    sourceID: objectiveStagePreview.id
+                )
+            }
+
+        case .terrainPressure:
+            if let threatHeat {
+                append(
+                    .threatHeat,
+                    title: threatHeat.levelLabel,
+                    detail: threatHeat.impactLabel,
+                    position: threatHeat.targetPosition,
+                    sourceID: threatHeat.id
+                )
+            }
+            if let mapControl {
+                append(
+                    .mapControl,
+                    title: mapControl.controlLabel,
+                    detail: mapControl.impactLabel,
+                    position: mapControl.position,
+                    sourceID: mapControl.id
+                )
+            }
+            if let convergence {
+                append(
+                    .convergence,
+                    title: convergence.priorityLabel,
+                    detail: convergence.spaceLabel,
+                    position: convergence.signals.first?.position,
+                    sourceID: convergence.id
+                )
+            }
+        }
+
+        let title = "地图侦察"
+        let statusLabel: String
+        let detailLabel: String
+        let nextStepLabel: String
+        let riskLabel: String
+        let compactLabel: String
+
+        switch selectedMapReconPerspective {
+        case .enemyIntent:
+            statusLabel = engagementLoop?.statusLabel ?? intent?.summary.threatLabel ?? "监视"
+            detailLabel = intent.map { "\($0.summary.shortTitle) · \($0.summary.destinationLabel)" } ?? "敌路待确认"
+            nextStepLabel = engagementLoop?.nextStepLabel ?? intent?.impactLabel ?? "先确认敌军目标"
+            riskLabel = engagementLoop?.riskLabel ?? primaryFrontlinePressureSummary?.pressureLabel ?? "风险待确认"
+            compactLabel = "敌路 · \(detailLabel)"
+
+        case .countermeasure:
+            statusLabel = countermeasurePreview?.statusLabel ?? countermeasure?.priorityLabel ?? "待响应"
+            detailLabel = countermeasure?.countermeasureChainLabel ?? "暂无首要反制"
+            nextStepLabel = countermeasurePreview?.nextStepLabel ?? countermeasure?.commandLabel ?? "等待反制建议"
+            riskLabel = countermeasure?.riskLabel ?? engagementLoop?.riskLabel ?? "风险待确认"
+            compactLabel = "反制 · \(countermeasure?.kindLabel ?? statusLabel)"
+
+        case .objective:
+            statusLabel = objectiveStagePreview?.statusLabel ?? objectiveChain?.priorityLabel ?? "待确认"
+            detailLabel = objectiveStagePreview?.focusLabel ?? objectiveChain?.compactLabel ?? "目标线待确认"
+            nextStepLabel = objectiveStagePreview?.nextStepLabel ?? objectiveChain?.chainLabel ?? "确认目标线阶段"
+            riskLabel = objectiveChain?.priorityLabel ?? convergence?.riskLabel ?? "风险待确认"
+            compactLabel = "目标线 · \(statusLabel)"
+
+        case .terrainPressure:
+            statusLabel = threatHeat?.levelLabel ?? mapControl?.levelLabel ?? convergence?.priorityLabel ?? "平静"
+            detailLabel = threatHeat.map { "\($0.title) · \($0.impactLabel)" } ??
+                mapControl.map { "\($0.title) · \($0.impactLabel)" } ??
+                "热区和控区待确认"
+            nextStepLabel = convergence?.nextStepLabel ?? mapControl?.detail ?? "继续观察空间压力"
+            riskLabel = threatHeat?.impactLabel ?? mapControl?.levelLabel ?? "风险待确认"
+            compactLabel = "热区 · \(statusLabel)"
+        }
+
+        return MapReconPerspectiveHUDReadout(
+            selectedKind: selectedMapReconPerspective,
+            availableKinds: MapReconPerspectiveKind.allCases,
+            title: title,
+            statusLabel: statusLabel,
+            compactLabel: compactLabel,
+            detailLabel: detailLabel,
+            nextStepLabel: nextStepLabel,
+            riskLabel: riskLabel,
+            signals: signals,
+            intentID: intent?.id,
+            engagementLoopID: engagementLoop?.compactLabel,
+            countermeasureID: countermeasure?.id,
+            countermeasurePreviewID: countermeasurePreview?.id,
+            objectiveChainID: objectiveChain?.id,
+            objectiveStagePreviewID: objectiveStagePreview?.id,
+            threatHeatID: threatHeat?.id,
+            mapControlID: mapControl?.id,
             convergenceID: convergence?.id
         )
     }
@@ -6476,6 +6849,7 @@ final class GameViewModel: ObservableObject {
         selectedTechnology = nil
         focusedCountermeasureID = nil
         focusedBattleObjectiveRole = nil
+        selectedMapReconPerspective = .enemyIntent
         isShowingMenu = false
         bannerMessage = "\(mode.displayName)开始：控制罗马军团扩张疆域。"
     }
@@ -6535,6 +6909,12 @@ final class GameViewModel: ObservableObject {
     func focusPrimaryCountermeasure() {
         guard let summary = primaryCountermeasureSummary else { return }
         focusCountermeasure(summary.id)
+    }
+
+    func selectMapReconPerspective(_ kind: MapReconPerspectiveKind) {
+        selectedMapReconPerspective = kind
+        let readout = mapReconPerspectiveHUDReadout
+        bannerMessage = "\(kind.displayName)侦察：\(readout.nextStepLabel)。风险：\(readout.riskLabel)。"
     }
 
     func focusCountermeasure(_ id: String) {
