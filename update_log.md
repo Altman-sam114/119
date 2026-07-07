@@ -51,7 +51,11 @@
 
 验证结果：
 
-- 待 GitHub Actions 云端验证和 Agent C artifact 复判。本轮按人工最新要求不运行任何本地测试、build、typecheck、RenderBattlePreview、`Tools/verify_project.mjs`、`git diff --check`、YAML/JSON/Plist 解析或脚本语法检查。
+- 按人工最新要求，本轮未运行任何本地测试、build、typecheck、RenderBattlePreview、`Tools/verify_project.mjs`、`git diff --check`、YAML/JSON/Plist 解析或脚本语法检查。
+- Agent B 已将实现提交 `3c6d66c8fbd45e4b9575ce26ab5529d44c5469b8` 和云端 RenderBattlePreview 编译收敛修复提交 `55c9cb817f0449ea933c2e1dd27f42b40500b4ce` 直推 `origin/main`。
+- Agent C 下载并复判最新 GitHub Actions 结果包 `RomeLegions-ci-v0.46-main-55c9cb8-run28842857357-attempt1`，run id `28842857357`，run attempt `1`，manifest 对应 `main` / `55c9cb817f0449ea933c2e1dd27f42b40500b4ce` / `v0.46`。
+- manifest 显示 `staticChecksOutcome`、`swiftTestsOutcome`、`gameplaySmokeOutcome`、`renderPreviewOutcome`、`buildOutcome`、`testOutcome` 均为 `success`；JUnit 记录 `tests="5"`、`failures="0"`；Swift Testing 日志记录 `88 tests passed`；Gameplay Smoke 输出 `Gameplay smoke test passed.`；RenderBattlePreview 生成 6 张非空 PNG 且未出现 `missingMapReconnaissanceViewHUD`；Xcode build 日志记录 `** BUILD SUCCEEDED **`。
+- 云端 RenderBattlePreview 阶段用时较长但最终成功；地图侦察视角 HUD 的四类视角、同源引用、切换只读快照和顶部侦察 chip 已由云端断言覆盖。
 
 遗留事项：
 
