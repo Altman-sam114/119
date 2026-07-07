@@ -5628,7 +5628,7 @@ final class GameViewModel: ObservableObject {
             commanderUnits: commanderUnits
         )
 
-        AIOperationalPlanSummary(
+        return AIOperationalPlanSummary(
             report: report,
             targetUnit: targetUnit,
             targetCity: targetCity,
