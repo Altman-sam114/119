@@ -2481,6 +2481,93 @@ struct ThreatHeatZoneSummary: Identifiable {
     }
 }
 
+struct AIOperationalPlanTimelineStepReadout: Identifiable {
+    var sequence: Int
+    var step: AIPlanStepReport
+    var unit: ArmyUnit?
+    var targetUnit: ArmyUnit?
+    var targetCity: City?
+
+    var id: String { "\(sequence)-\(step.id)" }
+    var role: AIPlanCoordinationRole { step.coordinationRole }
+
+    var roleLabel: String {
+        step.coordinationRole.displayName
+    }
+
+    var unitLabel: String {
+        if let generalName = step.generalName, !generalName.isEmpty {
+            return generalName
+        }
+
+        if let generalName = unit?.generalName {
+            return generalName
+        }
+
+        if let unit {
+            return "\(unit.faction.displayName)\(unit.kind.displayName)"
+        }
+
+        return "\(step.faction.displayName)军团"
+    }
+
+    var intentLabel: String {
+        step.intentKind.displayName
+    }
+
+    var originLabel: String {
+        "起点\(step.origin.description)"
+    }
+
+    var destinationLabel: String {
+        step.destination == step.origin ? "原地\(step.destination.description)" : "目的\(step.destination.description)"
+    }
+
+    var targetLabel: String {
+        if let targetUnit {
+            return "目标\(targetUnit.faction.displayName)\(targetUnit.kind.displayName)"
+        }
+
+        if let targetCity {
+            return "目标\(targetCity.name)"
+        }
+
+        return "目标\(step.targetPosition.description)"
+    }
+
+    var orderLabel: String {
+        step.tacticalOrder.displayName
+    }
+
+    var impactLabel: String {
+        if let projectedDamage = step.projectedDamage, projectedDamage > 0 {
+            return "预计伤害 \(projectedDamage)"
+        }
+
+        if let skillSummary = step.skillSummary, !skillSummary.isEmpty {
+            return "预计技能 \(skillSummary)"
+        }
+
+        return "预计威胁 \(step.threatScore)"
+    }
+
+    var routeLabel: String {
+        "\(originLabel) -> \(destinationLabel) -> \(targetLabel)"
+    }
+
+    var compactLabel: String {
+        "\(sequence). \(roleLabel)\(unitLabel) \(intentLabel)"
+    }
+
+    var detailLabel: String {
+        step.detail
+    }
+
+    var accessibilityLabel: String {
+        "队列\(sequence)，角色\(roleLabel)，\(unitLabel)，意图\(intentLabel)，\(originLabel)，\(destinationLabel)，\(targetLabel)，姿态\(orderLabel)，\(impactLabel)，\(detailLabel)"
+    }
+}
+
 struct AIOperationalPlanSummary: Identifiable {
     var report: AIOperationalPlanReport
     var targetUnit: ArmyUnit?
@@ -2559,6 +2646,36 @@ struct AIOperationalPlanSummary: Identifiable {
         return labels.joined(separator: "、")
     }
 
+    var timelineSteps: [AIOperationalPlanTimelineStepReadout] {
+        let lookupUnits = sourceUnits + commanderUnits + [targetUnit].compactMap { $0 }
+        return report.steps.enumerated().map { index, step in
+            let targetStepUnit = step.targetUnitID.flatMap { targetUnitID in
+                lookupUnits.first { $0.id == targetUnitID } ?? (targetUnit?.id == targetUnitID ? targetUnit : nil)
+            }
+            let targetStepCity = step.targetCityID.flatMap { targetCityID in
+                targetCity?.id == targetCityID ? targetCity : nil
+            }
+
+            AIOperationalPlanTimelineStepReadout(
+                sequence: index + 1,
+                step: step,
+                unit: lookupUnits.first { $0.id == step.unitID },
+                targetUnit: targetStepUnit,
+                targetCity: targetStepCity
+            )
+        }
+    }
+
+    var timelineLabel: String {
+        let labels = timelineSteps.prefix(3).map(\.compactLabel)
+        return labels.joined(separator: " -> ")
+    }
+
+    var timelineAccessibilityLabel: String {
+        let labels = timelineSteps.map(\.accessibilityLabel)
+        return "时间线，\(labels.joined(separator: "，"))"
+    }
+
     var detail: String {
         report.detail
     }
@@ -2571,6 +2688,7 @@ struct AIOperationalPlanSummary: Identifiable {
             impactLabel,
             "压力\(pressureLabel)",
             "热区\(heatLabel)",
+            timelineAccessibilityLabel,
             detail
         ]
 

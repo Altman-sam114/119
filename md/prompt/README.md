@@ -32,6 +32,7 @@ md/prompt/v0（某主题）/v0.3（某任务）.md
 
 当前最新玩法推进提示词：
 
+- `md/prompt/v0（玩法推进）/v0.49（AI作战计划时间线读板）.md`
 - `md/prompt/v0（玩法推进）/v0.48（将领协同步骤读板）.md`
 - `md/prompt/v0（玩法推进）/v0.47（战役推进线HUD）.md`
 - `md/prompt/v0（玩法推进）/v0.46（地图侦察视角HUD）.md`

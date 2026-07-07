@@ -14,12 +14,49 @@
 
 - 项目类型：原创 SwiftUI iOS 罗马题材战棋原型。
 - 核心架构：纯 Swift `RomeLegionsCore` 负责玩法规则；`GameViewModel` 负责 UI 状态和派生数据；SwiftUI 视图负责展示和命令入口。
-- 当前玩法：六边形地图、地形、城市、阵营、军团、移动、攻击、反击、占城、招募、科技、任务 requirement、战役目标、胜负结算、结束保护、外交、城市扩建、城市经营与招募读板、军团训练、将领任命、军团成长决策读板、军团成长优先级读板、主动技能、技能冷却、将领详情读板、将领指挥链读板、将领战机威胁桥接读板、将令技能入口链路、将领技能目标与收益读板、被动贡献、战功状态、军团编制与成长读板、选中军团处境命令入口读板、选中军团军令窗口读板、战役推进线 HUD、地图侦察视角 HUD、战术命令建议与补线路径读板、本方将领协同与战术连携读板、将领协同步骤读板、机动落点与地图风险读板、战场焦点与将领机会读板、战场目标链路、战场态势交汇链路、敌情交战闭环 HUD、目标线地图叠层、阶段聚焦、阶段命令预览与联动高亮、地图控制与威胁热区读板、主动地图叠层图例、AI 作战计划与敌方将领协同读板、敌方将领威胁读板、敌情反制建议读板、反制落点/目标地图叠层、反制指令聚焦、反制命令链高亮与反制焦点链路、战术姿态与姿态预览、AI 回合、AI 主攻优先执行、敌军意图预判、敌军意图六边形路径/目标叠层、战线压力读板、战局态势面板。
+- 当前玩法：六边形地图、地形、城市、阵营、军团、移动、攻击、反击、占城、招募、科技、任务 requirement、战役目标、胜负结算、结束保护、外交、城市扩建、城市经营与招募读板、军团训练、将领任命、军团成长决策读板、军团成长优先级读板、主动技能、技能冷却、将领详情读板、将领指挥链读板、将领战机威胁桥接读板、将令技能入口链路、将领技能目标与收益读板、被动贡献、战功状态、军团编制与成长读板、选中军团处境命令入口读板、选中军团军令窗口读板、战役推进线 HUD、地图侦察视角 HUD、战术命令建议与补线路径读板、本方将领协同与战术连携读板、将领协同步骤读板、机动落点与地图风险读板、战场焦点与将领机会读板、战场目标链路、战场态势交汇链路、敌情交战闭环 HUD、目标线地图叠层、阶段聚焦、阶段命令预览与联动高亮、地图控制与威胁热区读板、主动地图叠层图例、AI 作战计划与时间线读板、敌方将领协同读板、敌方将领威胁读板、敌情反制建议读板、反制落点/目标地图叠层、反制指令聚焦、反制命令链高亮与反制焦点链路、战术姿态与姿态预览、AI 回合、AI 主攻优先执行、敌军意图预判、敌军意图六边形路径/目标叠层、战线压力读板、战局态势面板。
 - 当前测试入口：Swift Testing、Gameplay Smoke、项目结构检查、SwiftUI 类型检查、战斗页预览图渲染、无签名 Xcode 构建。
 - 当前协作系统：已建立 `AGENTS.md`、`update_log.md`、`md/prompt/`、`md/test/test.md`、`md/flow/flow.md`、`md/flow/flowchart.md`，默认按 `main` 直推、GitHub Actions 云端重验证、Agent C 下载未加密结果包复判，并具备未来由 Agent X 主控调度 Agent A/B/C 多轮循环的文档基线。
 - 当前 CI 入口：`.github/workflows/ci-results.yml`，在 `main` push 和手动触发时运行结构检查、SwiftPM 测试、Gameplay Smoke、RenderBattlePreview 和无签名 Xcode build，并上传 CI 结果包。
 
 ## 历史记录
+
+### v0.49 / AI 作战计划时间线读板
+
+日期：2026-07-07
+
+核心变更：
+
+- `GameViewModel` 新增 `AIOperationalPlanTimelineStepReadout`，并在 `AIOperationalPlanSummary` 暴露 `timelineSteps`、`timelineLabel` 和 `timelineAccessibilityLabel`，把核心 `AIOperationalPlanReport.steps` 转成角色、军团、意图、起点、落点、目标、姿态、预计影响和详情可读的 UI 派生数据。
+- `BattleView` 在敌情计划卡逐条展示 AI 作战计划行动队列，战局计划行显示压缩时间线；不新增按钮、命令队列或自动执行。
+- `Tools/RenderBattlePreview/main.swift` 新增 `missingAIOperationalPlanTimelineReadout` 断言，覆盖时间线与核心 steps 的数量同源、关键字段可读、固定预览样本包含 `carthage-hunter` 主攻推进，以及读取时间线不改变核心状态。
+- `.github/workflows/ci-results.yml` artifact 版本更新到 v0.49。
+- README、flow、flowchart、test、prompt README、AGENTS 文档同步 AI 作战计划时间线读板和 v0.49 Agent A 提示词。
+
+关键文件：
+
+- `RomeLegionsApp/App/GameViewModel.swift`
+- `RomeLegionsApp/Views/BattleView.swift`
+- `Tools/RenderBattlePreview/main.swift`
+- `.github/workflows/ci-results.yml`
+- `README.md`
+- `AGENTS.md`
+- `md/flow/flow.md`
+- `md/flow/flowchart.md`
+- `md/test/test.md`
+- `md/prompt/README.md`
+- `md/prompt/v0（玩法推进）/v0.49（AI作战计划时间线读板）.md`
+- `update_log.md`
+
+验证结果：
+
+- 按人工最新要求，本轮未运行任何本地测试、build、typecheck、RenderBattlePreview、`Tools/verify_project.mjs`、`git diff --check`、YAML/JSON/Plist 解析或脚本语法检查。
+- Agent B 待将实现提交并直推 `origin/main`，由 GitHub Actions 产出 v0.49 结果包后交 Agent C 复判。
+
+遗留事项：
+
+- 本轮没有改写 AI 评分、作战计划生成、真实 AI 执行顺序、移动、攻击、技能释放、姿态、战斗结算、任务、城市、装备、升级树、外交界面、存档 UI 或建筑树。
+- AI 作战计划时间线读板只解释现有 `AIOperationalPlanReport.steps`，不自动下令，不反向影响敌军意图或 `GameState`。
 
 ### v0.48 / 将领协同步骤读板
 

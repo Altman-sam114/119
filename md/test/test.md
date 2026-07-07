@@ -124,7 +124,7 @@ on:
 artifact 命名规则：
 
 ```text
-RomeLegions-ci-v0.48-main-<short_sha>-run<run_id>-attempt<run_attempt>
+RomeLegions-ci-v0.49-main-<short_sha>-run<run_id>-attempt<run_attempt>
 ```
 
 `ci-artifact-manifest.json` 必须至少包含：
@@ -187,7 +187,7 @@ Agent C 必须核对：
 - manifest 的 `branch` 为 `main`。
 - manifest 的 `runId` 和 `runAttempt` 等于本次下载的 run。
 - workflow 结论、JUnit、主构建日志、RenderBattlePreview 日志、失败摘要互相一致。
-- v0.18 起若 manifest 包含 `renderPreviewOutcome`，必须为 `success`，且 `render-battle-preview.log` 和 `render-previews/*.png` 必须存在；v0.21 机动落点断言失败时应抛出 `missingManeuverOptionSummary`；v0.22 起 Gameplay Smoke 必须覆盖 AI 主攻优先执行顺序；v0.23 主动地图叠层图例断言失败时应抛出 `missingMapOverlayLegend`；v0.24 军团成长决策读板断言失败时应抛出 `missingUnitDevelopmentDecisionSummary`；v0.25 军团成长优先级读板断言失败时应抛出 `missingUnitDevelopmentRecommendationSummary`；v0.26 敌方将领威胁读板断言失败时应抛出 `missingEnemyCommanderThreatSummary`；v0.27 敌情反制建议读板断言失败时应抛出 `missingCountermeasureSummary`；v0.28 起反制落点/目标地图叠层或焦点链路断言失败时应抛出 `missingCountermeasureOverlay`；v0.29 起反制指令聚焦、执行预览、命令链高亮或焦点链路断言失败时应抛出 `missingCountermeasureCommandPreview`；v0.32 起战场目标链路断言失败时应抛出 `missingBattleObjectiveChainSummary`；v0.33 起战场目标线地图叠层断言失败时应抛出 `missingBattleObjectiveMapOverlay`；v0.34 起目标线阶段聚焦断言失败时应抛出 `missingBattleObjectiveStageFocus`；v0.35 起目标线阶段命令预览断言失败时应抛出 `missingBattleObjectiveStageCommandPreview`；v0.36 起目标线阶段联动高亮断言失败时应抛出 `missingBattleObjectiveStageLinkedHighlight`；v0.37 起将令技能入口链路断言失败时应抛出 `missingCommanderActionGuidance`；v0.38 起将领技能目标与收益读板断言失败时应抛出 `missingGeneralSkillTargetReadout`；v0.39 起战场态势交汇链路断言失败时应抛出 `missingBattlefieldConvergenceSummary`；v0.40 起选中军团处境读板断言失败时应抛出 `missingSelectedUnitSituationReadout`；v0.41 起同一错误还覆盖处境命令入口 `commandEntries`、主入口 cue、反制/目标线/将领技能/姿态同源引用；v0.42 起将领指挥链断言失败时应抛出 `missingCommanderChainReadout`；v0.43 起敌情交战闭环 HUD 断言失败时应抛出 `missingEnemyEngagementLoopReadout`；v0.44 起将领战机威胁桥接读板断言失败时应抛出 `missingCommanderOpportunityBridgeReadout`；v0.45 起选中军团军令窗口读板断言失败时应抛出 `missingSelectedUnitOrderWindowReadout`；v0.46 起地图侦察视角 HUD 断言失败时应抛出 `missingMapReconnaissanceViewHUD`；v0.47 起战役推进线 HUD 断言失败时应抛出 `missingCampaignAdvanceReadout`；v0.48 起将领协同步骤读板断言失败时应抛出 `missingCommanderSynergyStepReadout`。
+- v0.18 起若 manifest 包含 `renderPreviewOutcome`，必须为 `success`，且 `render-battle-preview.log` 和 `render-previews/*.png` 必须存在；v0.21 机动落点断言失败时应抛出 `missingManeuverOptionSummary`；v0.22 起 Gameplay Smoke 必须覆盖 AI 主攻优先执行顺序；v0.23 主动地图叠层图例断言失败时应抛出 `missingMapOverlayLegend`；v0.24 军团成长决策读板断言失败时应抛出 `missingUnitDevelopmentDecisionSummary`；v0.25 军团成长优先级读板断言失败时应抛出 `missingUnitDevelopmentRecommendationSummary`；v0.26 敌方将领威胁读板断言失败时应抛出 `missingEnemyCommanderThreatSummary`；v0.27 敌情反制建议读板断言失败时应抛出 `missingCountermeasureSummary`；v0.28 起反制落点/目标地图叠层或焦点链路断言失败时应抛出 `missingCountermeasureOverlay`；v0.29 起反制指令聚焦、执行预览、命令链高亮或焦点链路断言失败时应抛出 `missingCountermeasureCommandPreview`；v0.32 起战场目标链路断言失败时应抛出 `missingBattleObjectiveChainSummary`；v0.33 起战场目标线地图叠层断言失败时应抛出 `missingBattleObjectiveMapOverlay`；v0.34 起目标线阶段聚焦断言失败时应抛出 `missingBattleObjectiveStageFocus`；v0.35 起目标线阶段命令预览断言失败时应抛出 `missingBattleObjectiveStageCommandPreview`；v0.36 起目标线阶段联动高亮断言失败时应抛出 `missingBattleObjectiveStageLinkedHighlight`；v0.37 起将令技能入口链路断言失败时应抛出 `missingCommanderActionGuidance`；v0.38 起将领技能目标与收益读板断言失败时应抛出 `missingGeneralSkillTargetReadout`；v0.39 起战场态势交汇链路断言失败时应抛出 `missingBattlefieldConvergenceSummary`；v0.40 起选中军团处境读板断言失败时应抛出 `missingSelectedUnitSituationReadout`；v0.41 起同一错误还覆盖处境命令入口 `commandEntries`、主入口 cue、反制/目标线/将领技能/姿态同源引用；v0.42 起将领指挥链断言失败时应抛出 `missingCommanderChainReadout`；v0.43 起敌情交战闭环 HUD 断言失败时应抛出 `missingEnemyEngagementLoopReadout`；v0.44 起将领战机威胁桥接读板断言失败时应抛出 `missingCommanderOpportunityBridgeReadout`；v0.45 起选中军团军令窗口读板断言失败时应抛出 `missingSelectedUnitOrderWindowReadout`；v0.46 起地图侦察视角 HUD 断言失败时应抛出 `missingMapReconnaissanceViewHUD`；v0.47 起战役推进线 HUD 断言失败时应抛出 `missingCampaignAdvanceReadout`；v0.48 起将领协同步骤读板断言失败时应抛出 `missingCommanderSynergyStepReadout`；v0.49 起 AI 作战计划时间线读板断言失败时应抛出 `missingAIOperationalPlanTimelineReadout`。
 - 若 workflow 失败，失败摘要和日志路径足以退回 Agent B 修复。
 - 若本地仓库没有 `origin` 或 `gh` 无权限，明确报告阻塞，不能伪造下载核对。
 - 只能使用 `Altman-sam114` 对应 GitHub 权限完成 push、CI 或 artifact 验收；不得使用其他账号伪装完成。
@@ -252,7 +252,7 @@ swiftc -swift-version 5 -module-cache-path .build/module-cache Sources/RomeLegio
 
 触发条件：
 
-- `BattleView`、`GameViewModel` UI 派生数据、战役推进线 HUD、地图侦察视角 HUD、敌情交战闭环 HUD、AI 作战计划读板、敌方将领威胁读板、敌情反制建议读板、反制落点/目标地图叠层、反制指令聚焦与执行预览、反制命令链高亮、反制焦点链路、战场目标链路、战场态势交汇链路、选中军团处境命令入口读板、选中军团军令窗口读板、战场目标线地图叠层、目标线阶段聚焦、目标线阶段命令预览、目标线阶段联动高亮、将令技能入口链路、将领指挥链读板、将领战机威胁桥接读板、将领技能目标与收益读板、本方将领协同读板、机动落点读板、战线压力读板、战场焦点读板、地图控制读板、威胁热区叠层、战术命令建议读板、城市经营读板、招募按钮、地图叠层、将领卡、战术姿态按钮或战斗页布局变化。
+- `BattleView`、`GameViewModel` UI 派生数据、战役推进线 HUD、地图侦察视角 HUD、敌情交战闭环 HUD、AI 作战计划读板与时间线读板、敌方将领威胁读板、敌情反制建议读板、反制落点/目标地图叠层、反制指令聚焦与执行预览、反制命令链高亮、反制焦点链路、战场目标链路、战场态势交汇链路、选中军团处境命令入口读板、选中军团军令窗口读板、战场目标线地图叠层、目标线阶段聚焦、目标线阶段命令预览、目标线阶段联动高亮、将令技能入口链路、将领指挥链读板、将领战机威胁桥接读板、将领技能目标与收益读板、本方将领协同读板、机动落点读板、战线压力读板、战场焦点读板、地图控制读板、威胁热区叠层、战术命令建议读板、城市经营读板、招募按钮、地图叠层、将领卡、战术姿态按钮或战斗页布局变化。
 
 命令：
 

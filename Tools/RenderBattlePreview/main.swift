@@ -218,16 +218,91 @@ struct RenderBattlePreview {
               activeFactionBeforeSituationRead == viewModel.state.activeFaction else {
             throw PreviewRenderError.missingSelectedUnitSituationReadout
         }
-        guard let operationalPlan = viewModel.primaryAIOperationalPlanSummary,
+        guard let primaryOperationalPlan = viewModel.primaryAIOperationalPlanSummary,
               !viewModel.aiOperationalPlanSummaries.isEmpty,
               viewModel.aiOperationalPlanSummaries.contains(where: { $0.report.sourceUnitIDs.contains("carthage-hunter") }),
-              !operationalPlan.title.isEmpty,
+              !primaryOperationalPlan.title.isEmpty,
+              !primaryOperationalPlan.kindLabel.isEmpty,
+              !primaryOperationalPlan.sourceLabel.isEmpty,
+              !primaryOperationalPlan.impactLabel.isEmpty,
+              !primaryOperationalPlan.detail.isEmpty,
+              !primaryOperationalPlan.accessibilityLabel.isEmpty else {
+            throw PreviewRenderError.missingAIOperationalPlanSummary
+        }
+        let operationalPlan = viewModel.aiOperationalPlanSummaries.first { $0.report.sourceUnitIDs.contains("carthage-hunter") } ?? primaryOperationalPlan
+        guard !operationalPlan.title.isEmpty,
               !operationalPlan.kindLabel.isEmpty,
               !operationalPlan.sourceLabel.isEmpty,
               !operationalPlan.impactLabel.isEmpty,
               !operationalPlan.detail.isEmpty,
               !operationalPlan.accessibilityLabel.isEmpty else {
             throw PreviewRenderError.missingAIOperationalPlanSummary
+        }
+        let unitStateBeforePlanTimelineRead = viewModel.state.units
+            .sorted { $0.id < $1.id }
+            .map { unit in
+                "\(unit.id)|\(unit.position.description)|\(unit.health)|\(unit.hasMoved)|\(unit.hasActed)|\(unit.generalSkillCooldownRemaining)|\(unit.tacticalOrder?.rawValue ?? "balanced")"
+            }
+        let cityStateBeforePlanTimelineRead = viewModel.state.cities
+            .sorted { $0.id < $1.id }
+            .map { city in
+                "\(city.id)|\(city.owner.rawValue)|\(city.fortification)|\(city.position.description)"
+            }
+        let resourcesBeforePlanTimelineRead = viewModel.state.resources
+            .sorted { $0.key.rawValue < $1.key.rawValue }
+            .map { entry in
+                let resources = entry.value
+                return "\(entry.key.rawValue)|\(resources.gold)|\(resources.grain)|\(resources.iron)|\(resources.science)|\(resources.prestige)"
+            }
+        let turnBeforePlanTimelineRead = viewModel.state.turn
+        let activeFactionBeforePlanTimelineRead = viewModel.state.activeFaction
+        let planTimelineSteps = operationalPlan.timelineSteps
+        guard !planTimelineSteps.isEmpty,
+              planTimelineSteps.count == operationalPlan.report.steps.count,
+              !operationalPlan.timelineLabel.isEmpty,
+              !operationalPlan.timelineAccessibilityLabel.isEmpty,
+              operationalPlan.timelineAccessibilityLabel.contains("时间线") ||
+                  operationalPlan.timelineAccessibilityLabel.contains("队列"),
+              operationalPlan.timelineAccessibilityLabel.contains("角色"),
+              operationalPlan.timelineAccessibilityLabel.contains("意图"),
+              operationalPlan.timelineAccessibilityLabel.contains("目标"),
+              operationalPlan.timelineAccessibilityLabel.contains("预计"),
+              planTimelineSteps.contains(where: { $0.step.unitID == "carthage-hunter" }),
+              planTimelineSteps.contains(where: { $0.role == .mainEffort }),
+              planTimelineSteps.contains(where: { $0.step.intentKind == .advanceAttack }),
+              planTimelineSteps.allSatisfy({ step in
+                  !step.roleLabel.isEmpty &&
+                      !step.unitLabel.isEmpty &&
+                      !step.intentLabel.isEmpty &&
+                      !step.originLabel.isEmpty &&
+                      !step.destinationLabel.isEmpty &&
+                      !step.targetLabel.isEmpty &&
+                      !step.orderLabel.isEmpty &&
+                      !step.impactLabel.isEmpty &&
+                      !step.routeLabel.isEmpty &&
+                      !step.detailLabel.isEmpty &&
+                      !step.compactLabel.isEmpty &&
+                      !step.accessibilityLabel.isEmpty
+              }),
+              viewModel.state.units
+                  .sorted(by: { $0.id < $1.id })
+                  .map({ unit in
+                      "\(unit.id)|\(unit.position.description)|\(unit.health)|\(unit.hasMoved)|\(unit.hasActed)|\(unit.generalSkillCooldownRemaining)|\(unit.tacticalOrder?.rawValue ?? "balanced")"
+                  }) == unitStateBeforePlanTimelineRead,
+              viewModel.state.cities
+                  .sorted(by: { $0.id < $1.id })
+                  .map({ city in
+                      "\(city.id)|\(city.owner.rawValue)|\(city.fortification)|\(city.position.description)"
+                  }) == cityStateBeforePlanTimelineRead,
+              viewModel.state.resources
+                  .sorted(by: { $0.key.rawValue < $1.key.rawValue })
+                  .map({ entry in
+                      let resources = entry.value
+                      return "\(entry.key.rawValue)|\(resources.gold)|\(resources.grain)|\(resources.iron)|\(resources.science)|\(resources.prestige)"
+                  }) == resourcesBeforePlanTimelineRead,
+              viewModel.state.turn == turnBeforePlanTimelineRead,
+              viewModel.state.activeFaction == activeFactionBeforePlanTimelineRead else {
+            throw PreviewRenderError.missingAIOperationalPlanTimelineReadout
         }
         guard let enemyCommanderThreat = viewModel.primaryEnemyCommanderThreatSummary,
               !viewModel.enemyCommanderThreatSummaries.isEmpty,
@@ -1745,6 +1820,7 @@ enum PreviewRenderError: Error {
     case missingGeneralSkillTargetReadout
     case missingThreatHeatSummary
     case missingAIOperationalPlanSummary
+    case missingAIOperationalPlanTimelineReadout
     case missingEnemyCommanderThreatSummary
     case missingCountermeasureSummary
     case missingCountermeasureOverlay

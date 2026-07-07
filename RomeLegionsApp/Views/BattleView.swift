@@ -3381,6 +3381,11 @@ struct AIOperationalPlanRowView: View {
                     .foregroundStyle(.white.opacity(0.62))
                     .lineLimit(2)
                     .minimumScaleFactor(0.70)
+                Text(summary.timelineLabel.isEmpty ? summary.stepLabel : summary.timelineLabel)
+                    .font(.caption2.weight(.bold))
+                    .foregroundStyle(summary.kind.tintColor.opacity(0.92))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.64)
             }
 
             Spacer(minLength: 0)
@@ -5395,11 +5400,17 @@ struct AIOperationalPlanCardView: View {
             .lineLimit(1)
             .minimumScaleFactor(0.70)
 
-            Text(summary.stepLabel.isEmpty ? summary.detail : "\(summary.stepLabel) · \(summary.detail)")
-                .font(.caption2.weight(.bold))
-                .foregroundStyle(summary.kind.tintColor)
-                .lineLimit(2)
-                .minimumScaleFactor(0.70)
+            VStack(alignment: .leading, spacing: 5) {
+                Text(summary.timelineLabel.isEmpty ? summary.detail : summary.timelineLabel)
+                    .font(.caption2.weight(.bold))
+                    .foregroundStyle(summary.kind.tintColor)
+                    .lineLimit(2)
+                    .minimumScaleFactor(0.68)
+
+                ForEach(summary.timelineSteps.prefix(3)) { step in
+                    AIOperationalPlanTimelineStepView(step: step, tint: summary.kind.tintColor)
+                }
+            }
         }
         .padding(8)
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -5410,6 +5421,53 @@ struct AIOperationalPlanCardView: View {
         }
         .clipShape(RoundedRectangle(cornerRadius: 7))
         .accessibilityLabel(summary.accessibilityLabel)
+    }
+}
+
+struct AIOperationalPlanTimelineStepView: View {
+    var step: AIOperationalPlanTimelineStepReadout
+    var tint: Color
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 6) {
+            Text("\(step.sequence)")
+                .font(.caption2.monospacedDigit().weight(.black))
+                .foregroundStyle(.black.opacity(0.78))
+                .frame(width: 18, height: 18)
+                .background(tint.opacity(0.95))
+                .clipShape(RoundedRectangle(cornerRadius: 5))
+
+            VStack(alignment: .leading, spacing: 2) {
+                HStack(spacing: 5) {
+                    Text(step.roleLabel)
+                        .font(.caption2.weight(.black))
+                        .foregroundStyle(tint)
+                        .lineLimit(1)
+                    Text(step.unitLabel)
+                        .font(.caption2.weight(.bold))
+                        .foregroundStyle(.white.opacity(0.82))
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.70)
+                    Spacer(minLength: 0)
+                    Text(step.impactLabel)
+                        .font(.caption2.monospacedDigit().weight(.semibold))
+                        .foregroundStyle(.white.opacity(0.62))
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.64)
+                }
+
+                Text("\(step.intentLabel) · \(step.orderLabel) · \(step.routeLabel)")
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(.white.opacity(0.58))
+                    .lineLimit(2)
+                    .minimumScaleFactor(0.66)
+            }
+        }
+        .padding(6)
+        .background(.black.opacity(0.16))
+        .clipShape(RoundedRectangle(cornerRadius: 7))
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(step.accessibilityLabel)
     }
 }
 
