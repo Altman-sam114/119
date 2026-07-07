@@ -1117,6 +1117,59 @@ struct ManeuverOptionSummary: Identifiable {
     }
 }
 
+struct CommanderSynergyStepReadout: Identifiable {
+    var step: CommanderSynergyStepReport
+    var unit: ArmyUnit?
+
+    var id: String { step.id }
+    var role: CommanderSynergyRole { step.role }
+    var tacticalOrder: TacticalOrder { step.tacticalOrder }
+
+    var roleLabel: String {
+        step.role.displayName
+    }
+
+    var unitLabel: String {
+        if let generalName = unit?.generalName {
+            return generalName
+        }
+
+        if let unit {
+            return "\(unit.faction.displayName)\(unit.kind.displayName)"
+        }
+
+        return "\(step.faction.displayName)军团"
+    }
+
+    var positionLabel: String {
+        step.position.description
+    }
+
+    var targetLabel: String {
+        step.targetPosition.description
+    }
+
+    var orderLabel: String {
+        step.tacticalOrder.displayName
+    }
+
+    var compactLabel: String {
+        "\(roleLabel)\(unitLabel) \(orderLabel)"
+    }
+
+    var routeLabel: String {
+        "\(positionLabel) -> \(targetLabel)"
+    }
+
+    var detailLabel: String {
+        "\(step.summary) · \(step.detail)"
+    }
+
+    var accessibilityLabel: String {
+        "\(roleLabel)，\(unitLabel)，姿态\(orderLabel)，位置\(positionLabel)，目标\(targetLabel)，\(step.summary)，\(step.detail)"
+    }
+}
+
 struct CommanderSynergySummary: Identifiable {
     var report: CommanderSynergyReport
     var unit: ArmyUnit?
@@ -1233,8 +1286,27 @@ struct CommanderSynergySummary: Identifiable {
         return "\(report.steps.count) 步"
     }
 
+    var stepReadouts: [CommanderSynergyStepReadout] {
+        report.steps.map { step in
+            CommanderSynergyStepReadout(
+                step: step,
+                unit: ([unit, commanderUnit].compactMap { $0 } + supportingUnits + beneficiaryUnits)
+                    .first(where: { $0.id == step.unitID })
+            )
+        }
+    }
+
     var stepLabel: String {
         report.steps.prefix(3).map { "\($0.role.displayName)\($0.summary)" }.joined(separator: "、")
+    }
+
+    var stepSequenceLabel: String {
+        let labels = stepReadouts.prefix(3).map(\.compactLabel)
+        return labels.isEmpty ? beneficiaryLabel : labels.joined(separator: " -> ")
+    }
+
+    var stepAccessibilityLabel: String {
+        stepReadouts.map(\.accessibilityLabel).joined(separator: "；")
     }
 
     var detail: String {
@@ -1256,7 +1328,8 @@ struct CommanderSynergySummary: Identifiable {
             "战备\(readinessLabel)",
             "风险\(riskLabel)",
             statusLabel,
-            detail
+            detail,
+            stepAccessibilityLabel
         ]
 
         if let commanderLabel {

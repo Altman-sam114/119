@@ -124,7 +124,7 @@ on:
 artifact 命名规则：
 
 ```text
-RomeLegions-ci-v0.47-main-<short_sha>-run<run_id>-attempt<run_attempt>
+RomeLegions-ci-v0.48-main-<short_sha>-run<run_id>-attempt<run_attempt>
 ```
 
 `ci-artifact-manifest.json` 必须至少包含：
@@ -187,7 +187,7 @@ Agent C 必须核对：
 - manifest 的 `branch` 为 `main`。
 - manifest 的 `runId` 和 `runAttempt` 等于本次下载的 run。
 - workflow 结论、JUnit、主构建日志、RenderBattlePreview 日志、失败摘要互相一致。
-- v0.18 起若 manifest 包含 `renderPreviewOutcome`，必须为 `success`，且 `render-battle-preview.log` 和 `render-previews/*.png` 必须存在；v0.21 机动落点断言失败时应抛出 `missingManeuverOptionSummary`；v0.22 起 Gameplay Smoke 必须覆盖 AI 主攻优先执行顺序；v0.23 主动地图叠层图例断言失败时应抛出 `missingMapOverlayLegend`；v0.24 军团成长决策读板断言失败时应抛出 `missingUnitDevelopmentDecisionSummary`；v0.25 军团成长优先级读板断言失败时应抛出 `missingUnitDevelopmentRecommendationSummary`；v0.26 敌方将领威胁读板断言失败时应抛出 `missingEnemyCommanderThreatSummary`；v0.27 敌情反制建议读板断言失败时应抛出 `missingCountermeasureSummary`；v0.28 起反制落点/目标地图叠层或焦点链路断言失败时应抛出 `missingCountermeasureOverlay`；v0.29 起反制指令聚焦、执行预览、命令链高亮或焦点链路断言失败时应抛出 `missingCountermeasureCommandPreview`；v0.32 起战场目标链路断言失败时应抛出 `missingBattleObjectiveChainSummary`；v0.33 起战场目标线地图叠层断言失败时应抛出 `missingBattleObjectiveMapOverlay`；v0.34 起目标线阶段聚焦断言失败时应抛出 `missingBattleObjectiveStageFocus`；v0.35 起目标线阶段命令预览断言失败时应抛出 `missingBattleObjectiveStageCommandPreview`；v0.36 起目标线阶段联动高亮断言失败时应抛出 `missingBattleObjectiveStageLinkedHighlight`；v0.37 起将令技能入口链路断言失败时应抛出 `missingCommanderActionGuidance`；v0.38 起将领技能目标与收益读板断言失败时应抛出 `missingGeneralSkillTargetReadout`；v0.39 起战场态势交汇链路断言失败时应抛出 `missingBattlefieldConvergenceSummary`；v0.40 起选中军团处境读板断言失败时应抛出 `missingSelectedUnitSituationReadout`；v0.41 起同一错误还覆盖处境命令入口 `commandEntries`、主入口 cue、反制/目标线/将领技能/姿态同源引用；v0.42 起将领指挥链断言失败时应抛出 `missingCommanderChainReadout`；v0.43 起敌情交战闭环 HUD 断言失败时应抛出 `missingEnemyEngagementLoopReadout`；v0.44 起将领战机威胁桥接读板断言失败时应抛出 `missingCommanderOpportunityBridgeReadout`；v0.45 起选中军团军令窗口读板断言失败时应抛出 `missingSelectedUnitOrderWindowReadout`；v0.46 起地图侦察视角 HUD 断言失败时应抛出 `missingMapReconnaissanceViewHUD`；v0.47 起战役推进线 HUD 断言失败时应抛出 `missingCampaignAdvanceReadout`。
+- v0.18 起若 manifest 包含 `renderPreviewOutcome`，必须为 `success`，且 `render-battle-preview.log` 和 `render-previews/*.png` 必须存在；v0.21 机动落点断言失败时应抛出 `missingManeuverOptionSummary`；v0.22 起 Gameplay Smoke 必须覆盖 AI 主攻优先执行顺序；v0.23 主动地图叠层图例断言失败时应抛出 `missingMapOverlayLegend`；v0.24 军团成长决策读板断言失败时应抛出 `missingUnitDevelopmentDecisionSummary`；v0.25 军团成长优先级读板断言失败时应抛出 `missingUnitDevelopmentRecommendationSummary`；v0.26 敌方将领威胁读板断言失败时应抛出 `missingEnemyCommanderThreatSummary`；v0.27 敌情反制建议读板断言失败时应抛出 `missingCountermeasureSummary`；v0.28 起反制落点/目标地图叠层或焦点链路断言失败时应抛出 `missingCountermeasureOverlay`；v0.29 起反制指令聚焦、执行预览、命令链高亮或焦点链路断言失败时应抛出 `missingCountermeasureCommandPreview`；v0.32 起战场目标链路断言失败时应抛出 `missingBattleObjectiveChainSummary`；v0.33 起战场目标线地图叠层断言失败时应抛出 `missingBattleObjectiveMapOverlay`；v0.34 起目标线阶段聚焦断言失败时应抛出 `missingBattleObjectiveStageFocus`；v0.35 起目标线阶段命令预览断言失败时应抛出 `missingBattleObjectiveStageCommandPreview`；v0.36 起目标线阶段联动高亮断言失败时应抛出 `missingBattleObjectiveStageLinkedHighlight`；v0.37 起将令技能入口链路断言失败时应抛出 `missingCommanderActionGuidance`；v0.38 起将领技能目标与收益读板断言失败时应抛出 `missingGeneralSkillTargetReadout`；v0.39 起战场态势交汇链路断言失败时应抛出 `missingBattlefieldConvergenceSummary`；v0.40 起选中军团处境读板断言失败时应抛出 `missingSelectedUnitSituationReadout`；v0.41 起同一错误还覆盖处境命令入口 `commandEntries`、主入口 cue、反制/目标线/将领技能/姿态同源引用；v0.42 起将领指挥链断言失败时应抛出 `missingCommanderChainReadout`；v0.43 起敌情交战闭环 HUD 断言失败时应抛出 `missingEnemyEngagementLoopReadout`；v0.44 起将领战机威胁桥接读板断言失败时应抛出 `missingCommanderOpportunityBridgeReadout`；v0.45 起选中军团军令窗口读板断言失败时应抛出 `missingSelectedUnitOrderWindowReadout`；v0.46 起地图侦察视角 HUD 断言失败时应抛出 `missingMapReconnaissanceViewHUD`；v0.47 起战役推进线 HUD 断言失败时应抛出 `missingCampaignAdvanceReadout`；v0.48 起将领协同步骤读板断言失败时应抛出 `missingCommanderSynergyStepReadout`。
 - 若 workflow 失败，失败摘要和日志路径足以退回 Agent B 修复。
 - 若本地仓库没有 `origin` 或 `gh` 无权限，明确报告阻塞，不能伪造下载核对。
 - 只能使用 `Altman-sam114` 对应 GitHub 权限完成 push、CI 或 artifact 验收；不得使用其他账号伪装完成。
@@ -290,6 +290,7 @@ env HOME=$PWD/.home CLANG_MODULE_CACHE_PATH=$PWD/.build/module-cache /Applicatio
 - 渲染前应断言将领技能目标与收益读板可用，`selectedGeneralSkillTargetReadout` 的目标数、目标坐标、收益文案、地图标记提示、状态和无障碍文案必须与 `selectedGeneralSkillPreview` 同源；失败会抛出 `missingGeneralSkillTargetReadout`。
 - 移动后攻击的移动路线应包含多个非 targetLeg 路线段；每个移动段的 `from` / `to` 必须互为 `Position.neighbors(width:height:)`，最后一段必须到达 `AIIntent.destination`，目标段继续从 destination 指向目标格。
 - 渲染前应断言首要和选中单位本方将领协同摘要存在，协同列表非空，标题、类型、目标、影响、详情和无障碍文案可用；失败会抛出 `missingCommanderSynergySummary`。
+- 渲染前应断言选中单位将领协同步骤读板可用，`stepReadouts` 与核心 `report.steps` 同源，角色、军团、姿态、位置、目标、摘要、详情、步骤序列和无障碍文案均可读，且读取不改变核心状态；失败会抛出 `missingCommanderSynergyStepReadout`。
 - 渲染前应断言选中单位机动落点摘要存在，机动列表、首要机动、落点 overlay 字典和 overlay 位置集合非空，且类型、落点、目标、影响、风险、详情和无障碍文案可用；失败会抛出 `missingManeuverOptionSummary`。
 - 渲染前应断言主动地图叠层图例存在，至少覆盖敌军路线、敌军目标/目的地、威胁热区、地图控区、军议路径或目标、机动落点、战场目标线和反制叠层，且每项 symbol、title、detail 和无障碍文案非空；失败会抛出 `missingMapOverlayLegend`。
 - 渲染前应断言选中单位军团成长决策摘要存在，训练和任命预览均可读，成本、预计收益、候选将领/特性、状态和无障碍文案非空；失败会抛出 `missingUnitDevelopmentDecisionSummary`。
@@ -388,6 +389,7 @@ env HOME=$PWD/.home DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer xco
 - `Tools/RenderBattlePreview/main.swift` 渲染前还会断言 `selectedUnitDevelopmentDecisionSummary` 存在，训练/任命预览、成本、预计收益、候选将领/特性、状态和无障碍文案可读；断言失败会抛出 `missingUnitDevelopmentDecisionSummary`。
 - `Tools/RenderBattlePreview/main.swift` 渲染前还会断言 `primaryUnitDevelopmentRecommendationSummary` 和 `unitDevelopmentRecommendationSummaries` 存在，且推荐覆盖训练和任命两类，优先级、理由、影响、状态和无障碍文案可读；断言失败会抛出 `missingUnitDevelopmentRecommendationSummary`。
 - `Tools/RenderBattlePreview/main.swift` 渲染前还会断言 `selectedCommanderSynergySummary`、`primaryCommanderSynergySummary` 和 `commanderSynergySummaries` 可用，且将令类型、目标、影响、详情和无障碍文案可读；断言失败会抛出 `missingCommanderSynergySummary`。
+- `Tools/RenderBattlePreview/main.swift` 渲染前还会断言 `selectedCommanderSynergySummary.stepReadouts` 与核心 `report.steps` 数量一致，角色、单位、姿态、坐标、目标和步骤无障碍文案可读，并且读取不改变单位、城市、资源、回合或当前势力；断言失败会抛出 `missingCommanderSynergyStepReadout`。
 - `Tools/RenderBattlePreview/main.swift` 渲染前还会断言 `primaryManeuverOptionSummary`、`selectedManeuverOptionSummaries`、`maneuverOptionOverlaysByPosition` 和 `maneuverOptionOverlayPositions` 可用，且机动类型、落点、目标、影响、风险、详情和无障碍文案可读；断言失败会抛出 `missingManeuverOptionSummary`。
 - `Tools/RenderBattlePreview/main.swift` 渲染前还会断言 `selectedTacticalRecommendationSummary` 存在，战术建议类型、目标、路径、命令文案、路线线段、路径位置集合和目标位置可读；断言失败会抛出 `missingTacticalRecommendationSummary`。
 - `Tools/RenderBattlePreview/main.swift` 渲染前还会断言 `selectedCommanderBrief` 存在、鹰旗被动攻击贡献存在、技能状态非空、战功摘要存在、`selectedTacticalOrderPreviews` 覆盖全部 `TacticalOrder`，且突击/行军等非当前姿态有有效攻防移变化；断言失败会抛出 `missingCommanderBrief` 或 `missingTacticalOrderPreview`。

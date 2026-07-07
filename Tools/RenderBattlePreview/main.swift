@@ -601,6 +601,65 @@ struct RenderBattlePreview {
               !selectedSynergySummary.accessibilityLabel.isEmpty else {
             throw PreviewRenderError.missingCommanderSynergySummary
         }
+        let unitStateBeforeSynergyStepRead = viewModel.state.units
+            .sorted { $0.id < $1.id }
+            .map { unit in
+                "\(unit.id)|\(unit.position.description)|\(unit.health)|\(unit.hasMoved)|\(unit.hasActed)|\(unit.generalSkillCooldownRemaining)|\(unit.tacticalOrder?.rawValue ?? "balanced")"
+            }
+        let cityStateBeforeSynergyStepRead = viewModel.state.cities
+            .sorted { $0.id < $1.id }
+            .map { city in
+                "\(city.id)|\(city.owner.rawValue)|\(city.fortification)|\(city.position.description)"
+            }
+        let resourcesBeforeSynergyStepRead = viewModel.state.resources
+            .sorted { $0.key.rawValue < $1.key.rawValue }
+            .map { entry in
+                let resources = entry.value
+                return "\(entry.key.rawValue)|\(resources.gold)|\(resources.grain)|\(resources.iron)|\(resources.science)|\(resources.prestige)"
+            }
+        let turnBeforeSynergyStepRead = viewModel.state.turn
+        let activeFactionBeforeSynergyStepRead = viewModel.state.activeFaction
+        let synergyStepReadouts = selectedSynergySummary.stepReadouts
+        guard !synergyStepReadouts.isEmpty,
+              synergyStepReadouts.count == selectedSynergySummary.report.steps.count,
+              !selectedSynergySummary.stepSequenceLabel.isEmpty,
+              !selectedSynergySummary.stepAccessibilityLabel.isEmpty,
+              selectedSynergySummary.stepAccessibilityLabel.contains("姿态"),
+              selectedSynergySummary.stepAccessibilityLabel.contains("目标"),
+              synergyStepReadouts.allSatisfy({ step in
+                  !step.roleLabel.isEmpty &&
+                      !step.unitLabel.isEmpty &&
+                      !step.positionLabel.isEmpty &&
+                      !step.targetLabel.isEmpty &&
+                      !step.orderLabel.isEmpty &&
+                      !step.compactLabel.isEmpty &&
+                      !step.routeLabel.isEmpty &&
+                      !step.detailLabel.isEmpty &&
+                      !step.accessibilityLabel.isEmpty
+              }),
+              synergyStepReadouts.contains(where: { $0.role == .commander || $0.role == .mainEffort }),
+              synergyStepReadouts.contains(where: { $0.step.unitID == selectedSynergySummary.report.unitID }),
+              synergyStepReadouts.contains(where: { $0.positionLabel == Position(x: 3, y: 3).description }),
+              viewModel.state.units
+                  .sorted(by: { $0.id < $1.id })
+                  .map({ unit in
+                      "\(unit.id)|\(unit.position.description)|\(unit.health)|\(unit.hasMoved)|\(unit.hasActed)|\(unit.generalSkillCooldownRemaining)|\(unit.tacticalOrder?.rawValue ?? "balanced")"
+                  }) == unitStateBeforeSynergyStepRead,
+              viewModel.state.cities
+                  .sorted(by: { $0.id < $1.id })
+                  .map({ city in
+                      "\(city.id)|\(city.owner.rawValue)|\(city.fortification)|\(city.position.description)"
+                  }) == cityStateBeforeSynergyStepRead,
+              viewModel.state.resources
+                  .sorted(by: { $0.key.rawValue < $1.key.rawValue })
+                  .map({ entry in
+                      let resources = entry.value
+                      return "\(entry.key.rawValue)|\(resources.gold)|\(resources.grain)|\(resources.iron)|\(resources.science)|\(resources.prestige)"
+                  }) == resourcesBeforeSynergyStepRead,
+              viewModel.state.turn == turnBeforeSynergyStepRead,
+              viewModel.state.activeFaction == activeFactionBeforeSynergyStepRead else {
+            throw PreviewRenderError.missingCommanderSynergyStepReadout
+        }
         guard let recommendationSummary = viewModel.selectedTacticalRecommendationSummary,
               recommendationSummary.report.unitID == "rome-legion-1",
               !recommendationSummary.kindLabel.isEmpty,
@@ -1696,6 +1755,7 @@ enum PreviewRenderError: Error {
     case missingUnitDevelopmentDecisionSummary
     case missingUnitDevelopmentRecommendationSummary
     case missingCommanderSynergySummary
+    case missingCommanderSynergyStepReadout
     case missingTacticalRecommendationSummary
     case missingManeuverOptionSummary
     case missingMapOverlayLegend

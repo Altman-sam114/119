@@ -4783,11 +4783,17 @@ struct CommanderSynergyCardView: View {
             }
 
             if !isCompact {
-                Text(summary.stepLabel.isEmpty ? summary.beneficiaryLabel : summary.stepLabel)
+                Text(summary.stepSequenceLabel)
                     .font(.caption2.weight(.semibold))
                     .foregroundStyle(.white.opacity(0.62))
                     .lineLimit(2)
                     .minimumScaleFactor(0.72)
+            } else {
+                Text(summary.stepSequenceLabel)
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(.white.opacity(0.58))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.68)
             }
 
             Text(summary.objectiveCueLabel)
@@ -4811,6 +4817,14 @@ struct CommanderSynergyCardView: View {
                 .foregroundStyle(summary.kind.tintColor)
                 .lineLimit(isCompact ? 1 : 2)
                 .minimumScaleFactor(0.70)
+
+            if !isCompact {
+                VStack(spacing: 4) {
+                    ForEach(summary.stepReadouts.prefix(3)) { step in
+                        CommanderSynergyStepReadoutView(step: step, tint: summary.kind.tintColor)
+                    }
+                }
+            }
         }
         .padding(8)
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -4821,6 +4835,44 @@ struct CommanderSynergyCardView: View {
         }
         .clipShape(RoundedRectangle(cornerRadius: 7))
         .accessibilityLabel(summary.accessibilityLabel)
+    }
+}
+
+struct CommanderSynergyStepReadoutView: View {
+    var step: CommanderSynergyStepReadout
+    var tint: Color
+
+    var body: some View {
+        HStack(spacing: 6) {
+            Text(step.roleLabel)
+                .font(.caption2.weight(.black))
+                .foregroundStyle(.black.opacity(0.78))
+                .lineLimit(1)
+                .minimumScaleFactor(0.66)
+                .padding(.horizontal, 5)
+                .frame(height: 18)
+                .background(tint)
+                .clipShape(RoundedRectangle(cornerRadius: 4))
+
+            VStack(alignment: .leading, spacing: 1) {
+                Text("\(step.unitLabel) · \(step.orderLabel)")
+                    .font(.caption2.weight(.bold))
+                    .foregroundStyle(.white.opacity(0.76))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.68)
+                Text("\(step.routeLabel) · \(step.detailLabel)")
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(.white.opacity(0.55))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.62)
+            }
+        }
+        .padding(.horizontal, 6)
+        .padding(.vertical, 4)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(.black.opacity(0.14))
+        .clipShape(RoundedRectangle(cornerRadius: 5))
+        .accessibilityLabel(step.accessibilityLabel)
     }
 }
 
