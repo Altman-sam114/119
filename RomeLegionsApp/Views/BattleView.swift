@@ -1972,6 +1972,10 @@ struct CompactSelectionPanelView: View {
                         SelectedUnitSituationReadoutView(readout: situation, isCompact: true)
                     }
 
+                    if let orderWindow = viewModel.selectedUnitOrderWindowReadout {
+                        SelectedUnitOrderWindowReadoutView(readout: orderWindow, isCompact: true)
+                    }
+
                     if let formation = viewModel.selectedLegionFormationSummary {
                         LegionFormationCardView(summary: formation, isCompact: true)
                     }
@@ -4189,6 +4193,190 @@ struct SelectedUnitSituationLabelRow: View {
     }
 }
 
+struct SelectedUnitOrderWindowReadoutView: View {
+    var readout: SelectedUnitOrderWindowReadout
+    var isCompact: Bool
+
+    private var tint: Color {
+        if readout.riskLabel.contains("高") || readout.counterLabel.contains("威胁") {
+            return Color(red: 0.96, green: 0.45, blue: 0.22)
+        }
+
+        if readout.statusLabel.contains("可") || readout.commanderLabel.contains("将") {
+            return Color(red: 0.44, green: 0.74, blue: 0.96)
+        }
+
+        return Color(red: 0.85, green: 0.67, blue: 0.34)
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: isCompact ? 5 : 7) {
+            HStack(spacing: 7) {
+                Image(systemName: "list.bullet.clipboard.fill")
+                    .foregroundStyle(tint)
+                Text("军令")
+                    .font(.caption2.weight(.bold))
+                    .foregroundStyle(.white.opacity(0.58))
+                Text(readout.title)
+                    .font(.caption.weight(.heavy))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.70)
+                Spacer(minLength: 0)
+                Text(readout.statusLabel)
+                    .font(.caption2.weight(.black))
+                    .foregroundStyle(.black.opacity(0.78))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.62)
+                    .padding(.horizontal, 6)
+                    .frame(height: 20)
+                    .background(tint)
+                    .clipShape(RoundedRectangle(cornerRadius: 5))
+            }
+
+            if isCompact {
+                Text(readout.compactLabel)
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(.white.opacity(0.72))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.60)
+                HStack(spacing: 5) {
+                    ForEach(Array(readout.steps.prefix(3))) { step in
+                        SelectedUnitOrderWindowStepChip(step: step)
+                    }
+                    Spacer(minLength: 0)
+                }
+            } else {
+                SelectedUnitOrderWindowLabelRow(
+                    symbol: "flag.checkered",
+                    title: "开局",
+                    value: "\(readout.openingLabel) · \(readout.postureLabel)",
+                    tint: tint
+                )
+                SelectedUnitOrderWindowLabelRow(
+                    symbol: "arrow.up.right.circle.fill",
+                    title: "机动",
+                    value: "\(readout.movementLabel) · \(readout.strikeLabel)",
+                    tint: Color(red: 0.45, green: 0.78, blue: 0.66)
+                )
+                SelectedUnitOrderWindowLabelRow(
+                    symbol: "bolt.shield.fill",
+                    title: "入口",
+                    value: "\(readout.commanderLabel) · \(readout.counterLabel)",
+                    tint: Color(red: 0.74, green: 0.58, blue: 0.96)
+                )
+                SelectedUnitOrderWindowLabelRow(
+                    symbol: "arrow.right.circle.fill",
+                    title: "下一步",
+                    value: "\(readout.nextStepLabel) · 风险 \(readout.riskLabel)",
+                    tint: Color(red: 0.96, green: 0.58, blue: 0.24)
+                )
+            }
+        }
+        .padding(8)
+        .frame(maxWidth: .infinity, minHeight: isCompact ? 58 : 124, alignment: .leading)
+        .background(tint.opacity(0.11))
+        .overlay {
+            RoundedRectangle(cornerRadius: 7)
+                .stroke(tint.opacity(0.34), lineWidth: 1)
+        }
+        .clipShape(RoundedRectangle(cornerRadius: 7))
+        .accessibilityLabel(readout.accessibilityLabel)
+    }
+}
+
+struct SelectedUnitOrderWindowStepChip: View {
+    var step: SelectedUnitOrderWindowStep
+
+    var body: some View {
+        HStack(spacing: 3) {
+            Image(systemName: symbol)
+                .font(.caption2.weight(.heavy))
+                .foregroundStyle(tint)
+                .accessibilityHidden(true)
+            Text(step.kind.displayName)
+                .font(.caption2.weight(.bold))
+            Text(step.cueLabel)
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(.white.opacity(0.70))
+        }
+        .lineLimit(1)
+        .minimumScaleFactor(0.56)
+        .padding(.horizontal, 5)
+        .frame(height: 20)
+        .background(tint.opacity(0.14))
+        .clipShape(RoundedRectangle(cornerRadius: 5))
+        .accessibilityLabel(step.accessibilityLabel)
+    }
+
+    private var symbol: String {
+        switch step.kind {
+        case .countermeasure:
+            return "shield.lefthalf.filled"
+        case .objectiveStage:
+            return "point.topleft.down.curvedto.point.bottomright.up.fill"
+        case .commander:
+            return "sparkles"
+        case .maneuver:
+            return "arrow.up.right.circle.fill"
+        case .recommendation:
+            return "lightbulb.fill"
+        case .tacticalOrder:
+            return "flag.checkered"
+        case .engagement:
+            return "arrow.triangle.2.circlepath"
+        case .convergence:
+            return "link.circle.fill"
+        }
+    }
+
+    private var tint: Color {
+        switch step.kind {
+        case .countermeasure:
+            return Color(red: 0.96, green: 0.45, blue: 0.22)
+        case .objectiveStage:
+            return Color(red: 0.92, green: 0.72, blue: 0.25)
+        case .commander:
+            return Color(red: 0.74, green: 0.58, blue: 0.96)
+        case .maneuver:
+            return Color(red: 0.45, green: 0.78, blue: 0.66)
+        case .recommendation:
+            return Color(red: 0.52, green: 0.78, blue: 0.96)
+        case .tacticalOrder:
+            return Color(red: 0.88, green: 0.68, blue: 0.34)
+        case .engagement:
+            return Color(red: 0.96, green: 0.30, blue: 0.30)
+        case .convergence:
+            return Color(red: 0.58, green: 0.82, blue: 0.76)
+        }
+    }
+}
+
+struct SelectedUnitOrderWindowLabelRow: View {
+    var symbol: String
+    var title: String
+    var value: String
+    var tint: Color
+
+    var body: some View {
+        HStack(spacing: 6) {
+            Image(systemName: symbol)
+                .font(.caption2.weight(.heavy))
+                .foregroundStyle(tint)
+                .frame(width: 14)
+            Text(title)
+                .font(.caption2.weight(.bold))
+                .foregroundStyle(.white.opacity(0.58))
+                .frame(width: 42, alignment: .leading)
+            Text(value)
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(.white.opacity(0.72))
+                .lineLimit(1)
+                .minimumScaleFactor(0.60)
+            Spacer(minLength: 0)
+        }
+    }
+}
+
 struct TacticalRecommendationCardView: View {
     var summary: TacticalRecommendationSummary
     var isCompact: Bool
@@ -5009,6 +5197,10 @@ struct SelectionPanelView: View {
 
                     if let situation = viewModel.selectedUnitSituationReadout {
                         SelectedUnitSituationReadoutView(readout: situation, isCompact: false)
+                    }
+
+                    if let orderWindow = viewModel.selectedUnitOrderWindowReadout {
+                        SelectedUnitOrderWindowReadoutView(readout: orderWindow, isCompact: false)
                     }
 
                     if let formation = viewModel.selectedLegionFormationSummary {

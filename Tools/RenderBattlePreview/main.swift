@@ -903,6 +903,102 @@ struct RenderBattlePreview {
               activeFactionBeforeCommanderBridgeRead == viewModel.state.activeFaction else {
             throw PreviewRenderError.missingCommanderOpportunityBridgeReadout
         }
+        let unitStateBeforeOrderWindowRead = viewModel.state.units
+            .sorted { $0.id < $1.id }
+            .map { unit in
+                "\(unit.id)|\(unit.position.description)|\(unit.health)|\(unit.hasMoved)|\(unit.hasActed)|\(unit.generalSkillCooldownRemaining)|\(unit.tacticalOrder?.rawValue ?? "balanced")"
+            }
+        let cityStateBeforeOrderWindowRead = viewModel.state.cities
+            .sorted { $0.id < $1.id }
+            .map { city in
+                "\(city.id)|\(city.owner.rawValue)|\(city.fortification)|\(city.position.description)"
+            }
+        let resourcesBeforeOrderWindowRead = viewModel.state.resources
+            .sorted { $0.key.rawValue < $1.key.rawValue }
+            .map { entry in
+                let resources = entry.value
+                return "\(entry.key.rawValue)|\(resources.gold)|\(resources.grain)|\(resources.iron)|\(resources.science)|\(resources.prestige)"
+            }
+        let turnBeforeOrderWindowRead = viewModel.state.turn
+        let activeFactionBeforeOrderWindowRead = viewModel.state.activeFaction
+        let orderWindowRecommendedOrder = viewModel.selectedTacticalOrderPreviews.first { !$0.isCurrent && $0.canSwitch } ??
+            viewModel.selectedTacticalOrderPreviews.first { $0.isCurrent } ??
+            viewModel.selectedTacticalOrderPreviews.first
+        guard let orderWindowReadout = viewModel.selectedUnitOrderWindowReadout,
+              orderWindowReadout.unitID == "rome-legion-1",
+              orderWindowReadout.references(situation: selectedSituation),
+              orderWindowReadout.references(countermeasurePreview: bridgeCountermeasurePreview),
+              bridgeStagePreview.map({ orderWindowReadout.references(stagePreview: $0) }) ?? false,
+              orderWindowReadout.references(commanderBridge: commanderBridgeReadout),
+              orderWindowReadout.references(commanderChain: commanderChainReadout),
+              orderWindowReadout.references(recommendation: recommendationSummary),
+              orderWindowReadout.references(maneuver: primaryManeuverSummary),
+              orderWindowReadout.references(engagementLoop: engagementLoop),
+              orderWindowReadout.references(convergence: battlefieldConvergence),
+              orderWindowRecommendedOrder.map({ orderWindowReadout.references(recommendedOrder: $0) }) ?? false,
+              !orderWindowReadout.title.isEmpty,
+              !orderWindowReadout.statusLabel.isEmpty,
+              !orderWindowReadout.openingLabel.isEmpty,
+              !orderWindowReadout.postureLabel.isEmpty,
+              !orderWindowReadout.movementLabel.isEmpty,
+              !orderWindowReadout.strikeLabel.isEmpty,
+              !orderWindowReadout.commanderLabel.isEmpty,
+              !orderWindowReadout.counterLabel.isEmpty,
+              !orderWindowReadout.nextStepLabel.isEmpty,
+              !orderWindowReadout.riskLabel.isEmpty,
+              !orderWindowReadout.compactLabel.isEmpty,
+              !orderWindowReadout.accessibilityLabel.isEmpty,
+              orderWindowReadout.accessibilityLabel.contains("军令"),
+              orderWindowReadout.accessibilityLabel.contains("姿态"),
+              orderWindowReadout.accessibilityLabel.contains("机动"),
+              orderWindowReadout.accessibilityLabel.contains("反制"),
+              orderWindowReadout.accessibilityLabel.contains("下一步"),
+              orderWindowReadout.hasSteps,
+              orderWindowReadout.steps.contains(where: { $0.kind == .countermeasure && $0.sourceID == bridgeCountermeasurePreview.id }),
+              bridgeStagePreview.map({ stagePreview in
+                  orderWindowReadout.steps.contains(where: { $0.kind == .objectiveStage && $0.sourceID == stagePreview.id })
+              }) ?? false,
+              orderWindowReadout.steps.contains(where: { $0.kind == .commander && $0.sourceID == "\(commanderBridgeReadout.unitID)-\(commanderBridgeReadout.compactLabel)" }),
+              orderWindowReadout.steps.contains(where: { $0.kind == .maneuver && $0.sourceID == primaryManeuverSummary.id }),
+              orderWindowReadout.steps.contains(where: { $0.kind == .recommendation && $0.sourceID == recommendationSummary.id }),
+              orderWindowRecommendedOrder.map({ preview in
+                  orderWindowReadout.steps.contains(where: { $0.kind == .tacticalOrder && $0.sourceID == preview.order.rawValue })
+              }) ?? false,
+              orderWindowReadout.steps.contains(where: { $0.kind == .engagement && $0.sourceID == engagementLoop.compactLabel }),
+              orderWindowReadout.steps.contains(where: { $0.kind == .convergence && $0.sourceID == battlefieldConvergence.id }),
+              orderWindowReadout.steps.allSatisfy({ step in
+                  !step.id.isEmpty &&
+                      !step.title.isEmpty &&
+                      !step.detail.isEmpty &&
+                      !step.cueLabel.isEmpty &&
+                      !step.sourceID.isEmpty &&
+                      !step.accessibilityLabel.isEmpty
+              }) else {
+            throw PreviewRenderError.missingSelectedUnitOrderWindowReadout
+        }
+        let unitStateAfterOrderWindowRead = viewModel.state.units
+            .sorted { $0.id < $1.id }
+            .map { unit in
+                "\(unit.id)|\(unit.position.description)|\(unit.health)|\(unit.hasMoved)|\(unit.hasActed)|\(unit.generalSkillCooldownRemaining)|\(unit.tacticalOrder?.rawValue ?? "balanced")"
+            }
+        let cityStateAfterOrderWindowRead = viewModel.state.cities
+            .sorted { $0.id < $1.id }
+            .map { city in
+                "\(city.id)|\(city.owner.rawValue)|\(city.fortification)|\(city.position.description)"
+            }
+        let resourcesAfterOrderWindowRead = viewModel.state.resources
+            .sorted { $0.key.rawValue < $1.key.rawValue }
+            .map { entry in
+                let resources = entry.value
+                return "\(entry.key.rawValue)|\(resources.gold)|\(resources.grain)|\(resources.iron)|\(resources.science)|\(resources.prestige)"
+            }
+        guard unitStateBeforeOrderWindowRead == unitStateAfterOrderWindowRead,
+              cityStateBeforeOrderWindowRead == cityStateAfterOrderWindowRead,
+              resourcesBeforeOrderWindowRead == resourcesAfterOrderWindowRead,
+              turnBeforeOrderWindowRead == viewModel.state.turn,
+              activeFactionBeforeOrderWindowRead == viewModel.state.activeFaction else {
+            throw PreviewRenderError.missingSelectedUnitOrderWindowReadout
+        }
         guard let battleObjectiveOverlay = viewModel.primaryBattleObjectiveMapOverlay,
               battleObjectiveOverlay.references(chain: objectiveChain),
               !battleObjectiveOverlay.chainLabel.isEmpty,
@@ -1382,6 +1478,7 @@ enum PreviewRenderError: Error {
     case missingBattleObjectiveStageLinkedHighlight
     case missingCommanderChainReadout
     case missingCommanderOpportunityBridgeReadout
+    case missingSelectedUnitOrderWindowReadout
     case missingCommanderActionGuidance
     case missingGeneralSkillTargetReadout
     case missingThreatHeatSummary

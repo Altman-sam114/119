@@ -3301,6 +3301,161 @@ struct SelectedCommanderOpportunityBridgeReadout {
     }
 }
 
+enum SelectedUnitOrderWindowStepKind: String {
+    case countermeasure
+    case objectiveStage
+    case commander
+    case maneuver
+    case recommendation
+    case tacticalOrder
+    case engagement
+    case convergence
+
+    var displayName: String {
+        switch self {
+        case .countermeasure:
+            return "反制"
+        case .objectiveStage:
+            return "目标线"
+        case .commander:
+            return "将令"
+        case .maneuver:
+            return "机动"
+        case .recommendation:
+            return "军议"
+        case .tacticalOrder:
+            return "姿态"
+        case .engagement:
+            return "敌情"
+        case .convergence:
+            return "态势"
+        }
+    }
+}
+
+struct SelectedUnitOrderWindowStep: Identifiable {
+    var kind: SelectedUnitOrderWindowStepKind
+    var title: String
+    var detail: String
+    var cueLabel: String
+    var position: Position?
+    var sourceID: String
+    var isPrimary: Bool
+
+    var id: String {
+        [
+            kind.rawValue,
+            sourceID,
+            position?.description,
+            title
+        ].compactMap { $0 }.joined(separator: "-")
+    }
+
+    var accessibilityLabel: String {
+        var parts = [
+            kind.displayName,
+            title,
+            cueLabel,
+            detail
+        ]
+
+        if let position {
+            parts.append("坐标\(position.description)")
+        }
+
+        return parts.joined(separator: "，")
+    }
+}
+
+struct SelectedUnitOrderWindowReadout {
+    var unitID: String
+    var title: String
+    var statusLabel: String
+    var openingLabel: String
+    var postureLabel: String
+    var movementLabel: String
+    var strikeLabel: String
+    var commanderLabel: String
+    var counterLabel: String
+    var nextStepLabel: String
+    var riskLabel: String
+    var compactLabel: String
+    var steps: [SelectedUnitOrderWindowStep]
+    var situationID: String?
+    var countermeasurePreviewID: String?
+    var stagePreviewID: String?
+    var commanderBridgeID: String?
+    var commanderChainUnitID: String?
+    var recommendationID: String?
+    var maneuverID: String?
+    var engagementLoopID: String?
+    var convergenceID: String?
+    var tacticalOrderID: String?
+
+    var hasSteps: Bool {
+        !steps.isEmpty
+    }
+
+    var primaryStep: SelectedUnitOrderWindowStep? {
+        steps.first { $0.isPrimary } ?? steps.first
+    }
+
+    var accessibilityLabel: String {
+        [
+            title,
+            "状态\(statusLabel)",
+            "军令\(openingLabel)",
+            "姿态\(postureLabel)",
+            "机动\(movementLabel)",
+            "打击\(strikeLabel)",
+            "将令\(commanderLabel)",
+            "反制\(counterLabel)",
+            "下一步\(nextStepLabel)",
+            "风险\(riskLabel)"
+        ].joined(separator: "，")
+    }
+
+    func references(situation candidate: SelectedUnitSituationReadout) -> Bool {
+        situationID == candidate.unitID
+    }
+
+    func references(countermeasurePreview candidate: CountermeasureCommandPreview) -> Bool {
+        countermeasurePreviewID == candidate.id
+    }
+
+    func references(stagePreview candidate: BattleObjectiveStageCommandPreview) -> Bool {
+        stagePreviewID == candidate.id
+    }
+
+    func references(commanderBridge candidate: SelectedCommanderOpportunityBridgeReadout) -> Bool {
+        commanderBridgeID == "\(candidate.unitID)-\(candidate.compactLabel)"
+    }
+
+    func references(commanderChain candidate: SelectedCommanderChainReadout) -> Bool {
+        commanderChainUnitID == candidate.unitID
+    }
+
+    func references(recommendation candidate: TacticalRecommendationSummary) -> Bool {
+        recommendationID == candidate.id
+    }
+
+    func references(maneuver candidate: ManeuverOptionSummary) -> Bool {
+        maneuverID == candidate.id
+    }
+
+    func references(engagementLoop candidate: EnemyEngagementLoopReadout) -> Bool {
+        engagementLoopID == candidate.compactLabel
+    }
+
+    func references(convergence candidate: BattlefieldConvergenceSummary) -> Bool {
+        convergenceID == candidate.id
+    }
+
+    func references(recommendedOrder candidate: SelectedTacticalOrderPreview) -> Bool {
+        tacticalOrderID == candidate.order.rawValue
+    }
+}
+
 struct SelectedTacticalOrderPreview: Identifiable {
     var order: TacticalOrder
     var attack: Int
@@ -5857,6 +6012,218 @@ final class GameViewModel: ObservableObject {
             countermeasurePreviewID: countermeasurePreview?.id,
             stagePreviewID: stagePreview?.id,
             engagementLoopID: engagementLoop?.compactLabel
+        )
+    }
+
+    var selectedUnitOrderWindowReadout: SelectedUnitOrderWindowReadout? {
+        guard let selectedUnit,
+              let situation = selectedUnitSituationReadout else {
+            return nil
+        }
+
+        let countermeasurePreview = selectedCountermeasureCommandPreview ?? primaryCountermeasureCommandPreview
+        let stagePreview = selectedBattleObjectiveStageCommandPreview ?? primaryBattleObjectiveStageCommandPreview
+        let commanderBridge = selectedCommanderOpportunityBridgeReadout
+        let commanderChain = selectedCommanderChainReadout
+        let commanderGuidance = selectedCommanderActionGuidance
+        let recommendation = selectedTacticalRecommendationSummary
+        let maneuver = primaryManeuverOptionSummary
+        let engagementLoop = primaryEnemyEngagementLoopReadout
+        let convergence = primaryBattlefieldConvergenceSummary
+        let recommendedOrder = selectedTacticalOrderPreviews.first { !$0.isCurrent && $0.canSwitch } ??
+            selectedTacticalOrderPreviews.first { $0.isCurrent } ??
+            selectedTacticalOrderPreviews.first
+        var steps: [SelectedUnitOrderWindowStep] = []
+
+        func appendStep(
+            kind: SelectedUnitOrderWindowStepKind,
+            title: String,
+            detail: String,
+            cueLabel: String,
+            position: Position?,
+            sourceID: String
+        ) {
+            steps.append(
+                SelectedUnitOrderWindowStep(
+                    kind: kind,
+                    title: title,
+                    detail: detail,
+                    cueLabel: cueLabel,
+                    position: position,
+                    sourceID: sourceID,
+                    isPrimary: steps.isEmpty
+                )
+            )
+        }
+
+        if let countermeasurePreview {
+            appendStep(
+                kind: .countermeasure,
+                title: countermeasurePreview.title,
+                detail: "\(countermeasurePreview.statusLabel) · \(countermeasurePreview.commandChainLabel)",
+                cueLabel: countermeasurePreview.nextStepLabel,
+                position: countermeasurePreview.destination,
+                sourceID: countermeasurePreview.id
+            )
+        }
+
+        if let stagePreview {
+            appendStep(
+                kind: .objectiveStage,
+                title: stagePreview.title,
+                detail: "\(stagePreview.stageLabel) · \(stagePreview.statusLabel)",
+                cueLabel: stagePreview.commandEntryCueLabel,
+                position: stagePreview.position,
+                sourceID: stagePreview.id
+            )
+        }
+
+        if let commanderBridge {
+            appendStep(
+                kind: .commander,
+                title: commanderBridge.title,
+                detail: "\(commanderBridge.opportunityLabel) · \(commanderBridge.enemyThreatLabel)",
+                cueLabel: commanderBridge.entryLabel,
+                position: selectedUnit.position,
+                sourceID: "\(commanderBridge.unitID)-\(commanderBridge.compactLabel)"
+            )
+        } else if let commanderGuidance {
+            appendStep(
+                kind: .commander,
+                title: commanderGuidance.title,
+                detail: "\(commanderGuidance.statusLabel) · \(commanderGuidance.skillCueLabel)",
+                cueLabel: commanderGuidance.stageCueLabel ?? commanderGuidance.skillCueLabel,
+                position: selectedUnit.position,
+                sourceID: "\(selectedUnit.id)-commander-action"
+            )
+        }
+
+        if let maneuver {
+            appendStep(
+                kind: .maneuver,
+                title: maneuver.title,
+                detail: "\(maneuver.destinationLabel) · \(maneuver.impactLabel)",
+                cueLabel: maneuver.objectiveCueLabel,
+                position: maneuver.destination,
+                sourceID: maneuver.id
+            )
+        }
+
+        if let recommendation {
+            appendStep(
+                kind: .recommendation,
+                title: recommendation.title,
+                detail: "\(recommendation.kindLabel) · \(recommendation.riskLabel)",
+                cueLabel: recommendation.report.command,
+                position: recommendation.destination,
+                sourceID: recommendation.id
+            )
+        }
+
+        if let recommendedOrder {
+            let cue = recommendedOrder.isCurrent ? "保持\(recommendedOrder.order.displayName)" : "切换\(recommendedOrder.order.displayName)"
+            appendStep(
+                kind: .tacticalOrder,
+                title: "姿态窗口",
+                detail: recommendedOrder.detail,
+                cueLabel: cue,
+                position: selectedUnit.position,
+                sourceID: recommendedOrder.order.rawValue
+            )
+        }
+
+        if let engagementLoop {
+            appendStep(
+                kind: .engagement,
+                title: engagementLoop.title,
+                detail: "\(engagementLoop.intentLabel) · \(engagementLoop.enemyCommanderLabel)",
+                cueLabel: engagementLoop.nextStepLabel,
+                position: engagementLoop.signals.first?.position ?? selectedUnit.position,
+                sourceID: engagementLoop.compactLabel
+            )
+        }
+
+        if let convergence {
+            appendStep(
+                kind: .convergence,
+                title: convergence.title,
+                detail: "\(convergence.objectiveLabel) · \(convergence.responseLabel)",
+                cueLabel: convergence.nextStepLabel,
+                position: convergence.signals.first?.position ?? selectedUnit.position,
+                sourceID: convergence.id
+            )
+        }
+
+        guard !steps.isEmpty else {
+            return nil
+        }
+
+        let openingLabel = steps.first?.cueLabel ?? situation.primaryCommandEntryLabel
+        let postureLabel = recommendedOrder.map { preview in
+            if preview.isCurrent {
+                return "保持\(preview.order.displayName)"
+            }
+            return preview.canSwitch ? "切换\(preview.order.displayName)" : "\(preview.order.displayName)受阻"
+        } ?? "姿态待确认"
+        let movementLabel = maneuver.map { "\($0.destinationLabel) · \($0.impactLabel)" } ??
+            stagePreview.map { "\($0.stageLabel) · \($0.focusLabel)" } ??
+            situation.spaceLabel
+        let strikeLabel = recommendation.map { "\($0.kindLabel) · \($0.report.command)" } ??
+            countermeasurePreview?.targetStageCueLabel ??
+            stagePreview?.attackStageCueLabel ??
+            situation.opportunityLabel
+        let commanderLabel = commanderBridge?.compactLabel ??
+            commanderChain?.entryLabel ??
+            commanderGuidance?.skillCueLabel ??
+            "将令待确认"
+        let counterLabel = countermeasurePreview.map { "\($0.summary.kindLabel) · \($0.nextStepLabel)" } ??
+            engagementLoop?.countermeasureLabel ??
+            "反制待确认"
+        let nextStepLabel = countermeasurePreview?.nextStepLabel ??
+            stagePreview?.nextStepLabel ??
+            commanderBridge?.nextStepLabel ??
+            recommendation?.report.command ??
+            maneuver?.objectiveCueLabel ??
+            situation.nextStepLabel
+        let riskLabel = countermeasurePreview?.summary.riskLabel ??
+            commanderBridge?.riskLabel ??
+            convergence?.riskLabel ??
+            engagementLoop?.riskLabel ??
+            situation.riskLabel
+        let statusLabel = countermeasurePreview?.statusLabel ??
+            stagePreview?.statusLabel ??
+            commanderBridge?.statusLabel ??
+            situation.statusLabel
+        let compactLabel = [
+            openingLabel,
+            postureLabel,
+            nextStepLabel
+        ].joined(separator: " · ")
+
+        return SelectedUnitOrderWindowReadout(
+            unitID: selectedUnit.id,
+            title: "\(selectedUnit.kind.displayName)军令窗口",
+            statusLabel: statusLabel,
+            openingLabel: openingLabel,
+            postureLabel: postureLabel,
+            movementLabel: movementLabel,
+            strikeLabel: strikeLabel,
+            commanderLabel: commanderLabel,
+            counterLabel: counterLabel,
+            nextStepLabel: nextStepLabel,
+            riskLabel: riskLabel,
+            compactLabel: compactLabel,
+            steps: steps,
+            situationID: situation.unitID,
+            countermeasurePreviewID: countermeasurePreview?.id,
+            stagePreviewID: stagePreview?.id,
+            commanderBridgeID: commanderBridge.map { "\($0.unitID)-\($0.compactLabel)" },
+            commanderChainUnitID: commanderChain?.unitID,
+            recommendationID: recommendation?.id,
+            maneuverID: maneuver?.id,
+            engagementLoopID: engagementLoop?.compactLabel,
+            convergenceID: convergence?.id,
+            tacticalOrderID: recommendedOrder?.order.rawValue
         )
     }
 
