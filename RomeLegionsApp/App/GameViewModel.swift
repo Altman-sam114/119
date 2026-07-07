@@ -2671,7 +2671,7 @@ struct AIOperationalPlanSummary: Identifiable {
                 targetStepCity = nil
             }
 
-            AIOperationalPlanTimelineStepReadout(
+            return AIOperationalPlanTimelineStepReadout(
                 sequence: index + 1,
                 step: step,
                 unit: lookupUnits.first { $0.id == step.unitID },
