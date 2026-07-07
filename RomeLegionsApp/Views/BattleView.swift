@@ -645,27 +645,22 @@ struct MapReconPerspectiveHUDView: View {
     var onSelect: (MapReconPerspectiveKind) -> Void
 
     var body: some View {
-        ViewThatFits(in: .horizontal) {
-            HStack(spacing: 8) {
+        VStack(alignment: .leading, spacing: 5) {
+            HStack(spacing: 7) {
                 header
                 selector
-                signalStrip(limit: 3)
                 Spacer(minLength: 0)
                 statusPill
             }
 
-            VStack(alignment: .leading, spacing: 5) {
-                HStack(spacing: 7) {
-                    header
-                    selector
-                    Spacer(minLength: 0)
-                    statusPill
-                }
+            HStack(spacing: 5) {
+                signalStrip(limit: 3)
                 Text(readout.compactLabel)
                     .font(.caption2.weight(.bold))
-                    .foregroundStyle(.white.opacity(0.74))
+                    .foregroundStyle(.white.opacity(0.72))
                     .lineLimit(1)
                     .minimumScaleFactor(0.62)
+                Spacer(minLength: 0)
             }
         }
         .foregroundStyle(.white)
@@ -696,26 +691,12 @@ struct MapReconPerspectiveHUDView: View {
     private var selector: some View {
         HStack(spacing: 4) {
             ForEach(readout.availableKinds) { kind in
-                Button {
-                    onSelect(kind)
-                } label: {
-                    HStack(spacing: 3) {
-                        Image(systemName: kind.systemImage)
-                            .font(.caption2.weight(.heavy))
-                            .accessibilityHidden(true)
-                        Text(kind.shortLabel)
-                            .font(.caption2.weight(.black))
-                    }
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.62)
-                    .foregroundStyle(readout.selectedKind == kind ? .black.opacity(0.82) : .white.opacity(0.72))
-                    .padding(.horizontal, 6)
-                    .frame(height: 21)
-                    .background(readout.selectedKind == kind ? tint(for: kind) : tint(for: kind).opacity(0.16))
-                    .clipShape(RoundedRectangle(cornerRadius: 5))
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel("切换\(kind.displayName)侦察")
+                MapReconPerspectiveButton(
+                    kind: kind,
+                    isSelected: readout.selectedKind == kind,
+                    tint: tint(for: kind),
+                    onSelect: onSelect
+                )
             }
         }
     }
@@ -735,20 +716,11 @@ struct MapReconPerspectiveHUDView: View {
     private func signalStrip(limit: Int) -> some View {
         HStack(spacing: 5) {
             ForEach(Array(readout.signals.prefix(limit))) { signal in
-                HStack(spacing: 3) {
-                    Image(systemName: symbol(for: signal.kind))
-                        .foregroundStyle(tint(for: signal.kind))
-                        .accessibilityHidden(true)
-                    Text(signal.title)
-                        .font(.caption2.weight(.bold))
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.58)
-                }
-                .foregroundStyle(.white.opacity(0.72))
-                .padding(.horizontal, 5)
-                .frame(height: 20)
-                .background(tint(for: signal.kind).opacity(0.16))
-                .clipShape(RoundedRectangle(cornerRadius: 5))
+                MapReconPerspectiveSignalPill(
+                    symbol: symbol(for: signal.kind),
+                    title: signal.title,
+                    tint: tint(for: signal.kind)
+                )
             }
         }
     }
@@ -806,6 +778,59 @@ struct MapReconPerspectiveHUDView: View {
         case .convergence:
             return .mint
         }
+    }
+}
+
+struct MapReconPerspectiveButton: View {
+    var kind: MapReconPerspectiveKind
+    var isSelected: Bool
+    var tint: Color
+    var onSelect: (MapReconPerspectiveKind) -> Void
+
+    var body: some View {
+        Button {
+            onSelect(kind)
+        } label: {
+            HStack(spacing: 3) {
+                Image(systemName: kind.systemImage)
+                    .font(.caption2.weight(.heavy))
+                    .accessibilityHidden(true)
+                Text(kind.shortLabel)
+                    .font(.caption2.weight(.black))
+            }
+            .lineLimit(1)
+            .minimumScaleFactor(0.62)
+            .foregroundStyle(isSelected ? .black.opacity(0.82) : .white.opacity(0.72))
+            .padding(.horizontal, 6)
+            .frame(height: 21)
+            .background(isSelected ? tint : tint.opacity(0.16))
+            .clipShape(RoundedRectangle(cornerRadius: 5))
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("切换\(kind.displayName)侦察")
+    }
+}
+
+struct MapReconPerspectiveSignalPill: View {
+    var symbol: String
+    var title: String
+    var tint: Color
+
+    var body: some View {
+        HStack(spacing: 3) {
+            Image(systemName: symbol)
+                .foregroundStyle(tint)
+                .accessibilityHidden(true)
+            Text(title)
+                .font(.caption2.weight(.bold))
+                .lineLimit(1)
+                .minimumScaleFactor(0.58)
+        }
+        .foregroundStyle(.white.opacity(0.72))
+        .padding(.horizontal, 5)
+        .frame(height: 20)
+        .background(tint.opacity(0.16))
+        .clipShape(RoundedRectangle(cornerRadius: 5))
     }
 }
 
