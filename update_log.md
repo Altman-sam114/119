@@ -52,7 +52,10 @@
 验证结果：
 
 - 按人工最新要求，本轮未运行任何本地测试、build、typecheck、RenderBattlePreview、`Tools/verify_project.mjs`、`git diff --check`、YAML/JSON/Plist 解析或脚本语法检查。
-- 等待 Agent B 提交并 push 到 `origin/main` 后，由 GitHub Actions 生成 v0.45 云端结果包，再由 Agent C 下载最新 artifact 复判。
+- Agent B 已将实现提交 `bf102983d9fbb99c919c556377d0c7919086ab26` 直推 `origin/main`。
+- Agent C 下载并复判最新 GitHub Actions 结果包 `RomeLegions-ci-v0.45-main-bf10298-run28840341318-attempt1`，run id `28840341318`，run attempt `1`，manifest 对应 `main` / `bf102983d9fbb99c919c556377d0c7919086ab26` / `v0.45`。
+- manifest 显示 `staticChecksOutcome`、`swiftTestsOutcome`、`gameplaySmokeOutcome`、`renderPreviewOutcome`、`buildOutcome`、`testOutcome` 均为 `success`；JUnit 记录 `tests="5"`、`failures="0"`；Swift Testing 日志记录 `88 tests passed`；Gameplay Smoke 输出 `Gameplay smoke test passed.`；RenderBattlePreview 生成 6 张非空 PNG 且未出现 `missingSelectedUnitOrderWindowReadout`；Xcode build 日志记录 `** BUILD SUCCEEDED **`。
+- 云端宽屏单位预览显示“军团军令窗口”可读，横屏和竖屏命令面板未见明显裁切或遮挡。
 
 遗留事项：
 
