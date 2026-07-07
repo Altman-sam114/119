@@ -52,7 +52,10 @@
 验证结果：
 
 - 按人工最新要求，本轮未运行任何本地测试、build、typecheck、RenderBattlePreview、`Tools/verify_project.mjs`、`git diff --check`、YAML/JSON/Plist 解析或脚本语法检查。
-- 本轮需在 Agent B 提交并 push 到 `origin/main` 后，由 GitHub Actions 生成 `v0.44` 结果包，再交 Agent C 下载最新 artifact 复判。
+- Agent B 已将实现提交 `fdb3fdc9405cc43e669d5c4ba00e6acf19a5b297` 直推 `origin/main`。
+- Agent C 下载并复判最新 GitHub Actions 结果包 `RomeLegions-ci-v0.44-main-fdb3fdc-run28812253649-attempt1`，run id `28812253649`，run attempt `1`，manifest 对应 `main` / `fdb3fdc9405cc43e669d5c4ba00e6acf19a5b297` / `v0.44`。
+- manifest 显示 `staticChecksOutcome`、`swiftTestsOutcome`、`gameplaySmokeOutcome`、`renderPreviewOutcome`、`buildOutcome`、`testOutcome` 均为 `success`；JUnit 记录 `tests="5"`、`failures="0"`；Swift Testing 日志记录 `88 tests passed`；Gameplay Smoke 输出 `Gameplay smoke test passed.`；RenderBattlePreview 生成 6 张非空 PNG 且未出现 `missingCommanderOpportunityBridgeReadout`；Xcode build 日志记录 `** BUILD SUCCEEDED **`。
+- 云端宽屏和竖屏预览复判显示将领战机威胁桥接读板可读，未见明显裁切或遮挡命令侧栏。
 
 遗留事项：
 
