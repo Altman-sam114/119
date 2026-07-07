@@ -533,6 +533,17 @@ struct TacticalStatusStripView: View {
             )
         }
 
+        if let advance = viewModel.primaryCampaignAdvanceReadout {
+            TacticalChipView(
+                symbol: "map.fill",
+                label: "推进",
+                value: compact ? advance.statusLabel : advance.missionTitle,
+                tint: Color(red: 0.84, green: 0.66, blue: 0.32),
+                compact: compact,
+                accessibilityLabel: advance.accessibilityLabel
+            )
+        }
+
         TacticalChipView(
             symbol: viewModel.selectedMapReconPerspective.systemImage,
             label: "侦察",
@@ -6522,6 +6533,10 @@ struct MissionPanelView: View {
                     Spacer()
                 }
 
+                if let advance = viewModel.primaryCampaignAdvanceReadout {
+                    CampaignAdvanceReadoutView(readout: advance)
+                }
+
                 ForEach(viewModel.state.missions) { mission in
                     HStack(spacing: 8) {
                         Image(systemName: mission.isCompleted ? "checkmark.circle.fill" : "circle")
@@ -6537,6 +6552,131 @@ struct MissionPanelView: View {
                     }
                 }
             }
+        }
+    }
+}
+
+struct CampaignAdvanceReadoutView: View {
+    var readout: CampaignAdvanceReadout
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 6) {
+                Image(systemName: "map.fill")
+                    .foregroundStyle(Color(red: 0.84, green: 0.66, blue: 0.32))
+                    .accessibilityHidden(true)
+                Text(readout.title)
+                    .font(.caption.weight(.heavy))
+                Spacer(minLength: 0)
+                Text(readout.statusLabel)
+                    .font(.caption2.weight(.black))
+                    .foregroundStyle(.black.opacity(0.78))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.62)
+                    .padding(.horizontal, 6)
+                    .frame(height: 19)
+                    .background(Color(red: 0.84, green: 0.66, blue: 0.32))
+                    .clipShape(RoundedRectangle(cornerRadius: 5))
+            }
+
+            Text(readout.compactLabel)
+                .font(.caption2.weight(.bold))
+                .foregroundStyle(.white.opacity(0.76))
+                .lineLimit(2)
+                .minimumScaleFactor(0.72)
+
+            ViewThatFits(in: .horizontal) {
+                HStack(spacing: 5) {
+                    signalStrip(limit: 4)
+                }
+
+                HStack(spacing: 5) {
+                    signalStrip(limit: 3)
+                }
+            }
+
+            VStack(alignment: .leading, spacing: 3) {
+                labelRow("目标", readout.missionObjectiveLabel)
+                labelRow("路线", readout.objectiveLineLabel)
+                labelRow("下一步", readout.nextStepLabel)
+                labelRow("风险", readout.riskLabel)
+            }
+        }
+        .padding(8)
+        .background(Color(red: 0.12, green: 0.13, blue: 0.12).opacity(0.86))
+        .clipShape(RoundedRectangle(cornerRadius: 7))
+        .overlay {
+            RoundedRectangle(cornerRadius: 7)
+                .stroke(Color(red: 0.84, green: 0.66, blue: 0.32).opacity(0.24), lineWidth: 1)
+        }
+        .accessibilityLabel(readout.accessibilityLabel)
+    }
+
+    private func signalStrip(limit: Int) -> some View {
+        ForEach(Array(readout.signals.prefix(limit))) { signal in
+            HStack(spacing: 3) {
+                Image(systemName: symbol(for: signal.kind))
+                    .foregroundStyle(tint(for: signal.kind))
+                    .accessibilityHidden(true)
+                Text(signal.title)
+                    .font(.caption2.weight(.bold))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.58)
+            }
+            .foregroundStyle(.white.opacity(0.72))
+            .padding(.horizontal, 5)
+            .frame(height: 20)
+            .background(tint(for: signal.kind).opacity(0.16))
+            .clipShape(RoundedRectangle(cornerRadius: 5))
+        }
+    }
+
+    private func labelRow(_ label: String, _ value: String) -> some View {
+        HStack(alignment: .firstTextBaseline, spacing: 5) {
+            Text(label)
+                .font(.caption2.weight(.heavy))
+                .foregroundStyle(.white.opacity(0.46))
+                .frame(width: 34, alignment: .leading)
+            Text(value)
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(.white.opacity(0.72))
+                .lineLimit(2)
+                .minimumScaleFactor(0.70)
+            Spacer(minLength: 0)
+        }
+    }
+
+    private func symbol(for kind: CampaignAdvanceSignalKind) -> String {
+        switch kind {
+        case .mission:
+            return "building.columns.fill"
+        case .progress:
+            return "chart.bar.fill"
+        case .frontline:
+            return "shield.lefthalf.filled"
+        case .objectiveChain:
+            return "point.topleft.down.curvedto.point.bottomright.up.fill"
+        case .objectiveStage:
+            return "flag.checkered"
+        case .recon:
+            return "binoculars.fill"
+        case .convergence:
+            return "link.circle.fill"
+        }
+    }
+
+    private func tint(for kind: CampaignAdvanceSignalKind) -> Color {
+        switch kind {
+        case .mission, .progress:
+            return Color(red: 0.84, green: 0.66, blue: 0.32)
+        case .frontline:
+            return .red
+        case .objectiveChain, .objectiveStage:
+            return Color(red: 0.91, green: 0.74, blue: 0.38)
+        case .recon:
+            return .cyan
+        case .convergence:
+            return .mint
         }
     }
 }

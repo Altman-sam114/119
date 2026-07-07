@@ -1155,6 +1155,100 @@ struct RenderBattlePreview {
               activeFactionBeforeReconRead == viewModel.state.activeFaction else {
             throw PreviewRenderError.missingMapReconnaissanceViewHUD
         }
+        let unitStateBeforeCampaignAdvanceRead = viewModel.state.units
+            .sorted { $0.id < $1.id }
+            .map { unit in
+                "\(unit.id)|\(unit.position.description)|\(unit.health)|\(unit.hasMoved)|\(unit.hasActed)|\(unit.generalSkillCooldownRemaining)|\(unit.tacticalOrder?.rawValue ?? "balanced")"
+            }
+        let cityStateBeforeCampaignAdvanceRead = viewModel.state.cities
+            .sorted { $0.id < $1.id }
+            .map { city in
+                "\(city.id)|\(city.owner.rawValue)|\(city.fortification)|\(city.position.description)"
+            }
+        let resourcesBeforeCampaignAdvanceRead = viewModel.state.resources
+            .sorted { $0.key.rawValue < $1.key.rawValue }
+            .map { entry in
+                let resources = entry.value
+                return "\(entry.key.rawValue)|\(resources.gold)|\(resources.grain)|\(resources.iron)|\(resources.science)|\(resources.prestige)"
+            }
+        let turnBeforeCampaignAdvanceRead = viewModel.state.turn
+        let activeFactionBeforeCampaignAdvanceRead = viewModel.state.activeFaction
+        let selectedUnitBeforeCampaignAdvanceRead = viewModel.selectedUnitID
+        let selectedCityBeforeCampaignAdvanceRead = viewModel.selectedCityID
+        let focusedObjectiveBeforeCampaignAdvanceRead = viewModel.focusedBattleObjectiveRole
+        let reconPerspectiveBeforeCampaignAdvanceRead = viewModel.selectedMapReconPerspective
+        let campaignMission = viewModel.primaryMission
+        let campaignReconReadout = viewModel.mapReconPerspectiveHUDReadout
+        guard let campaignAdvance = viewModel.primaryCampaignAdvanceReadout,
+              campaignMission.map({ campaignAdvance.references(mission: $0) }) ?? false,
+              campaignAdvance.progressLabel == (viewModel.campaignStatus.progressText ?? viewModel.campaignStatus.detail),
+              campaignAdvance.references(pressure: frontlinePressure),
+              campaignAdvance.references(objectiveChain: objectiveChain),
+              reconObjectiveStagePreview.map({ campaignAdvance.references(stagePreview: $0) }) ?? false,
+              campaignAdvance.references(recon: campaignReconReadout),
+              campaignAdvance.references(convergence: battlefieldConvergence),
+              !campaignAdvance.title.isEmpty,
+              !campaignAdvance.statusLabel.isEmpty,
+              !campaignAdvance.missionTitle.isEmpty,
+              !campaignAdvance.missionObjectiveLabel.isEmpty,
+              !campaignAdvance.progressLabel.isEmpty,
+              !campaignAdvance.frontlineLabel.isEmpty,
+              !campaignAdvance.objectiveLineLabel.isEmpty,
+              !campaignAdvance.mapCueLabel.isEmpty,
+              !campaignAdvance.nextStepLabel.isEmpty,
+              !campaignAdvance.riskLabel.isEmpty,
+              !campaignAdvance.compactLabel.isEmpty,
+              !campaignAdvance.accessibilityLabel.isEmpty,
+              campaignAdvance.accessibilityLabel.contains("任务"),
+              campaignAdvance.accessibilityLabel.contains("进度"),
+              campaignAdvance.accessibilityLabel.contains("战线"),
+              campaignAdvance.accessibilityLabel.contains("目标线"),
+              campaignAdvance.accessibilityLabel.contains("下一步"),
+              campaignAdvance.hasSignals,
+              campaignAdvance.signals.contains(where: { $0.kind == .mission && $0.sourceID == campaignMission?.id }),
+              campaignAdvance.signals.contains(where: { $0.kind == .progress }),
+              campaignAdvance.signals.contains(where: { $0.kind == .frontline && $0.sourceID == frontlinePressure.id }),
+              campaignAdvance.signals.contains(where: { $0.kind == .objectiveChain && $0.sourceID == objectiveChain.id }),
+              reconObjectiveStagePreview.map({ stagePreview in
+                  campaignAdvance.signals.contains(where: { $0.kind == .objectiveStage && $0.sourceID == stagePreview.id })
+              }) ?? false,
+              campaignAdvance.signals.contains(where: { $0.kind == .recon && $0.sourceID == campaignReconReadout.selectedKind.rawValue }),
+              campaignAdvance.signals.contains(where: { $0.kind == .convergence && $0.sourceID == battlefieldConvergence.id }),
+              campaignAdvance.signals.allSatisfy({ signal in
+                  !signal.id.isEmpty &&
+                      !signal.title.isEmpty &&
+                      !signal.detail.isEmpty &&
+                      !signal.accessibilityLabel.isEmpty
+              }) else {
+            throw PreviewRenderError.missingCampaignAdvanceReadout
+        }
+        let unitStateAfterCampaignAdvanceRead = viewModel.state.units
+            .sorted { $0.id < $1.id }
+            .map { unit in
+                "\(unit.id)|\(unit.position.description)|\(unit.health)|\(unit.hasMoved)|\(unit.hasActed)|\(unit.generalSkillCooldownRemaining)|\(unit.tacticalOrder?.rawValue ?? "balanced")"
+            }
+        let cityStateAfterCampaignAdvanceRead = viewModel.state.cities
+            .sorted { $0.id < $1.id }
+            .map { city in
+                "\(city.id)|\(city.owner.rawValue)|\(city.fortification)|\(city.position.description)"
+            }
+        let resourcesAfterCampaignAdvanceRead = viewModel.state.resources
+            .sorted { $0.key.rawValue < $1.key.rawValue }
+            .map { entry in
+                let resources = entry.value
+                return "\(entry.key.rawValue)|\(resources.gold)|\(resources.grain)|\(resources.iron)|\(resources.science)|\(resources.prestige)"
+            }
+        guard unitStateBeforeCampaignAdvanceRead == unitStateAfterCampaignAdvanceRead,
+              cityStateBeforeCampaignAdvanceRead == cityStateAfterCampaignAdvanceRead,
+              resourcesBeforeCampaignAdvanceRead == resourcesAfterCampaignAdvanceRead,
+              turnBeforeCampaignAdvanceRead == viewModel.state.turn,
+              activeFactionBeforeCampaignAdvanceRead == viewModel.state.activeFaction,
+              selectedUnitBeforeCampaignAdvanceRead == viewModel.selectedUnitID,
+              selectedCityBeforeCampaignAdvanceRead == viewModel.selectedCityID,
+              focusedObjectiveBeforeCampaignAdvanceRead == viewModel.focusedBattleObjectiveRole,
+              reconPerspectiveBeforeCampaignAdvanceRead == viewModel.selectedMapReconPerspective else {
+            throw PreviewRenderError.missingCampaignAdvanceReadout
+        }
         let unitStateBeforeBattleObjectiveFocus = viewModel.state.units
             .sorted { $0.id < $1.id }
             .map { unit in
@@ -1587,6 +1681,7 @@ enum PreviewRenderError: Error {
     case missingCommanderOpportunityBridgeReadout
     case missingSelectedUnitOrderWindowReadout
     case missingMapReconnaissanceViewHUD
+    case missingCampaignAdvanceReadout
     case missingCommanderActionGuidance
     case missingGeneralSkillTargetReadout
     case missingThreatHeatSummary

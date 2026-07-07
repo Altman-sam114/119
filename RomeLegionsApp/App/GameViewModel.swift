@@ -1994,6 +1994,131 @@ struct MapReconPerspectiveHUDReadout {
     }
 }
 
+enum CampaignAdvanceSignalKind: String {
+    case mission
+    case progress
+    case frontline
+    case objectiveChain
+    case objectiveStage
+    case recon
+    case convergence
+
+    var displayName: String {
+        switch self {
+        case .mission:
+            return "任务"
+        case .progress:
+            return "进度"
+        case .frontline:
+            return "战线"
+        case .objectiveChain:
+            return "目标线"
+        case .objectiveStage:
+            return "阶段"
+        case .recon:
+            return "侦察"
+        case .convergence:
+            return "交汇"
+        }
+    }
+}
+
+struct CampaignAdvanceSignal: Identifiable {
+    var kind: CampaignAdvanceSignalKind
+    var title: String
+    var detail: String
+    var position: Position?
+    var sourceID: String?
+
+    var id: String {
+        [
+            kind.rawValue,
+            sourceID,
+            position?.description,
+            title
+        ].compactMap { $0 }.joined(separator: "-")
+    }
+
+    var accessibilityLabel: String {
+        var parts = [
+            kind.displayName,
+            title,
+            detail
+        ]
+
+        if let position {
+            parts.append("位置\(position.description)")
+        }
+
+        return parts.joined(separator: "，")
+    }
+}
+
+struct CampaignAdvanceReadout {
+    var title: String
+    var statusLabel: String
+    var missionTitle: String
+    var missionObjectiveLabel: String
+    var progressLabel: String
+    var frontlineLabel: String
+    var objectiveLineLabel: String
+    var mapCueLabel: String
+    var nextStepLabel: String
+    var riskLabel: String
+    var compactLabel: String
+    var signals: [CampaignAdvanceSignal]
+    var missionID: String?
+    var progressText: String?
+    var frontlineID: String?
+    var objectiveChainID: String?
+    var objectiveStagePreviewID: String?
+    var reconPerspectiveID: String?
+    var convergenceID: String?
+
+    var hasSignals: Bool {
+        !signals.isEmpty
+    }
+
+    var accessibilityLabel: String {
+        [
+            title,
+            "状态\(statusLabel)",
+            "任务\(missionTitle)",
+            "目标\(missionObjectiveLabel)",
+            "进度\(progressLabel)",
+            "战线\(frontlineLabel)",
+            "目标线\(objectiveLineLabel)",
+            "地图\(mapCueLabel)",
+            "下一步\(nextStepLabel)",
+            "风险\(riskLabel)"
+        ].joined(separator: "，")
+    }
+
+    func references(mission candidate: Mission) -> Bool {
+        missionID == candidate.id
+    }
+
+    func references(pressure candidate: FrontlinePressureSummary) -> Bool {
+        frontlineID == candidate.id
+    }
+
+    func references(objectiveChain candidate: BattleObjectiveChainSummary) -> Bool {
+        objectiveChainID == candidate.id
+    }
+
+    func references(stagePreview candidate: BattleObjectiveStageCommandPreview) -> Bool {
+        objectiveStagePreviewID == candidate.id
+    }
+
+    func references(recon candidate: MapReconPerspectiveHUDReadout) -> Bool {
+        reconPerspectiveID == candidate.selectedKind.rawValue
+    }
+
+    func references(convergence candidate: BattlefieldConvergenceSummary) -> Bool {
+        convergenceID == candidate.id
+    }
+}
+
 struct BattleObjectiveRouteSegment: Identifiable {
     var id: String
     var from: Position
@@ -4133,6 +4258,152 @@ final class GameViewModel: ObservableObject {
         )
 
         return summary.hasSignals ? summary : nil
+    }
+
+    var primaryCampaignAdvanceReadout: CampaignAdvanceReadout? {
+        let mission = primaryMission
+        let progress = campaignStatus.progressText ?? campaignStatus.detail
+        let pressure = primaryFrontlinePressureSummary
+        let objectiveChain = primaryBattleObjectiveChainSummary
+        let objectiveStage = activeBattleObjectiveStageCommandPreview
+        let recon = mapReconPerspectiveHUDReadout
+        let convergence = primaryBattlefieldConvergenceSummary
+
+        guard mission != nil || objectiveChain != nil || pressure != nil || convergence != nil else {
+            return nil
+        }
+
+        var signals: [CampaignAdvanceSignal] = []
+
+        if let mission {
+            signals.append(
+                CampaignAdvanceSignal(
+                    kind: .mission,
+                    title: mission.title,
+                    detail: mission.objective,
+                    position: nil,
+                    sourceID: mission.id
+                )
+            )
+        }
+
+        if !progress.isEmpty {
+            signals.append(
+                CampaignAdvanceSignal(
+                    kind: .progress,
+                    title: campaignStatusTitle,
+                    detail: progress,
+                    position: nil,
+                    sourceID: campaignStatus.primaryMissionID
+                )
+            )
+        }
+
+        if let pressure {
+            signals.append(
+                CampaignAdvanceSignal(
+                    kind: .frontline,
+                    title: pressure.pressureLabel,
+                    detail: pressure.detail,
+                    position: pressure.targetPosition,
+                    sourceID: pressure.id
+                )
+            )
+        }
+
+        if let objectiveChain {
+            signals.append(
+                CampaignAdvanceSignal(
+                    kind: .objectiveChain,
+                    title: objectiveChain.priorityLabel,
+                    detail: objectiveChain.chainLabel,
+                    position: objectiveChain.focus.targetPosition,
+                    sourceID: objectiveChain.id
+                )
+            )
+        }
+
+        if let objectiveStage {
+            signals.append(
+                CampaignAdvanceSignal(
+                    kind: .objectiveStage,
+                    title: objectiveStage.stageLabel,
+                    detail: objectiveStage.commandEntryCueLabel,
+                    position: objectiveStage.position,
+                    sourceID: objectiveStage.id
+                )
+            )
+        }
+
+        if recon.hasSignals {
+            signals.append(
+                CampaignAdvanceSignal(
+                    kind: .recon,
+                    title: recon.selectedKind.displayName,
+                    detail: recon.compactLabel,
+                    position: recon.signals.first?.position,
+                    sourceID: recon.selectedKind.rawValue
+                )
+            )
+        }
+
+        if let convergence {
+            signals.append(
+                CampaignAdvanceSignal(
+                    kind: .convergence,
+                    title: convergence.priorityLabel,
+                    detail: convergence.compactLabel,
+                    position: convergence.signals.first?.position,
+                    sourceID: convergence.id
+                )
+            )
+        }
+
+        let missionTitle = mission?.title ?? campaignStatusTitle
+        let missionObjectiveLabel = mission?.objective ?? campaignStatusDetail
+        let frontlineLabel = pressure?.compactTitle ?? pressure?.pressureLabel ?? "战线待确认"
+        let objectiveLineLabel = objectiveStage?.focusLabel ?? objectiveChain?.compactLabel ?? "目标线待确认"
+        let mapCueLabel = recon.compactLabel
+        let nextStepLabel = objectiveStage?.nextStepLabel ??
+            convergence?.nextStepLabel ??
+            objectiveChain?.focusStageLabel ??
+            missionObjectiveLabel
+        let riskLabel = pressure?.pressureLabel ??
+            convergence?.riskLabel ??
+            objectiveChain?.priorityLabel ??
+            "风险待确认"
+        let statusLabel = campaignStatus.isGameOver ? campaignStatusTitle : "推进中"
+        let compactParts = [
+            missionTitle,
+            progress,
+            objectiveStage?.stageLabel ?? objectiveChain?.focusStageLabel,
+            pressure?.pressureLabel
+        ].compactMap { value -> String? in
+            guard let value, !value.isEmpty else { return nil }
+            return value
+        }
+
+        return CampaignAdvanceReadout(
+            title: "战役推进线",
+            statusLabel: statusLabel,
+            missionTitle: missionTitle,
+            missionObjectiveLabel: missionObjectiveLabel,
+            progressLabel: progress,
+            frontlineLabel: frontlineLabel,
+            objectiveLineLabel: objectiveLineLabel,
+            mapCueLabel: mapCueLabel,
+            nextStepLabel: nextStepLabel,
+            riskLabel: riskLabel,
+            compactLabel: compactParts.prefix(3).joined(separator: " · "),
+            signals: signals,
+            missionID: mission?.id,
+            progressText: campaignStatus.progressText,
+            frontlineID: pressure?.id,
+            objectiveChainID: objectiveChain?.id,
+            objectiveStagePreviewID: objectiveStage?.id,
+            reconPerspectiveID: recon.selectedKind.rawValue,
+            convergenceID: convergence?.id
+        )
     }
 
     var primaryEnemyEngagementLoopReadout: EnemyEngagementLoopReadout? {
