@@ -2574,6 +2574,7 @@ struct AIOperationalPlanSummary: Identifiable {
     var targetCity: City?
     var sourceUnits: [ArmyUnit]
     var commanderUnits: [ArmyUnit]
+    var timelineSteps: [AIOperationalPlanTimelineStepReadout]
 
     var id: String { report.id }
     var kind: AIOperationalPlanKind { report.kind }
@@ -2644,41 +2645,6 @@ struct AIOperationalPlanSummary: Identifiable {
     var stepLabel: String {
         let labels = report.steps.prefix(3).map { "\($0.coordinationRole.displayName)\($0.intentKind.displayName)" }
         return labels.joined(separator: "、")
-    }
-
-    var timelineSteps: [AIOperationalPlanTimelineStepReadout] {
-        let lookupUnits = sourceUnits + commanderUnits + [targetUnit].compactMap { $0 }
-        return report.steps.enumerated().map { index, step in
-            let targetStepUnit: ArmyUnit?
-            if let targetUnitID = step.targetUnitID {
-                if let matchingUnit = lookupUnits.first(where: { $0.id == targetUnitID }) {
-                    targetStepUnit = matchingUnit
-                } else if let targetUnit, targetUnit.id == targetUnitID {
-                    targetStepUnit = targetUnit
-                } else {
-                    targetStepUnit = nil
-                }
-            } else {
-                targetStepUnit = nil
-            }
-
-            let targetStepCity: City?
-            if let targetCityID = step.targetCityID,
-               let targetCity,
-               targetCity.id == targetCityID {
-                targetStepCity = targetCity
-            } else {
-                targetStepCity = nil
-            }
-
-            return AIOperationalPlanTimelineStepReadout(
-                sequence: index + 1,
-                step: step,
-                unit: lookupUnits.first { $0.id == step.unitID },
-                targetUnit: targetStepUnit,
-                targetCity: targetStepCity
-            )
-        }
     }
 
     var timelineLabel: String {
@@ -5650,13 +5616,68 @@ final class GameViewModel: ObservableObject {
     }
 
     private func aiOperationalPlanSummary(for report: AIOperationalPlanReport) -> AIOperationalPlanSummary {
+        let targetUnit = report.targetUnitID.flatMap { state.unit(withID: $0) }
+        let targetCity = report.targetCityID.flatMap { state.city(withID: $0) }
+        let sourceUnits = report.sourceUnitIDs.compactMap { state.unit(withID: $0) }
+        let commanderUnits = report.commanderUnitIDs.compactMap { state.unit(withID: $0) }
+        let timelineSteps = aiOperationalPlanTimelineSteps(
+            for: report,
+            targetUnit: targetUnit,
+            targetCity: targetCity,
+            sourceUnits: sourceUnits,
+            commanderUnits: commanderUnits
+        )
+
         AIOperationalPlanSummary(
             report: report,
-            targetUnit: report.targetUnitID.flatMap { state.unit(withID: $0) },
-            targetCity: report.targetCityID.flatMap { state.city(withID: $0) },
-            sourceUnits: report.sourceUnitIDs.compactMap { state.unit(withID: $0) },
-            commanderUnits: report.commanderUnitIDs.compactMap { state.unit(withID: $0) }
+            targetUnit: targetUnit,
+            targetCity: targetCity,
+            sourceUnits: sourceUnits,
+            commanderUnits: commanderUnits,
+            timelineSteps: timelineSteps
         )
+    }
+
+    private func aiOperationalPlanTimelineSteps(
+        for report: AIOperationalPlanReport,
+        targetUnit: ArmyUnit?,
+        targetCity: City?,
+        sourceUnits: [ArmyUnit],
+        commanderUnits: [ArmyUnit]
+    ) -> [AIOperationalPlanTimelineStepReadout] {
+        let lookupUnits = sourceUnits + commanderUnits + [targetUnit].compactMap { $0 }
+
+        return report.steps.enumerated().map { index, step in
+            let targetStepUnit: ArmyUnit?
+            if let targetUnitID = step.targetUnitID {
+                if let matchingUnit = lookupUnits.first(where: { $0.id == targetUnitID }) {
+                    targetStepUnit = matchingUnit
+                } else if let targetUnit, targetUnit.id == targetUnitID {
+                    targetStepUnit = targetUnit
+                } else {
+                    targetStepUnit = nil
+                }
+            } else {
+                targetStepUnit = nil
+            }
+
+            let targetStepCity: City?
+            if let targetCityID = step.targetCityID,
+               let targetCity,
+               targetCity.id == targetCityID {
+                targetStepCity = targetCity
+            } else {
+                targetStepCity = nil
+            }
+
+            return AIOperationalPlanTimelineStepReadout(
+                sequence: index + 1,
+                step: step,
+                unit: lookupUnits.first { $0.id == step.unitID },
+                targetUnit: targetStepUnit,
+                targetCity: targetStepCity
+            )
+        }
     }
 
     private func enemyCommanderThreatSummary(for report: EnemyCommanderThreatReport) -> EnemyCommanderThreatSummary {
