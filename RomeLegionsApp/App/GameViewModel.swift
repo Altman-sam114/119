@@ -2649,11 +2649,26 @@ struct AIOperationalPlanSummary: Identifiable {
     var timelineSteps: [AIOperationalPlanTimelineStepReadout] {
         let lookupUnits = sourceUnits + commanderUnits + [targetUnit].compactMap { $0 }
         return report.steps.enumerated().map { index, step in
-            let targetStepUnit = step.targetUnitID.flatMap { targetUnitID in
-                lookupUnits.first { $0.id == targetUnitID } ?? (targetUnit?.id == targetUnitID ? targetUnit : nil)
+            let targetStepUnit: ArmyUnit?
+            if let targetUnitID = step.targetUnitID {
+                if let matchingUnit = lookupUnits.first(where: { $0.id == targetUnitID }) {
+                    targetStepUnit = matchingUnit
+                } else if let targetUnit, targetUnit.id == targetUnitID {
+                    targetStepUnit = targetUnit
+                } else {
+                    targetStepUnit = nil
+                }
+            } else {
+                targetStepUnit = nil
             }
-            let targetStepCity = step.targetCityID.flatMap { targetCityID in
-                targetCity?.id == targetCityID ? targetCity : nil
+
+            let targetStepCity: City?
+            if let targetCityID = step.targetCityID,
+               let targetCity,
+               targetCity.id == targetCityID {
+                targetStepCity = targetCity
+            } else {
+                targetStepCity = nil
             }
 
             AIOperationalPlanTimelineStepReadout(

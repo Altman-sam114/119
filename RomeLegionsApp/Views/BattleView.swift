@@ -5407,7 +5407,7 @@ struct AIOperationalPlanCardView: View {
                     .lineLimit(2)
                     .minimumScaleFactor(0.68)
 
-                ForEach(summary.timelineSteps.prefix(3)) { step in
+                ForEach(Array(summary.timelineSteps.prefix(3))) { step in
                     AIOperationalPlanTimelineStepView(step: step, tint: summary.kind.tintColor)
                 }
             }
