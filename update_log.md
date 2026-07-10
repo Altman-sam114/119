@@ -51,7 +51,9 @@
 验证结果：
 
 - 按人工最新要求，本轮未运行任何本地测试、build、typecheck、RenderBattlePreview、`Tools/verify_project.mjs`、`git diff --check`、YAML/JSON/Plist 解析或脚本语法检查。
-- Agent B 待将实现提交并直推 `origin/main`，由 GitHub Actions 产出 v0.49 结果包后交 Agent C 复判。
+- Agent B 已将实现提交 `cb0f74076fe94cab72017f4e2e2a4be6593d06f2`、编译收敛提交 `b37d49b91a5d4e1efece2f5cfd82256f67744e2c`、`05f84f629f8abd92293ffb832aa93d970726531f`、`753cc8d5f8717d0361dbadde6738c240058bfc3c` 和最终返回值修复提交 `da13a4a60bb70ede438866fec159e887cbed6d32` 直推 `origin/main`。
+- Agent C 下载并复判最新 GitHub Actions 结果包 `RomeLegions-ci-v0.49-main-da13a4a-run28858374803-attempt1`，run id `28858374803`，run attempt `1`，manifest 对应 `main` / `da13a4a60bb70ede438866fec159e887cbed6d32` / `v0.49`。
+- manifest 显示 `staticChecksOutcome`、`swiftTestsOutcome`、`gameplaySmokeOutcome`、`renderPreviewOutcome`、`buildOutcome`、`testOutcome` 均为 `success`；JUnit 记录 `tests="5"`、`failures="0"`；Swift Testing 日志记录 `88 tests` passed；Gameplay Smoke 输出 `Gameplay smoke test passed.`；RenderBattlePreview 生成 6 张非空 PNG 且未出现 `missingAIOperationalPlanTimelineReadout`；Xcode build 日志记录 `** BUILD SUCCEEDED **`。
 
 遗留事项：
 
