@@ -21,6 +21,39 @@
 
 ## 历史记录
 
+### v0.51 / HUD 信号胶囊 UI 重构
+
+日期：2026-07-11
+
+核心变更：
+
+- `BattleView` 新增通用 `ReadoutSignalPill`，统一地图 HUD / 战役读板信号胶囊的图标、标题、tint、透明度、padding、高度和圆角。
+- `MapReconPerspectiveSignalPill` 改为复用 `ReadoutSignalPill`，保留原 wrapper 名称和调用语义。
+- `EnemyEngagementLoopHUDView.signalStrip(limit:)` 和 `CampaignAdvanceReadoutView.signalStrip(limit:)` 改为复用 `ReadoutSignalPill`，symbol 与 tint 映射仍留在各自 view 内。
+- `.github/workflows/ci-results.yml` artifact 版本更新到 v0.51。
+- README、flow、test 和 prompt README 同步 HUD 信号胶囊共享组件和 v0.51 Agent A 提示词。
+
+关键文件：
+
+- `RomeLegionsApp/Views/BattleView.swift`
+- `.github/workflows/ci-results.yml`
+- `README.md`
+- `md/flow/flow.md`
+- `md/test/test.md`
+- `md/prompt/README.md`
+- `md/prompt/v0（玩法推进）/v0.51（HUD信号胶囊UI重构）.md`
+- `update_log.md`
+
+验证结果：
+
+- 按人工最新要求，本轮未运行任何本地测试、build、typecheck、RenderBattlePreview、`Tools/verify_project.mjs`、`git diff --check`、YAML/JSON/Plist 解析或脚本语法检查。
+- Agent B 待将实现提交并直推 `origin/main`，由 GitHub Actions 产出 v0.51 结果包后交 Agent C 复判。
+
+遗留事项：
+
+- 本轮没有修改 `GameState`、`GameViewModel` 派生字段、AI 评分、AI 作战计划、敌军意图、地图 overlay、战役任务、移动、攻击、技能、姿态、城市、训练、任命、外交、存档或胜负结算。
+- 本轮只处理地图侦察视角 HUD、敌情交战闭环 HUD 和战役推进线读板的信号胶囊 UI 结构复用，不新增读板信息、按钮、命令队列或自动执行行为。
+
 ### v0.50 / 战斗读板标签行 UI 重构
 
 日期：2026-07-11

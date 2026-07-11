@@ -828,6 +828,16 @@ struct MapReconPerspectiveSignalPill: View {
     var tint: Color
 
     var body: some View {
+        ReadoutSignalPill(symbol: symbol, title: title, tint: tint)
+    }
+}
+
+struct ReadoutSignalPill: View {
+    var symbol: String
+    var title: String
+    var tint: Color
+
+    var body: some View {
         HStack(spacing: 3) {
             Image(systemName: symbol)
                 .foregroundStyle(tint)
@@ -908,20 +918,11 @@ struct EnemyEngagementLoopHUDView: View {
     private func signalStrip(limit: Int) -> some View {
         HStack(spacing: 5) {
             ForEach(Array(readout.signals.prefix(limit))) { signal in
-                HStack(spacing: 3) {
-                    Image(systemName: symbol(for: signal.kind))
-                        .foregroundStyle(tint(for: signal.kind))
-                        .accessibilityHidden(true)
-                    Text(signal.title)
-                        .font(.caption2.weight(.bold))
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.58)
-                }
-                .foregroundStyle(.white.opacity(0.72))
-                .padding(.horizontal, 5)
-                .frame(height: 20)
-                .background(tint(for: signal.kind).opacity(0.16))
-                .clipShape(RoundedRectangle(cornerRadius: 5))
+                ReadoutSignalPill(
+                    symbol: symbol(for: signal.kind),
+                    title: signal.title,
+                    tint: tint(for: signal.kind)
+                )
             }
         }
     }
@@ -6722,20 +6723,11 @@ struct CampaignAdvanceReadoutView: View {
 
     private func signalStrip(limit: Int) -> some View {
         ForEach(Array(readout.signals.prefix(limit))) { signal in
-            HStack(spacing: 3) {
-                Image(systemName: symbol(for: signal.kind))
-                    .foregroundStyle(tint(for: signal.kind))
-                    .accessibilityHidden(true)
-                Text(signal.title)
-                    .font(.caption2.weight(.bold))
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.58)
-            }
-            .foregroundStyle(.white.opacity(0.72))
-            .padding(.horizontal, 5)
-            .frame(height: 20)
-            .background(tint(for: signal.kind).opacity(0.16))
-            .clipShape(RoundedRectangle(cornerRadius: 5))
+            ReadoutSignalPill(
+                symbol: symbol(for: signal.kind),
+                title: signal.title,
+                tint: tint(for: signal.kind)
+            )
         }
     }
 

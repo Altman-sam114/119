@@ -47,6 +47,7 @@
 - 地图控制与威胁热区读板：核心层只读派生每格友军/敌军影响、控制状态和威胁热度，地图低透明叠层、顶部热区 chip、战场卡和战局行均可读
 - 主动地图叠层图例：战斗地图底部按当前可见叠层解释敌军路线/目标、热区、控区、军议路径、机动落点、战场目标线、反制落点/目标、可移动/可攻击和技能范围，同时保留阵营色说明
 - 战斗读板标签行 UI 重构：战场态势、选中军团处境和军令窗口等短标签行共享同一 SwiftUI 展示组件，减少重复 UI 结构，不改变 ViewModel 数据源或核心规则
+- HUD 信号胶囊 UI 重构：地图侦察视角、敌情交战闭环和战役推进线读板共享同一 SwiftUI 信号胶囊组件，减少地图 HUD 重复样式，不改变信号数据来源或核心规则
 - Codex 后续协作规范：`AGENTS.md`、`update_log.md`、`md/test/test.md`、`md/flow/flow.md`、`md/flow/flowchart.md` 和 `md/prompt/` 组成长期多 Agent 迭代文档系统，支持未来用 `agentx:` 主控调度 A/B/C 多轮循环
 - GitHub Actions 云端验证：`.github/workflows/ci-results.yml` 在 `main` push 时生成未加密 CI 结果包
 - 核心规则测试：`Tests/RomeLegionsCoreTests/GameStateTests.swift`
