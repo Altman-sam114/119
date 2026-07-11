@@ -47,7 +47,11 @@
 验证结果：
 
 - 按人工最新要求，本轮未运行任何本地测试、build、typecheck、RenderBattlePreview、`Tools/verify_project.mjs`、`git diff --check`、YAML/JSON/Plist 解析或脚本语法检查。
-- Agent B 待将实现提交并直推 `origin/main`，由 GitHub Actions 产出 v0.51 结果包后交 Agent C 复判。
+- Agent B 已将实现提交 `4d8f621da3502a40ad2f879def8911870c0e206e` 直推 `origin/main`。
+- Agent C 下载并复判 GitHub Actions 结果包 `RomeLegions-ci-v0.51-main-4d8f621-run29144693002-attempt1`，run id `29144693002`，run attempt `1`，manifest 对应 `main` / `4d8f621da3502a40ad2f879def8911870c0e206e` / `v0.51`。
+- manifest 显示 `staticChecksOutcome`、`swiftTestsOutcome`、`gameplaySmokeOutcome`、`renderPreviewOutcome`、`buildOutcome`、`testOutcome` 均为 `success`；JUnit 记录 `tests="5"`、`failures="0"`；Swift Testing 日志记录 `88 tests` passed；Gameplay Smoke 输出 `Gameplay smoke test passed.`；RenderBattlePreview 生成 6 张非空 PNG；Xcode build 日志记录 `** BUILD SUCCEEDED **`。
+- Agent C 核对 `BattleView` 已存在 `ReadoutSignalPill`，且 `MapReconPerspectiveSignalPill`、敌情交战闭环与战役推进线 signal strip 复用该组件；symbol/tint 映射仍留在各自 view。
+- Agent C 复看宽屏、横屏和竖屏单位场景 PNG，地图侦察视角、敌情交战闭环和战役推进线信号胶囊仍可读，未见本轮重构引入的明显遮挡、挤压或异常换行。
 
 遗留事项：
 
