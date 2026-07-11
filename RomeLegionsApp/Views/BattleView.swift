@@ -4017,11 +4017,15 @@ struct BattlefieldConvergenceRowView: View {
     }
 }
 
-struct BattlefieldConvergenceLabelRow: View {
+struct ReadoutLabelRow: View {
     var symbol: String
     var title: String
     var value: String
     var tint: Color
+    var titleWidth: CGFloat = 38
+    var titleOpacity: Double = 0.58
+    var valueOpacity: Double = 0.72
+    var minimumScaleFactor: CGFloat = 0.66
 
     var body: some View {
         HStack(spacing: 6) {
@@ -4031,15 +4035,32 @@ struct BattlefieldConvergenceLabelRow: View {
                 .frame(width: 14)
             Text(title)
                 .font(.caption2.weight(.bold))
-                .foregroundStyle(.white.opacity(0.52))
-                .frame(width: 38, alignment: .leading)
+                .foregroundStyle(.white.opacity(titleOpacity))
+                .frame(width: titleWidth, alignment: .leading)
             Text(value)
                 .font(.caption2.weight(.semibold))
-                .foregroundStyle(.white.opacity(0.72))
+                .foregroundStyle(.white.opacity(valueOpacity))
                 .lineLimit(1)
-                .minimumScaleFactor(0.66)
+                .minimumScaleFactor(minimumScaleFactor)
             Spacer(minLength: 0)
         }
+    }
+}
+
+struct BattlefieldConvergenceLabelRow: View {
+    var symbol: String
+    var title: String
+    var value: String
+    var tint: Color
+
+    var body: some View {
+        ReadoutLabelRow(
+            symbol: symbol,
+            title: title,
+            value: value,
+            tint: tint,
+            titleOpacity: 0.52
+        )
     }
 }
 
@@ -4420,22 +4441,7 @@ struct SelectedUnitSituationLabelRow: View {
     var tint: Color
 
     var body: some View {
-        HStack(spacing: 6) {
-            Image(systemName: symbol)
-                .font(.caption2.weight(.heavy))
-                .foregroundStyle(tint)
-                .frame(width: 14)
-            Text(title)
-                .font(.caption2.weight(.bold))
-                .foregroundStyle(.white.opacity(0.58))
-                .frame(width: 38, alignment: .leading)
-            Text(value)
-                .font(.caption2.weight(.semibold))
-                .foregroundStyle(.white.opacity(0.72))
-                .lineLimit(1)
-                .minimumScaleFactor(0.66)
-            Spacer(minLength: 0)
-        }
+        ReadoutLabelRow(symbol: symbol, title: title, value: value, tint: tint)
     }
 }
 
@@ -4604,22 +4610,14 @@ struct SelectedUnitOrderWindowLabelRow: View {
     var tint: Color
 
     var body: some View {
-        HStack(spacing: 6) {
-            Image(systemName: symbol)
-                .font(.caption2.weight(.heavy))
-                .foregroundStyle(tint)
-                .frame(width: 14)
-            Text(title)
-                .font(.caption2.weight(.bold))
-                .foregroundStyle(.white.opacity(0.58))
-                .frame(width: 42, alignment: .leading)
-            Text(value)
-                .font(.caption2.weight(.semibold))
-                .foregroundStyle(.white.opacity(0.72))
-                .lineLimit(1)
-                .minimumScaleFactor(0.60)
-            Spacer(minLength: 0)
-        }
+        ReadoutLabelRow(
+            symbol: symbol,
+            title: title,
+            value: value,
+            tint: tint,
+            titleWidth: 42,
+            minimumScaleFactor: 0.60
+        )
     }
 }
 

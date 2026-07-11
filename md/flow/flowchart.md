@@ -11,7 +11,7 @@ flowchart TD
     A["App 启动<br/>RomeLegionsApp 创建 GameViewModel"] --> B["RootView<br/>判断是否显示菜单"]
     B -->|isShowingMenu = true| C["MainMenuView<br/>人工选择战役/征服/远征"]
     C --> D["GameViewModel.start(mode:)<br/>创建 GameState.newCampaign"]
-    B -->|isShowingMenu = false| E["BattleView<br/>展示地图、城市读板、侧栏、命令面板"]
+    B -->|isShowingMenu = false| E["BattleView<br/>展示地图、共享读板组件、侧栏、命令面板"]
     D --> E
     E --> F["用户点击地图或命令<br/>选择单位/城市/地块/目标"]
     F --> G["GameViewModel 命令方法<br/>selectTile / attack / recruit / develop / endTurn"]

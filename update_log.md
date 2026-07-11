@@ -21,6 +21,39 @@
 
 ## 历史记录
 
+### v0.50 / 战斗读板标签行 UI 重构
+
+日期：2026-07-11
+
+核心变更：
+
+- `BattleView` 新增通用 `ReadoutLabelRow`，统一短读板标签行的图标、标题、值、标题宽度、透明度和缩放参数。
+- `BattlefieldConvergenceLabelRow`、`SelectedUnitSituationLabelRow` 和 `SelectedUnitOrderWindowLabelRow` 改为复用 `ReadoutLabelRow`，保留原 wrapper 名称和调用语义，避免扩大调用点变更。
+- `.github/workflows/ci-results.yml` artifact 版本更新到 v0.50。
+- README、flow、flowchart、test 和 prompt README 同步战斗读板共享标签行组件、云端 artifact 版本和 v0.50 Agent A 提示词。
+
+关键文件：
+
+- `RomeLegionsApp/Views/BattleView.swift`
+- `.github/workflows/ci-results.yml`
+- `README.md`
+- `md/flow/flow.md`
+- `md/flow/flowchart.md`
+- `md/test/test.md`
+- `md/prompt/README.md`
+- `md/prompt/v0（玩法推进）/v0.50（战斗读板标签行UI重构）.md`
+- `update_log.md`
+
+验证结果：
+
+- 按人工最新要求，本轮未运行任何本地测试、build、typecheck、RenderBattlePreview、`Tools/verify_project.mjs`、`git diff --check`、YAML/JSON/Plist 解析或脚本语法检查。
+- Agent B 待将实现提交并直推 `origin/main`，由 GitHub Actions 产出 v0.50 结果包后交 Agent C 复判。
+
+遗留事项：
+
+- 本轮没有修改 `GameState`、`GameViewModel` 派生字段、AI 评分、AI 作战计划、敌军意图、移动、攻击、技能、姿态、任务、城市、训练、任命、外交、存档或胜负结算。
+- 本轮只处理战场态势交汇、选中军团处境和选中军团军令窗口等短标签行的 UI 结构复用，不新增读板信息、按钮、命令队列或自动执行行为。
+
 ### v0.49 / AI 作战计划时间线读板
 
 日期：2026-07-07
