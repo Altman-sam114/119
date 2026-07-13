@@ -1620,6 +1620,9 @@ struct RenderBattlePreview {
             width: width,
             height: height
         )
+        guard hasMapDominantBattleShell(in: unitBitmap, logicalWidth: width, logicalHeight: height) else {
+            throw PreviewRenderError.missingMapDominantBattleShell
+        }
         guard !isCompactViewport(width: width, height: height) ||
                 hasVisibleCompactCommandContent(in: unitBitmap, logicalWidth: width, logicalHeight: height) else {
             throw PreviewRenderError.missingCompactCommandRender
@@ -1656,6 +1659,9 @@ struct RenderBattlePreview {
             width: width,
             height: height
         )
+        guard hasMapDominantBattleShell(in: cityBitmap, logicalWidth: width, logicalHeight: height) else {
+            throw PreviewRenderError.missingMapDominantBattleShell
+        }
         guard !isCompactViewport(width: width, height: height) ||
                 hasVisibleCompactCommandContent(in: cityBitmap, logicalWidth: width, logicalHeight: height) else {
             throw PreviewRenderError.missingCompactCommandRender
@@ -1715,41 +1721,27 @@ struct RenderBattlePreview {
     ) -> Bool {
         let scaleX = Double(bitmap.pixelsWide) / logicalWidth
         let scaleY = Double(bitmap.pixelsHigh) / logicalHeight
-        let region: (x: Int, y: Int, width: Int, height: Int)
-
-        if logicalWidth > logicalHeight {
-            region = (
-                x: Int(logicalWidth * 0.68),
-                y: Int(logicalHeight * 0.20),
-                width: Int(logicalWidth * 0.30),
-                height: Int(logicalHeight * 0.72)
-            )
-        } else {
-            region = (
-                x: Int(logicalWidth * 0.04),
-                y: Int(logicalHeight * 0.48),
-                width: Int(logicalWidth * 0.92),
-                height: Int(logicalHeight * 0.46)
-            )
-        }
+        let regions = commandDockSampleRegions(logicalWidth: logicalWidth, logicalHeight: logicalHeight)
 
         var visiblePixelCount = 0
-        for logicalY in stride(from: region.y, to: region.y + region.height, by: 4) {
-            for logicalX in stride(from: region.x, to: region.x + region.width, by: 4) {
-                let pixelX = min(max(Int(Double(logicalX) * scaleX), 0), bitmap.pixelsWide - 1)
-                let pixelY = min(max(Int(Double(logicalY) * scaleY), 0), bitmap.pixelsHigh - 1)
-                guard let color = bitmap.colorAt(x: pixelX, y: pixelY)?.usingColorSpace(.deviceRGB) else {
-                    continue
-                }
+        for region in regions {
+            for logicalY in stride(from: region.y, to: region.y + region.height, by: 4) {
+                for logicalX in stride(from: region.x, to: region.x + region.width, by: 4) {
+                    let pixelX = min(max(Int(Double(logicalX) * scaleX), 0), bitmap.pixelsWide - 1)
+                    let pixelY = min(max(Int(Double(logicalY) * scaleY), 0), bitmap.pixelsHigh - 1)
+                    guard let color = bitmap.colorAt(x: pixelX, y: pixelY)?.usingColorSpace(.deviceRGB) else {
+                        continue
+                    }
 
-                let brightness = (color.redComponent + color.greenComponent + color.blueComponent) / 3
-                if color.alphaComponent > 0.6 && brightness > 0.42 {
-                    visiblePixelCount += 1
+                    let brightness = (color.redComponent + color.greenComponent + color.blueComponent) / 3
+                    if color.alphaComponent > 0.6 && brightness > 0.42 {
+                        visiblePixelCount += 1
+                    }
                 }
             }
         }
 
-        return visiblePixelCount > 80
+        return visiblePixelCount > 100
     }
 
     private static func hasVisibleCityReadoutContent(
@@ -1759,46 +1751,98 @@ struct RenderBattlePreview {
     ) -> Bool {
         let scaleX = Double(bitmap.pixelsWide) / logicalWidth
         let scaleY = Double(bitmap.pixelsHigh) / logicalHeight
-        let region: (x: Int, y: Int, width: Int, height: Int)
-
-        if logicalWidth < 700 && logicalHeight >= logicalWidth {
-            region = (
-                x: Int(logicalWidth * 0.04),
-                y: Int(logicalHeight * 0.50),
-                width: Int(logicalWidth * 0.92),
-                height: Int(logicalHeight * 0.36)
-            )
-        } else {
-            region = (
-                x: Int(logicalWidth * 0.68),
-                y: Int(logicalHeight * 0.08),
-                width: Int(logicalWidth * 0.30),
-                height: Int(logicalHeight * 0.70)
-            )
-        }
+        let regions = commandDockSampleRegions(logicalWidth: logicalWidth, logicalHeight: logicalHeight)
 
         var visiblePixelCount = 0
-        for logicalY in stride(from: region.y, to: region.y + region.height, by: 4) {
-            for logicalX in stride(from: region.x, to: region.x + region.width, by: 4) {
-                let pixelX = min(max(Int(Double(logicalX) * scaleX), 0), bitmap.pixelsWide - 1)
-                let pixelY = min(max(Int(Double(logicalY) * scaleY), 0), bitmap.pixelsHigh - 1)
-                guard let color = bitmap.colorAt(x: pixelX, y: pixelY)?.usingColorSpace(.deviceRGB) else {
-                    continue
-                }
+        for region in regions {
+            for logicalY in stride(from: region.y, to: region.y + region.height, by: 4) {
+                for logicalX in stride(from: region.x, to: region.x + region.width, by: 4) {
+                    let pixelX = min(max(Int(Double(logicalX) * scaleX), 0), bitmap.pixelsWide - 1)
+                    let pixelY = min(max(Int(Double(logicalY) * scaleY), 0), bitmap.pixelsHigh - 1)
+                    guard let color = bitmap.colorAt(x: pixelX, y: pixelY)?.usingColorSpace(.deviceRGB) else {
+                        continue
+                    }
 
-                let brightness = (color.redComponent + color.greenComponent + color.blueComponent) / 3
-                if color.alphaComponent > 0.6 && brightness > 0.40 {
-                    visiblePixelCount += 1
+                    let brightness = (color.redComponent + color.greenComponent + color.blueComponent) / 3
+                    if color.alphaComponent > 0.6 && brightness > 0.40 {
+                        visiblePixelCount += 1
+                    }
                 }
             }
         }
 
-        return visiblePixelCount > 70
+        return visiblePixelCount > 90
+    }
+
+    private static func commandDockSampleRegions(
+        logicalWidth: Double,
+        logicalHeight: Double
+    ) -> [(x: Int, y: Int, width: Int, height: Int)] {
+        let regionHeight = Int(logicalHeight * (logicalHeight >= logicalWidth ? 0.20 : 0.28))
+        return [
+            (Int(logicalWidth * 0.03), Int(logicalHeight * 0.01), Int(logicalWidth * 0.94), regionHeight),
+            (Int(logicalWidth * 0.03), Int(logicalHeight * 0.99) - regionHeight, Int(logicalWidth * 0.94), regionHeight)
+        ]
+    }
+
+    private static func hasMapDominantBattleShell(
+        in bitmap: NSBitmapImageRep,
+        logicalWidth: Double,
+        logicalHeight: Double
+    ) -> Bool {
+        let scaleX = Double(bitmap.pixelsWide) / logicalWidth
+        let scaleY = Double(bitmap.pixelsHigh) / logicalHeight
+        let mapRegion = (
+            x: Int(logicalWidth * 0.08),
+            y: Int(logicalHeight * 0.22),
+            width: Int(logicalWidth * 0.72),
+            height: Int(logicalHeight * 0.42)
+        )
+        let toolRegion = (
+            x: Int(logicalWidth * 0.88),
+            y: Int(logicalHeight * 0.18),
+            width: Int(logicalWidth * 0.11),
+            height: Int(logicalHeight * 0.48)
+        )
+        let dockRegions = commandDockSampleRegions(logicalWidth: logicalWidth, logicalHeight: logicalHeight)
+
+        func counts(in regions: [(x: Int, y: Int, width: Int, height: Int)]) -> (map: Int, bright: Int) {
+            var mapPixels = 0
+            var brightPixels = 0
+            for region in regions {
+                for logicalY in stride(from: region.y, to: region.y + region.height, by: 5) {
+                    for logicalX in stride(from: region.x, to: region.x + region.width, by: 5) {
+                        let pixelX = min(max(Int(Double(logicalX) * scaleX), 0), bitmap.pixelsWide - 1)
+                        let pixelY = min(max(Int(Double(logicalY) * scaleY), 0), bitmap.pixelsHigh - 1)
+                        guard let color = bitmap.colorAt(x: pixelX, y: pixelY)?.usingColorSpace(.deviceRGB) else {
+                            continue
+                        }
+                        let brightness = (color.redComponent + color.greenComponent + color.blueComponent) / 3
+                        let maximumChannel = max(max(color.redComponent, color.greenComponent), color.blueComponent)
+                        let minimumChannel = min(min(color.redComponent, color.greenComponent), color.blueComponent)
+                        let spread = maximumChannel - minimumChannel
+                        if color.alphaComponent > 0.6 && brightness > 0.16 && spread > 0.035 {
+                            mapPixels += 1
+                        }
+                        if color.alphaComponent > 0.6 && brightness > 0.38 {
+                            brightPixels += 1
+                        }
+                    }
+                }
+            }
+            return (mapPixels, brightPixels)
+        }
+
+        let mapCounts = counts(in: [mapRegion])
+        let toolCounts = counts(in: [toolRegion])
+        let dockCounts = counts(in: dockRegions)
+        return mapCounts.map > 180 && toolCounts.bright > 14 && dockCounts.bright > 70
     }
 }
 
 enum PreviewRenderError: Error {
     case renderFailed
+    case missingMapDominantBattleShell
     case missingIntentOverlay
     case missingHexIntentRoute
     case missingFrontlinePressure

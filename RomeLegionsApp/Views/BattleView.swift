@@ -2,18 +2,17 @@ import SwiftUI
 
 struct BattleView: View {
     @EnvironmentObject private var viewModel: GameViewModel
+    @State private var activeDrawer: BattleDrawerCategory?
 
     var body: some View {
         GeometryReader { proxy in
-            let isPhonePortrait = proxy.size.width < 700 && proxy.size.height >= proxy.size.width
+            let isPortrait = proxy.size.height >= proxy.size.width
             let isShortLandscape = proxy.size.width > proxy.size.height && proxy.size.height < 560
             let usesCondensedTopBar = proxy.size.width < 900 || isShortLandscape
-            let panelWidth = min(340, max(270, proxy.size.width * (isShortLandscape ? 0.32 : 0.30)))
-            let battlefieldHeight = max(0, proxy.size.height - (usesCondensedTopBar ? 54 : 64))
-            let mapPadding: CGFloat = isShortLandscape ? 8 : 10
-            let mapHeight = max(0, battlefieldHeight - mapPadding * 2)
-            let phoneMapHeight = max(280, min(360, proxy.size.height * 0.45))
-            let phoneContentWidth = max(0, proxy.size.width - 20)
+            let dockHeight: CGFloat = isPortrait ? 116 : (isShortLandscape ? 92 : 104)
+            let drawerHeight = isPortrait
+                ? min(520, proxy.size.height * 0.56)
+                : max(180, min(620, proxy.size.height - dockHeight - 70))
 
             ZStack {
                 Color(red: 0.09, green: 0.10, blue: 0.10)
@@ -22,51 +21,356 @@ struct BattleView: View {
                 VStack(spacing: 0) {
                     TopBarView(isCondensed: usesCondensedTopBar)
 
-                    if isPhonePortrait {
-                        VStack(spacing: 10) {
+                    ZStack(alignment: .topTrailing) {
+                        VStack(spacing: 0) {
                             WarMapView()
-                                .frame(width: phoneContentWidth, height: phoneMapHeight)
+                                .padding(isShortLandscape ? 6 : 8)
+                                .frame(maxWidth: .infinity, maxHeight: .infinity)
 
-                            PhoneCommandDeckView()
-                                .frame(width: phoneContentWidth)
-                                .frame(maxHeight: .infinity, alignment: .top)
-                        }
-                        .padding(10)
-                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-                    } else {
-                        HStack(alignment: .top, spacing: 0) {
-                            WarMapView()
-                                .frame(maxWidth: .infinity)
-                                .frame(height: mapHeight)
-                                .padding(mapPadding)
-
-                            if isShortLandscape {
-                                CompactCommandPanelView()
-                                    .frame(width: panelWidth)
-                                    .frame(maxHeight: .infinity, alignment: .top)
-                            } else {
-                                #if os(macOS)
-                                CommandPanelView()
-                                    .frame(width: panelWidth)
-                                    .frame(height: battlefieldHeight, alignment: .top)
-                                    .clipped()
-                                #else
-                                ScrollView(showsIndicators: false) {
-                                    CommandPanelView()
-                                        .frame(width: panelWidth)
-                                }
-                                .frame(width: panelWidth)
-                                .frame(height: battlefieldHeight, alignment: .top)
-                                .background(Color(red: 0.12, green: 0.12, blue: 0.11))
-                                #endif
+                            SelectionCommandDockView {
+                                activeDrawer = .orders
                             }
+                            .frame(maxWidth: .infinity)
+                            .frame(height: dockHeight)
                         }
-                        .frame(maxWidth: .infinity)
-                        .frame(height: battlefieldHeight, alignment: .top)
+
+                        BattleEdgeToolsView(activeDrawer: $activeDrawer)
+                            .padding(.top, 10)
+                            .padding(.trailing, 10)
+
+                        if let activeDrawer {
+                            BattlefieldDrawerView(
+                                category: activeDrawer,
+                                onClose: { self.activeDrawer = nil }
+                            )
+                            .frame(
+                                width: isPortrait ? max(280, proxy.size.width - 20) : min(380, proxy.size.width * 0.42),
+                                height: drawerHeight
+                            )
+                            .padding(.top, 8)
+                            .padding(.trailing, isPortrait ? 10 : 8)
+                            .zIndex(10)
+                        }
                     }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
                 }
             }
         }
+    }
+}
+
+enum BattleDrawerCategory: String, CaseIterable, Identifiable {
+    case orders
+    case battlefield
+    case enemy
+    case senate
+    case report
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .orders: return "情报军令"
+        case .battlefield: return "战场"
+        case .enemy: return "敌情"
+        case .senate: return "元老院"
+        case .report: return "战报"
+        }
+    }
+
+    var symbol: String {
+        switch self {
+        case .orders: return "flag.fill"
+        case .battlefield: return "map.fill"
+        case .enemy: return "eye.fill"
+        case .senate: return "building.columns.fill"
+        case .report: return "scroll.fill"
+        }
+    }
+}
+
+struct BattleEdgeToolsView: View {
+    @Binding var activeDrawer: BattleDrawerCategory?
+
+    var body: some View {
+        VStack(spacing: 6) {
+            ForEach(BattleDrawerCategory.allCases) { category in
+                Button(category.title, systemImage: category.symbol) {
+                    activeDrawer = activeDrawer == category ? nil : category
+                }
+                .labelStyle(.iconOnly)
+                .font(.subheadline.weight(.bold))
+                .foregroundStyle(activeDrawer == category ? .black : .white)
+                .frame(width: 44, height: 44)
+                .background(activeDrawer == category ? Color(red: 0.91, green: 0.74, blue: 0.38) : .black.opacity(0.68))
+                .clipShape(.rect(cornerRadius: 7))
+                .overlay {
+                    RoundedRectangle(cornerRadius: 7)
+                        .stroke(activeDrawer == category ? .white.opacity(0.85) : .white.opacity(0.18), lineWidth: activeDrawer == category ? 2 : 1)
+                }
+                .overlay(alignment: .bottomTrailing) {
+                    if activeDrawer == category {
+                        Image(systemName: "checkmark.circle.fill")
+                            .font(.caption2.weight(.black))
+                            .foregroundStyle(.black, .white)
+                            .offset(x: 3, y: 3)
+                    }
+                }
+                .accessibilityLabel(activeDrawer == category ? "关闭\(category.title)抽屉" : "打开\(category.title)抽屉")
+            }
+        }
+        .padding(6)
+        .background(Color(red: 0.14, green: 0.13, blue: 0.11).opacity(0.94))
+        .clipShape(.rect(cornerRadius: 8))
+        .overlay {
+            RoundedRectangle(cornerRadius: 8)
+                .stroke(.white.opacity(0.10), lineWidth: 1)
+        }
+    }
+}
+
+struct BattlefieldDrawerView: View {
+    var category: BattleDrawerCategory
+    var onClose: () -> Void
+
+    var body: some View {
+        VStack(spacing: 0) {
+            HStack(spacing: 10) {
+                Label(category.title, systemImage: category.symbol)
+                    .font(.headline.weight(.bold))
+                    .foregroundStyle(.white)
+                Spacer(minLength: 0)
+                Button("关闭抽屉", systemImage: "xmark") {
+                    onClose()
+                }
+                .labelStyle(.iconOnly)
+                .frame(width: 44, height: 44)
+                .buttonStyle(CommandIconButtonStyle())
+            }
+            .padding(.horizontal, 10)
+            .frame(minHeight: 48)
+            .background(Color(red: 0.18, green: 0.16, blue: 0.13))
+
+            ScrollView {
+                LazyVStack(spacing: 10) {
+                    drawerContent
+                }
+                .padding(10)
+            }
+            .scrollIndicators(.hidden)
+        }
+        .background(Color(red: 0.11, green: 0.11, blue: 0.10).opacity(0.98))
+        .clipShape(.rect(cornerRadius: 8))
+        .overlay {
+            RoundedRectangle(cornerRadius: 8)
+                .stroke(Color(red: 0.84, green: 0.66, blue: 0.32).opacity(0.42), lineWidth: 1)
+        }
+        .shadow(color: .black.opacity(0.48), radius: 16, x: -4, y: 6)
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel("\(category.title)战场抽屉")
+    }
+
+    @ViewBuilder
+    private var drawerContent: some View {
+        switch category {
+        case .orders:
+            SelectionPanelView()
+            ActionsPanelView()
+        case .battlefield:
+            BattlefieldFocusPanelView()
+            StrategicBalancePanelView()
+        case .enemy:
+            EnemyIntentPanelView()
+        case .senate:
+            TechnologyPanelView()
+            DiplomacyPanelView()
+            MissionPanelView()
+        case .report:
+            LogPanelView()
+        }
+    }
+}
+
+struct SelectionCommandDockView: View {
+    @EnvironmentObject private var viewModel: GameViewModel
+    var onShowMore: () -> Void
+
+    var body: some View {
+        HStack(spacing: 10) {
+            selectionIdentity
+                .frame(minWidth: 150, maxWidth: 250, alignment: .leading)
+
+            Rectangle()
+                .fill(.white.opacity(0.10))
+                .frame(width: 1)
+                .padding(.vertical, 10)
+
+            ScrollView(.horizontal) {
+                HStack(spacing: 8) {
+                    selectionCommands
+                }
+                .padding(.vertical, 7)
+            }
+            .scrollIndicators(.hidden)
+
+            Button("更多情报", systemImage: "ellipsis.circle.fill") {
+                onShowMore()
+            }
+            .labelStyle(.iconOnly)
+            .font(.title3.weight(.bold))
+            .frame(width: 44, height: 44)
+            .buttonStyle(SecondaryButtonStyle())
+            .accessibilityHint("打开完整情报和军令")
+        }
+        .padding(.horizontal, 10)
+        .foregroundStyle(.white)
+        .background(Color(red: 0.14, green: 0.13, blue: 0.11))
+        .overlay(alignment: .top) {
+            Rectangle()
+                .fill(Color(red: 0.84, green: 0.66, blue: 0.32).opacity(0.54))
+                .frame(height: 2)
+        }
+    }
+
+    @ViewBuilder
+    private var selectionIdentity: some View {
+        if let unit = viewModel.selectedUnit {
+            HStack(spacing: 9) {
+                UnitTokenView(unit: unit)
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("\(unit.faction.displayName) \(unit.kind.displayName)")
+                        .font(.subheadline.weight(.bold))
+                        .lineLimit(1)
+                    Label(unit.generalName ?? "无将领", systemImage: unit.generalName == nil ? "person.slash.fill" : "star.fill")
+                        .font(.caption)
+                        .foregroundStyle(.white.opacity(0.70))
+                        .lineLimit(1)
+                    Text("生命 \(unit.health)/\(unit.kind.maxHealth) · \(unit.resolvedTacticalOrder.displayName)")
+                        .font(.caption.monospacedDigit().weight(.bold))
+                        .foregroundStyle(unit.healthRatio > 0.42 ? .green : .red)
+                        .lineLimit(1)
+                }
+            }
+            .accessibilityElement(children: .combine)
+        } else if let city = viewModel.selectedCity,
+                  let brief = viewModel.selectedCityBrief {
+            HStack(spacing: 9) {
+                CityBadgeView(city: city)
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(city.name)
+                        .font(.subheadline.weight(.bold))
+                    Text("\(brief.ownerLabel) · \(brief.fortificationLabel)")
+                        .font(.caption.weight(.bold))
+                        .foregroundStyle(.white.opacity(0.76))
+                        .lineLimit(1)
+                    Text("\(brief.productionLabel) · \(brief.deploymentSummary)")
+                        .font(.caption)
+                        .foregroundStyle(.white.opacity(0.66))
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.68)
+                }
+            }
+            .accessibilityLabel(brief.accessibilityLabel)
+        } else if let tile = viewModel.selectedTile {
+            HStack(spacing: 9) {
+                Image(systemName: tile.terrain.systemImage)
+                    .font(.title3.weight(.black))
+                    .frame(width: 40, height: 40)
+                    .background(.white.opacity(0.10))
+                    .clipShape(.rect(cornerRadius: 7))
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(tile.terrain.displayName)
+                        .font(.subheadline.weight(.bold))
+                    Text(tile.position.description)
+                        .font(.caption.monospacedDigit())
+                        .foregroundStyle(.white.opacity(0.68))
+                }
+            }
+        } else {
+            Label("选择地图目标", systemImage: "scope")
+                .font(.subheadline.weight(.bold))
+                .foregroundStyle(.white.opacity(0.74))
+        }
+    }
+
+    @ViewBuilder
+    private var selectionCommands: some View {
+        if let target = viewModel.attackTargets.first {
+            Button("攻击", systemImage: "bolt.fill") {
+                viewModel.attack(target.id)
+            }
+            .buttonStyle(DockCommandButtonStyle(tint: .red))
+            .disabled(viewModel.isCampaignOver)
+            .accessibilityLabel("攻击\(target.faction.displayName)\(target.kind.displayName)")
+        }
+
+        if let unit = viewModel.selectedUnit, unit.faction == .rome {
+            if let trait = unit.resolvedGeneralTrait {
+                Button(trait.skillName, systemImage: trait.systemImage) {
+                    viewModel.useSelectedGeneralSkill()
+                }
+                .buttonStyle(DockCommandButtonStyle(tint: .cyan))
+                .disabled(!viewModel.canUseSelectedGeneralSkill)
+            }
+
+            Button("军令姿态", systemImage: unit.resolvedTacticalOrder.systemImage) {
+                onShowMore()
+            }
+            .buttonStyle(DockCommandButtonStyle(tint: unit.resolvedTacticalOrder.tintColor))
+
+            Button("休整", systemImage: "cross.case.fill") {
+                viewModel.restSelectedUnit()
+            }
+            .buttonStyle(DockCommandButtonStyle(tint: .green))
+            .disabled(unit.hasActed || viewModel.isCampaignOver)
+
+            Button("跳过", systemImage: "forward.end.fill") {
+                viewModel.skipSelectedUnit()
+            }
+            .buttonStyle(DockCommandButtonStyle(tint: .gray))
+            .disabled(!viewModel.canSkipSelectedUnit)
+        } else if let city = viewModel.commandCity,
+                  let brief = viewModel.commandCityBrief,
+                  city.owner == .rome {
+            Button("扩建", systemImage: "building.2.crop.circle.fill") {
+                viewModel.developCommandCity()
+            }
+            .buttonStyle(DockCommandButtonStyle(tint: Color(red: 0.84, green: 0.66, blue: 0.32)))
+            .disabled(!brief.canDevelop || viewModel.isCampaignOver)
+
+            ForEach(brief.recruitmentOptions) { option in
+                Button("招募\(option.kind.displayName)", systemImage: option.kind.tokenSystemImage) {
+                    viewModel.recruit(option.kind)
+                }
+                .buttonStyle(DockCommandButtonStyle(tint: option.kind == .navy ? .cyan : .orange))
+                .disabled(!option.canRecruit || viewModel.isCampaignOver)
+                .accessibilityLabel(option.accessibilityLabel)
+            }
+        } else {
+            Button("完整情报", systemImage: "info.circle.fill") {
+                onShowMore()
+            }
+            .buttonStyle(DockCommandButtonStyle(tint: .cyan))
+        }
+    }
+}
+
+struct DockCommandButtonStyle: ButtonStyle {
+    var tint: Color
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .labelStyle(.iconOnly)
+            .font(.headline.weight(.bold))
+            .foregroundStyle(.white)
+            .frame(width: 46, height: 46)
+            .background(tint.opacity(configuration.isPressed ? 0.48 : 0.26))
+            .clipShape(.rect(cornerRadius: 7))
+            .overlay {
+                RoundedRectangle(cornerRadius: 7)
+                    .stroke(tint.opacity(0.78), lineWidth: 1)
+            }
+            .scaleEffect(configuration.isPressed ? 0.96 : 1)
     }
 }
 
@@ -94,13 +398,13 @@ struct TopBarView: View {
     var isCondensed = false
 
     var body: some View {
-        HStack(spacing: isCondensed ? 8 : 12) {
+        HStack(spacing: isCondensed ? 6 : 10) {
             Button {
                 viewModel.openMenu()
             } label: {
                 Image(systemName: "line.3.horizontal")
                     .font(.title3.weight(.bold))
-                    .frame(width: isCondensed ? 38 : 42, height: isCondensed ? 38 : 42)
+                    .frame(width: 38, height: 38)
             }
             .buttonStyle(CommandIconButtonStyle())
 
@@ -137,14 +441,14 @@ struct TopBarView: View {
                     Text(isCondensed ? "回合" : "结束")
                 }
                 .font(.subheadline.weight(.bold))
-                .frame(height: isCondensed ? 36 : 38)
+                .frame(height: 36)
                 .padding(.horizontal, isCondensed ? 10 : 12)
             }
             .buttonStyle(PrimaryButtonStyle())
             .disabled(viewModel.isCampaignOver)
         }
-        .padding(.horizontal, isCondensed ? 8 : 12)
-        .padding(.vertical, isCondensed ? 8 : 10)
+        .padding(.horizontal, 8)
+        .padding(.vertical, 4)
         .background(Color(red: 0.14, green: 0.13, blue: 0.11))
         .overlay(alignment: .bottom) {
             Rectangle()
@@ -158,21 +462,39 @@ struct CompactResourcePill: View {
     var resources: EmpireResources
 
     var body: some View {
-        HStack(spacing: 7) {
-            Image(systemName: "circle.stack.fill")
-                .foregroundStyle(.yellow)
-            Text(resources.gold, format: .number)
-                .font(.caption.monospacedDigit().weight(.bold))
-            Image(systemName: "shield.fill")
-                .foregroundStyle(.gray)
-            Text(resources.iron, format: .number)
-                .font(.caption.monospacedDigit().weight(.bold))
+        HStack(spacing: 6) {
+            CompactResourceValue(symbol: "circle.stack.fill", value: resources.gold, tint: .yellow)
+            CompactResourceValue(symbol: "leaf.fill", value: resources.grain, tint: .green)
+            CompactResourceValue(symbol: "shield.fill", value: resources.iron, tint: .gray)
+            CompactResourceValue(symbol: "sparkle.magnifyingglass", value: resources.science, tint: .cyan)
+            CompactResourceValue(symbol: "star.fill", value: resources.prestige, tint: .orange)
         }
         .foregroundStyle(.white)
         .frame(minHeight: 32)
-        .padding(.horizontal, 8)
+        .padding(.horizontal, 7)
         .background(.black.opacity(0.28))
         .clipShape(RoundedRectangle(cornerRadius: 8))
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("金币 \(resources.gold)，粮草 \(resources.grain)，铁 \(resources.iron)，科学 \(resources.science)，威望 \(resources.prestige)")
+    }
+}
+
+struct CompactResourceValue: View {
+    var symbol: String
+    var value: Int
+    var tint: Color
+
+    var body: some View {
+        VStack(spacing: 1) {
+            Image(systemName: symbol)
+                .font(.caption2.weight(.bold))
+                .foregroundStyle(tint)
+            Text(value, format: .number)
+                .font(.caption2.monospacedDigit().weight(.bold))
+                .lineLimit(1)
+                .minimumScaleFactor(0.62)
+        }
+        .frame(minWidth: 22)
     }
 }
 
@@ -2092,9 +2414,13 @@ struct UnitTokenView: View {
                     Capsule()
                         .fill(unit.healthRatio > 0.42 ? Color.green : Color.red)
                         .frame(width: proxy.size.width * unit.healthRatio)
+                    Text("\(unit.health)")
+                        .font(.system(size: 6, weight: .black, design: .rounded))
+                        .foregroundStyle(.white)
+                        .frame(maxWidth: .infinity)
                 }
             }
-            .frame(width: 34, height: 4)
+            .frame(width: 34, height: 7)
         }
     }
 }

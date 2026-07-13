@@ -9,7 +9,7 @@
 1. `RomeLegionsApp` 创建 `GameViewModel`，并通过 `.environmentObject(viewModel)` 注入根视图。
 2. `RootView` 根据 `viewModel.isShowingMenu` 展示 `MainMenuView` 或 `BattleView`。
 3. `MainMenuView` 调用 `viewModel.start(mode:)`，创建 `GameState.newCampaign(mode:)` 并进入战斗。
-4. `BattleView` 读取 `GameViewModel` 的派生数据：当前回合、资源、选中单位、选中城市、城市经营与招募读板、可移动格、攻击目标、战斗预览、将领技能预览、将领指挥链读板、将领战机威胁桥接读板、将领技能目标与收益读板、选中单位指挥简报、选中军团处境命令入口读板、选中军团军令窗口读板、将令技能入口链路、军团编制摘要、军团成长决策摘要、军团成长优先级摘要、本方将领协同摘要和步骤读板、机动落点摘要、战术命令建议、战术姿态预览、战功状态、任务目标、战役状态、战役推进线 HUD、敌军意图摘要、地图侦察视角 HUD、敌情交战闭环 HUD、AI 作战计划摘要与时间线读板、敌方将领威胁摘要、敌情反制建议摘要、反制指令预览、命令链高亮与焦点链路、敌军意图路线/目标地图叠层、机动落点地图叠层、反制落点/目标地图叠层、战场目标线地图叠层、目标线阶段聚焦态、目标线阶段命令预览、目标线阶段联动高亮 cue、战场态势交汇读板、主动地图叠层图例、战线压力摘要、战场焦点摘要、战场目标链路、地图控制摘要、威胁热区摘要和战局态势；处境、军令窗口和态势交汇等短标签行共享同一 SwiftUI 展示组件，侦察、闭环和推进等 HUD 的信号胶囊也共享同一 SwiftUI 展示组件，但数据仍来自各自 ViewModel 读板。
+4. `BattleView` 以薄顶部资源带、全宽 `WarMapView`、五类边缘工具、可关闭按需抽屉和选择驱动底部命令坞组成地图主导壳层；抽屉只用本地 `@State` 记录当前分类，并复用原选择/军令、战场、敌情、科技、外交、任务和战报 panel。它继续读取 `GameViewModel` 的当前回合、资源、选中单位/城市/地块、全部战斗读板、命令预览、地图叠层和战局态势；处境、军令窗口和态势交汇等短标签行共享同一 SwiftUI 展示组件，侦察、闭环和推进等 HUD 的信号胶囊也共享同一 SwiftUI 展示组件，但数据仍来自各自 ViewModel 读板。
 5. 用户点击地图或命令按钮后，`GameViewModel` 调用 `GameState` 的 mutating 方法。
 6. `GameState` 修改核心状态并返回中文消息数组。
 7. `GameViewModel.apply` 捕获成功消息或 `GameRuleError`，更新 `bannerMessage`。
@@ -63,6 +63,7 @@
 - `BattleView` 在地图内展示敌情交战闭环 HUD，用一条短提示串联“敌路 -> 压力 -> 敌将 -> 反制 -> 回应”；HUD 不新增按钮，不拦截地图点击，不自动移动、攻击、发动技能或切换姿态。
 - `GameViewModel.mapReconPerspectiveHUDReadout` 只读组合当前侦察视角下的敌军路线/闭环、反制建议/指令、战场目标线/阶段命令或热区/控区/态势交汇，输出标题、状态、细节、下一步、风险和 signal；`selectMapReconPerspective(_:)` 只改变 `selectedMapReconPerspective` 与 banner，不改变选择态、叠层、命令或 `GameState`。
 - `BattleView` 在地图底部展示地图侦察视角 HUD，可切换敌路、反制、目标线、热区/控区；HUD 只作为扫描入口，不过滤已有叠层，不自动聚焦反制或目标线，不自动移动、攻击、发动技能或切换姿态。
+- `BattleView` 默认不再用常驻右侧栏压缩地图；边缘工具按“情报军令、战场、敌情、元老院、战报”打开覆盖式抽屉，底部命令坞根据军团、城市或地块选择显示身份、生命/城防/产出和既有攻击、技能、姿态、休整、跳过、扩建、招募入口。抽屉开关只修改 SwiftUI 本地状态，所有玩法按钮仍调用原 `GameViewModel` 方法和预览/禁用条件。
 - `GameViewModel.primaryCampaignAdvanceReadout` 只读组合首要战役任务、`campaignStatus.progressText`、首要战线压力、战场目标线、活动目标线阶段命令预览、地图侦察视角和战场态势交汇，输出战役推进线、目标、进度、前线、目标线、地图 cue、下一步、风险和 signal；它不新增任务判断、地图叠层、命令队列或 `GameState` 状态。
 - `BattleView` 在顶部状态条展示“推进” chip，并在元老院任务面板展示战役推进线读板；SwiftUI 只展示 `primaryCampaignAdvanceReadout` 字段，不重新计算任务完成、城市归属、压力评分、目标线阶段或侦察视角。
 - `BattleView` 在完整/紧凑选中单位情报面板中展示选中军团处境命令入口读板，紧凑版显示状态、下一步和一条入口 cue，完整版显示压力、机会和入口；SwiftUI 只展示 `selectedUnitSituationReadout` 的派生字段，不重新判断压力、热区、控区、机动收益、军议命令或命令入口优先级。

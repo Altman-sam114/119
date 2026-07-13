@@ -21,6 +21,42 @@
 
 ## 历史记录
 
+### v0.52 / 地图主导战斗壳层 UI 重构
+
+日期：2026-07-13
+
+核心变更：
+
+- `BattleView` 默认改为薄顶部资源带、全宽主地图、五类边缘工具、可关闭覆盖式抽屉和选择驱动底部命令坞，不再常驻完整/紧凑右侧栏或把竖屏地图固定为 45%。
+- 情报军令、战场、敌情、元老院和战报抽屉复用原选择、军令、战场焦点、战局、敌情、科技、外交、任务与日志 panel；抽屉分类只保存在 SwiftUI 本地 `@State`，不改变 `GameViewModel` 或 `GameState`。
+- 军团命令坞直接展示阵营/兵种、生命、姿态、将领和攻击、技能、军令、休整、跳过入口；城市命令坞展示归属、城防、产出、部署以及扩建/招募入口；地块选择保留身份和完整情报入口。
+- 紧凑顶部资源读板继续展示金币、粮草、铁、科学和威望五项资源；地图单位兵牌生命条新增数值，城市名和城防就地读板保持不变。
+- `Tools/RenderBattlePreview/main.swift` 将紧凑命令区与城市读板采样迁移到底部命令坞，并新增 `missingMapDominantBattleShell`，检查三尺寸六张图的中央地图、边缘工具和底部命令坞。
+- `.github/workflows/ci-results.yml` artifact 版本更新到 v0.52；README、flow、flowchart、test 和 prompt README 同步新壳层与云端验收。
+
+关键文件：
+
+- `RomeLegionsApp/Views/BattleView.swift`
+- `Tools/RenderBattlePreview/main.swift`
+- `.github/workflows/ci-results.yml`
+- `README.md`
+- `md/flow/flow.md`
+- `md/flow/flowchart.md`
+- `md/test/test.md`
+- `md/prompt/README.md`
+- `md/prompt/v0（玩法推进）/v0.52（地图主导战斗壳层UI重构）.md`
+- `update_log.md`
+
+验证结果：
+
+- 按人工最新要求，本轮未运行任何本地测试、build、typecheck、RenderBattlePreview、`Tools/verify_project.mjs`、`git diff --check`、YAML/JSON/Plist 解析或脚本语法检查。
+- Agent B 待提交并直推 `origin/main`，由 GitHub Actions 产出 v0.52 结果包后交 Agent C 复判。
+
+遗留事项：
+
+- 本轮没有修改 `GameState`、`GameViewModel`、AI 评分/执行、敌军意图、战斗/任务/城市/成长/外交规则或存档结构。
+- 本轮只完成地图主导战斗壳层、按需抽屉、底部命令坞和现有代码绘制兵牌的信息层级重排；地图材质、正式人物资产、将领池、AI 多步规划和动画系统留待后续独立版本。
+
 ### v0.51 / HUD 信号胶囊 UI 重构
 
 日期：2026-07-11

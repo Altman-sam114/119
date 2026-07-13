@@ -11,7 +11,7 @@ flowchart TD
     A["App 启动<br/>RomeLegionsApp 创建 GameViewModel"] --> B["RootView<br/>判断是否显示菜单"]
     B -->|isShowingMenu = true| C["MainMenuView<br/>人工选择战役/征服/远征"]
     C --> D["GameViewModel.start(mode:)<br/>创建 GameState.newCampaign"]
-    B -->|isShowingMenu = false| E["BattleView<br/>展示地图、共享读板/信号组件、侧栏、命令面板"]
+    B -->|isShowingMenu = false| E["BattleView 地图主导壳层<br/>薄资源带、全宽地图、边缘工具、按需抽屉、底部命令坞"]
     D --> E
     E --> F["用户点击地图或命令<br/>选择单位/城市/地块/目标"]
     F --> G["GameViewModel 命令方法<br/>selectTile / attack / recruit / develop / endTurn"]
@@ -19,6 +19,7 @@ flowchart TD
     H --> I["返回中文消息或 GameRuleError<br/>说明命令结果"]
     I --> J["GameViewModel 更新 @Published 状态<br/>banner、选择态、派生数据"]
     J --> E
+    E --> K["抽屉分类仅为 SwiftUI 本地状态<br/>复用原选择/军令、战场、敌情、内政、战报 panel"]
 ```
 
 ## 2. 回合执行流
