@@ -50,7 +50,8 @@
 验证结果：
 
 - 按人工最新要求，本轮未运行任何本地测试、build、typecheck、RenderBattlePreview、`Tools/verify_project.mjs`、`git diff --check`、YAML/JSON/Plist 解析或脚本语法检查。
-- Agent B 待提交并直推 `origin/main`，由 GitHub Actions 产出 v0.52 结果包后交 Agent C 复判。
+- Agent B 首次实现提交 `779ed2dacfdc0345bb56eb5e00c8fa5899038a35` 已直推 `origin/main`；GitHub Actions run `29219592639` attempt `1` 与 artifact `RomeLegions-ci-v0.52-main-779ed2d-run29219592639-attempt1` 的结构检查、SwiftPM、Gameplay Smoke、RenderBattlePreview 和 Xcode build 虽全部为 success，但 Agent C 逐图发现六张 PNG 的底部命令坞操作区均为空、右侧工具轨遮挡顶部 HUD，且原上下对称采样会误把顶部内容算作底部命令坞，因此正式判定不通过。
+- 本次在 v0.52 内追加修复：命令区改为明确尺寸的专用按钮与宽/窄固定子集，状态条为工具轨预留安全区；Render 门禁只采真实底部坞，分别检查单位攻击/技能色与城市扩建/招募色，并要求单位/城市场景签名不同。修复提交、最新 run 和 artifact 待生成后由 Agent C 重新验收。
 
 遗留事项：
 

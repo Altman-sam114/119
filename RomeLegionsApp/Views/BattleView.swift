@@ -27,7 +27,7 @@ struct BattleView: View {
                                 .padding(isShortLandscape ? 6 : 8)
                                 .frame(maxWidth: .infinity, maxHeight: .infinity)
 
-                            SelectionCommandDockView {
+                            SelectionCommandDockView(isCompact: proxy.size.width < 700) {
                                 activeDrawer = .orders
                             }
                             .frame(maxWidth: .infinity)
@@ -193,25 +193,22 @@ struct BattlefieldDrawerView: View {
 
 struct SelectionCommandDockView: View {
     @EnvironmentObject private var viewModel: GameViewModel
+    var isCompact: Bool
     var onShowMore: () -> Void
 
     var body: some View {
         HStack(spacing: 10) {
             selectionIdentity
-                .frame(minWidth: 150, maxWidth: 250, alignment: .leading)
+                .frame(width: isCompact ? 130 : 250, alignment: .leading)
 
             Rectangle()
                 .fill(.white.opacity(0.10))
                 .frame(width: 1)
                 .padding(.vertical, 10)
 
-            ScrollView(.horizontal) {
-                HStack(spacing: 8) {
-                    selectionCommands
-                }
-                .padding(.vertical, 7)
-            }
-            .scrollIndicators(.hidden)
+            SelectionDockCommandButtonsView(isCompact: isCompact, onShowMore: onShowMore)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .layoutPriority(2)
 
             Button("更多情报", systemImage: "ellipsis.circle.fill") {
                 onShowMore()
@@ -293,84 +290,129 @@ struct SelectionCommandDockView: View {
         }
     }
 
-    @ViewBuilder
-    private var selectionCommands: some View {
-        if let target = viewModel.attackTargets.first {
-            Button("攻击", systemImage: "bolt.fill") {
-                viewModel.attack(target.id)
-            }
-            .buttonStyle(DockCommandButtonStyle(tint: .red))
-            .disabled(viewModel.isCampaignOver)
-            .accessibilityLabel("攻击\(target.faction.displayName)\(target.kind.displayName)")
-        }
+}
 
-        if let unit = viewModel.selectedUnit, unit.faction == .rome {
-            if let trait = unit.resolvedGeneralTrait {
-                Button(trait.skillName, systemImage: trait.systemImage) {
-                    viewModel.useSelectedGeneralSkill()
+struct SelectionDockCommandButtonsView: View {
+    @EnvironmentObject private var viewModel: GameViewModel
+    var isCompact: Bool
+    var onShowMore: () -> Void
+
+    var body: some View {
+        HStack(spacing: 6) {
+            if let unit = viewModel.selectedUnit, unit.faction == .rome {
+                if let target = viewModel.attackTargets.first {
+                    DockCommandButton(
+                        title: "攻击",
+                        symbol: "bolt.fill",
+                        tint: .red,
+                        isDisabled: viewModel.isCampaignOver,
+                        accessibilityLabel: "攻击\(target.faction.displayName)\(target.kind.displayName)",
+                        action: { viewModel.attack(target.id) }
+                    )
                 }
-                .buttonStyle(DockCommandButtonStyle(tint: .cyan))
-                .disabled(!viewModel.canUseSelectedGeneralSkill)
-            }
 
-            Button("军令姿态", systemImage: unit.resolvedTacticalOrder.systemImage) {
-                onShowMore()
-            }
-            .buttonStyle(DockCommandButtonStyle(tint: unit.resolvedTacticalOrder.tintColor))
-
-            Button("休整", systemImage: "cross.case.fill") {
-                viewModel.restSelectedUnit()
-            }
-            .buttonStyle(DockCommandButtonStyle(tint: .green))
-            .disabled(unit.hasActed || viewModel.isCampaignOver)
-
-            Button("跳过", systemImage: "forward.end.fill") {
-                viewModel.skipSelectedUnit()
-            }
-            .buttonStyle(DockCommandButtonStyle(tint: .gray))
-            .disabled(!viewModel.canSkipSelectedUnit)
-        } else if let city = viewModel.commandCity,
-                  let brief = viewModel.commandCityBrief,
-                  city.owner == .rome {
-            Button("扩建", systemImage: "building.2.crop.circle.fill") {
-                viewModel.developCommandCity()
-            }
-            .buttonStyle(DockCommandButtonStyle(tint: Color(red: 0.84, green: 0.66, blue: 0.32)))
-            .disabled(!brief.canDevelop || viewModel.isCampaignOver)
-
-            ForEach(brief.recruitmentOptions) { option in
-                Button("招募\(option.kind.displayName)", systemImage: option.kind.tokenSystemImage) {
-                    viewModel.recruit(option.kind)
+                if let trait = unit.resolvedGeneralTrait {
+                    DockCommandButton(
+                        title: "技能",
+                        symbol: trait.systemImage,
+                        tint: .cyan,
+                        isDisabled: !viewModel.canUseSelectedGeneralSkill,
+                        accessibilityLabel: trait.skillName,
+                        action: viewModel.useSelectedGeneralSkill
+                    )
                 }
-                .buttonStyle(DockCommandButtonStyle(tint: option.kind == .navy ? .cyan : .orange))
-                .disabled(!option.canRecruit || viewModel.isCampaignOver)
-                .accessibilityLabel(option.accessibilityLabel)
+
+                DockCommandButton(
+                    title: "姿态",
+                    symbol: unit.resolvedTacticalOrder.systemImage,
+                    tint: unit.resolvedTacticalOrder.tintColor,
+                    accessibilityLabel: "军令姿态，当前\(unit.resolvedTacticalOrder.displayName)",
+                    action: onShowMore
+                )
+
+                if !isCompact || (viewModel.attackTargets.isEmpty && unit.resolvedGeneralTrait == nil) {
+                    DockCommandButton(
+                        title: "休整",
+                        symbol: "cross.case.fill",
+                        tint: .green,
+                        isDisabled: unit.hasActed || viewModel.isCampaignOver,
+                        action: viewModel.restSelectedUnit
+                    )
+                }
+
+                if !isCompact {
+                    DockCommandButton(
+                        title: "跳过",
+                        symbol: "forward.end.fill",
+                        tint: .gray,
+                        isDisabled: !viewModel.canSkipSelectedUnit,
+                        action: viewModel.skipSelectedUnit
+                    )
+                }
+            } else if let city = viewModel.commandCity,
+                      let brief = viewModel.commandCityBrief,
+                      city.owner == .rome {
+                DockCommandButton(
+                    title: "扩建",
+                    symbol: "building.2.crop.circle.fill",
+                    tint: Color(red: 0.84, green: 0.66, blue: 0.32),
+                    isDisabled: !brief.canDevelop || viewModel.isCampaignOver,
+                    action: viewModel.developCommandCity
+                )
+
+                ForEach(Array(brief.recruitmentOptions.prefix(isCompact ? 2 : brief.recruitmentOptions.count))) { option in
+                    DockCommandButton(
+                        title: option.kind.shortLabel,
+                        symbol: option.kind.tokenSystemImage,
+                        tint: option.kind == .navy ? .cyan : .orange,
+                        isDisabled: !option.canRecruit || viewModel.isCampaignOver,
+                        accessibilityLabel: option.accessibilityLabel,
+                        action: { viewModel.recruit(option.kind) }
+                    )
+                }
+            } else {
+                DockCommandButton(
+                    title: "情报",
+                    symbol: "info.circle.fill",
+                    tint: .cyan,
+                    action: onShowMore
+                )
             }
-        } else {
-            Button("完整情报", systemImage: "info.circle.fill") {
-                onShowMore()
-            }
-            .buttonStyle(DockCommandButtonStyle(tint: .cyan))
         }
+        .frame(minHeight: 58)
     }
 }
 
-struct DockCommandButtonStyle: ButtonStyle {
+struct DockCommandButton: View {
+    var title: String
+    var symbol: String
     var tint: Color
+    var isDisabled = false
+    var accessibilityLabel: String?
+    var action: () -> Void
 
-    func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .labelStyle(.iconOnly)
-            .font(.headline.weight(.bold))
+    var body: some View {
+        Button(action: action) {
+            VStack(spacing: 3) {
+                Image(systemName: symbol)
+                    .font(.subheadline.weight(.bold))
+                Text(title)
+                    .font(.caption2.weight(.bold))
+                    .lineLimit(1)
+            }
             .foregroundStyle(.white)
-            .frame(width: 46, height: 46)
-            .background(tint.opacity(configuration.isPressed ? 0.48 : 0.26))
+            .frame(width: 48, height: 50)
+            .background(tint.opacity(0.28))
             .clipShape(.rect(cornerRadius: 7))
             .overlay {
                 RoundedRectangle(cornerRadius: 7)
                     .stroke(tint.opacity(0.78), lineWidth: 1)
             }
-            .scaleEffect(configuration.isPressed ? 0.96 : 1)
+        }
+        .buttonStyle(.plain)
+        .disabled(isDisabled)
+        .opacity(isDisabled ? 0.42 : 1)
+        .accessibilityLabel(accessibilityLabel ?? title)
     }
 }
 
@@ -644,7 +686,11 @@ struct WarMapView: View {
                 VStack {
                     HStack {
                         TacticalStatusStripView()
-                            .frame(maxWidth: min(proxy.size.width - 20, 560), alignment: .leading)
+                            .frame(
+                                width: max(180, min(proxy.size.width - 92, 720)),
+                                alignment: .leading
+                            )
+                            .clipped()
                         Spacer(minLength: 0)
                     }
                     .padding(10)

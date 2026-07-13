@@ -1623,8 +1623,7 @@ struct RenderBattlePreview {
         guard hasMapDominantBattleShell(in: unitBitmap, logicalWidth: width, logicalHeight: height) else {
             throw PreviewRenderError.missingMapDominantBattleShell
         }
-        guard !isCompactViewport(width: width, height: height) ||
-                hasVisibleCompactCommandContent(in: unitBitmap, logicalWidth: width, logicalHeight: height) else {
+        guard hasVisibleUnitCommandDockContent(in: unitBitmap, logicalWidth: width, logicalHeight: height) else {
             throw PreviewRenderError.missingCompactCommandRender
         }
 
@@ -1662,12 +1661,16 @@ struct RenderBattlePreview {
         guard hasMapDominantBattleShell(in: cityBitmap, logicalWidth: width, logicalHeight: height) else {
             throw PreviewRenderError.missingMapDominantBattleShell
         }
-        guard !isCompactViewport(width: width, height: height) ||
-                hasVisibleCompactCommandContent(in: cityBitmap, logicalWidth: width, logicalHeight: height) else {
+        guard hasVisibleCityReadoutContent(in: cityBitmap, logicalWidth: width, logicalHeight: height) else {
             throw PreviewRenderError.missingCompactCommandRender
         }
-        guard hasVisibleCityReadoutContent(in: cityBitmap, logicalWidth: width, logicalHeight: height) else {
-            throw PreviewRenderError.missingCityReadout
+        guard commandDockSignaturesDiffer(
+            unitBitmap: unitBitmap,
+            cityBitmap: cityBitmap,
+            logicalWidth: width,
+            logicalHeight: height
+        ) else {
+            throw PreviewRenderError.missingDistinctCommandDockRender
         }
 
         print(outputPath)
@@ -1710,38 +1713,13 @@ struct RenderBattlePreview {
         return "\(suffixedPath).\(pathExtension)"
     }
 
-    private static func isCompactViewport(width: Double, height: Double) -> Bool {
-        (width < 700 && height >= width) || (width > height && height < 560)
-    }
-
-    private static func hasVisibleCompactCommandContent(
+    private static func hasVisibleUnitCommandDockContent(
         in bitmap: NSBitmapImageRep,
         logicalWidth: Double,
         logicalHeight: Double
     ) -> Bool {
-        let scaleX = Double(bitmap.pixelsWide) / logicalWidth
-        let scaleY = Double(bitmap.pixelsHigh) / logicalHeight
-        let regions = commandDockSampleRegions(logicalWidth: logicalWidth, logicalHeight: logicalHeight)
-
-        var visiblePixelCount = 0
-        for region in regions {
-            for logicalY in stride(from: region.y, to: region.y + region.height, by: 4) {
-                for logicalX in stride(from: region.x, to: region.x + region.width, by: 4) {
-                    let pixelX = min(max(Int(Double(logicalX) * scaleX), 0), bitmap.pixelsWide - 1)
-                    let pixelY = min(max(Int(Double(logicalY) * scaleY), 0), bitmap.pixelsHigh - 1)
-                    guard let color = bitmap.colorAt(x: pixelX, y: pixelY)?.usingColorSpace(.deviceRGB) else {
-                        continue
-                    }
-
-                    let brightness = (color.redComponent + color.greenComponent + color.blueComponent) / 3
-                    if color.alphaComponent > 0.6 && brightness > 0.42 {
-                        visiblePixelCount += 1
-                    }
-                }
-            }
-        }
-
-        return visiblePixelCount > 100
+        let signature = commandDockSignature(in: bitmap, logicalWidth: logicalWidth, logicalHeight: logicalHeight)
+        return signature.bright > 34 && signature.red > 5 && signature.cyan > 5
     }
 
     private static func hasVisibleCityReadoutContent(
@@ -1749,40 +1727,65 @@ struct RenderBattlePreview {
         logicalWidth: Double,
         logicalHeight: Double
     ) -> Bool {
-        let scaleX = Double(bitmap.pixelsWide) / logicalWidth
-        let scaleY = Double(bitmap.pixelsHigh) / logicalHeight
-        let regions = commandDockSampleRegions(logicalWidth: logicalWidth, logicalHeight: logicalHeight)
-
-        var visiblePixelCount = 0
-        for region in regions {
-            for logicalY in stride(from: region.y, to: region.y + region.height, by: 4) {
-                for logicalX in stride(from: region.x, to: region.x + region.width, by: 4) {
-                    let pixelX = min(max(Int(Double(logicalX) * scaleX), 0), bitmap.pixelsWide - 1)
-                    let pixelY = min(max(Int(Double(logicalY) * scaleY), 0), bitmap.pixelsHigh - 1)
-                    guard let color = bitmap.colorAt(x: pixelX, y: pixelY)?.usingColorSpace(.deviceRGB) else {
-                        continue
-                    }
-
-                    let brightness = (color.redComponent + color.greenComponent + color.blueComponent) / 3
-                    if color.alphaComponent > 0.6 && brightness > 0.40 {
-                        visiblePixelCount += 1
-                    }
-                }
-            }
-        }
-
-        return visiblePixelCount > 90
+        let signature = commandDockSignature(in: bitmap, logicalWidth: logicalWidth, logicalHeight: logicalHeight)
+        return signature.bright > 34 && signature.orange > 9
     }
 
-    private static func commandDockSampleRegions(
+    private static func commandDockSampleRegion(
         logicalWidth: Double,
         logicalHeight: Double
-    ) -> [(x: Int, y: Int, width: Int, height: Int)] {
-        let regionHeight = Int(logicalHeight * (logicalHeight >= logicalWidth ? 0.20 : 0.28))
-        return [
-            (Int(logicalWidth * 0.03), Int(logicalHeight * 0.01), Int(logicalWidth * 0.94), regionHeight),
-            (Int(logicalWidth * 0.03), Int(logicalHeight * 0.99) - regionHeight, Int(logicalWidth * 0.94), regionHeight)
-        ]
+    ) -> (x: Int, y: Int, width: Int, height: Int) {
+        let heightRatio = logicalHeight >= logicalWidth ? 0.15 : (logicalHeight < 560 ? 0.23 : 0.15)
+        let xRatio = logicalWidth < 700 ? 0.38 : 0.28
+        let widthRatio = logicalWidth < 700 ? 0.46 : 0.58
+        return (
+            x: Int(logicalWidth * xRatio),
+            y: Int(logicalHeight * 0.005),
+            width: Int(logicalWidth * widthRatio),
+            height: Int(logicalHeight * heightRatio)
+        )
+    }
+
+    private static func commandDockSignature(
+        in bitmap: NSBitmapImageRep,
+        logicalWidth: Double,
+        logicalHeight: Double
+    ) -> (bright: Int, red: Int, cyan: Int, orange: Int) {
+        let scaleX = Double(bitmap.pixelsWide) / logicalWidth
+        let scaleY = Double(bitmap.pixelsHigh) / logicalHeight
+        let region = commandDockSampleRegion(logicalWidth: logicalWidth, logicalHeight: logicalHeight)
+        var signature = (bright: 0, red: 0, cyan: 0, orange: 0)
+
+        for logicalY in stride(from: region.y, to: region.y + region.height, by: 3) {
+            for logicalX in stride(from: region.x, to: region.x + region.width, by: 3) {
+                let pixelX = min(max(Int(Double(logicalX) * scaleX), 0), bitmap.pixelsWide - 1)
+                let pixelY = min(max(Int(Double(logicalY) * scaleY), 0), bitmap.pixelsHigh - 1)
+                guard let color = bitmap.colorAt(x: pixelX, y: pixelY)?.usingColorSpace(.deviceRGB),
+                      color.alphaComponent > 0.6 else {
+                    continue
+                }
+                let red = color.redComponent
+                let green = color.greenComponent
+                let blue = color.blueComponent
+                let brightness = (red + green + blue) / 3
+                if brightness > 0.42 { signature.bright += 1 }
+                if red > 0.30 && green < 0.20 && blue < 0.22 { signature.red += 1 }
+                if green > 0.27 && blue > 0.30 && red < 0.26 { signature.cyan += 1 }
+                if red > 0.34 && green > 0.18 && green < 0.52 && blue < 0.24 { signature.orange += 1 }
+            }
+        }
+        return signature
+    }
+
+    private static func commandDockSignaturesDiffer(
+        unitBitmap: NSBitmapImageRep,
+        cityBitmap: NSBitmapImageRep,
+        logicalWidth: Double,
+        logicalHeight: Double
+    ) -> Bool {
+        let unit = commandDockSignature(in: unitBitmap, logicalWidth: logicalWidth, logicalHeight: logicalHeight)
+        let city = commandDockSignature(in: cityBitmap, logicalWidth: logicalWidth, logicalHeight: logicalHeight)
+        return unit.red > city.red + 3 && city.orange > unit.orange + 3
     }
 
     private static func hasMapDominantBattleShell(
@@ -1798,13 +1801,6 @@ struct RenderBattlePreview {
             width: Int(logicalWidth * 0.72),
             height: Int(logicalHeight * 0.42)
         )
-        let toolRegion = (
-            x: Int(logicalWidth * 0.88),
-            y: Int(logicalHeight * 0.18),
-            width: Int(logicalWidth * 0.11),
-            height: Int(logicalHeight * 0.48)
-        )
-        let dockRegions = commandDockSampleRegions(logicalWidth: logicalWidth, logicalHeight: logicalHeight)
 
         func counts(in regions: [(x: Int, y: Int, width: Int, height: Int)]) -> (map: Int, bright: Int) {
             var mapPixels = 0
@@ -1834,15 +1830,27 @@ struct RenderBattlePreview {
         }
 
         let mapCounts = counts(in: [mapRegion])
-        let toolCounts = counts(in: [toolRegion])
-        let dockCounts = counts(in: dockRegions)
-        return mapCounts.map > 180 && toolCounts.bright > 14 && dockCounts.bright > 70
+        let isShortLandscape = logicalWidth > logicalHeight && logicalHeight < 560
+        let toolBase = isShortLandscape ? 0.28 : 0.63
+        let toolStep = isShortLandscape ? 0.115 : 0.071
+        let toolHeight = isShortLandscape ? 0.10 : 0.055
+        let toolBins = (0..<5).map { index in
+            (
+                x: Int(logicalWidth * 0.91),
+                y: Int(logicalHeight * (toolBase + Double(index) * toolStep)),
+                width: Int(logicalWidth * 0.08),
+                height: Int(logicalHeight * toolHeight)
+            )
+        }
+        let toolBinsAreVisible = toolBins.allSatisfy { counts(in: [$0]).bright > 3 }
+        return mapCounts.map > 240 && toolBinsAreVisible
     }
 }
 
 enum PreviewRenderError: Error {
     case renderFailed
     case missingMapDominantBattleShell
+    case missingDistinctCommandDockRender
     case missingIntentOverlay
     case missingHexIntentRoute
     case missingFrontlinePressure
