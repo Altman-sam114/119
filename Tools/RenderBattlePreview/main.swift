@@ -1613,6 +1613,20 @@ struct RenderBattlePreview {
               orderPreviews.contains(where: { $0.order == .forcedMarch && $0.movementDelta > 0 }) else {
             throw PreviewRenderError.missingTacticalOrderPreview
         }
+        let commandDockTarget = ArmyUnit(
+            id: "carthage-command-dock-target",
+            kind: .legion,
+            faction: .carthage,
+            position: Position(x: 4, y: 3),
+            health: 64
+        )
+        guard viewModel.state.unit(at: commandDockTarget.position) == nil else {
+            throw PreviewRenderError.missingCommandDockAttackFixture
+        }
+        viewModel.state.units.append(commandDockTarget)
+        guard viewModel.attackTargets.contains(where: { $0.id == commandDockTarget.id }) else {
+            throw PreviewRenderError.missingCommandDockAttackFixture
+        }
         let unitOutputPath = outputPathWithSuffix(outputPath, suffix: "unit")
         let unitBitmap = try renderBattleView(
             viewModel: viewModel,
@@ -1829,27 +1843,46 @@ struct RenderBattlePreview {
             return (mapPixels, brightPixels)
         }
 
+        func toolIconPixels(in region: (x: Int, y: Int, width: Int, height: Int)) -> Int {
+            var brightPixels = 0
+            for logicalY in stride(from: region.y, to: region.y + region.height, by: 2) {
+                for logicalX in stride(from: region.x, to: region.x + region.width, by: 2) {
+                    let pixelX = min(max(Int(Double(logicalX) * scaleX), 0), bitmap.pixelsWide - 1)
+                    let pixelY = min(max(Int(Double(logicalY) * scaleY), 0), bitmap.pixelsHigh - 1)
+                    guard let color = bitmap.colorAt(x: pixelX, y: pixelY)?.usingColorSpace(.deviceRGB) else {
+                        continue
+                    }
+                    let brightness = (color.redComponent + color.greenComponent + color.blueComponent) / 3
+                    if color.alphaComponent > 0.6 && brightness > 0.30 {
+                        brightPixels += 1
+                    }
+                }
+            }
+            return brightPixels
+        }
+
         let mapCounts = counts(in: [mapRegion])
-        let isShortLandscape = logicalWidth > logicalHeight && logicalHeight < 560
-        let toolBase = isShortLandscape ? 0.28 : 0.63
-        let toolStep = isShortLandscape ? 0.115 : 0.071
-        let toolHeight = isShortLandscape ? 0.10 : 0.055
+        let topBarHeight = logicalHeight < 560 ? 46 : 50
+        let toolTop = topBarHeight + 16
         let toolBins = (0..<5).map { index in
-            (
-                x: Int(logicalWidth * 0.91),
-                y: Int(logicalHeight * (toolBase + Double(index) * toolStep)),
-                width: Int(logicalWidth * 0.08),
-                height: Int(logicalHeight * toolHeight)
+            let topOriginY = toolTop + index * 50
+            return (
+                x: max(0, Int(logicalWidth) - 60),
+                y: max(0, Int(logicalHeight) - topOriginY - 44),
+                width: 44,
+                height: 44
             )
         }
-        let toolBinsAreVisible = toolBins.allSatisfy { counts(in: [$0]).bright > 3 }
-        return mapCounts.map > 240 && toolBinsAreVisible
+        let toolCounts = toolBins.map { toolIconPixels(in: $0) }
+        print("Battle shell pixels: map=\(mapCounts.map), tools=\(toolCounts)")
+        return mapCounts.map > 240 && toolCounts.allSatisfy { $0 > 10 }
     }
 }
 
 enum PreviewRenderError: Error {
     case renderFailed
     case missingMapDominantBattleShell
+    case missingCommandDockAttackFixture
     case missingDistinctCommandDockRender
     case missingIntentOverlay
     case missingHexIntentRoute

@@ -298,78 +298,17 @@ struct SelectionDockCommandButtonsView: View {
     var onShowMore: () -> Void
 
     var body: some View {
-        HStack(spacing: 6) {
+        Group {
             if let unit = viewModel.selectedUnit, unit.faction == .rome {
-                if let target = viewModel.attackTargets.first {
-                    DockCommandButton(
-                        title: "攻击",
-                        symbol: "bolt.fill",
-                        tint: .red,
-                        isDisabled: viewModel.isCampaignOver,
-                        accessibilityLabel: "攻击\(target.faction.displayName)\(target.kind.displayName)",
-                        action: { viewModel.attack(target.id) }
-                    )
-                }
-
-                if let trait = unit.resolvedGeneralTrait {
-                    DockCommandButton(
-                        title: "技能",
-                        symbol: trait.systemImage,
-                        tint: .cyan,
-                        isDisabled: !viewModel.canUseSelectedGeneralSkill,
-                        accessibilityLabel: trait.skillName,
-                        action: viewModel.useSelectedGeneralSkill
-                    )
-                }
-
-                DockCommandButton(
-                    title: "姿态",
-                    symbol: unit.resolvedTacticalOrder.systemImage,
-                    tint: unit.resolvedTacticalOrder.tintColor,
-                    accessibilityLabel: "军令姿态，当前\(unit.resolvedTacticalOrder.displayName)",
-                    action: onShowMore
+                UnitDockCommandButtonsView(
+                    unit: unit,
+                    isCompact: isCompact,
+                    onShowMore: onShowMore
                 )
-
-                if !isCompact || (viewModel.attackTargets.isEmpty && unit.resolvedGeneralTrait == nil) {
-                    DockCommandButton(
-                        title: "休整",
-                        symbol: "cross.case.fill",
-                        tint: .green,
-                        isDisabled: unit.hasActed || viewModel.isCampaignOver,
-                        action: viewModel.restSelectedUnit
-                    )
-                }
-
-                if !isCompact {
-                    DockCommandButton(
-                        title: "跳过",
-                        symbol: "forward.end.fill",
-                        tint: .gray,
-                        isDisabled: !viewModel.canSkipSelectedUnit,
-                        action: viewModel.skipSelectedUnit
-                    )
-                }
             } else if let city = viewModel.commandCity,
                       let brief = viewModel.commandCityBrief,
                       city.owner == .rome {
-                DockCommandButton(
-                    title: "扩建",
-                    symbol: "building.2.crop.circle.fill",
-                    tint: Color(red: 0.84, green: 0.66, blue: 0.32),
-                    isDisabled: !brief.canDevelop || viewModel.isCampaignOver,
-                    action: viewModel.developCommandCity
-                )
-
-                ForEach(Array(brief.recruitmentOptions.prefix(isCompact ? 2 : brief.recruitmentOptions.count))) { option in
-                    DockCommandButton(
-                        title: option.kind.shortLabel,
-                        symbol: option.kind.tokenSystemImage,
-                        tint: option.kind == .navy ? .cyan : .orange,
-                        isDisabled: !option.canRecruit || viewModel.isCampaignOver,
-                        accessibilityLabel: option.accessibilityLabel,
-                        action: { viewModel.recruit(option.kind) }
-                    )
-                }
+                CityDockCommandButtonsView(brief: brief, isCompact: isCompact)
             } else {
                 DockCommandButton(
                     title: "情报",
@@ -380,6 +319,112 @@ struct SelectionDockCommandButtonsView: View {
             }
         }
         .frame(minHeight: 58)
+    }
+}
+
+struct UnitDockCommandButtonsView: View {
+    @EnvironmentObject private var viewModel: GameViewModel
+    var unit: ArmyUnit
+    var isCompact: Bool
+    var onShowMore: () -> Void
+
+    var body: some View {
+        if isCompact {
+            VStack(alignment: .leading, spacing: 6) {
+                HStack(spacing: 6) {
+                    primaryButtons
+                }
+                HStack(spacing: 6) {
+                    recoveryButtons
+                }
+            }
+        } else {
+            HStack(spacing: 6) {
+                primaryButtons
+                recoveryButtons
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var primaryButtons: some View {
+        if let target = viewModel.attackTargets.first {
+            DockCommandButton(
+                title: "攻击",
+                symbol: "bolt.fill",
+                tint: .red,
+                isDisabled: viewModel.isCampaignOver,
+                accessibilityLabel: "攻击\(target.faction.displayName)\(target.kind.displayName)",
+                action: { viewModel.attack(target.id) }
+            )
+        }
+
+        if let trait = unit.resolvedGeneralTrait {
+            DockCommandButton(
+                title: "技能",
+                symbol: trait.systemImage,
+                tint: .cyan,
+                isDisabled: !viewModel.canUseSelectedGeneralSkill,
+                accessibilityLabel: trait.skillName,
+                action: viewModel.useSelectedGeneralSkill
+            )
+        }
+
+        DockCommandButton(
+            title: "姿态",
+            symbol: unit.resolvedTacticalOrder.systemImage,
+            tint: unit.resolvedTacticalOrder.tintColor,
+            accessibilityLabel: "军令姿态，当前\(unit.resolvedTacticalOrder.displayName)",
+            action: onShowMore
+        )
+    }
+
+    @ViewBuilder
+    private var recoveryButtons: some View {
+        DockCommandButton(
+            title: "休整",
+            symbol: "cross.case.fill",
+            tint: .green,
+            isDisabled: unit.hasActed || viewModel.isCampaignOver,
+            action: viewModel.restSelectedUnit
+        )
+
+        DockCommandButton(
+            title: "跳过",
+            symbol: "forward.end.fill",
+            tint: .gray,
+            isDisabled: !viewModel.canSkipSelectedUnit,
+            action: viewModel.skipSelectedUnit
+        )
+    }
+}
+
+struct CityDockCommandButtonsView: View {
+    @EnvironmentObject private var viewModel: GameViewModel
+    var brief: SelectedCityBrief
+    var isCompact: Bool
+
+    var body: some View {
+        HStack(spacing: 6) {
+            DockCommandButton(
+                title: "扩建",
+                symbol: "building.2.crop.circle.fill",
+                tint: Color(red: 0.84, green: 0.66, blue: 0.32),
+                isDisabled: !brief.canDevelop || viewModel.isCampaignOver,
+                action: viewModel.developCommandCity
+            )
+
+            ForEach(Array(brief.recruitmentOptions.prefix(isCompact ? 2 : brief.recruitmentOptions.count))) { option in
+                DockCommandButton(
+                    title: option.kind.shortLabel,
+                    symbol: option.kind.tokenSystemImage,
+                    tint: option.kind == .navy ? .cyan : .orange,
+                    isDisabled: !option.canRecruit || viewModel.isCampaignOver,
+                    accessibilityLabel: option.accessibilityLabel,
+                    action: { viewModel.recruit(option.kind) }
+                )
+            }
+        }
     }
 }
 

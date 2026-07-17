@@ -51,7 +51,8 @@
 
 - 按人工最新要求，本轮未运行任何本地测试、build、typecheck、RenderBattlePreview、`Tools/verify_project.mjs`、`git diff --check`、YAML/JSON/Plist 解析或脚本语法检查。
 - Agent B 首次实现提交 `779ed2dacfdc0345bb56eb5e00c8fa5899038a35` 已直推 `origin/main`；GitHub Actions run `29219592639` attempt `1` 与 artifact `RomeLegions-ci-v0.52-main-779ed2d-run29219592639-attempt1` 的结构检查、SwiftPM、Gameplay Smoke、RenderBattlePreview 和 Xcode build 虽全部为 success，但 Agent C 逐图发现六张 PNG 的底部命令坞操作区均为空、右侧工具轨遮挡顶部 HUD，且原上下对称采样会误把顶部内容算作底部命令坞，因此正式判定不通过。
-- 本次在 v0.52 内追加修复：命令区改为明确尺寸的专用按钮与宽/窄固定子集，状态条为工具轨预留安全区；Render 门禁只采真实底部坞，分别检查单位攻击/技能色与城市扩建/招募色，并要求单位/城市场景签名不同。修复提交、最新 run 和 artifact 待生成后由 Agent C 重新验收。
+- 修复提交 `413e1218bd10db927f09eecec26adc9d8cccfc8e` 将命令区改为明确尺寸的专用按钮、为状态条预留工具轨安全区，并把 Render 门禁迁移到真实底部坞；GitHub Actions run `29221031604` attempt `1` 的结构检查、88 项 Swift Testing、Gameplay Smoke 和 Xcode build 成功，但 RenderBattlePreview 在首张 932×430 单位图抛出 `missingMapDominantBattleShell`。artifact `RomeLegions-ci-v0.52-main-413e121-run29221031604-attempt1` 只包含该单位图，显示命令按钮与 HUD 已恢复，失败来自比例工具轨采样未匹配真实顶部锚定布局；同时固定单位场景没有攻击目标，却被门禁要求必须出现红色攻击按钮。
+- 本次继续在 v0.52 内追加修复：窄屏单位命令坞固定为两行并保留攻击、技能、姿态、休整、跳过；单位渲染在前序只读断言完成后加入专用相邻攻击夹具；五个工具按钮按真实顶部锚点和 44×44 尺寸逐个采样。最新修复提交、run 和 artifact 待生成后重新验收。
 
 遗留事项：
 
