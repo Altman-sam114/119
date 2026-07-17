@@ -1733,6 +1733,7 @@ struct RenderBattlePreview {
         logicalHeight: Double
     ) -> Bool {
         let signature = commandDockSignature(in: bitmap, logicalWidth: logicalWidth, logicalHeight: logicalHeight)
+        print("Unit dock pixels: \(signature)")
         return signature.bright > 34 && signature.red > 5 && signature.cyan > 5
     }
 
@@ -1742,6 +1743,7 @@ struct RenderBattlePreview {
         logicalHeight: Double
     ) -> Bool {
         let signature = commandDockSignature(in: bitmap, logicalWidth: logicalWidth, logicalHeight: logicalHeight)
+        print("City dock pixels: \(signature)")
         return signature.bright > 34 && signature.orange > 9
     }
 
@@ -1752,11 +1754,12 @@ struct RenderBattlePreview {
         let heightRatio = logicalHeight >= logicalWidth ? 0.15 : (logicalHeight < 560 ? 0.23 : 0.15)
         let xRatio = logicalWidth < 700 ? 0.38 : 0.28
         let widthRatio = logicalWidth < 700 ? 0.46 : 0.58
+        let regionHeight = Int(logicalHeight * heightRatio)
         return (
             x: Int(logicalWidth * xRatio),
-            y: Int(logicalHeight * 0.005),
+            y: max(0, Int(logicalHeight) - regionHeight - 2),
             width: Int(logicalWidth * widthRatio),
-            height: Int(logicalHeight * heightRatio)
+            height: regionHeight
         )
     }
 
@@ -1865,10 +1868,9 @@ struct RenderBattlePreview {
         let topBarHeight = logicalHeight < 560 ? 46 : 50
         let toolTop = topBarHeight + 16
         let toolBins = (0..<5).map { index in
-            let topOriginY = toolTop + index * 50
             return (
                 x: max(0, Int(logicalWidth) - 60),
-                y: max(0, Int(logicalHeight) - topOriginY - 44),
+                y: toolTop + index * 50,
                 width: 44,
                 height: 44
             )
