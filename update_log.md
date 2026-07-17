@@ -53,7 +53,8 @@
 - Agent B 首次实现提交 `779ed2dacfdc0345bb56eb5e00c8fa5899038a35` 已直推 `origin/main`；GitHub Actions run `29219592639` attempt `1` 与 artifact `RomeLegions-ci-v0.52-main-779ed2d-run29219592639-attempt1` 的结构检查、SwiftPM、Gameplay Smoke、RenderBattlePreview 和 Xcode build 虽全部为 success，但 Agent C 逐图发现六张 PNG 的底部命令坞操作区均为空、右侧工具轨遮挡顶部 HUD，且原上下对称采样会误把顶部内容算作底部命令坞，因此正式判定不通过。
 - 修复提交 `413e1218bd10db927f09eecec26adc9d8cccfc8e` 将命令区改为明确尺寸的专用按钮、为状态条预留工具轨安全区，并把 Render 门禁迁移到真实底部坞；GitHub Actions run `29221031604` attempt `1` 的结构检查、88 项 Swift Testing、Gameplay Smoke 和 Xcode build 成功，但 RenderBattlePreview 在首张 932×430 单位图抛出 `missingMapDominantBattleShell`。artifact `RomeLegions-ci-v0.52-main-413e121-run29221031604-attempt1` 只包含该单位图，显示命令按钮与 HUD 已恢复，失败来自比例工具轨采样未匹配真实顶部锚定布局；同时固定单位场景没有攻击目标，却被门禁要求必须出现红色攻击按钮。
 - 修复提交 `4a97a39c04936c105e2e6e0e54fea1665ddb5707` 将窄屏单位命令坞固定为两行并保留攻击、技能、姿态、休整、跳过，增加专用相邻攻击夹具，并按真实顶部锚点采样五个工具按钮。GitHub Actions run `29596794324` attempt `1` 的结构检查、88 项 Swift Testing、Gameplay Smoke、地图/工具轨像素门禁和 Xcode build 成功，但随后单位命令坞色彩门禁抛出 `missingCompactCommandRender`；artifact 中的 932×430 单位图已清楚显示五个命令按钮，证明失败仍来自把 `NSBitmapImageRep.colorAt` 错当成底部原点，命令坞采样实际落在顶栏。
-- 本次继续统一像素坐标为顶部原点：工具轨直接使用顶部锚点，底部命令坞换算为图像底部的顶部坐标，并输出单位/城市命令坞色彩签名。最新修复提交、run 和 artifact 待生成后重新验收。
+- 修复提交 `1c3a5877a17a4b72a8075cedb815dad81fde79e1` 统一像素坐标为顶部原点。GitHub Actions run `29603952017` attempt `1` 的结构检查、88 项 Swift Testing、Gameplay Smoke、地图/工具轨像素门禁和 Xcode build 成功，但单位命令坞色彩门禁仍抛出 `missingCompactCommandRender`；artifact PNG 继续清楚显示全部五个命令按钮。对该云端 PNG 只读复算得到底部区域旧阈值信号 `bright=147`、`red=241`、`cyan=313`，说明 UI 与采样区域正确，剩余差异来自 AppKit 设备色彩空间转换下的绝对分量比较。
+- 本次将命令色识别改为通道相对优势并提高有效像素与场景差异门槛，同时把地图、工具、单位和城市签名写入 stderr，保证失败时日志保留精确计数。最新修复提交、run 和 artifact 待生成后重新验收。
 
 遗留事项：
 

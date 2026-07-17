@@ -1733,8 +1733,8 @@ struct RenderBattlePreview {
         logicalHeight: Double
     ) -> Bool {
         let signature = commandDockSignature(in: bitmap, logicalWidth: logicalWidth, logicalHeight: logicalHeight)
-        print("Unit dock pixels: \(signature)")
-        return signature.bright > 34 && signature.red > 5 && signature.cyan > 5
+        emitPreviewDiagnostic("Unit dock pixels: \(signature)")
+        return signature.bright > 60 && signature.red > 20 && signature.cyan > 20
     }
 
     private static func hasVisibleCityReadoutContent(
@@ -1743,8 +1743,8 @@ struct RenderBattlePreview {
         logicalHeight: Double
     ) -> Bool {
         let signature = commandDockSignature(in: bitmap, logicalWidth: logicalWidth, logicalHeight: logicalHeight)
-        print("City dock pixels: \(signature)")
-        return signature.bright > 34 && signature.orange > 9
+        emitPreviewDiagnostic("City dock pixels: \(signature)")
+        return signature.bright > 60 && signature.orange > 30
     }
 
     private static func commandDockSampleRegion(
@@ -1785,10 +1785,10 @@ struct RenderBattlePreview {
                 let green = color.greenComponent
                 let blue = color.blueComponent
                 let brightness = (red + green + blue) / 3
-                if brightness > 0.42 { signature.bright += 1 }
-                if red > 0.30 && green < 0.20 && blue < 0.22 { signature.red += 1 }
-                if green > 0.27 && blue > 0.30 && red < 0.26 { signature.cyan += 1 }
-                if red > 0.34 && green > 0.18 && green < 0.52 && blue < 0.24 { signature.orange += 1 }
+                if brightness > 0.38 { signature.bright += 1 }
+                if red > 0.18 && red > green + 0.09 && red > blue + 0.07 { signature.red += 1 }
+                if green > 0.18 && blue > 0.20 && green > red + 0.05 && blue > red + 0.07 { signature.cyan += 1 }
+                if red > 0.22 && green > 0.12 && red > green + 0.06 && green > blue + 0.05 { signature.orange += 1 }
             }
         }
         return signature
@@ -1802,7 +1802,7 @@ struct RenderBattlePreview {
     ) -> Bool {
         let unit = commandDockSignature(in: unitBitmap, logicalWidth: logicalWidth, logicalHeight: logicalHeight)
         let city = commandDockSignature(in: cityBitmap, logicalWidth: logicalWidth, logicalHeight: logicalHeight)
-        return unit.red > city.red + 3 && city.orange > unit.orange + 3
+        return unit.red > city.red + 10 && city.orange > unit.orange + 10
     }
 
     private static func hasMapDominantBattleShell(
@@ -1876,8 +1876,12 @@ struct RenderBattlePreview {
             )
         }
         let toolCounts = toolBins.map { toolIconPixels(in: $0) }
-        print("Battle shell pixels: map=\(mapCounts.map), tools=\(toolCounts)")
+        emitPreviewDiagnostic("Battle shell pixels: map=\(mapCounts.map), tools=\(toolCounts)")
         return mapCounts.map > 240 && toolCounts.allSatisfy { $0 > 10 }
+    }
+
+    private static func emitPreviewDiagnostic(_ message: String) {
+        FileHandle.standardError.write(Data("\(message)\n".utf8))
     }
 }
 
