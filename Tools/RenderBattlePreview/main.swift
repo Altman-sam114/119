@@ -1786,7 +1786,7 @@ struct RenderBattlePreview {
                 let blue = color.blueComponent
                 let brightness = (red + green + blue) / 3
                 if brightness > 0.38 { signature.bright += 1 }
-                if red > 0.18 && red > green + 0.09 && red > blue + 0.07 { signature.red += 1 }
+                if red > 0.18 && red > green + 0.18 && red > blue + 0.12 { signature.red += 1 }
                 if green > 0.18 && blue > 0.20 && green > red + 0.05 && blue > red + 0.07 { signature.cyan += 1 }
                 if red > 0.22 && green > 0.12 && red > green + 0.06 && green > blue + 0.05 { signature.orange += 1 }
             }
@@ -1802,6 +1802,7 @@ struct RenderBattlePreview {
     ) -> Bool {
         let unit = commandDockSignature(in: unitBitmap, logicalWidth: logicalWidth, logicalHeight: logicalHeight)
         let city = commandDockSignature(in: cityBitmap, logicalWidth: logicalWidth, logicalHeight: logicalHeight)
+        emitPreviewDiagnostic("Command dock delta: unit=\(unit), city=\(city)")
         return unit.red > city.red + 10 && city.orange > unit.orange + 10
     }
 
