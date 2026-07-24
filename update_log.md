@@ -28,7 +28,7 @@
 核心变更：
 
 - 依据 Google Play 官方公开截图重新提炼地图主导层级，但不复制或提交原游戏素材；`MapBackdropView` 改用确定性 Canvas 绘制原创陆地分区、水系、等高线、战略道路和纸面颗粒，填满六边棋盘以外的地图工作区。
-- 新增 `TerrainMaterialProfile`，为平原、森林、丘陵、水域、道路和城市提供唯一材质签名、图层数量和地标透明度；六类纹理分别使用田垄、树冠/树干、山脊/等高线、波纹/流向、路床/路石和街区/城墙表达，默认大型 terrain glyph 降权。
+- 新增 `TerrainMaterialProfile`，为平原、森林、丘陵、水域、道路和城市提供唯一材质签名、图层数量和地标透明度；六类纹理分别使用田垄、树冠/树干、山脊/等高线、波纹/流向、路床/路石和街区/城墙表达，默认大型 terrain glyph 收敛为右下角低透明微型地标。
 - `HexMetrics` 按短横屏、普通横屏和竖屏使用稳定 tile aspect、inset、scale 与 `mapSize`，减少重复上下留白并扩大短横屏/宽屏战区；仍保持唯一坐标系统和容器驱动布局。
 - `CityBadgeView` 改为原创城墙与建筑剪影，`UnitTokenView` 改为军旗轮廓并强化兵种图形，指挥官徽章升级为原创盾形首字标记；阵营、城防、生命、经验、姿态、冷却和行动状态继续保留。
 - RenderBattlePreview 保留 v0.53 全部门禁，新增 `missingTerrainMaterialStrategy` 与 `missingStrategicMapMaterialCoverage`，检查六类材质策略、三尺寸战区尺度、地图横向三带及青绿/蓝/灰褐材质分布。

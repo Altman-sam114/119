@@ -1865,9 +1865,9 @@ struct HexTileView: View {
                         .stroke(borderColor, lineWidth: isSelected || isAttackTarget ? max(2.4, 3 * scale) : max(0.8, 1.1 * scale))
                 }
 
-            TerrainGlyphView(terrain: tile.terrain)
-                .scaleEffect(scale)
+            TerrainGlyphView(terrain: tile.terrain, scale: scale)
                 .opacity(city == nil && unit == nil ? tile.terrain.materialProfile.landmarkOpacity : 0.08)
+                .offset(x: 10 * scale, y: 8 * scale)
 
             if let threatHeatZoneSummary {
                 ThreatHeatTileOverlay(summary: threatHeatZoneSummary, scale: scale)
@@ -2795,10 +2795,11 @@ struct EnemyIntentMapBadgeView: View {
 
 struct TerrainGlyphView: View {
     var terrain: TerrainType
+    var scale: CGFloat
 
     var body: some View {
         Image(systemName: terrain.systemImage)
-            .font(.system(size: 21, weight: .black))
+            .font(.system(size: 10 * scale, weight: .black))
             .foregroundStyle(.white)
             .shadow(color: .black.opacity(0.18), radius: 1, y: 1)
     }
