@@ -152,6 +152,11 @@ flowchart TD
     DA --> ER
     ER --> ES["BattleView 单层地图情报坞<br/>按钮切换当前扫描视角，只改 ViewModel UI 视角和 banner"]
     ES --> ET["MapOverlayPresentation<br/>只控制 route/tile/legend 显示优先级<br/>攻击、技能、可达、选中和当前命令预览始终保留"]
+    TM["Tile.terrain"] --> TN["TerrainMaterialProfile<br/>六类唯一材质签名/图层数/地标透明度"]
+    TN --> TO["TerrainTextureView + MapBackdropView<br/>田垄/树冠/山脊/波纹/路床/街区<br/>全屏陆地/水系/等高线/战略道路"]
+    TP["容器尺寸 + 棋盘宽高"] --> TQ["HexMetrics<br/>稳定 inset / tileAspect / mapSize / 唯一坐标系"]
+    TQ --> TO
+    TO --> TR["WarMapView 地貌底层<br/>只改变 SwiftUI 绘制，不改变 GameState / AI / 报告"]
     MF["GameViewModel.primaryCampaignAdvanceReadout<br/>组合首要任务、战役进度、战线压力、目标线、阶段命令、侦察视角和态势交汇"] --> MG["BattleView 顶部推进 chip 与元老院推进线读板<br/>只解释战役目标如何落到地图下一步<br/>不自动聚焦、不自动执行"]
     ER --> MF
     CO --> MF

@@ -1721,30 +1721,105 @@ struct AttackTargetRing: View {
 struct MapBackdropView: View {
     var body: some View {
         ZStack {
-            LinearGradient(
-                colors: [
-                    Color(red: 0.18, green: 0.25, blue: 0.22),
-                    Color(red: 0.20, green: 0.31, blue: 0.33),
-                    Color(red: 0.18, green: 0.16, blue: 0.12)
-                ],
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
-            )
+            Color(red: 0.12, green: 0.22, blue: 0.23)
 
             Canvas { context, size in
-                var path = Path()
-                for x in stride(from: 0, through: size.width, by: 42) {
-                    path.move(to: CGPoint(x: x, y: 0))
-                    path.addLine(to: CGPoint(x: x + 24, y: size.height))
+                var westernLand = Path()
+                westernLand.move(to: CGPoint(x: 0, y: size.height * 0.08))
+                westernLand.addCurve(
+                    to: CGPoint(x: size.width * 0.46, y: size.height * 0.18),
+                    control1: CGPoint(x: size.width * 0.15, y: size.height * 0.02),
+                    control2: CGPoint(x: size.width * 0.31, y: size.height * 0.30)
+                )
+                westernLand.addCurve(
+                    to: CGPoint(x: size.width * 0.39, y: size.height),
+                    control1: CGPoint(x: size.width * 0.57, y: size.height * 0.50),
+                    control2: CGPoint(x: size.width * 0.48, y: size.height * 0.82)
+                )
+                westernLand.addLine(to: CGPoint(x: 0, y: size.height))
+                westernLand.closeSubpath()
+                context.fill(westernLand, with: .color(Color(red: 0.31, green: 0.36, blue: 0.23).opacity(0.72)))
+
+                var easternLand = Path()
+                easternLand.move(to: CGPoint(x: size.width, y: 0))
+                easternLand.addLine(to: CGPoint(x: size.width * 0.61, y: 0))
+                easternLand.addCurve(
+                    to: CGPoint(x: size.width * 0.56, y: size.height * 0.64),
+                    control1: CGPoint(x: size.width * 0.50, y: size.height * 0.19),
+                    control2: CGPoint(x: size.width * 0.68, y: size.height * 0.38)
+                )
+                easternLand.addCurve(
+                    to: CGPoint(x: size.width, y: size.height * 0.78),
+                    control1: CGPoint(x: size.width * 0.68, y: size.height * 0.88),
+                    control2: CGPoint(x: size.width * 0.84, y: size.height * 0.67)
+                )
+                easternLand.closeSubpath()
+                context.fill(easternLand, with: .color(Color(red: 0.37, green: 0.32, blue: 0.23).opacity(0.68)))
+
+                var highlands = Path()
+                highlands.move(to: CGPoint(x: size.width * 0.12, y: size.height * 0.58))
+                highlands.addCurve(
+                    to: CGPoint(x: size.width * 0.88, y: size.height * 0.30),
+                    control1: CGPoint(x: size.width * 0.32, y: size.height * 0.34),
+                    control2: CGPoint(x: size.width * 0.60, y: size.height * 0.47)
+                )
+                highlands.addCurve(
+                    to: CGPoint(x: size.width * 0.16, y: size.height * 0.69),
+                    control1: CGPoint(x: size.width * 0.64, y: size.height * 0.55),
+                    control2: CGPoint(x: size.width * 0.37, y: size.height * 0.74)
+                )
+                highlands.closeSubpath()
+                context.fill(highlands, with: .color(Color(red: 0.36, green: 0.30, blue: 0.22).opacity(0.28)))
+
+                for offset in stride(from: 0.08, through: 0.92, by: 0.14) {
+                    var contour = Path()
+                    contour.move(to: CGPoint(x: 0, y: size.height * offset))
+                    contour.addCurve(
+                        to: CGPoint(x: size.width, y: size.height * max(0.04, offset - 0.08)),
+                        control1: CGPoint(x: size.width * 0.28, y: size.height * (offset - 0.11)),
+                        control2: CGPoint(x: size.width * 0.66, y: size.height * (offset + 0.10))
+                    )
+                    context.stroke(contour, with: .color(.white.opacity(0.045)), lineWidth: 1)
                 }
-                for y in stride(from: 0, through: size.height, by: 38) {
-                    path.move(to: CGPoint(x: 0, y: y))
-                    path.addLine(to: CGPoint(x: size.width, y: y + 16))
+
+                var strategicRoad = Path()
+                strategicRoad.move(to: CGPoint(x: size.width * 0.03, y: size.height * 0.78))
+                strategicRoad.addCurve(
+                    to: CGPoint(x: size.width * 0.97, y: size.height * 0.18),
+                    control1: CGPoint(x: size.width * 0.33, y: size.height * 0.42),
+                    control2: CGPoint(x: size.width * 0.70, y: size.height * 0.63)
+                )
+                context.stroke(strategicRoad, with: .color(Color(red: 0.80, green: 0.64, blue: 0.40).opacity(0.15)), lineWidth: 3)
+                context.stroke(
+                    strategicRoad,
+                    with: .color(.white.opacity(0.08)),
+                    style: StrokeStyle(lineWidth: 1, lineCap: .round, dash: [8, 10])
+                )
+
+                for x in stride(from: 12.0, through: size.width, by: 31) {
+                    for y in stride(from: 10.0, through: size.height, by: 29) {
+                        let phase = Int(x + y).isMultiple(of: 2) ? 0.025 : 0.014
+                        context.fill(
+                            Path(ellipseIn: CGRect(x: x, y: y, width: 1.3, height: 1.3)),
+                            with: .color(.white.opacity(phase))
+                        )
+                    }
                 }
-                context.stroke(path, with: .color(.white.opacity(0.035)), lineWidth: 1)
             }
+
+            LinearGradient(
+                colors: [.black.opacity(0.18), .clear, .black.opacity(0.24)],
+                startPoint: .top,
+                endPoint: .bottom
+            )
         }
     }
+}
+
+struct TerrainMaterialProfile: Hashable {
+    let signature: String
+    let layerCount: Int
+    let landmarkOpacity: Double
 }
 
 struct HexTileView: View {
@@ -1792,7 +1867,7 @@ struct HexTileView: View {
 
             TerrainGlyphView(terrain: tile.terrain)
                 .scaleEffect(scale)
-                .opacity(city == nil && unit == nil ? 0.42 : 0.20)
+                .opacity(city == nil && unit == nil ? tile.terrain.materialProfile.landmarkOpacity : 0.08)
 
             if let threatHeatZoneSummary {
                 ThreatHeatTileOverlay(summary: threatHeatZoneSummary, scale: scale)
@@ -1895,12 +1970,12 @@ struct HexTileView: View {
 
     private var tileColor: Color {
         switch tile.terrain {
-        case .plains: return Color(red: 0.40, green: 0.50, blue: 0.28)
-        case .forest: return Color(red: 0.15, green: 0.36, blue: 0.21)
-        case .hills: return Color(red: 0.48, green: 0.40, blue: 0.30)
-        case .water: return Color(red: 0.15, green: 0.40, blue: 0.56)
-        case .road: return Color(red: 0.53, green: 0.45, blue: 0.32)
-        case .city: return Color(red: 0.46, green: 0.38, blue: 0.30)
+        case .plains: return Color(red: 0.43, green: 0.49, blue: 0.27)
+        case .forest: return Color(red: 0.13, green: 0.32, blue: 0.19)
+        case .hills: return Color(red: 0.47, green: 0.38, blue: 0.27)
+        case .water: return Color(red: 0.12, green: 0.37, blue: 0.52)
+        case .road: return Color(red: 0.51, green: 0.43, blue: 0.29)
+        case .city: return Color(red: 0.43, green: 0.35, blue: 0.27)
         }
     }
 
@@ -1908,7 +1983,7 @@ struct HexTileView: View {
         if isAttackTarget { return .red }
         if isSelected { return .white }
         if isReachable { return .yellow.opacity(0.8) }
-        return .black.opacity(0.28)
+        return .black.opacity(0.18)
     }
 
     private var controlFaction: Faction? {
@@ -2518,11 +2593,20 @@ struct RoadTextureView: View {
     var body: some View {
         ZStack {
             RouteLineShape()
-                .stroke(.black.opacity(0.24), style: StrokeStyle(lineWidth: max(4, 6 * scale), lineCap: .round))
+                .stroke(.black.opacity(0.30), style: StrokeStyle(lineWidth: max(5, 7 * scale), lineCap: .round))
             RouteLineShape()
-                .stroke(Color(red: 0.88, green: 0.68, blue: 0.36).opacity(0.88), style: StrokeStyle(lineWidth: max(2.4, 4 * scale), lineCap: .round))
+                .stroke(Color(red: 0.84, green: 0.66, blue: 0.38).opacity(0.82), style: StrokeStyle(lineWidth: max(2.8, 4.4 * scale), lineCap: .round))
             RouteLineShape()
-                .stroke(.white.opacity(0.20), style: StrokeStyle(lineWidth: max(0.8, 1.2 * scale), lineCap: .round, dash: [5 * scale, 5 * scale]))
+                .stroke(.white.opacity(0.24), style: StrokeStyle(lineWidth: max(0.8, 1.1 * scale), lineCap: .round, dash: [4 * scale, 5 * scale]))
+
+            HStack(spacing: 5 * scale) {
+                ForEach(0..<4, id: \.self) { index in
+                    Circle()
+                        .fill(.black.opacity(index.isMultiple(of: 2) ? 0.14 : 0.08))
+                        .frame(width: 2.2 * scale, height: 2.2 * scale)
+                }
+            }
+            .offset(y: 12 * scale)
         }
         .padding(6 * scale)
     }
@@ -2532,15 +2616,23 @@ struct WaterTextureView: View {
     var scale: CGFloat
 
     var body: some View {
-        VStack(spacing: 5 * scale) {
-            ForEach(0..<3, id: \.self) { index in
-                Capsule()
-                    .fill(.white.opacity(0.14))
-                    .frame(width: (index == 1 ? 34 : 26) * scale, height: max(1, 2 * scale))
-                    .offset(x: index == 1 ? -4 * scale : 5 * scale)
+        Canvas { context, size in
+            for index in 0..<4 {
+                let y = size.height * (0.24 + CGFloat(index) * 0.18)
+                var wave = Path()
+                wave.move(to: CGPoint(x: size.width * 0.12, y: y))
+                wave.addCurve(
+                    to: CGPoint(x: size.width * 0.88, y: y - 1.5 * scale),
+                    control1: CGPoint(x: size.width * 0.34, y: y - 5 * scale),
+                    control2: CGPoint(x: size.width * 0.62, y: y + 5 * scale)
+                )
+                context.stroke(
+                    wave,
+                    with: .color(.white.opacity(index.isMultiple(of: 2) ? 0.22 : 0.11)),
+                    lineWidth: max(0.8, 1.2 * scale)
+                )
             }
         }
-        .rotationEffect(.degrees(-8))
     }
 }
 
@@ -2548,13 +2640,22 @@ struct CityTileTextureView: View {
     var scale: CGFloat
 
     var body: some View {
-        VStack(spacing: 3 * scale) {
-            Rectangle()
-                .fill(Color(red: 0.88, green: 0.70, blue: 0.36).opacity(0.30))
-                .frame(width: 34 * scale, height: 4 * scale)
-            Rectangle()
-                .fill(Color(red: 0.88, green: 0.70, blue: 0.36).opacity(0.22))
-                .frame(width: 44 * scale, height: 4 * scale)
+        ZStack {
+            VStack(spacing: 4 * scale) {
+                ForEach(0..<3, id: \.self) { row in
+                    HStack(spacing: 4 * scale) {
+                        ForEach(0..<4, id: \.self) { column in
+                            Rectangle()
+                                .fill(.black.opacity((row + column).isMultiple(of: 2) ? 0.13 : 0.07))
+                                .frame(width: 7 * scale, height: 5 * scale)
+                        }
+                    }
+                }
+            }
+
+            RoundedRectangle(cornerRadius: 2 * scale)
+                .stroke(Color(red: 0.88, green: 0.70, blue: 0.36).opacity(0.34), lineWidth: max(1, 1.5 * scale))
+                .frame(width: 43 * scale, height: 30 * scale)
         }
     }
 }
@@ -2563,14 +2664,25 @@ struct ForestTextureView: View {
     var scale: CGFloat
 
     var body: some View {
-        HStack(spacing: 5 * scale) {
-            ForEach(0..<3, id: \.self) { index in
-                Circle()
-                    .fill(.black.opacity(0.13))
-                    .frame(width: (8 + CGFloat(index % 2) * 3) * scale, height: (8 + CGFloat(index % 2) * 3) * scale)
+        ZStack {
+            HStack(alignment: .bottom, spacing: 6 * scale) {
+                ForEach(0..<4, id: \.self) { index in
+                    Rectangle()
+                        .fill(.black.opacity(0.18))
+                        .frame(width: max(1, 1.8 * scale), height: (9 + CGFloat(index % 2) * 3) * scale)
+                }
+            }
+            .offset(y: 8 * scale)
+
+            HStack(spacing: -1 * scale) {
+                ForEach(0..<5, id: \.self) { index in
+                    Circle()
+                        .fill(index.isMultiple(of: 2) ? .black.opacity(0.18) : .white.opacity(0.08))
+                        .frame(width: (10 + CGFloat(index % 3) * 2) * scale, height: (10 + CGFloat(index % 3) * 2) * scale)
+                        .offset(y: CGFloat(index % 2) * 5 * scale)
+                }
             }
         }
-        .offset(y: 8 * scale)
     }
 }
 
@@ -2578,15 +2690,28 @@ struct HillsTextureView: View {
     var scale: CGFloat
 
     var body: some View {
-        HStack(spacing: -5 * scale) {
-            TriangleHillShape()
-                .fill(.white.opacity(0.12))
-                .frame(width: 24 * scale, height: 14 * scale)
-            TriangleHillShape()
-                .fill(.black.opacity(0.12))
-                .frame(width: 28 * scale, height: 16 * scale)
+        ZStack {
+            HStack(alignment: .bottom, spacing: -8 * scale) {
+                TriangleHillShape()
+                    .fill(.white.opacity(0.11))
+                    .frame(width: 28 * scale, height: 17 * scale)
+                TriangleHillShape()
+                    .fill(.black.opacity(0.16))
+                    .frame(width: 34 * scale, height: 22 * scale)
+            }
+            .offset(y: 7 * scale)
+
+            VStack(spacing: 5 * scale) {
+                Capsule()
+                    .fill(.white.opacity(0.10))
+                    .frame(width: 42 * scale, height: max(1, 1.3 * scale))
+                Capsule()
+                    .fill(.black.opacity(0.10))
+                    .frame(width: 30 * scale, height: max(1, 1.3 * scale))
+                    .offset(x: 7 * scale)
+            }
+            .offset(y: 16 * scale)
         }
-        .offset(y: 8 * scale)
     }
 }
 
@@ -2594,14 +2719,26 @@ struct PlainsTextureView: View {
     var scale: CGFloat
 
     var body: some View {
-        HStack(spacing: 5 * scale) {
-            ForEach(0..<3, id: \.self) { _ in
-                Capsule()
-                    .fill(.white.opacity(0.10))
-                    .frame(width: 12 * scale, height: max(1, 2 * scale))
+        ZStack {
+            VStack(spacing: 5 * scale) {
+                ForEach(0..<4, id: \.self) { index in
+                    Capsule()
+                        .fill(index.isMultiple(of: 2) ? .white.opacity(0.12) : .black.opacity(0.08))
+                        .frame(width: (38 - CGFloat(index) * 3) * scale, height: max(1, 1.5 * scale))
+                        .offset(x: CGFloat(index % 2) * 5 * scale)
+                }
             }
+            .rotationEffect(.degrees(-9))
+
+            HStack(spacing: 12 * scale) {
+                ForEach(0..<3, id: \.self) { _ in
+                    Image(systemName: "line.diagonal")
+                        .font(.system(size: 5 * scale, weight: .bold))
+                        .foregroundStyle(.white.opacity(0.16))
+                }
+            }
+            .offset(y: 13 * scale)
         }
-        .offset(y: 9 * scale)
     }
 }
 
@@ -2674,23 +2811,7 @@ struct CityBadgeView: View {
     var body: some View {
         VStack(spacing: compact ? 1 : 3) {
             ZStack(alignment: .bottomTrailing) {
-                RoundedRectangle(cornerRadius: compact ? 4 : 5)
-                    .fill(city.owner.factionColor)
-                    .overlay(alignment: .top) {
-                        Rectangle()
-                            .fill(Color(red: 0.86, green: 0.68, blue: 0.34))
-                            .frame(height: compact ? 3 : 4)
-                    }
-                    .overlay {
-                        Image(systemName: "building.columns.fill")
-                            .font(.system(size: compact ? 10 : 13, weight: .black))
-                            .foregroundStyle(.white)
-                    }
-                    .overlay {
-                        RoundedRectangle(cornerRadius: compact ? 4 : 5)
-                            .stroke(.black.opacity(0.25), lineWidth: 1)
-                    }
-                    .frame(width: compact ? 32 : 40, height: compact ? 20 : 30)
+                FortifiedCitySilhouetteView(owner: city.owner, compact: compact)
 
                 HStack(spacing: 1) {
                     Image(systemName: "shield.fill")
@@ -2710,9 +2831,70 @@ struct CityBadgeView: View {
             Text(city.name)
                 .font(.system(size: compact ? 8 : 11, weight: .heavy))
                 .foregroundStyle(.white)
+                .padding(.horizontal, compact ? 4 : 6)
+                .frame(minHeight: compact ? 12 : 16)
+                .background(.black.opacity(0.58))
+                .clipShape(.rect(cornerRadius: compact ? 3 : 4))
                 .lineLimit(1)
                 .minimumScaleFactor(0.5)
         }
+    }
+}
+
+struct FortifiedCitySilhouetteView: View {
+    var owner: Faction
+    var compact: Bool
+
+    var body: some View {
+        let width: CGFloat = compact ? 34 : 44
+        let height: CGFloat = compact ? 22 : 31
+
+        ZStack(alignment: .bottom) {
+            CityWallShape()
+                .fill(owner.factionColor)
+
+            HStack(alignment: .bottom, spacing: compact ? 1 : 2) {
+                Rectangle()
+                    .frame(width: width * 0.18, height: height * 0.46)
+                Rectangle()
+                    .frame(width: width * 0.22, height: height * 0.68)
+                Rectangle()
+                    .frame(width: width * 0.18, height: height * 0.52)
+            }
+            .foregroundStyle(.white.opacity(0.82))
+            .padding(.bottom, height * 0.16)
+
+            Rectangle()
+                .fill(Color(red: 0.90, green: 0.72, blue: 0.34))
+                .frame(height: compact ? 3 : 4)
+                .frame(maxHeight: .infinity, alignment: .top)
+        }
+        .frame(width: width, height: height)
+        .overlay {
+            CityWallShape()
+                .stroke(.black.opacity(0.34), lineWidth: 1)
+        }
+        .shadow(color: .black.opacity(0.34), radius: 2, y: 1)
+    }
+}
+
+struct CityWallShape: Shape {
+    func path(in rect: CGRect) -> Path {
+        var path = Path()
+        path.move(to: CGPoint(x: rect.minX, y: rect.minY + rect.height * 0.25))
+        path.addLine(to: CGPoint(x: rect.minX + rect.width * 0.18, y: rect.minY + rect.height * 0.25))
+        path.addLine(to: CGPoint(x: rect.minX + rect.width * 0.18, y: rect.minY))
+        path.addLine(to: CGPoint(x: rect.minX + rect.width * 0.36, y: rect.minY))
+        path.addLine(to: CGPoint(x: rect.minX + rect.width * 0.36, y: rect.minY + rect.height * 0.18))
+        path.addLine(to: CGPoint(x: rect.minX + rect.width * 0.64, y: rect.minY + rect.height * 0.18))
+        path.addLine(to: CGPoint(x: rect.minX + rect.width * 0.64, y: rect.minY))
+        path.addLine(to: CGPoint(x: rect.minX + rect.width * 0.82, y: rect.minY))
+        path.addLine(to: CGPoint(x: rect.minX + rect.width * 0.82, y: rect.minY + rect.height * 0.25))
+        path.addLine(to: CGPoint(x: rect.maxX, y: rect.minY + rect.height * 0.25))
+        path.addLine(to: CGPoint(x: rect.maxX, y: rect.maxY))
+        path.addLine(to: CGPoint(x: rect.minX, y: rect.maxY))
+        path.closeSubpath()
+        return path
     }
 }
 
@@ -2721,28 +2903,28 @@ struct UnitTokenView: View {
 
     var body: some View {
         VStack(spacing: 1) {
-            RoundedRectangle(cornerRadius: 4)
+            LegionStandardShape()
                 .fill(unit.faction.factionColor)
-                .frame(width: 34, height: 26)
+                .frame(width: 38, height: 29)
                 .overlay(alignment: .top) {
                     Rectangle()
                         .fill(Color(red: 0.86, green: 0.68, blue: 0.34))
                         .frame(height: 4)
                 }
                 .overlay {
-                    ZStack {
+                    HStack(spacing: 3) {
                         Image(systemName: unit.kind.tokenSystemImage)
-                            .font(.system(size: 14, weight: .black))
-                            .foregroundStyle(.white.opacity(0.18))
-                            .offset(x: -7, y: 2)
+                            .font(.system(size: 12, weight: .black))
+                            .foregroundStyle(.white.opacity(0.88))
                         Text(unit.kind.shortLabel)
-                            .font(.caption.weight(.black))
+                            .font(.system(size: 10, weight: .black, design: .rounded))
                             .foregroundStyle(.white)
                             .shadow(color: .black.opacity(0.35), radius: 1, y: 1)
                     }
+                    .offset(y: 1)
                 }
                 .overlay {
-                    RoundedRectangle(cornerRadius: 4)
+                    LegionStandardShape()
                         .stroke(.white.opacity(unit.faction == .rome ? 0.34 : 0.18), lineWidth: 1)
                 }
                 .overlay(alignment: .topTrailing) {
@@ -2804,8 +2986,21 @@ struct UnitTokenView: View {
                         .frame(maxWidth: .infinity)
                 }
             }
-            .frame(width: 34, height: 7)
+            .frame(width: 38, height: 7)
         }
+    }
+}
+
+struct LegionStandardShape: Shape {
+    func path(in rect: CGRect) -> Path {
+        var path = Path()
+        path.move(to: CGPoint(x: rect.minX, y: rect.minY))
+        path.addLine(to: CGPoint(x: rect.maxX, y: rect.minY))
+        path.addLine(to: CGPoint(x: rect.maxX, y: rect.minY + rect.height * 0.76))
+        path.addLine(to: CGPoint(x: rect.midX, y: rect.maxY))
+        path.addLine(to: CGPoint(x: rect.minX, y: rect.minY + rect.height * 0.76))
+        path.closeSubpath()
+        return path
     }
 }
 
@@ -2814,18 +3009,42 @@ struct CommanderTokenBadgeView: View {
 
     var body: some View {
         ZStack {
-            Circle()
+            CommanderShieldShape()
                 .fill(Color(red: 0.93, green: 0.72, blue: 0.24))
-            Circle()
+            CommanderShieldShape()
                 .stroke(.white.opacity(0.92), lineWidth: 1)
+            Image(systemName: "person.fill")
+                .font(.system(size: 9, weight: .black))
+                .foregroundStyle(.black.opacity(0.14))
+                .offset(y: 1)
             Text(String(name.prefix(1)))
                 .font(.system(size: 7, weight: .black, design: .rounded))
                 .foregroundStyle(Color(red: 0.24, green: 0.10, blue: 0.07))
                 .minimumScaleFactor(0.7)
         }
-        .frame(width: 15, height: 15)
+        .frame(width: 17, height: 18)
         .shadow(color: .black.opacity(0.42), radius: 2, y: 1)
         .accessibilityHidden(true)
+    }
+}
+
+struct CommanderShieldShape: Shape {
+    func path(in rect: CGRect) -> Path {
+        var path = Path()
+        path.move(to: CGPoint(x: rect.midX, y: rect.minY))
+        path.addLine(to: CGPoint(x: rect.maxX, y: rect.minY + rect.height * 0.18))
+        path.addLine(to: CGPoint(x: rect.maxX - rect.width * 0.10, y: rect.minY + rect.height * 0.66))
+        path.addQuadCurve(
+            to: CGPoint(x: rect.midX, y: rect.maxY),
+            control: CGPoint(x: rect.maxX - rect.width * 0.18, y: rect.minY + rect.height * 0.86)
+        )
+        path.addQuadCurve(
+            to: CGPoint(x: rect.minX + rect.width * 0.10, y: rect.minY + rect.height * 0.66),
+            control: CGPoint(x: rect.minX + rect.width * 0.18, y: rect.minY + rect.height * 0.86)
+        )
+        path.addLine(to: CGPoint(x: rect.minX, y: rect.minY + rect.height * 0.18))
+        path.closeSubpath()
+        return path
     }
 }
 
@@ -7919,29 +8138,39 @@ struct HexMetrics {
     let origin: CGPoint
     let actionScale: CGFloat
     let tileScale: CGFloat
+    let mapSize: CGSize
+    let tileAspect: CGFloat
 
     init(mapWidth: Int, mapHeight: Int, container: CGSize) {
         let horizontalUnits = CGFloat(mapWidth) * 0.76 + 0.24
         let verticalUnits = CGFloat(mapHeight) + 0.5
+        let isShortLandscape = container.width > container.height * 2
+        let isLandscape = container.width > container.height
 
-        let horizontalInset = min(22, max(10, container.width * 0.03))
-        let topInset = min(54, max(46, container.height * 0.11))
-        let bottomInset = min(64, max(48, container.height * 0.12))
+        let horizontalInset = min(18, max(8, container.width * 0.018))
+        let topInset = isLandscape
+            ? min(38, max(28, container.height * 0.09))
+            : min(50, max(40, container.height * 0.07))
+        let bottomInset = isLandscape
+            ? min(54, max(44, container.height * 0.13))
+            : min(82, max(68, container.height * 0.11))
         let availableWidth = max(1, container.width - horizontalInset * 2)
         let availableHeight = max(1, container.height - topInset - bottomInset)
+        tileAspect = isShortLandscape ? 0.68 : (isLandscape ? 0.78 : 0.86)
         let widthBased = availableWidth / horizontalUnits
-        let heightBased = availableHeight / (verticalUnits * 0.88)
+        let heightBased = availableHeight / (verticalUnits * tileAspect)
         let fittedTileWidth = min(widthBased, heightBased)
 
-        tileWidth = max(18, min(78, fittedTileWidth))
-        tileHeight = tileWidth * 0.88
-        tileScale = min(1.05, max(0.74, tileWidth / 44))
+        tileWidth = max(18, min(82, fittedTileWidth))
+        tileHeight = tileWidth * tileAspect
+        tileScale = min(1.12, max(0.72, tileWidth / 44))
         actionScale = min(1.15, max(0.72, tileWidth / 54))
 
         let totalWidth = tileWidth * (0.76 * CGFloat(mapWidth - 1) + 1)
         let totalHeight = tileHeight * (CGFloat(mapHeight) + 0.5)
+        mapSize = CGSize(width: totalWidth, height: totalHeight)
         let remainingVerticalSpace = max(0, availableHeight - totalHeight)
-        let verticalBias: CGFloat = container.height > container.width * 1.25 ? 0.20 : 0.42
+        let verticalBias: CGFloat = container.height > container.width * 1.25 ? 0.16 : 0.46
         origin = CGPoint(
             x: horizontalInset + (availableWidth - totalWidth) / 2 + tileWidth / 2,
             y: topInset + remainingVerticalSpace * verticalBias + tileHeight / 2
@@ -8407,6 +8636,23 @@ extension AIIntentKind {
 }
 
 extension TerrainType {
+    var materialProfile: TerrainMaterialProfile {
+        switch self {
+        case .plains:
+            return TerrainMaterialProfile(signature: "field-furrow-grass", layerCount: 3, landmarkOpacity: 0.16)
+        case .forest:
+            return TerrainMaterialProfile(signature: "canopy-trunk-shadow", layerCount: 3, landmarkOpacity: 0.13)
+        case .hills:
+            return TerrainMaterialProfile(signature: "ridge-contour-shadow", layerCount: 3, landmarkOpacity: 0.15)
+        case .water:
+            return TerrainMaterialProfile(signature: "wave-current-depth", layerCount: 3, landmarkOpacity: 0.12)
+        case .road:
+            return TerrainMaterialProfile(signature: "road-bed-route-stone", layerCount: 4, landmarkOpacity: 0.11)
+        case .city:
+            return TerrainMaterialProfile(signature: "block-wall-street", layerCount: 3, landmarkOpacity: 0.10)
+        }
+    }
+
     var systemImage: String {
         switch self {
         case .plains: return "leaf.fill"

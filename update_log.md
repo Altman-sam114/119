@@ -21,6 +21,42 @@
 
 ## 历史记录
 
+### v0.54 / 地图材质与战区尺度重构（待云端验收）
+
+日期：2026-07-24
+
+核心变更：
+
+- 依据 Google Play 官方公开截图重新提炼地图主导层级，但不复制或提交原游戏素材；`MapBackdropView` 改用确定性 Canvas 绘制原创陆地分区、水系、等高线、战略道路和纸面颗粒，填满六边棋盘以外的地图工作区。
+- 新增 `TerrainMaterialProfile`，为平原、森林、丘陵、水域、道路和城市提供唯一材质签名、图层数量和地标透明度；六类纹理分别使用田垄、树冠/树干、山脊/等高线、波纹/流向、路床/路石和街区/城墙表达，默认大型 terrain glyph 降权。
+- `HexMetrics` 按短横屏、普通横屏和竖屏使用稳定 tile aspect、inset、scale 与 `mapSize`，减少重复上下留白并扩大短横屏/宽屏战区；仍保持唯一坐标系统和容器驱动布局。
+- `CityBadgeView` 改为原创城墙与建筑剪影，`UnitTokenView` 改为军旗轮廓并强化兵种图形，指挥官徽章升级为原创盾形首字标记；阵营、城防、生命、经验、姿态、冷却和行动状态继续保留。
+- RenderBattlePreview 保留 v0.53 全部门禁，新增 `missingTerrainMaterialStrategy` 与 `missingStrategicMapMaterialCoverage`，检查六类材质策略、三尺寸战区尺度、地图横向三带及青绿/蓝/灰褐材质分布。
+- `.github/workflows/ci-results.yml` artifact 版本更新到 v0.54；README、flow、flowchart、test 和 prompt README 同步真实展示数据流与云端验收要求。
+
+关键文件：
+
+- `RomeLegionsApp/Views/BattleView.swift`
+- `Tools/RenderBattlePreview/main.swift`
+- `.github/workflows/ci-results.yml`
+- `README.md`
+- `md/flow/flow.md`
+- `md/flow/flowchart.md`
+- `md/test/test.md`
+- `md/prompt/README.md`
+- `md/prompt/v0（玩法推进）/v0.54（地图材质与战区尺度重构）.md`
+- `update_log.md`
+
+验证状态：
+
+- 按人工要求，本轮未运行任何本地测试、build、typecheck、RenderBattlePreview、`Tools/verify_project.mjs`、`git diff --check`、YAML/JSON/Plist 解析或脚本语法检查。
+- 本条记录尚未宣称通过；必须以本轮提交直推 `origin/main` 后最新 GitHub Actions run、manifest、JUnit、日志和六张 PNG 的 Agent C 复判为准。
+
+遗留事项：
+
+- 本轮没有修改 `GameState`、`GameViewModel`、AI 评分/执行、敌军意图、战斗/任务/城市/成长/外交规则或存档结构。
+- AI 多步规划、将领成长内容和正式人物资产继续留待后续独立版本。
+
 ### v0.53 / 地图层级与战场可读性重构
 
 日期：2026-07-24

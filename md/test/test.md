@@ -124,7 +124,7 @@ on:
 artifact 命名规则：
 
 ```text
-RomeLegions-ci-v0.53-main-<short_sha>-run<run_id>-attempt<run_attempt>
+RomeLegions-ci-v0.54-main-<short_sha>-run<run_id>-attempt<run_attempt>
 ```
 
 `ci-artifact-manifest.json` 必须至少包含：
@@ -190,6 +190,7 @@ Agent C 必须核对：
 - v0.18 起若 manifest 包含 `renderPreviewOutcome`，必须为 `success`，且 `render-battle-preview.log` 和 `render-previews/*.png` 必须存在；v0.21 机动落点断言失败时应抛出 `missingManeuverOptionSummary`；v0.22 起 Gameplay Smoke 必须覆盖 AI 主攻优先执行顺序；v0.23 主动地图叠层图例断言失败时应抛出 `missingMapOverlayLegend`；v0.24 军团成长决策读板断言失败时应抛出 `missingUnitDevelopmentDecisionSummary`；v0.25 军团成长优先级读板断言失败时应抛出 `missingUnitDevelopmentRecommendationSummary`；v0.26 敌方将领威胁读板断言失败时应抛出 `missingEnemyCommanderThreatSummary`；v0.27 敌情反制建议读板断言失败时应抛出 `missingCountermeasureSummary`；v0.28 起反制落点/目标地图叠层或焦点链路断言失败时应抛出 `missingCountermeasureOverlay`；v0.29 起反制指令聚焦、执行预览、命令链高亮或焦点链路断言失败时应抛出 `missingCountermeasureCommandPreview`；v0.32 起战场目标链路断言失败时应抛出 `missingBattleObjectiveChainSummary`；v0.33 起战场目标线地图叠层断言失败时应抛出 `missingBattleObjectiveMapOverlay`；v0.34 起目标线阶段聚焦断言失败时应抛出 `missingBattleObjectiveStageFocus`；v0.35 起目标线阶段命令预览断言失败时应抛出 `missingBattleObjectiveStageCommandPreview`；v0.36 起目标线阶段联动高亮断言失败时应抛出 `missingBattleObjectiveStageLinkedHighlight`；v0.37 起将令技能入口链路断言失败时应抛出 `missingCommanderActionGuidance`；v0.38 起将领技能目标与收益读板断言失败时应抛出 `missingGeneralSkillTargetReadout`；v0.39 起战场态势交汇链路断言失败时应抛出 `missingBattlefieldConvergenceSummary`；v0.40 起选中军团处境读板断言失败时应抛出 `missingSelectedUnitSituationReadout`；v0.41 起同一错误还覆盖处境命令入口 `commandEntries`、主入口 cue、反制/目标线/将领技能/姿态同源引用；v0.42 起将领指挥链断言失败时应抛出 `missingCommanderChainReadout`；v0.43 起敌情交战闭环 HUD 断言失败时应抛出 `missingEnemyEngagementLoopReadout`；v0.44 起将领战机威胁桥接读板断言失败时应抛出 `missingCommanderOpportunityBridgeReadout`；v0.45 起选中军团军令窗口读板断言失败时应抛出 `missingSelectedUnitOrderWindowReadout`；v0.46 起地图侦察视角 HUD 断言失败时应抛出 `missingMapReconnaissanceViewHUD`；v0.47 起战役推进线 HUD 断言失败时应抛出 `missingCampaignAdvanceReadout`；v0.48 起将领协同步骤读板断言失败时应抛出 `missingCommanderSynergyStepReadout`；v0.49 起 AI 作战计划时间线读板断言失败时应抛出 `missingAIOperationalPlanTimelineReadout`。
 - v0.52 起地图主导壳层像素检查必须覆盖三尺寸单位/城市场景的中央地图、按顶部锚点逐一定位的五个 44×44 右侧工具按钮和底部命令坞；`NSBitmapImageRep.colorAt` 按顶部原点读取，工具轨直接使用顶部坐标，命令坞采样区换算到图像底部。任一关键区域缺失应抛出 `missingMapDominantBattleShell`。单位预览在完成全部只读语义断言后加入专用相邻敌军，命令坞用跨 AppKit 色彩空间稳定且互斥的通道相对优势识别红色攻击和青色技能，红色判定不得把金橙色按钮重复计入；城市场景同理识别金橙色扩建/招募，且两者像素签名必须显著不同并输出场景差异诊断。空坞、缺少窄屏休整/跳过、沿用旧侧栏布局或仅凭比例猜测工具轨位置均不得通过。
 - v0.53 起 RenderBattlePreview 还必须核对四种侦察视角的显示映射：敌路突出敌军路线/目标，反制突出反制线并低对比保留敌路上下文，目标线突出目标/军议，热区突出热区/控区；映射异常抛出 `missingMapOverlayFocusStrategy`。每张 PNG 的地图底缘必须渲染单层情报坞，并在真实地图/命令坞边界之间分别采样红、青、金视角按钮区和右侧/第二行图例区；图例区必须同时存在亮色文字和带色图例，任一区域缺失都抛出 `missingMapIntelligenceDock`。Agent C 六图目视复判还要检查竖屏战区已上移、地图不再同时等权显示所有路线/tile 徽标、390pt 顶部标题不硬截断、有将领兵牌显示原创首字徽章，且 HUD、右侧工具和底部命令坞无重叠。
+- v0.54 起 RenderBattlePreview 必须核对平原、森林、丘陵、水域、道路、城市六类 `TerrainMaterialProfile` 签名唯一且至少包含三层视觉信号，并断言短横屏/竖屏/宽屏 `HexMetrics.mapSize` 和 `tileAspect` 达到扩大后的稳定尺度；策略异常抛出 `missingTerrainMaterialStrategy`。每张单位/城市场景 PNG 还必须在地图工作区横向三带采样到足量材质像素，并同时存在青绿陆地、蓝色水域、灰褐高地/道路与足量通道对比；退化为空场或单色时抛出 `missingStrategicMapMaterialCoverage`。Agent C 六图目视复判还要检查全屏战略底图、六类地貌辨识、城市城墙、军团军旗、指挥官盾徽、路线和 UI 层级，确认没有因纹理或尺度扩大产生裁切、遮挡或命令颜色降权。
 - 若 workflow 失败，失败摘要和日志路径足以退回 Agent B 修复。
 - 若本地仓库没有 `origin` 或 `gh` 无权限，明确报告阻塞，不能伪造下载核对。
 - 只能使用 `Altman-sam114` 对应 GitHub 权限完成 push、CI 或 artifact 验收；不得使用其他账号伪装完成。

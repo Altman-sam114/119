@@ -1627,6 +1627,22 @@ struct RenderBattlePreview {
         let counterPresentation = MapOverlayPresentation(perspective: .countermeasure)
         let objectivePresentation = MapOverlayPresentation(perspective: .objective)
         let terrainPresentation = MapOverlayPresentation(perspective: .terrainPressure)
+        let terrainProfiles = TerrainType.allCases.map(\.materialProfile)
+        let shortLandscapeMetrics = HexMetrics(
+            mapWidth: viewModel.state.width,
+            mapHeight: viewModel.state.height,
+            container: CGSize(width: 916, height: 278)
+        )
+        let portraitMetrics = HexMetrics(
+            mapWidth: viewModel.state.width,
+            mapHeight: viewModel.state.height,
+            container: CGSize(width: 374, height: 670)
+        )
+        let wideMetrics = HexMetrics(
+            mapWidth: viewModel.state.width,
+            mapHeight: viewModel.state.height,
+            container: CGSize(width: 1008, height: 606)
+        )
         guard enemyPresentation.showsEnemyIntentDetails,
               enemyPresentation.enemyRouteOpacity == 1,
               !enemyPresentation.showsBattleObjective,
@@ -1639,6 +1655,14 @@ struct RenderBattlePreview {
               terrainPresentation.isFocusedLegend(.threatHeat),
               !terrainPresentation.isFocusedLegend(.enemyRoute) else {
             throw PreviewRenderError.missingMapOverlayFocusStrategy
+        }
+        guard Set(terrainProfiles.map(\.signature)).count == TerrainType.allCases.count,
+              terrainProfiles.allSatisfy({ $0.layerCount >= 3 && $0.landmarkOpacity <= 0.18 }),
+              shortLandscapeMetrics.tileAspect < 0.72,
+              shortLandscapeMetrics.mapSize.width > 300,
+              portraitMetrics.mapSize.width > 330,
+              wideMetrics.mapSize.width > 700 else {
+            throw PreviewRenderError.missingTerrainMaterialStrategy
         }
         viewModel.state.units.append(commandDockTarget)
         guard viewModel.attackTargets.contains(where: { $0.id == commandDockTarget.id }) else {
@@ -1656,6 +1680,9 @@ struct RenderBattlePreview {
         }
         guard hasVisibleMapIntelligenceDock(in: unitBitmap, logicalWidth: width, logicalHeight: height) else {
             throw PreviewRenderError.missingMapIntelligenceDock
+        }
+        guard hasStrategicMapMaterialCoverage(in: unitBitmap, logicalWidth: width, logicalHeight: height) else {
+            throw PreviewRenderError.missingStrategicMapMaterialCoverage
         }
         guard hasVisibleUnitCommandDockContent(in: unitBitmap, logicalWidth: width, logicalHeight: height) else {
             throw PreviewRenderError.missingCompactCommandRender
@@ -1697,6 +1724,9 @@ struct RenderBattlePreview {
         }
         guard hasVisibleMapIntelligenceDock(in: cityBitmap, logicalWidth: width, logicalHeight: height) else {
             throw PreviewRenderError.missingMapIntelligenceDock
+        }
+        guard hasStrategicMapMaterialCoverage(in: cityBitmap, logicalWidth: width, logicalHeight: height) else {
+            throw PreviewRenderError.missingStrategicMapMaterialCoverage
         }
         guard hasVisibleCityReadoutContent(in: cityBitmap, logicalWidth: width, logicalHeight: height) else {
             throw PreviewRenderError.missingCompactCommandRender
@@ -1978,6 +2008,52 @@ struct RenderBattlePreview {
         return mapCounts.map > 240 && toolCounts.allSatisfy { $0 > 10 }
     }
 
+    private static func hasStrategicMapMaterialCoverage(
+        in bitmap: NSBitmapImageRep,
+        logicalWidth: Double,
+        logicalHeight: Double
+    ) -> Bool {
+        let scaleX = Double(bitmap.pixelsWide) / logicalWidth
+        let scaleY = Double(bitmap.pixelsHigh) / logicalHeight
+        let topBarHeight: Double = logicalHeight < 560 ? 46 : 50
+        let commandDockHeight: Double = logicalHeight >= logicalWidth ? 116 : (logicalHeight < 560 ? 92 : 104)
+        let mapTop = Int(topBarHeight + 10)
+        let mapBottom = max(mapTop + 1, Int(logicalHeight - commandDockHeight - 10))
+        let bandWidth = max(1, Int(logicalWidth / 3))
+        var bandMaterial = [0, 0, 0]
+        var palette = (green: 0, blue: 0, earth: 0, contrast: 0)
+
+        for logicalY in stride(from: mapTop, to: mapBottom, by: 5) {
+            for logicalX in stride(from: 6, to: max(7, Int(logicalWidth) - 6), by: 5) {
+                let pixelX = min(max(Int(Double(logicalX) * scaleX), 0), bitmap.pixelsWide - 1)
+                let pixelY = min(max(Int(Double(logicalY) * scaleY), 0), bitmap.pixelsHigh - 1)
+                guard let color = bitmap.colorAt(x: pixelX, y: pixelY)?.usingColorSpace(.deviceRGB),
+                      color.alphaComponent > 0.6 else {
+                    continue
+                }
+                let red = color.redComponent
+                let green = color.greenComponent
+                let blue = color.blueComponent
+                let brightness = (red + green + blue) / 3
+                let spread = max(max(red, green), blue) - min(min(red, green), blue)
+                guard brightness > 0.13 && spread > 0.025 else { continue }
+
+                bandMaterial[min(2, logicalX / bandWidth)] += 1
+                if green > red + 0.025 && green > blue - 0.025 { palette.green += 1 }
+                if blue > red + 0.045 { palette.blue += 1 }
+                if red > blue + 0.035 && green > blue + 0.015 { palette.earth += 1 }
+                if spread > 0.10 { palette.contrast += 1 }
+            }
+        }
+
+        emitPreviewDiagnostic("Strategic map material pixels: bands=\(bandMaterial), palette=\(palette)")
+        return bandMaterial.allSatisfy { $0 > 55 } &&
+            palette.green > 45 &&
+            palette.blue > 45 &&
+            palette.earth > 35 &&
+            palette.contrast > 90
+    }
+
     private static func emitPreviewDiagnostic(_ message: String) {
         FileHandle.standardError.write(Data("\(message)\n".utf8))
     }
@@ -1988,6 +2064,8 @@ enum PreviewRenderError: Error {
     case missingMapDominantBattleShell
     case missingMapIntelligenceDock
     case missingMapOverlayFocusStrategy
+    case missingTerrainMaterialStrategy
+    case missingStrategicMapMaterialCoverage
     case missingCommandDockAttackFixture
     case missingDistinctCommandDockRender
     case missingIntentOverlay
