@@ -1,18 +1,41 @@
 import SwiftUI
 
+struct BattleInterfaceMetrics: Equatable {
+    let isPortrait: Bool
+    let isShortLandscape: Bool
+    let usesCondensedTopBar: Bool
+    let topBarHeight: CGFloat
+    let commandDockHeight: CGFloat
+    let mapInset: CGFloat
+    let edgeToolVisualSize: CGFloat
+    let edgeToolSpacing: CGFloat
+
+    init(container: CGSize) {
+        isPortrait = container.height >= container.width
+        isShortLandscape = container.width > container.height && container.height < 560
+        usesCondensedTopBar = container.width < 900 || isShortLandscape
+        topBarHeight = isShortLandscape ? 42 : 44
+        commandDockHeight = isPortrait ? 102 : (isShortLandscape ? 80 : 88)
+        mapInset = isShortLandscape ? 4 : 6
+        edgeToolVisualSize = isShortLandscape ? 34 : 36
+        edgeToolSpacing = 2
+    }
+
+    var fixedChromeHeight: CGFloat {
+        topBarHeight + commandDockHeight
+    }
+}
+
 struct BattleView: View {
     @EnvironmentObject private var viewModel: GameViewModel
     @State private var activeDrawer: BattleDrawerCategory?
 
     var body: some View {
         GeometryReader { proxy in
-            let isPortrait = proxy.size.height >= proxy.size.width
-            let isShortLandscape = proxy.size.width > proxy.size.height && proxy.size.height < 560
-            let usesCondensedTopBar = proxy.size.width < 900 || isShortLandscape
-            let dockHeight: CGFloat = isPortrait ? 116 : (isShortLandscape ? 92 : 104)
-            let drawerHeight = isPortrait
+            let metrics = BattleInterfaceMetrics(container: proxy.size)
+            let drawerHeight = metrics.isPortrait
                 ? min(520, proxy.size.height * 0.56)
-                : max(180, min(620, proxy.size.height - dockHeight - 70))
+                : max(180, min(620, proxy.size.height - metrics.fixedChromeHeight - 58))
 
             ZStack {
                 Color(red: 0.09, green: 0.10, blue: 0.10)
@@ -20,26 +43,31 @@ struct BattleView: View {
 
                 VStack(spacing: 0) {
                     TopBarView(
-                        isCondensed: usesCondensedTopBar,
-                        isNarrow: proxy.size.width < 520
+                        isCondensed: metrics.usesCondensedTopBar,
+                        isNarrow: proxy.size.width < 520,
+                        height: metrics.topBarHeight
                     )
 
                     ZStack(alignment: .topTrailing) {
                         VStack(spacing: 0) {
                             WarMapView()
-                                .padding(isShortLandscape ? 6 : 8)
+                                .padding(metrics.mapInset)
                                 .frame(maxWidth: .infinity, maxHeight: .infinity)
 
                             SelectionCommandDockView(isCompact: proxy.size.width < 700) {
                                 activeDrawer = .orders
                             }
                             .frame(maxWidth: .infinity)
-                            .frame(height: dockHeight)
+                            .frame(height: metrics.commandDockHeight)
                         }
 
-                        BattleEdgeToolsView(activeDrawer: $activeDrawer)
-                            .padding(.top, 10)
-                            .padding(.trailing, 10)
+                        BattleEdgeToolsView(
+                            activeDrawer: $activeDrawer,
+                            visualSize: metrics.edgeToolVisualSize,
+                            spacing: metrics.edgeToolSpacing
+                        )
+                        .padding(.top, metrics.mapInset + 4)
+                        .padding(.trailing, metrics.mapInset + 4)
 
                         if let activeDrawer {
                             BattlefieldDrawerView(
@@ -47,11 +75,11 @@ struct BattleView: View {
                                 onClose: { self.activeDrawer = nil }
                             )
                             .frame(
-                                width: isPortrait ? max(280, proxy.size.width - 20) : min(380, proxy.size.width * 0.42),
+                                width: metrics.isPortrait ? max(280, proxy.size.width - 20) : min(380, proxy.size.width * 0.42),
                                 height: drawerHeight
                             )
-                            .padding(.top, 8)
-                            .padding(.trailing, isPortrait ? 10 : 8)
+                            .padding(.top, 52)
+                            .padding(.trailing, metrics.isPortrait ? 10 : 8)
                             .zIndex(10)
                         }
                     }
@@ -98,14 +126,19 @@ struct MapOverlayPresentation {
     var enemyRouteOpacity: Double {
         switch perspective {
         case .enemyIntent: return 1
-        case .countermeasure: return 0.34
-        case .objective: return 0.12
-        case .terrainPressure: return 0.16
+        case .countermeasure: return 0.24
+        case .objective: return 0.08
+        case .terrainPressure: return 0.10
         }
     }
 
     var tacticalRouteOpacity: Double {
-        perspective == .objective ? 0.92 : 0.44
+        switch perspective {
+        case .objective: return 0.95
+        case .enemyIntent: return 0.30
+        case .countermeasure: return 0.24
+        case .terrainPressure: return 0.14
+        }
     }
 
     var showsEnemyIntentDetails: Bool {
@@ -161,22 +194,24 @@ extension MapReconPerspectiveKind {
 
 struct BattleEdgeToolsView: View {
     @Binding var activeDrawer: BattleDrawerCategory?
+    var visualSize: CGFloat = 36
+    var spacing: CGFloat = 2
 
     var body: some View {
-        VStack(spacing: 6) {
+        HStack(spacing: spacing) {
             ForEach(BattleDrawerCategory.allCases) { category in
                 Button(category.title, systemImage: category.symbol) {
                     activeDrawer = activeDrawer == category ? nil : category
                 }
                 .labelStyle(.iconOnly)
-                .font(.subheadline.weight(.bold))
+                .font(.caption.weight(.black))
                 .foregroundStyle(activeDrawer == category ? .black : .white)
-                .frame(width: 44, height: 44)
-                .background(activeDrawer == category ? Color(red: 0.91, green: 0.74, blue: 0.38) : .black.opacity(0.68))
-                .clipShape(.rect(cornerRadius: 7))
+                .frame(width: visualSize, height: visualSize)
+                .background(activeDrawer == category ? Color(red: 0.91, green: 0.74, blue: 0.38) : .black.opacity(0.62))
+                .clipShape(.rect(cornerRadius: 6))
                 .overlay {
-                    RoundedRectangle(cornerRadius: 7)
-                        .stroke(activeDrawer == category ? .white.opacity(0.85) : .white.opacity(0.18), lineWidth: activeDrawer == category ? 2 : 1)
+                    RoundedRectangle(cornerRadius: 6)
+                        .stroke(activeDrawer == category ? .white.opacity(0.86) : .white.opacity(0.16), lineWidth: activeDrawer == category ? 1.5 : 1)
                 }
                 .overlay(alignment: .bottomTrailing) {
                     if activeDrawer == category {
@@ -186,16 +221,14 @@ struct BattleEdgeToolsView: View {
                             .offset(x: 3, y: 3)
                     }
                 }
+                .frame(width: 44, height: 44)
+                .contentShape(Rectangle())
                 .accessibilityLabel(activeDrawer == category ? "关闭\(category.title)抽屉" : "打开\(category.title)抽屉")
             }
         }
-        .padding(6)
-        .background(Color(red: 0.14, green: 0.13, blue: 0.11).opacity(0.94))
-        .clipShape(.rect(cornerRadius: 8))
-        .overlay {
-            RoundedRectangle(cornerRadius: 8)
-                .stroke(.white.opacity(0.10), lineWidth: 1)
-        }
+        .padding(2)
+        .background(.black.opacity(0.16))
+        .clipShape(.rect(cornerRadius: 7))
     }
 }
 
@@ -267,14 +300,14 @@ struct SelectionCommandDockView: View {
     var onShowMore: () -> Void
 
     var body: some View {
-        HStack(spacing: 10) {
+        HStack(spacing: 8) {
             selectionIdentity
-                .frame(width: isCompact ? 130 : 250, alignment: .leading)
+                .frame(width: isCompact ? 128 : 220, alignment: .leading)
 
             Rectangle()
                 .fill(.white.opacity(0.10))
                 .frame(width: 1)
-                .padding(.vertical, 10)
+                .padding(.vertical, 8)
 
             SelectionDockCommandButtonsView(isCompact: isCompact, onShowMore: onShowMore)
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -289,13 +322,13 @@ struct SelectionCommandDockView: View {
             .buttonStyle(SecondaryButtonStyle())
             .accessibilityHint("打开完整情报和军令")
         }
-        .padding(.horizontal, 10)
+        .padding(.horizontal, 8)
         .foregroundStyle(.white)
-        .background(Color(red: 0.14, green: 0.13, blue: 0.11))
+        .background(Color(red: 0.105, green: 0.10, blue: 0.09).opacity(0.96))
         .overlay(alignment: .top) {
             Rectangle()
-                .fill(Color(red: 0.84, green: 0.66, blue: 0.32).opacity(0.54))
-                .frame(height: 2)
+                .fill(Color(red: 0.84, green: 0.66, blue: 0.32).opacity(0.68))
+                .frame(height: 1)
         }
     }
 
@@ -308,14 +341,15 @@ struct SelectionCommandDockView: View {
                     Text("\(unit.faction.displayName) \(unit.kind.displayName)")
                         .font(.subheadline.weight(.bold))
                         .lineLimit(1)
-                    Label(unit.generalName ?? "无将领", systemImage: unit.generalName == nil ? "person.slash.fill" : "star.fill")
+                    Text("\(unit.generalName ?? "无将领") · \(unit.resolvedTacticalOrder.displayName)")
                         .font(.caption)
                         .foregroundStyle(.white.opacity(0.70))
                         .lineLimit(1)
-                    Text("生命 \(unit.health)/\(unit.kind.maxHealth) · \(unit.resolvedTacticalOrder.displayName)")
+                    Label(unitCommandCue, systemImage: "scope")
                         .font(.caption.monospacedDigit().weight(.bold))
-                        .foregroundStyle(unit.healthRatio > 0.42 ? .green : .red)
+                        .foregroundStyle(Color(red: 0.91, green: 0.74, blue: 0.38))
                         .lineLimit(1)
+                        .minimumScaleFactor(0.66)
                 }
             }
             .accessibilityElement(children: .combine)
@@ -330,9 +364,9 @@ struct SelectionCommandDockView: View {
                         .font(.caption.weight(.bold))
                         .foregroundStyle(.white.opacity(0.76))
                         .lineLimit(1)
-                    Text("\(brief.productionLabel) · \(brief.deploymentSummary)")
+                    Label(cityCommandCue(brief), systemImage: "flag.fill")
                         .font(.caption)
-                        .foregroundStyle(.white.opacity(0.66))
+                        .foregroundStyle(Color(red: 0.91, green: 0.74, blue: 0.38))
                         .lineLimit(1)
                         .minimumScaleFactor(0.68)
                 }
@@ -358,6 +392,23 @@ struct SelectionCommandDockView: View {
                 .font(.subheadline.weight(.bold))
                 .foregroundStyle(.white.opacity(0.74))
         }
+    }
+
+    private var unitCommandCue: String {
+        if let situation = viewModel.selectedUnitSituationReadout {
+            return situation.primaryCommandEntryLabel
+        }
+        if let recommendation = viewModel.selectedTacticalRecommendationSummary {
+            return "目标 \(recommendation.targetLabel)"
+        }
+        return "等待军令"
+    }
+
+    private func cityCommandCue(_ brief: SelectedCityBrief) -> String {
+        if brief.canDevelop {
+            return "经营目标 · \(brief.developmentGainLabel)"
+        }
+        return "部署目标 · \(brief.deploymentSummary)"
     }
 
 }
@@ -388,7 +439,7 @@ struct SelectionDockCommandButtonsView: View {
                 )
             }
         }
-        .frame(minHeight: 58)
+        .frame(minHeight: 52)
     }
 }
 
@@ -455,6 +506,7 @@ struct UnitDockCommandButtonsView: View {
             title: "休整",
             symbol: "cross.case.fill",
             tint: .green,
+            isSecondary: true,
             isDisabled: unit.hasActed || viewModel.isCampaignOver,
             action: viewModel.restSelectedUnit
         )
@@ -463,6 +515,7 @@ struct UnitDockCommandButtonsView: View {
             title: "跳过",
             symbol: "forward.end.fill",
             tint: .gray,
+            isSecondary: true,
             isDisabled: !viewModel.canSkipSelectedUnit,
             action: viewModel.skipSelectedUnit
         )
@@ -502,6 +555,7 @@ struct DockCommandButton: View {
     var title: String
     var symbol: String
     var tint: Color
+    var isSecondary = false
     var isDisabled = false
     var accessibilityLabel: String?
     var action: () -> Void
@@ -516,12 +570,12 @@ struct DockCommandButton: View {
                     .lineLimit(1)
             }
             .foregroundStyle(.white)
-            .frame(width: 48, height: 50)
-            .background(tint.opacity(0.28))
-            .clipShape(.rect(cornerRadius: 7))
+            .frame(width: 44, height: 44)
+            .background(isSecondary ? .black.opacity(0.20) : tint.opacity(0.30))
+            .clipShape(.rect(cornerRadius: 6))
             .overlay {
-                RoundedRectangle(cornerRadius: 7)
-                    .stroke(tint.opacity(0.78), lineWidth: 1)
+                RoundedRectangle(cornerRadius: 6)
+                    .stroke(tint.opacity(isSecondary ? 0.42 : 0.82), lineWidth: 1)
             }
         }
         .buttonStyle(.plain)
@@ -554,32 +608,35 @@ struct TopBarView: View {
     @EnvironmentObject private var viewModel: GameViewModel
     var isCondensed = false
     var isNarrow = false
+    var height: CGFloat = 44
 
     var body: some View {
-        HStack(spacing: isCondensed ? 6 : 10) {
+        HStack(spacing: isCondensed ? 5 : 8) {
             Button {
                 viewModel.openMenu()
             } label: {
                 Image(systemName: "line.3.horizontal")
                     .font(.title3.weight(.bold))
-                    .frame(width: 38, height: 38)
+                    .frame(width: 36, height: 36)
             }
             .buttonStyle(CommandIconButtonStyle())
 
-            VStack(alignment: .leading, spacing: 2) {
+            VStack(alignment: .leading, spacing: 1) {
                 Text(topBarTitle)
-                    .font(.headline.weight(.bold))
+                    .font(.subheadline.weight(.black))
                     .lineLimit(1)
                     .minimumScaleFactor(0.72)
-                Text(topBarSubtitle)
-                    .font(.caption)
-                    .foregroundStyle(.white.opacity(0.72))
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.72)
+                if !isCondensed {
+                    Text(topBarSubtitle)
+                        .font(.caption2)
+                        .foregroundStyle(.white.opacity(0.68))
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.72)
+                }
             }
             .foregroundStyle(.white)
 
-            Spacer(minLength: 8)
+            Spacer(minLength: 4)
 
             if isCondensed {
                 CompactResourcePill(resources: viewModel.romanResources)
@@ -596,17 +653,17 @@ struct TopBarView: View {
             } label: {
                 HStack(spacing: 7) {
                     Image(systemName: "arrow.clockwise")
-                    Text(isCondensed ? "回合" : "结束")
+                    Text("结束")
                 }
-                .font(.subheadline.weight(.bold))
-                .frame(height: 36)
-                .padding(.horizontal, isCondensed ? 10 : 12)
+                .font(.caption.weight(.black))
+                .frame(height: 32)
+                .padding(.horizontal, isCondensed ? 8 : 10)
             }
             .buttonStyle(PrimaryButtonStyle())
             .disabled(viewModel.isCampaignOver)
         }
-        .padding(.horizontal, 8)
-        .padding(.vertical, 4)
+        .padding(.horizontal, 7)
+        .frame(height: height)
         .background(Color(red: 0.14, green: 0.13, blue: 0.11))
         .overlay(alignment: .bottom) {
             Rectangle()
@@ -617,9 +674,9 @@ struct TopBarView: View {
 
     private var topBarTitle: String {
         if isNarrow {
-            return "第 \(viewModel.state.turn) 回合 · \(viewModel.campaignStatusTitle)"
+            return "罗马 · \(viewModel.state.turn) 回合"
         }
-        return "\(viewModel.state.mode.displayName) · 第 \(viewModel.state.turn) 回合 · \(viewModel.campaignStatusTitle)"
+        return "罗马 · \(viewModel.state.mode.displayName) · \(viewModel.state.turn) 回合 · \(viewModel.campaignStatusTitle)"
     }
 
     private var topBarSubtitle: String {
@@ -634,7 +691,7 @@ struct CompactResourcePill: View {
     var resources: EmpireResources
 
     var body: some View {
-        HStack(spacing: 6) {
+        HStack(spacing: 4) {
             CompactResourceValue(symbol: "circle.stack.fill", value: resources.gold, tint: .yellow)
             CompactResourceValue(symbol: "leaf.fill", value: resources.grain, tint: .green)
             CompactResourceValue(symbol: "shield.fill", value: resources.iron, tint: .gray)
@@ -642,8 +699,8 @@ struct CompactResourcePill: View {
             CompactResourceValue(symbol: "star.fill", value: resources.prestige, tint: .orange)
         }
         .foregroundStyle(.white)
-        .frame(minHeight: 32)
-        .padding(.horizontal, 7)
+        .frame(minHeight: 30)
+        .padding(.horizontal, 5)
         .background(.black.opacity(0.28))
         .clipShape(RoundedRectangle(cornerRadius: 8))
         .accessibilityElement(children: .combine)
@@ -666,7 +723,7 @@ struct CompactResourceValue: View {
                 .lineLimit(1)
                 .minimumScaleFactor(0.62)
         }
-        .frame(minWidth: 22)
+        .frame(minWidth: 20)
     }
 }
 
@@ -839,7 +896,9 @@ struct WarMapView: View {
                     HStack {
                         BattlefieldStatusRibbonView()
                             .frame(
-                                width: max(180, min(proxy.size.width - 92, 520)),
+                                width: proxy.size.width < 620
+                                    ? 132
+                                    : max(180, min(proxy.size.width - 250, 520)),
                                 alignment: .leading
                             )
                             .clipped()
@@ -1856,13 +1915,13 @@ struct HexTileView: View {
                 .overlay {
                     if let faction = controlFaction {
                         Hexagon()
-                            .stroke(faction.factionColor.opacity(0.72), lineWidth: max(1.6, 2.4 * scale))
+                            .stroke(faction.factionColor.opacity(0.48), lineWidth: max(1.2, 1.8 * scale))
                             .padding(2.4 * scale)
                     }
                 }
                 .overlay {
                     Hexagon()
-                        .stroke(borderColor, lineWidth: isSelected || isAttackTarget ? max(2.4, 3 * scale) : max(0.8, 1.1 * scale))
+                        .stroke(borderColor, lineWidth: isSelected || isAttackTarget ? max(2.4, 3 * scale) : max(0.55, 0.75 * scale))
                 }
 
             TerrainGlyphView(terrain: tile.terrain, scale: scale)
@@ -1983,7 +2042,7 @@ struct HexTileView: View {
         if isAttackTarget { return .red }
         if isSelected { return .white }
         if isReachable { return .yellow.opacity(0.8) }
-        return .black.opacity(0.18)
+        return .black.opacity(0.10)
     }
 
     private var controlFaction: Faction? {

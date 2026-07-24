@@ -21,6 +21,41 @@
 
 ## 历史记录
 
+### v0.55 / 战斗指挥层级与命令界面重构
+
+日期：2026-07-24
+
+核心变更：
+
+- 新增 `BattleInterfaceMetrics`，让三种云端预览尺寸共用顶部、命令坞、地图 inset 和边缘工具尺度；短横屏固定区域由 v0.54 的 138pt 收敛到 122pt，竖屏/宽屏同步减少遮挡。
+- 顶部紧凑态只保留罗马/回合主身份、五类资源和结束回合入口；五个抽屉入口从带整体底板的右侧纵向工具轨改为右上横向贴边按钮，完整 44pt 点击区域和原无障碍语义保留。
+- 底部命令坞按选中对象身份、处境主入口或军议/城市目标、主要命令和次要命令组织；攻击、技能、姿态、休整、跳过、扩建和招募继续调用原 `GameViewModel` action 与 disabled 条件。
+- 非当前侦察视角的敌军路线和军议路线进一步降权，默认格边界与阵营内框透明度降低；攻击、技能、可达、选中和当前视角叠层仍优先。
+- RenderBattlePreview 新增 `missingBattleCommandHierarchy`，核对三尺寸 chrome 占比、横向边缘工具采样、命令目标 cue 和非焦点 overlay 上限；workflow artifact 版本更新为 v0.55。
+
+关键文件：
+
+- `RomeLegionsApp/Views/BattleView.swift`
+- `Tools/RenderBattlePreview/main.swift`
+- `.github/workflows/ci-results.yml`
+- `README.md`
+- `md/flow/flow.md`
+- `md/flow/flowchart.md`
+- `md/test/test.md`
+- `md/prompt/README.md`
+- `md/prompt/v0（玩法推进）/v0.55（战斗指挥层级与命令界面重构）.md`
+- `update_log.md`
+
+验证结果：
+
+- 按人工要求，本轮未运行任何本地测试、build、typecheck、RenderBattlePreview、`Tools/verify_project.mjs`、`git diff --check`、YAML/JSON/Plist 解析或脚本语法检查。
+- GitHub Actions 和六张战斗预览图等待本轮 commit push 后由 Agent C 下载最新 v0.55 artifact 复判；此处不得使用 v0.54 旧结果。
+
+遗留事项：
+
+- 本轮没有修改 `GameState`、AI 评分/执行、战斗结算、任务、经济、存档或 ViewModel 派生规则。
+- AI 多步规划、将领成长内容和正式原创人物资产继续留待后续独立版本。
+
 ### v0.54 / 地图材质与战区尺度重构
 
 日期：2026-07-24

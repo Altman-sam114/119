@@ -64,7 +64,8 @@
 - `GameViewModel.mapReconPerspectiveHUDReadout` 只读组合当前侦察视角下的敌军路线/闭环、反制建议/指令、战场目标线/阶段命令或热区/控区/态势交汇，输出标题、状态、细节、下一步、风险和 signal；`selectMapReconPerspective(_:)` 只改变 `selectedMapReconPerspective` 与 banner，不改变选择态、叠层、命令或 `GameState`。
 - `BattleView` 在地图底部用单层情报坞切换敌路、反制、目标线、热区/控区；`MapOverlayPresentation` 只过滤或降低非当前 route/tile/legend 的视觉权重，攻击、技能、可达、选中和当前军议命令预览始终保留。它不修改 ViewModel 叠层集合、评分、选择态或 `GameState`，也不自动执行命令。
 - `MapBackdropView` 用固定路径绘制陆地分区、水系、等高线、战略道路和颗粒，`TerrainMaterialProfile` 为平原/森林/丘陵/水域/道路/城市提供唯一材质签名和图层数量，六个 `TerrainTextureView` 子组件据此绘制田垄、树冠、山脊、波纹、路床和街区；`HexMetrics` 使用横竖屏稳定 inset 与 tile aspect 计算唯一坐标系。城市城墙、军团军旗和指挥官盾徽都只消费既有 `City` / `ArmyUnit` 数据，不新增玩法状态。
-- `BattleView` 默认不再用常驻右侧栏压缩地图；边缘工具按“情报军令、战场、敌情、元老院、战报”打开覆盖式抽屉，底部命令坞根据军团、城市或地块选择显示身份、生命/城防/产出和既有攻击、技能、姿态、休整、跳过、扩建、招募入口。抽屉开关只修改 SwiftUI 本地状态，所有玩法按钮仍调用原 `GameViewModel` 方法和预览/禁用条件。
+- `BattleInterfaceMetrics` 从容器尺寸统一派生顶部高度、底部命令坞高度、地图 inset 和边缘工具尺寸，`BattleView` 与 RenderBattlePreview 共用同一布局来源；顶部紧凑态只保留罗马/回合主身份与五类资源，五个工具入口改为右上横向贴边控制，不再形成贯穿地图的厚重竖栏。
+- `BattleView` 默认不再用常驻右侧栏压缩地图；边缘工具按“情报军令、战场、敌情、元老院、战报”打开覆盖式抽屉，底部命令坞根据军团、城市或地块按“身份、当前目标/下一步、主要命令、次要命令”显示既有攻击、技能、姿态、休整、跳过、扩建和招募入口。抽屉开关只修改 SwiftUI 本地状态，目标 cue 只读取现有处境/军议/城市简报，所有玩法按钮仍调用原 `GameViewModel` 方法和预览/禁用条件。
 - `GameViewModel.primaryCampaignAdvanceReadout` 只读组合首要战役任务、`campaignStatus.progressText`、首要战线压力、战场目标线、活动目标线阶段命令预览、地图侦察视角和战场态势交汇，输出战役推进线、目标、进度、前线、目标线、地图 cue、下一步、风险和 signal；它不新增任务判断、地图叠层、命令队列或 `GameState` 状态。
 - `BattleView` 在顶部状态条展示“推进” chip，并在元老院任务面板展示战役推进线读板；SwiftUI 只展示 `primaryCampaignAdvanceReadout` 字段，不重新计算任务完成、城市归属、压力评分、目标线阶段或侦察视角。
 - `BattleView` 在完整/紧凑选中单位情报面板中展示选中军团处境命令入口读板，紧凑版显示状态、下一步和一条入口 cue，完整版显示压力、机会和入口；SwiftUI 只展示 `selectedUnitSituationReadout` 的派生字段，不重新判断压力、热区、控区、机动收益、军议命令或命令入口优先级。

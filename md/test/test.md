@@ -124,7 +124,7 @@ on:
 artifact 命名规则：
 
 ```text
-RomeLegions-ci-v0.54-main-<short_sha>-run<run_id>-attempt<run_attempt>
+RomeLegions-ci-v0.55-main-<short_sha>-run<run_id>-attempt<run_attempt>
 ```
 
 `ci-artifact-manifest.json` 必须至少包含：
@@ -191,6 +191,7 @@ Agent C 必须核对：
 - v0.52 起地图主导壳层像素检查必须覆盖三尺寸单位/城市场景的中央地图、按顶部锚点逐一定位的五个 44×44 右侧工具按钮和底部命令坞；`NSBitmapImageRep.colorAt` 按顶部原点读取，工具轨直接使用顶部坐标，命令坞采样区换算到图像底部。任一关键区域缺失应抛出 `missingMapDominantBattleShell`。单位预览在完成全部只读语义断言后加入专用相邻敌军，命令坞用跨 AppKit 色彩空间稳定且互斥的通道相对优势识别红色攻击和青色技能，红色判定不得把金橙色按钮重复计入；城市场景同理识别金橙色扩建/招募，且两者像素签名必须显著不同并输出场景差异诊断。空坞、缺少窄屏休整/跳过、沿用旧侧栏布局或仅凭比例猜测工具轨位置均不得通过。
 - v0.53 起 RenderBattlePreview 还必须核对四种侦察视角的显示映射：敌路突出敌军路线/目标，反制突出反制线并低对比保留敌路上下文，目标线突出目标/军议，热区突出热区/控区；映射异常抛出 `missingMapOverlayFocusStrategy`。每张 PNG 的地图底缘必须渲染单层情报坞，并在真实地图/命令坞边界之间分别采样红、青、金视角按钮区和右侧/第二行图例区；图例区必须同时存在亮色文字和带色图例，任一区域缺失都抛出 `missingMapIntelligenceDock`。Agent C 六图目视复判还要检查竖屏战区已上移、地图不再同时等权显示所有路线/tile 徽标、390pt 顶部标题不硬截断、有将领兵牌显示原创首字徽章，且 HUD、右侧工具和底部命令坞无重叠。
 - v0.54 起 RenderBattlePreview 必须核对平原、森林、丘陵、水域、道路、城市六类 `TerrainMaterialProfile` 签名唯一且至少包含三层视觉信号，并断言短横屏/竖屏/宽屏 `HexMetrics.mapSize` 和 `tileAspect` 达到扩大后的稳定尺度；策略异常抛出 `missingTerrainMaterialStrategy`。每张单位/城市场景 PNG 还必须在地图工作区横向三带采样到足量材质像素，并同时存在青绿陆地、蓝色水域、灰褐高地/道路与足量通道对比；退化为空场或单色时抛出 `missingStrategicMapMaterialCoverage`。Agent C 六图目视复判还要检查全屏战略底图、六类地貌辨识、城市城墙、军团军旗、指挥官盾徽、路线和 UI 层级，确认没有因纹理或尺度扩大产生裁切、遮挡或命令颜色降权。
+- v0.55 起 RenderBattlePreview 必须通过 `BattleInterfaceMetrics` 断言 932x430、390x844、1024x768 三种尺寸的顶部/底部固定区域占屏上限、地图 inset、边缘按钮可视尺寸和间距；异常抛出 `missingBattleCommandHierarchy`。四侦察视角门禁还要检查反制、目标线和热区视角下的非焦点敌路/军议路线进一步降权；五个工具入口改按右上横向 44pt 点击槽逐一采样，不得继续沿用旧纵向坐标。Agent C 六图目视复判应确认顶部更薄、右上入口不形成厚重工具条、底部按身份/目标/主次命令可读、默认格边界不压过地貌与当前命令，并检查所有按钮无截断和重叠。
 - 若 workflow 失败，失败摘要和日志路径足以退回 Agent B 修复。
 - 若本地仓库没有 `origin` 或 `gh` 无权限，明确报告阻塞，不能伪造下载核对。
 - 只能使用 `Altman-sam114` 对应 GitHub 权限完成 push、CI 或 artifact 验收；不得使用其他账号伪装完成。

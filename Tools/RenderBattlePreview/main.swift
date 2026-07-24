@@ -1643,18 +1643,38 @@ struct RenderBattlePreview {
             mapHeight: viewModel.state.height,
             container: CGSize(width: 1008, height: 606)
         )
+        let shortInterfaceMetrics = BattleInterfaceMetrics(container: CGSize(width: 932, height: 430))
+        let portraitInterfaceMetrics = BattleInterfaceMetrics(container: CGSize(width: 390, height: 844))
+        let wideInterfaceMetrics = BattleInterfaceMetrics(container: CGSize(width: 1024, height: 768))
         guard enemyPresentation.showsEnemyIntentDetails,
               enemyPresentation.enemyRouteOpacity == 1,
               !enemyPresentation.showsBattleObjective,
               counterPresentation.showsCountermeasure,
               counterPresentation.showsEnemyIntentDetails,
-              counterPresentation.enemyRouteOpacity < enemyPresentation.enemyRouteOpacity,
+              counterPresentation.enemyRouteOpacity <= 0.24,
               objectivePresentation.showsBattleObjective,
               objectivePresentation.tacticalRouteOpacity > enemyPresentation.tacticalRouteOpacity,
+              objectivePresentation.enemyRouteOpacity <= 0.08,
               terrainPresentation.showsTerrainPressure,
+              terrainPresentation.enemyRouteOpacity <= 0.10,
+              terrainPresentation.tacticalRouteOpacity <= 0.14,
               terrainPresentation.isFocusedLegend(.threatHeat),
               !terrainPresentation.isFocusedLegend(.enemyRoute) else {
             throw PreviewRenderError.missingMapOverlayFocusStrategy
+        }
+        guard shortInterfaceMetrics.isShortLandscape,
+              shortInterfaceMetrics.topBarHeight <= 42,
+              shortInterfaceMetrics.commandDockHeight <= 80,
+              shortInterfaceMetrics.fixedChromeHeight / 430 < 0.29,
+              portraitInterfaceMetrics.isPortrait,
+              portraitInterfaceMetrics.commandDockHeight <= 102,
+              portraitInterfaceMetrics.fixedChromeHeight / 844 < 0.18,
+              !wideInterfaceMetrics.isShortLandscape,
+              wideInterfaceMetrics.commandDockHeight <= 88,
+              wideInterfaceMetrics.fixedChromeHeight / 768 < 0.18,
+              shortInterfaceMetrics.edgeToolVisualSize < 44,
+              wideInterfaceMetrics.edgeToolSpacing <= 2 else {
+            throw PreviewRenderError.missingBattleCommandHierarchy
         }
         guard Set(terrainProfiles.map(\.signature)).count == TerrainType.allCases.count,
               terrainProfiles.allSatisfy({ $0.layerCount >= 3 && $0.landmarkOpacity <= 0.18 }),
@@ -1665,7 +1685,9 @@ struct RenderBattlePreview {
             throw PreviewRenderError.missingTerrainMaterialStrategy
         }
         viewModel.state.units.append(commandDockTarget)
-        guard viewModel.attackTargets.contains(where: { $0.id == commandDockTarget.id }) else {
+        guard viewModel.attackTargets.contains(where: { $0.id == commandDockTarget.id }),
+              let commandSituation = viewModel.selectedUnitSituationReadout,
+              !commandSituation.primaryCommandEntryLabel.isEmpty else {
             throw PreviewRenderError.missingCommandDockAttackFixture
         }
         let unitOutputPath = outputPathWithSuffix(outputPath, suffix: "unit")
@@ -1866,7 +1888,10 @@ struct RenderBattlePreview {
     ) -> Bool {
         let scaleX = Double(bitmap.pixelsWide) / logicalWidth
         let scaleY = Double(bitmap.pixelsHigh) / logicalHeight
-        let commandDockHeight: Double = logicalHeight >= logicalWidth ? 116 : (logicalHeight < 560 ? 92 : 104)
+        let interfaceMetrics = BattleInterfaceMetrics(
+            container: CGSize(width: logicalWidth, height: logicalHeight)
+        )
+        let commandDockHeight = Double(interfaceMetrics.commandDockHeight)
         let intelligenceHeight: Int = logicalWidth < 620 ? 96 : 58
         let region = (
             x: 10,
@@ -1993,12 +2018,16 @@ struct RenderBattlePreview {
         }
 
         let mapCounts = counts(in: [mapRegion])
-        let topBarHeight = logicalHeight < 560 ? 46 : 50
-        let toolTop = topBarHeight + 16
+        let interfaceMetrics = BattleInterfaceMetrics(
+            container: CGSize(width: logicalWidth, height: logicalHeight)
+        )
+        let toolTop = Int(interfaceMetrics.topBarHeight + interfaceMetrics.mapInset + 4)
+        let toolStripWidth = 5 * 44 + 4 * Int(interfaceMetrics.edgeToolSpacing) + 4
+        let toolStartX = max(0, Int(logicalWidth) - toolStripWidth - Int(interfaceMetrics.mapInset + 4))
         let toolBins = (0..<5).map { index in
             return (
-                x: max(0, Int(logicalWidth) - 60),
-                y: toolTop + index * 50,
+                x: toolStartX + 2 + index * (44 + Int(interfaceMetrics.edgeToolSpacing)),
+                y: toolTop + 2,
                 width: 44,
                 height: 44
             )
@@ -2015,10 +2044,11 @@ struct RenderBattlePreview {
     ) -> Bool {
         let scaleX = Double(bitmap.pixelsWide) / logicalWidth
         let scaleY = Double(bitmap.pixelsHigh) / logicalHeight
-        let topBarHeight: Double = logicalHeight < 560 ? 46 : 50
-        let commandDockHeight: Double = logicalHeight >= logicalWidth ? 116 : (logicalHeight < 560 ? 92 : 104)
-        let mapTop = Int(topBarHeight + 10)
-        let mapBottom = max(mapTop + 1, Int(logicalHeight - commandDockHeight - 10))
+        let interfaceMetrics = BattleInterfaceMetrics(
+            container: CGSize(width: logicalWidth, height: logicalHeight)
+        )
+        let mapTop = Int(interfaceMetrics.topBarHeight + interfaceMetrics.mapInset)
+        let mapBottom = max(mapTop + 1, Int(logicalHeight - interfaceMetrics.commandDockHeight - interfaceMetrics.mapInset))
         let bandWidth = max(1, Int(logicalWidth / 3))
         var bandMaterial = [0, 0, 0]
         var palette = (green: 0, blue: 0, earth: 0, contrast: 0)
@@ -2064,6 +2094,7 @@ enum PreviewRenderError: Error {
     case missingMapDominantBattleShell
     case missingMapIntelligenceDock
     case missingMapOverlayFocusStrategy
+    case missingBattleCommandHierarchy
     case missingTerrainMaterialStrategy
     case missingStrategicMapMaterialCoverage
     case missingCommandDockAttackFixture
