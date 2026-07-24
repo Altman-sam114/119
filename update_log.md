@@ -51,7 +51,9 @@
 验证结果：
 
 - 按人工要求，本轮未运行任何本地测试、build、typecheck、RenderBattlePreview、`Tools/verify_project.mjs`、`git diff --check`、YAML/JSON/Plist 解析或脚本语法检查。
-- 当前实现尚待提交并直推 `origin/main`；只有最新 GitHub Actions run、v0.53 artifact、manifest/JUnit/日志和六张 PNG 经 Agent C 复判后，才能写入正式通过结论。
+- 初始实现 commit `4a4f2409869ba9ab8df7d87ba858ee83b1a99395` 的 run `30067466031` 虽然 CI 成功，但 Agent C 六图复判发现紧凑图例空白，因此未通过人工验收；修复 commit `e968ba7724bd728766bc660aed9db910c9be730a` 的 run `30068603870` 被新增图例像素门禁正确拦截。
+- 最终修复 commit `af1bfd2af1e25b3c2030fbb73f77b6aa55a5febc` 对应 GitHub Actions run `30069308442`、attempt `1`、artifact `RomeLegions-ci-v0.53-main-af1bfd2-run30069308442-attempt1`；manifest 的结构检查、Swift Testing、Gameplay Smoke、RenderBattlePreview、Xcode build 和总体结果均为 `success`，JUnit 为 5 项、0 失败，Swift Testing 为 88 项通过。
+- Agent C 已复判六张 PNG：横屏/宽屏单行情报坞与 390pt 两行情报坞均显示按当前视角排序的紧凑图例和剩余数量，窄屏标题、将领首字徽章、地图、右侧工具和底部命令坞无不合理遮挡。v0.53 正式验收通过。
 
 遗留事项：
 
