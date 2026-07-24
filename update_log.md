@@ -21,7 +21,7 @@
 
 ## 历史记录
 
-### v0.54 / 地图材质与战区尺度重构（待云端验收）
+### v0.54 / 地图材质与战区尺度重构
 
 日期：2026-07-24
 
@@ -47,10 +47,12 @@
 - `md/prompt/v0（玩法推进）/v0.54（地图材质与战区尺度重构）.md`
 - `update_log.md`
 
-验证状态：
+验证结果：
 
 - 按人工要求，本轮未运行任何本地测试、build、typecheck、RenderBattlePreview、`Tools/verify_project.mjs`、`git diff --check`、YAML/JSON/Plist 解析或脚本语法检查。
-- 本条记录尚未宣称通过；必须以本轮提交直推 `origin/main` 后最新 GitHub Actions run、manifest、JUnit、日志和六张 PNG 的 Agent C 复判为准。
+- 初始实现 commit `17ab62a7beacae4241dd18670626f15af9b570ed` 对应 run `30072414516`、attempt `1`、artifact `RomeLegions-ci-v0.54-main-17ab62a-run30072414516-attempt1`，结构检查、88 项 Swift Testing、Gameplay Smoke、RenderBattlePreview、Xcode build 和总体结果均为 `success`，JUnit 为 5 项、0 失败；Agent C 六图复判后认为大型 terrain glyph 仍略抢材质层级，因此没有直接结束本轮。
+- 视觉收敛 commit `0f941ae4fcff08167f73fd3c47b7e118d9fd8b13` 将地形 glyph 缩为低透明右下角微型地标；对应 GitHub Actions run `30073602457`、attempt `1`、artifact `RomeLegions-ci-v0.54-main-0f941ae-run30073602457-attempt1` 的 manifest 精确匹配 `main` 与该 commit，结构检查、88 项 Swift Testing、Gameplay Smoke、RenderBattlePreview、无签名 Xcode build 和总体结果全部为 `success`，JUnit 为 5 项、0 失败。
+- Agent C 已复判第二轮六张 PNG：短横屏战区较 v0.53 放大，竖屏棋盘完整铺满宽度，宽屏棋盘接近满幅；全屏战略底图、平原田垄、森林树冠、丘陵山脊、水域波纹、道路路床、城市街区、城墙/军旗/盾徽均可辨，四种侦察入口、五个边缘工具、单位/城市命令坞和所有状态标记无不合理裁切或重叠。v0.54 正式验收通过。
 
 遗留事项：
 
