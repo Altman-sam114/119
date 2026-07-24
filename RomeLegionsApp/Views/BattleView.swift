@@ -7592,40 +7592,62 @@ struct MapOverlayLegendView: View {
     }
 
     var body: some View {
-        ScrollView(.horizontal) {
-            HStack(spacing: compact ? 5 : 8) {
-                ForEach(orderedItems) { item in
-                    MapOverlayLegendItemView(
-                        item: item,
-                        compact: compact,
-                        isFocused: isFocused(item.kind)
-                    )
-                }
-
-                if !items.isEmpty {
-                    Divider()
-                        .frame(height: 18)
-                        .overlay {
-                            Color.white.opacity(0.18)
-                        }
-                }
-
-                ForEach(Faction.turnOrder) { faction in
-                    HStack(spacing: 5) {
-                        Rectangle()
-                            .fill(faction.factionColor)
-                            .frame(width: 12, height: 12)
-                        Text(faction.displayName)
-                            .font(.caption.bold())
-                            .lineLimit(1)
-                            .minimumScaleFactor(0.74)
+        Group {
+            if compact {
+                HStack(spacing: 5) {
+                    ForEach(compactItems) { item in
+                        MapOverlayLegendItemView(
+                            item: item,
+                            compact: true,
+                            isFocused: isFocused(item.kind)
+                        )
                     }
-                    .opacity(compact ? 0.58 : 1)
+
+                    if hiddenCompactItemCount > 0 {
+                        Text("+\(hiddenCompactItemCount)")
+                            .font(.caption.bold())
+                            .foregroundStyle(.white.opacity(0.68))
+                            .frame(minWidth: 28, minHeight: 32)
+                            .background(.white.opacity(0.06))
+                            .clipShape(.rect(cornerRadius: 7))
+                    }
                 }
+            } else {
+                ScrollView(.horizontal) {
+                    HStack(spacing: 8) {
+                        ForEach(orderedItems) { item in
+                            MapOverlayLegendItemView(
+                                item: item,
+                                compact: false,
+                                isFocused: isFocused(item.kind)
+                            )
+                        }
+
+                        if !items.isEmpty {
+                            Divider()
+                                .frame(height: 18)
+                                .overlay {
+                                    Color.white.opacity(0.18)
+                                }
+                        }
+
+                        ForEach(Faction.turnOrder) { faction in
+                            HStack(spacing: 5) {
+                                Rectangle()
+                                    .fill(faction.factionColor)
+                                    .frame(width: 12, height: 12)
+                                Text(faction.displayName)
+                                    .font(.caption.bold())
+                                    .lineLimit(1)
+                                    .minimumScaleFactor(0.74)
+                            }
+                        }
+                    }
+                    .fixedSize(horizontal: true, vertical: false)
+                }
+                .scrollIndicators(.hidden)
             }
-            .fixedSize(horizontal: true, vertical: false)
         }
-        .scrollIndicators(.hidden)
         .foregroundStyle(.white)
         .frame(maxWidth: 520, minHeight: compact ? 36 : 52, alignment: .leading)
         .padding(.horizontal, compact ? 4 : 10)
@@ -7634,6 +7656,14 @@ struct MapOverlayLegendView: View {
         .clipShape(.rect(cornerRadius: 8))
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(accessibilityLabel)
+    }
+
+    private var compactItems: [MapOverlayLegendItem] {
+        Array(orderedItems.prefix(3))
+    }
+
+    private var hiddenCompactItemCount: Int {
+        max(0, orderedItems.count - compactItems.count)
     }
 
     private var orderedItems: [MapOverlayLegendItem] {
