@@ -19,7 +19,10 @@ struct BattleView: View {
                     .ignoresSafeArea()
 
                 VStack(spacing: 0) {
-                    TopBarView(isCondensed: usesCondensedTopBar)
+                    TopBarView(
+                        isCondensed: usesCondensedTopBar,
+                        isNarrow: proxy.size.width < 520
+                    )
 
                     ZStack(alignment: .topTrailing) {
                         VStack(spacing: 0) {
@@ -85,6 +88,73 @@ enum BattleDrawerCategory: String, CaseIterable, Identifiable {
         case .enemy: return "eye.fill"
         case .senate: return "building.columns.fill"
         case .report: return "scroll.fill"
+        }
+    }
+}
+
+struct MapOverlayPresentation {
+    var perspective: MapReconPerspectiveKind
+
+    var enemyRouteOpacity: Double {
+        switch perspective {
+        case .enemyIntent: return 1
+        case .countermeasure: return 0.34
+        case .objective: return 0.12
+        case .terrainPressure: return 0.16
+        }
+    }
+
+    var tacticalRouteOpacity: Double {
+        perspective == .objective ? 0.92 : 0.44
+    }
+
+    var showsEnemyIntentDetails: Bool {
+        perspective == .enemyIntent || perspective == .countermeasure
+    }
+
+    var showsBattleObjective: Bool {
+        perspective == .objective
+    }
+
+    var showsCountermeasure: Bool {
+        perspective == .countermeasure
+    }
+
+    var showsTerrainPressure: Bool {
+        perspective == .terrainPressure
+    }
+
+    func isFocusedLegend(_ kind: MapOverlayLegendKind) -> Bool {
+        switch kind {
+        case .reachable, .attackTarget, .skillRange:
+            return true
+        case .enemyRoute, .enemyTarget:
+            return perspective == .enemyIntent
+        case .countermeasure:
+            return perspective == .countermeasure
+        case .battleObjective, .tacticalPath, .maneuverOption:
+            return perspective == .objective
+        case .threatHeat, .mapControl:
+            return perspective == .terrainPressure
+        }
+    }
+
+    func legendPriority(_ kind: MapOverlayLegendKind) -> Int {
+        if isFocusedLegend(kind) { return 0 }
+        if perspective == .countermeasure && (kind == .enemyRoute || kind == .enemyTarget) {
+            return 1
+        }
+        return 2
+    }
+}
+
+extension MapReconPerspectiveKind {
+    var mapReconTint: Color {
+        switch self {
+        case .enemyIntent: return .red
+        case .countermeasure: return .cyan
+        case .objective: return Color(red: 0.86, green: 0.68, blue: 0.34)
+        case .terrainPressure: return Color(red: 0.96, green: 0.58, blue: 0.24)
         }
     }
 }
@@ -483,6 +553,7 @@ struct PhoneCommandDeckView: View {
 struct TopBarView: View {
     @EnvironmentObject private var viewModel: GameViewModel
     var isCondensed = false
+    var isNarrow = false
 
     var body: some View {
         HStack(spacing: isCondensed ? 6 : 10) {
@@ -496,11 +567,11 @@ struct TopBarView: View {
             .buttonStyle(CommandIconButtonStyle())
 
             VStack(alignment: .leading, spacing: 2) {
-                Text("\(viewModel.state.mode.displayName) · 第 \(viewModel.state.turn) 回合 · \(viewModel.campaignStatusTitle)")
+                Text(topBarTitle)
                     .font(.headline.weight(.bold))
                     .lineLimit(1)
                     .minimumScaleFactor(0.72)
-                Text(viewModel.bannerMessage)
+                Text(topBarSubtitle)
                     .font(.caption)
                     .foregroundStyle(.white.opacity(0.72))
                     .lineLimit(1)
@@ -542,6 +613,20 @@ struct TopBarView: View {
                 .fill(.white.opacity(0.08))
                 .frame(height: 1)
         }
+    }
+
+    private var topBarTitle: String {
+        if isNarrow {
+            return "第 \(viewModel.state.turn) 回合 · \(viewModel.campaignStatusTitle)"
+        }
+        return "\(viewModel.state.mode.displayName) · 第 \(viewModel.state.turn) 回合 · \(viewModel.campaignStatusTitle)"
+    }
+
+    private var topBarSubtitle: String {
+        if isNarrow {
+            return viewModel.campaignStatus.progressText ?? viewModel.campaignStatusDetail
+        }
+        return viewModel.bannerMessage
     }
 }
 
@@ -642,27 +727,34 @@ struct WarMapView: View {
             let threatHeatOverlaysByPosition = viewModel.threatHeatZoneOverlaysByPosition
             let mapControlSummaries = Dictionary(uniqueKeysWithValues: viewModel.mapControlSummaries.map { ($0.position, $0) })
             let mapControlOverlayPositions = viewModel.mapControlOverlayPositions
+            let overlayPresentation = MapOverlayPresentation(
+                perspective: viewModel.selectedMapReconPerspective
+            )
 
             ZStack {
                 MapBackdropView()
 
                 EnemyIntentRouteLayerView(overlays: enemyIntentOverlays, metrics: metrics)
+                    .opacity(overlayPresentation.enemyRouteOpacity)
                     .allowsHitTesting(false)
                     .zIndex(1)
 
                 if let tacticalRecommendation {
                     TacticalRecommendationRouteLayerView(summary: tacticalRecommendation, metrics: metrics)
+                        .opacity(overlayPresentation.tacticalRouteOpacity)
                         .allowsHitTesting(false)
                         .zIndex(2)
                 }
 
-                if let battleObjectiveOverlay {
+                if let battleObjectiveOverlay,
+                   overlayPresentation.showsBattleObjective {
                     BattleObjectiveRouteLayerView(overlay: battleObjectiveOverlay, metrics: metrics)
                         .allowsHitTesting(false)
                         .zIndex(2.35)
                 }
 
-                if let countermeasureOverlay {
+                if let countermeasureOverlay,
+                   overlayPresentation.showsCountermeasure {
                     CountermeasureRouteLayerView(overlay: countermeasureOverlay, metrics: metrics)
                         .allowsHitTesting(false)
                         .zIndex(2.5)
@@ -676,17 +768,32 @@ struct WarMapView: View {
                         tile: tile,
                         city: city,
                         unit: unit,
-                        enemyIntent: unit.flatMap { enemyIntentsByUnit[$0.id] },
-                        enemyIntentDestination: enemyIntentDestinations[tile.position],
-                        enemyIntentTarget: enemyIntentTargets[tile.position],
+                        enemyIntent: overlayPresentation.showsEnemyIntentDetails
+                            ? unit.flatMap { enemyIntentsByUnit[$0.id] }
+                            : nil,
+                        enemyIntentDestination: overlayPresentation.showsEnemyIntentDetails
+                            ? enemyIntentDestinations[tile.position]
+                            : nil,
+                        enemyIntentTarget: overlayPresentation.showsEnemyIntentDetails
+                            ? enemyIntentTargets[tile.position]
+                            : nil,
                         tacticalRecommendation: tacticalRecommendation,
                         maneuverOption: maneuverOptionOverlays[tile.position],
-                        battleObjectiveOverlays: battleObjectiveOverlays[tile.position, default: []],
+                        battleObjectiveOverlays: overlayPresentation.showsBattleObjective
+                            ? battleObjectiveOverlays[tile.position, default: []]
+                            : [],
                         focusedBattleObjectiveRole: activeBattleObjectiveStageRole,
-                        countermeasureOverlay: countermeasureOverlays[tile.position],
-                        mapControlSummary: mapControlSummaries[tile.position],
-                        threatHeatZoneSummary: threatHeatOverlaysByPosition[tile.position],
-                        isMapControlOverlay: mapControlOverlayPositions.contains(tile.position),
+                        countermeasureOverlay: overlayPresentation.showsCountermeasure
+                            ? countermeasureOverlays[tile.position]
+                            : nil,
+                        mapControlSummary: overlayPresentation.showsTerrainPressure
+                            ? mapControlSummaries[tile.position]
+                            : nil,
+                        threatHeatZoneSummary: overlayPresentation.showsTerrainPressure
+                            ? threatHeatOverlaysByPosition[tile.position]
+                            : nil,
+                        isMapControlOverlay: overlayPresentation.showsTerrainPressure &&
+                            mapControlOverlayPositions.contains(tile.position),
                         isTacticalRecommendationPath: tacticalRecommendationPathPositions.contains(tile.position),
                         isTacticalRecommendationTarget: tacticalRecommendationTargetPosition == tile.position,
                         isSelected: selectedPosition == tile.position,
@@ -730,9 +837,9 @@ struct WarMapView: View {
 
                 VStack {
                     HStack {
-                        TacticalStatusStripView()
+                        BattlefieldStatusRibbonView()
                             .frame(
-                                width: max(180, min(proxy.size.width - 92, 720)),
+                                width: max(180, min(proxy.size.width - 92, 520)),
                                 alignment: .leading
                             )
                             .clipped()
@@ -746,34 +853,15 @@ struct WarMapView: View {
 
                 VStack {
                     Spacer()
-                    HStack {
-                        MapReconPerspectiveHUDView(
-                            readout: reconHUD,
-                            onSelect: { kind in
-                                viewModel.selectMapReconPerspective(kind)
-                            }
-                        )
-                        .frame(maxWidth: min(proxy.size.width - 24, 660), alignment: .leading)
-                        Spacer(minLength: 0)
-                    }
+                    MapIntelligenceDockView(
+                        readout: reconHUD,
+                        engagementLoop: engagementLoop,
+                        legendItems: viewModel.activeMapOverlayLegendItems,
+                        usesTwoRows: proxy.size.width < 620,
+                        onSelect: viewModel.selectMapReconPerspective
+                    )
                     .padding(.horizontal, 12)
-                    .padding(.bottom, 6)
-
-                    if let engagementLoop {
-                        HStack {
-                            EnemyEngagementLoopHUDView(readout: engagementLoop)
-                                .frame(maxWidth: min(proxy.size.width - 24, 620), alignment: .leading)
-                            Spacer(minLength: 0)
-                        }
-                        .padding(.horizontal, 12)
-                        .padding(.bottom, 6)
-                        .allowsHitTesting(false)
-                    }
-                    HStack {
-                        MapOverlayLegendView(items: viewModel.activeMapOverlayLegendItems)
-                        Spacer()
-                    }
-                    .padding(12)
+                    .padding(.bottom, 8)
                 }
                 .zIndex(5.1)
             }
@@ -824,6 +912,60 @@ struct AttackTargetButton: View {
         }
         .accessibilityLabel("攻击\(unit.faction.displayName)\(unit.kind.displayName)")
         .accessibilityAddTraits(.isButton)
+    }
+}
+
+struct BattlefieldStatusRibbonView: View {
+    @EnvironmentObject private var viewModel: GameViewModel
+
+    var body: some View {
+        HStack(spacing: 6) {
+            Label(viewModel.campaignStatusTitle, systemImage: viewModel.campaignStatus.kind.systemImage)
+                .font(.caption.weight(.black))
+                .foregroundStyle(viewModel.campaignStatus.kind.tintColor)
+                .lineLimit(1)
+
+            Divider()
+                .frame(height: 20)
+                .overlay {
+                    Color.white.opacity(0.14)
+                }
+
+            TacticalChipView(
+                symbol: "flag.fill",
+                label: "行动",
+                value: viewModel.state.activeFaction.displayName,
+                tint: viewModel.state.activeFaction.factionColor,
+                compact: true
+            )
+
+            TacticalChipView(
+                symbol: "flame.fill",
+                label: "敌军",
+                value: "\(viewModel.hostileUnitCount)",
+                tint: .red,
+                compact: true
+            )
+
+            TacticalChipView(
+                symbol: viewModel.selectedMapReconPerspective.systemImage,
+                label: "侦察",
+                value: viewModel.mapReconPerspectiveHUDReadout.statusLabel,
+                tint: viewModel.selectedMapReconPerspective.mapReconTint,
+                compact: true,
+                accessibilityLabel: viewModel.mapReconPerspectiveHUDReadout.accessibilityLabel
+            )
+        }
+        .foregroundStyle(.white)
+        .padding(.horizontal, 8)
+        .padding(.vertical, 6)
+        .background(.black.opacity(0.50))
+        .clipShape(.rect(cornerRadius: 7))
+        .overlay {
+            RoundedRectangle(cornerRadius: 7)
+                .stroke(Color(red: 0.84, green: 0.66, blue: 0.32).opacity(0.30), lineWidth: 1)
+        }
+        .accessibilityElement(children: .contain)
     }
 }
 
@@ -1061,6 +1203,159 @@ struct TacticalStatusStripView: View {
         case .terrainPressure:
             return Color(red: 0.96, green: 0.58, blue: 0.24)
         }
+    }
+}
+
+struct MapIntelligenceDockView: View {
+    var readout: MapReconPerspectiveHUDReadout
+    var engagementLoop: EnemyEngagementLoopReadout?
+    var legendItems: [MapOverlayLegendItem]
+    var usesTwoRows: Bool
+    var onSelect: (MapReconPerspectiveKind) -> Void
+
+    var body: some View {
+        Group {
+            if usesTwoRows {
+                VStack(spacing: 5) {
+                    HStack(spacing: 6) {
+                        MapReconModeSelectorView(readout: readout, onSelect: onSelect)
+                        Spacer(minLength: 0)
+                        MapReconContextBadgeView(readout: readout)
+                    }
+
+                    HStack(spacing: 6) {
+                        if let engagementLoop {
+                            EnemyEngagementCompactBadgeView(readout: engagementLoop)
+                        }
+                        MapOverlayLegendView(
+                            items: legendItems,
+                            perspective: readout.selectedKind,
+                            compact: true
+                        )
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                }
+            } else {
+                HStack(spacing: 7) {
+                    MapReconModeSelectorView(readout: readout, onSelect: onSelect)
+                    MapReconContextBadgeView(readout: readout)
+                    if let engagementLoop,
+                       readout.selectedKind == .enemyIntent || readout.selectedKind == .countermeasure {
+                        EnemyEngagementCompactBadgeView(readout: engagementLoop)
+                    }
+                    MapOverlayLegendView(
+                        items: legendItems,
+                        perspective: readout.selectedKind,
+                        compact: true
+                    )
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                }
+            }
+        }
+        .padding(6)
+        .background(.black.opacity(0.72))
+        .clipShape(.rect(cornerRadius: 8))
+        .overlay {
+            RoundedRectangle(cornerRadius: 8)
+                .stroke(Color(red: 0.84, green: 0.66, blue: 0.32).opacity(0.32), lineWidth: 1)
+        }
+        .shadow(color: .black.opacity(0.28), radius: 5, y: 2)
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel(readout.accessibilityLabel)
+    }
+}
+
+struct MapReconModeSelectorView: View {
+    var readout: MapReconPerspectiveHUDReadout
+    var onSelect: (MapReconPerspectiveKind) -> Void
+
+    var body: some View {
+        HStack(spacing: 3) {
+            ForEach(readout.availableKinds) { kind in
+                Button {
+                    onSelect(kind)
+                } label: {
+                    VStack(spacing: 1) {
+                        Image(systemName: kind.systemImage)
+                            .font(.caption.weight(.black))
+                        Text(kind.shortLabel)
+                            .font(.caption2.weight(.bold))
+                            .lineLimit(1)
+                    }
+                    .foregroundStyle(readout.selectedKind == kind ? .black : .white.opacity(0.76))
+                    .frame(width: 44, height: 44)
+                    .background(
+                        readout.selectedKind == kind
+                            ? kind.mapReconTint
+                            : kind.mapReconTint.opacity(0.16)
+                    )
+                    .clipShape(.rect(cornerRadius: 6))
+                    .overlay {
+                        RoundedRectangle(cornerRadius: 6)
+                            .stroke(
+                                readout.selectedKind == kind ? .white.opacity(0.82) : .white.opacity(0.08),
+                                lineWidth: readout.selectedKind == kind ? 1.5 : 1
+                            )
+                    }
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("切换\(kind.displayName)侦察")
+                .accessibilityValue(readout.selectedKind == kind ? "已选择" : "未选择")
+            }
+        }
+    }
+}
+
+struct MapReconContextBadgeView: View {
+    var readout: MapReconPerspectiveHUDReadout
+
+    var body: some View {
+        HStack(spacing: 5) {
+            Image(systemName: readout.selectedKind.systemImage)
+                .foregroundStyle(readout.selectedKind.mapReconTint)
+            VStack(alignment: .leading, spacing: 1) {
+                Text(readout.selectedKind.displayName)
+                    .font(.caption2.weight(.bold))
+                    .foregroundStyle(.white.opacity(0.62))
+                Text(readout.statusLabel)
+                    .font(.caption.weight(.black))
+                    .foregroundStyle(.white)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.65)
+            }
+        }
+        .padding(.horizontal, 7)
+        .frame(minWidth: 96, minHeight: 44, alignment: .leading)
+        .background(readout.selectedKind.mapReconTint.opacity(0.13))
+        .clipShape(.rect(cornerRadius: 6))
+        .accessibilityLabel("\(readout.selectedKind.displayName)，\(readout.statusLabel)")
+    }
+}
+
+struct EnemyEngagementCompactBadgeView: View {
+    var readout: EnemyEngagementLoopReadout
+
+    var body: some View {
+        HStack(spacing: 5) {
+            Image(systemName: "arrow.triangle.2.circlepath")
+                .foregroundStyle(Color(red: 0.96, green: 0.42, blue: 0.22))
+            VStack(alignment: .leading, spacing: 1) {
+                Text(readout.statusLabel)
+                    .font(.caption.weight(.black))
+                    .lineLimit(1)
+                Text(readout.riskLabel)
+                    .font(.caption2.weight(.bold))
+                    .foregroundStyle(.white.opacity(0.64))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.62)
+            }
+        }
+        .foregroundStyle(.white)
+        .padding(.horizontal, 7)
+        .frame(minWidth: 108, minHeight: 44, alignment: .leading)
+        .background(Color(red: 0.96, green: 0.42, blue: 0.22).opacity(0.13))
+        .clipShape(.rect(cornerRadius: 6))
+        .accessibilityLabel(readout.accessibilityLabel)
     }
 }
 
@@ -2451,11 +2746,9 @@ struct UnitTokenView: View {
                         .stroke(.white.opacity(unit.faction == .rome ? 0.34 : 0.18), lineWidth: 1)
                 }
                 .overlay(alignment: .topTrailing) {
-                    if unit.generalName != nil {
-                        Image(systemName: "star.fill")
-                            .font(.system(size: 9, weight: .black))
-                            .foregroundStyle(Color(red: 0.98, green: 0.82, blue: 0.36))
-                            .offset(x: 3, y: -3)
+                    if let generalName = unit.generalName {
+                        CommanderTokenBadgeView(name: generalName)
+                            .offset(x: 5, y: -5)
                     }
                 }
                 .overlay(alignment: .topLeading) {
@@ -2513,6 +2806,26 @@ struct UnitTokenView: View {
             }
             .frame(width: 34, height: 7)
         }
+    }
+}
+
+struct CommanderTokenBadgeView: View {
+    var name: String
+
+    var body: some View {
+        ZStack {
+            Circle()
+                .fill(Color(red: 0.93, green: 0.72, blue: 0.24))
+            Circle()
+                .stroke(.white.opacity(0.92), lineWidth: 1)
+            Text(String(name.prefix(1)))
+                .font(.system(size: 7, weight: .black, design: .rounded))
+                .foregroundStyle(Color(red: 0.24, green: 0.10, blue: 0.07))
+                .minimumScaleFactor(0.7)
+        }
+        .frame(width: 15, height: 15)
+        .shadow(color: .black.opacity(0.42), radius: 2, y: 1)
+        .accessibilityHidden(true)
     }
 }
 
@@ -7265,18 +7578,36 @@ struct StatRow: View {
 
 struct MapOverlayLegendView: View {
     var items: [MapOverlayLegendItem]
+    var perspective: MapReconPerspectiveKind?
+    var compact = false
+
+    init(
+        items: [MapOverlayLegendItem],
+        perspective: MapReconPerspectiveKind? = nil,
+        compact: Bool = false
+    ) {
+        self.items = items
+        self.perspective = perspective
+        self.compact = compact
+    }
 
     var body: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 8) {
-                ForEach(items) { item in
-                    MapOverlayLegendItemView(item: item)
+        ScrollView(.horizontal) {
+            HStack(spacing: compact ? 5 : 8) {
+                ForEach(orderedItems) { item in
+                    MapOverlayLegendItemView(
+                        item: item,
+                        compact: compact,
+                        isFocused: isFocused(item.kind)
+                    )
                 }
 
                 if !items.isEmpty {
                     Divider()
                         .frame(height: 18)
-                        .overlay(.white.opacity(0.18))
+                        .overlay {
+                            Color.white.opacity(0.18)
+                        }
                 }
 
                 ForEach(Faction.turnOrder) { faction in
@@ -7289,17 +7620,36 @@ struct MapOverlayLegendView: View {
                             .lineLimit(1)
                             .minimumScaleFactor(0.74)
                     }
+                    .opacity(compact ? 0.58 : 1)
                 }
             }
         }
+        .scrollIndicators(.hidden)
         .foregroundStyle(.white)
         .frame(maxWidth: 520, alignment: .leading)
-        .padding(.horizontal, 10)
-        .padding(.vertical, 7)
-        .background(.black.opacity(0.35))
-        .clipShape(RoundedRectangle(cornerRadius: 8))
+        .padding(.horizontal, compact ? 4 : 10)
+        .padding(.vertical, compact ? 2 : 7)
+        .background(.black.opacity(compact ? 0.18 : 0.35))
+        .clipShape(.rect(cornerRadius: 8))
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(accessibilityLabel)
+    }
+
+    private var orderedItems: [MapOverlayLegendItem] {
+        guard let perspective else { return items }
+        let presentation = MapOverlayPresentation(perspective: perspective)
+        return items.enumerated()
+            .sorted { lhs, rhs in
+                let lhsPriority = presentation.legendPriority(lhs.element.kind)
+                let rhsPriority = presentation.legendPriority(rhs.element.kind)
+                return lhsPriority == rhsPriority ? lhs.offset < rhs.offset : lhsPriority < rhsPriority
+            }
+            .map(\.element)
+    }
+
+    private func isFocused(_ kind: MapOverlayLegendKind) -> Bool {
+        guard let perspective else { return true }
+        return MapOverlayPresentation(perspective: perspective).isFocusedLegend(kind)
     }
 
     private var accessibilityLabel: String {
@@ -7311,6 +7661,8 @@ struct MapOverlayLegendView: View {
 
 struct MapOverlayLegendItemView: View {
     var item: MapOverlayLegendItem
+    var compact = false
+    var isFocused = true
 
     var body: some View {
         HStack(spacing: 5) {
@@ -7322,17 +7674,25 @@ struct MapOverlayLegendItemView: View {
                 Text(item.title)
                     .font(.caption.bold())
                     .lineLimit(1)
-                Text(item.detail)
-                    .font(.caption)
-                    .foregroundStyle(.white.opacity(0.72))
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.72)
+                if !compact {
+                    Text(item.detail)
+                        .font(.caption)
+                        .foregroundStyle(.white.opacity(0.72))
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.72)
+                }
             }
         }
-        .padding(.horizontal, 7)
-        .padding(.vertical, 5)
-        .background(item.kind.legendTint.opacity(0.16))
-        .clipShape(RoundedRectangle(cornerRadius: 7))
+        .padding(.horizontal, compact ? 6 : 7)
+        .frame(minHeight: compact ? 32 : 0)
+        .padding(.vertical, compact ? 0 : 5)
+        .background(item.kind.legendTint.opacity(isFocused ? 0.20 : 0.07))
+        .clipShape(.rect(cornerRadius: 7))
+        .overlay {
+            RoundedRectangle(cornerRadius: 7)
+                .stroke(isFocused ? item.kind.legendTint.opacity(0.44) : .clear, lineWidth: 1)
+        }
+        .opacity(isFocused ? 1 : 0.52)
     }
 }
 
@@ -7533,25 +7893,27 @@ struct HexMetrics {
         let horizontalUnits = CGFloat(mapWidth) * 0.76 + 0.24
         let verticalUnits = CGFloat(mapHeight) + 0.5
 
-        let horizontalInset = min(22, max(10, container.width * 0.035))
-        let topInset = min(68, max(50, container.height * 0.16))
-        let bottomInset = min(42, max(30, container.height * 0.10))
+        let horizontalInset = min(22, max(10, container.width * 0.03))
+        let topInset = min(54, max(46, container.height * 0.11))
+        let bottomInset = min(64, max(48, container.height * 0.12))
         let availableWidth = max(1, container.width - horizontalInset * 2)
         let availableHeight = max(1, container.height - topInset - bottomInset)
         let widthBased = availableWidth / horizontalUnits
         let heightBased = availableHeight / (verticalUnits * 0.88)
         let fittedTileWidth = min(widthBased, heightBased)
 
-        tileWidth = max(18, min(76, fittedTileWidth))
+        tileWidth = max(18, min(78, fittedTileWidth))
         tileHeight = tileWidth * 0.88
         tileScale = min(1.05, max(0.74, tileWidth / 44))
         actionScale = min(1.15, max(0.72, tileWidth / 54))
 
         let totalWidth = tileWidth * (0.76 * CGFloat(mapWidth - 1) + 1)
         let totalHeight = tileHeight * (CGFloat(mapHeight) + 0.5)
+        let remainingVerticalSpace = max(0, availableHeight - totalHeight)
+        let verticalBias: CGFloat = container.height > container.width * 1.25 ? 0.20 : 0.42
         origin = CGPoint(
             x: horizontalInset + (availableWidth - totalWidth) / 2 + tileWidth / 2,
-            y: topInset + (availableHeight - totalHeight) / 2 + tileHeight / 2
+            y: topInset + remainingVerticalSpace * verticalBias + tileHeight / 2
         )
     }
 

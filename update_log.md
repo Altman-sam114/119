@@ -21,6 +21,42 @@
 
 ## 历史记录
 
+### v0.53 / 地图层级与战场可读性重构
+
+日期：2026-07-24
+
+核心变更：
+
+- `MapOverlayPresentation` 复用 `GameViewModel.selectedMapReconPerspective`，把敌路、反制、目标线、热区四种侦察视角映射为 route layer、tile overlay 和图例的显示优先级；攻击、技能、可达、选中与当前军议命令预览不受过滤影响。
+- 地图底部原侦察 HUD、敌情闭环 HUD 和独立图例收敛为 `MapIntelligenceDockView`：横屏/宽屏单行、窄屏最多两行，四个 44pt 视角按钮、当前状态、闭环风险摘要和按视角排序的完整横向图例仍可达。
+- `HexMetrics` 缩小地图上下保留区并按容器比例使用稳定垂直偏置，竖屏宽度受限时战区上移；窄屏顶部带改用同源短标题/战役进度，避免 390pt 标题硬截断。
+- `UnitTokenView` 将单一将领星标升级为原创姓名首字圆形徽章，保留兵种、姿态、经验、冷却、行动状态和生命条。
+- RenderBattlePreview 保留 v0.52 全部门禁，新增 `missingMapOverlayFocusStrategy` 与 `missingMapIntelligenceDock`，核对四视角显示映射和三尺寸六图的红/青/金视角按钮情报坞。
+- `.github/workflows/ci-results.yml` artifact 版本更新到 v0.53；README、flow、flowchart、test 和 prompt README 同步真实 UI 数据流与云端验收要求。
+
+关键文件：
+
+- `RomeLegionsApp/Views/BattleView.swift`
+- `Tools/RenderBattlePreview/main.swift`
+- `.github/workflows/ci-results.yml`
+- `README.md`
+- `md/flow/flow.md`
+- `md/flow/flowchart.md`
+- `md/test/test.md`
+- `md/prompt/README.md`
+- `md/prompt/v0（玩法推进）/v0.53（地图层级与战场可读性重构）.md`
+- `update_log.md`
+
+验证结果：
+
+- 按人工要求，本轮未运行任何本地测试、build、typecheck、RenderBattlePreview、`Tools/verify_project.mjs`、`git diff --check`、YAML/JSON/Plist 解析或脚本语法检查。
+- 当前实现尚待提交并直推 `origin/main`；只有最新 GitHub Actions run、v0.53 artifact、manifest/JUnit/日志和六张 PNG 经 Agent C 复判后，才能写入正式通过结论。
+
+遗留事项：
+
+- 本轮没有修改 `GameState`、`GameViewModel` 派生规则、AI 评分/执行、敌军意图、战斗/任务/城市/成长/外交规则或存档结构；侦察视角只改变 SwiftUI 显示优先级。
+- 地图材质、正式人物资产、将领池、AI 多步规划和动画系统仍留待后续独立版本。
+
 ### v0.52 / 地图主导战斗壳层 UI 重构
 
 日期：2026-07-13

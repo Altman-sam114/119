@@ -1623,6 +1623,23 @@ struct RenderBattlePreview {
         guard viewModel.state.unit(at: commandDockTarget.position) == nil else {
             throw PreviewRenderError.missingCommandDockAttackFixture
         }
+        let enemyPresentation = MapOverlayPresentation(perspective: .enemyIntent)
+        let counterPresentation = MapOverlayPresentation(perspective: .countermeasure)
+        let objectivePresentation = MapOverlayPresentation(perspective: .objective)
+        let terrainPresentation = MapOverlayPresentation(perspective: .terrainPressure)
+        guard enemyPresentation.showsEnemyIntentDetails,
+              enemyPresentation.enemyRouteOpacity == 1,
+              !enemyPresentation.showsBattleObjective,
+              counterPresentation.showsCountermeasure,
+              counterPresentation.showsEnemyIntentDetails,
+              counterPresentation.enemyRouteOpacity < enemyPresentation.enemyRouteOpacity,
+              objectivePresentation.showsBattleObjective,
+              objectivePresentation.tacticalRouteOpacity > enemyPresentation.tacticalRouteOpacity,
+              terrainPresentation.showsTerrainPressure,
+              terrainPresentation.isFocusedLegend(.threatHeat),
+              !terrainPresentation.isFocusedLegend(.enemyRoute) else {
+            throw PreviewRenderError.missingMapOverlayFocusStrategy
+        }
         viewModel.state.units.append(commandDockTarget)
         guard viewModel.attackTargets.contains(where: { $0.id == commandDockTarget.id }) else {
             throw PreviewRenderError.missingCommandDockAttackFixture
@@ -1636,6 +1653,9 @@ struct RenderBattlePreview {
         )
         guard hasMapDominantBattleShell(in: unitBitmap, logicalWidth: width, logicalHeight: height) else {
             throw PreviewRenderError.missingMapDominantBattleShell
+        }
+        guard hasVisibleMapIntelligenceDock(in: unitBitmap, logicalWidth: width, logicalHeight: height) else {
+            throw PreviewRenderError.missingMapIntelligenceDock
         }
         guard hasVisibleUnitCommandDockContent(in: unitBitmap, logicalWidth: width, logicalHeight: height) else {
             throw PreviewRenderError.missingCompactCommandRender
@@ -1674,6 +1694,9 @@ struct RenderBattlePreview {
         )
         guard hasMapDominantBattleShell(in: cityBitmap, logicalWidth: width, logicalHeight: height) else {
             throw PreviewRenderError.missingMapDominantBattleShell
+        }
+        guard hasVisibleMapIntelligenceDock(in: cityBitmap, logicalWidth: width, logicalHeight: height) else {
+            throw PreviewRenderError.missingMapIntelligenceDock
         }
         guard hasVisibleCityReadoutContent(in: cityBitmap, logicalWidth: width, logicalHeight: height) else {
             throw PreviewRenderError.missingCompactCommandRender
@@ -1806,6 +1829,46 @@ struct RenderBattlePreview {
         return unit.red > city.red + 10 && city.orange > unit.orange + 10
     }
 
+    private static func hasVisibleMapIntelligenceDock(
+        in bitmap: NSBitmapImageRep,
+        logicalWidth: Double,
+        logicalHeight: Double
+    ) -> Bool {
+        let scaleX = Double(bitmap.pixelsWide) / logicalWidth
+        let scaleY = Double(bitmap.pixelsHigh) / logicalHeight
+        let commandDockHeight: Double = logicalHeight >= logicalWidth ? 116 : (logicalHeight < 560 ? 92 : 104)
+        let intelligenceHeight: Int = logicalWidth < 620 ? 96 : 58
+        let region = (
+            x: 10,
+            y: max(0, Int(logicalHeight - commandDockHeight) - intelligenceHeight - 4),
+            width: min(230, max(1, Int(logicalWidth) - 20)),
+            height: intelligenceHeight
+        )
+        var signature = (bright: 0, red: 0, cyan: 0, gold: 0)
+
+        for logicalY in stride(from: region.y, to: region.y + region.height, by: 2) {
+            for logicalX in stride(from: region.x, to: region.x + region.width, by: 2) {
+                let pixelX = min(max(Int(Double(logicalX) * scaleX), 0), bitmap.pixelsWide - 1)
+                let pixelY = min(max(Int(Double(logicalY) * scaleY), 0), bitmap.pixelsHigh - 1)
+                guard let color = bitmap.colorAt(x: pixelX, y: pixelY)?.usingColorSpace(.deviceRGB),
+                      color.alphaComponent > 0.6 else {
+                    continue
+                }
+                let red = color.redComponent
+                let green = color.greenComponent
+                let blue = color.blueComponent
+                let brightness = (red + green + blue) / 3
+                if brightness > 0.34 { signature.bright += 1 }
+                if red > 0.16 && red > green + 0.07 && red > blue + 0.05 { signature.red += 1 }
+                if green > 0.09 && blue > 0.10 && green > red + 0.02 && blue > red + 0.03 { signature.cyan += 1 }
+                if red > 0.14 && green > 0.10 && red > blue + 0.06 && green > blue + 0.03 { signature.gold += 1 }
+            }
+        }
+
+        emitPreviewDiagnostic("Map intelligence dock pixels: \(signature)")
+        return signature.bright > 25 && signature.red > 8 && signature.cyan > 8 && signature.gold > 8
+    }
+
     private static func hasMapDominantBattleShell(
         in bitmap: NSBitmapImageRep,
         logicalWidth: Double,
@@ -1889,6 +1952,8 @@ struct RenderBattlePreview {
 enum PreviewRenderError: Error {
     case renderFailed
     case missingMapDominantBattleShell
+    case missingMapIntelligenceDock
+    case missingMapOverlayFocusStrategy
     case missingCommandDockAttackFixture
     case missingDistinctCommandDockRender
     case missingIntentOverlay

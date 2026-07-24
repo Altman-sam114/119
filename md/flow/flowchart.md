@@ -150,7 +150,8 @@ flowchart TD
     CT --> ER
     AP --> ER
     DA --> ER
-    ER --> ES["BattleView 地图侦察视角 HUD<br/>按钮切换当前扫描视角，只改 ViewModel UI 视角和 banner<br/>不过滤叠层、不自动聚焦或执行命令"]
+    ER --> ES["BattleView 单层地图情报坞<br/>按钮切换当前扫描视角，只改 ViewModel UI 视角和 banner"]
+    ES --> ET["MapOverlayPresentation<br/>只控制 route/tile/legend 显示优先级<br/>攻击、技能、可达、选中和当前命令预览始终保留"]
     MF["GameViewModel.primaryCampaignAdvanceReadout<br/>组合首要任务、战役进度、战线压力、目标线、阶段命令、侦察视角和态势交汇"] --> MG["BattleView 顶部推进 chip 与元老院推进线读板<br/>只解释战役目标如何落到地图下一步<br/>不自动聚焦、不自动执行"]
     ER --> MF
     CO --> MF
