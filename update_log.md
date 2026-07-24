@@ -32,6 +32,7 @@
 - `HexMetrics` 缩小地图上下保留区并按容器比例使用稳定垂直偏置，竖屏宽度受限时战区上移；窄屏顶部带改用同源短标题/战役进度，避免 390pt 标题硬截断。
 - `UnitTokenView` 将单一将领星标升级为原创姓名首字圆形徽章，保留兵种、姿态、经验、冷却、行动状态和生命条。
 - RenderBattlePreview 保留 v0.52 全部门禁，新增 `missingMapOverlayFocusStrategy` 与 `missingMapIntelligenceDock`，核对四视角显示映射和三尺寸六图的红/青/金视角按钮情报坞。
+- 首次 v0.53 云端六图复判发现紧凑图例在离屏渲染中塌成零高；后续修复为图例滚动内容提供稳定高度和固有宽度，并把情报坞像素门禁拆分为按钮区与图例区，防止空白图例误通过。
 - `.github/workflows/ci-results.yml` artifact 版本更新到 v0.53；README、flow、flowchart、test 和 prompt README 同步真实 UI 数据流与云端验收要求。
 
 关键文件：

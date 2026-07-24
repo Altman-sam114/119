@@ -1844,7 +1844,18 @@ struct RenderBattlePreview {
             width: min(230, max(1, Int(logicalWidth) - 20)),
             height: intelligenceHeight
         )
+        let legendRegionX = logicalWidth < 620 ? 140 : 300
+        let legendRegionY = logicalWidth < 620
+            ? region.y + intelligenceHeight / 2
+            : region.y
+        let legendRegion = (
+            x: legendRegionX,
+            y: legendRegionY,
+            width: max(1, Int(logicalWidth) - legendRegionX - 20),
+            height: logicalWidth < 620 ? intelligenceHeight / 2 : intelligenceHeight
+        )
         var signature = (bright: 0, red: 0, cyan: 0, gold: 0)
+        var legendSignature = (bright: 0, tinted: 0)
 
         for logicalY in stride(from: region.y, to: region.y + region.height, by: 2) {
             for logicalX in stride(from: region.x, to: region.x + region.width, by: 2) {
@@ -1865,8 +1876,31 @@ struct RenderBattlePreview {
             }
         }
 
-        emitPreviewDiagnostic("Map intelligence dock pixels: \(signature)")
-        return signature.bright > 25 && signature.red > 8 && signature.cyan > 8 && signature.gold > 8
+        for logicalY in stride(from: legendRegion.y, to: legendRegion.y + legendRegion.height, by: 2) {
+            for logicalX in stride(from: legendRegion.x, to: legendRegion.x + legendRegion.width, by: 2) {
+                let pixelX = min(max(Int(Double(logicalX) * scaleX), 0), bitmap.pixelsWide - 1)
+                let pixelY = min(max(Int(Double(logicalY) * scaleY), 0), bitmap.pixelsHigh - 1)
+                guard let color = bitmap.colorAt(x: pixelX, y: pixelY)?.usingColorSpace(.deviceRGB),
+                      color.alphaComponent > 0.6 else {
+                    continue
+                }
+                let components = [color.redComponent, color.greenComponent, color.blueComponent]
+                let brightness = components.reduce(0, +) / 3
+                if brightness > 0.42 { legendSignature.bright += 1 }
+                if brightness > 0.16,
+                   (components.max() ?? 0) - (components.min() ?? 0) > 0.10 {
+                    legendSignature.tinted += 1
+                }
+            }
+        }
+
+        emitPreviewDiagnostic("Map intelligence dock pixels: buttons=\(signature), legend=\(legendSignature)")
+        return signature.bright > 25 &&
+            signature.red > 8 &&
+            signature.cyan > 8 &&
+            signature.gold > 8 &&
+            legendSignature.bright > 8 &&
+            legendSignature.tinted > 12
     }
 
     private static func hasMapDominantBattleShell(

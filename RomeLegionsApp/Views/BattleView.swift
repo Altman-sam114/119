@@ -7623,10 +7623,11 @@ struct MapOverlayLegendView: View {
                     .opacity(compact ? 0.58 : 1)
                 }
             }
+            .fixedSize(horizontal: true, vertical: false)
         }
         .scrollIndicators(.hidden)
         .foregroundStyle(.white)
-        .frame(maxWidth: 520, alignment: .leading)
+        .frame(maxWidth: 520, minHeight: compact ? 36 : 52, alignment: .leading)
         .padding(.horizontal, compact ? 4 : 10)
         .padding(.vertical, compact ? 2 : 7)
         .background(.black.opacity(compact ? 0.18 : 0.35))
