@@ -50,7 +50,8 @@
 验证状态：
 
 - 按人工要求，本轮未运行任何本地测试、build、typecheck、RenderBattlePreview、`Tools/verify_project.mjs`、`git diff --check`、YAML/JSON/Plist 解析或脚本语法检查。
-- 等待本轮 `main` push 后 GitHub Actions 与 Agent C 对最新 artifact、日志和六张 PNG 的复判；当前不得视为正式验收通过。
+- 初始实现 commit `8324dd5e9bba514e68bdedf5b7913ee5f4099f3b` 对应 run `30195124966`、attempt `1`、artifact `RomeLegions-ci-v0.58-main-8324dd5-run30195124966-attempt1`；manifest、JUnit 5/0、88 项 Swift Testing、Gameplay Smoke、RenderBattlePreview、Xcode build 和六图均成功，但 Agent C 在 Render/Xcode 日志发现本轮新引入的单参数 `onChange(of:perform:)` 弃用警告，因此没有给出最终通过结论。
+- Agent B 已将选择聚焦监听改为 iOS 17 / macOS 14 的双参数 `onChange` 闭包；等待追加修复 commit 对应的新 latest run 与 artifact 复判。
 
 遗留事项：
 

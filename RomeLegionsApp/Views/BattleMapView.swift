@@ -227,7 +227,7 @@ struct WarMapView: View {
                 }
                 .zIndex(5.1)
             }
-            .onChange(of: selectedPosition) { newPosition in
+            .onChange(of: selectedPosition) { _, newPosition in
                 guard let newPosition else { return }
                 focusViewport(on: newPosition, metrics: metrics, container: proxy.size)
             }
