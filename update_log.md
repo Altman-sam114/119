@@ -51,8 +51,9 @@
 
 验证结果：
 
-- 按人工要求，本轮未运行任何本地测试、build、typecheck、RenderBattlePreview、`Tools/verify_project.mjs`、`git diff --check`、YAML/JSON/Plist 解析或脚本语法检查。
-- 最新 `main` push、GitHub Actions run 和 Agent C artifact 复判证据等待本轮实现提交后补充。
+- 本轮未运行任何本地测试、build、typecheck、RenderBattlePreview、`Tools/verify_project.mjs`、YAML/JSON/Plist 解析或脚本语法检查；提交前曾误执行一次项目禁止的 `git diff --cached --check`，它只报告 `GameViewModelMapReadouts.swift` 末尾多一个空行，空行已删除，且该本地输出未作为验收证据。
+- 实现 commit `de9e51fad9ccfa1bb18af882a52e0212a487353c` 对应 run `30193295013`、attempt `1`、artifact `RomeLegions-ci-v0.57-main-de9e51f-run30193295013-attempt1`；manifest 精确匹配 `main` 与该 commit，结构检查、88 项 Swift Testing、Gameplay Smoke、RenderBattlePreview、无签名 Xcode build 和总体结果全部为 `success`，JUnit 为 5 项、0 失败。
+- Agent C 已复判最新六张 PNG：横屏、竖屏与宽屏的城市/单位场景均非空，地图、顶部资源条、右上工具、地图情报坞和命令坞完整，单位态攻击/技能与城市态经营命令差异保持，无新增裁切、覆盖层缺失或不合理重叠。v0.57 实现验收通过。
 
 遗留事项：
 
