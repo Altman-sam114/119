@@ -47,7 +47,7 @@
 ## 4. 核心架构边界
 
 - 玩法核心层：`GameState`、`Faction`、`Position`、`Tile`、`ArmyUnit`、`City`、`Technology`、`Mission`、`MissionRequirement`、`CampaignStatus`、`CombatPreview`、`AIIntent` 等类型。
-- 应用状态层：`GameViewModel` 持有 `GameState`，处理菜单、选择、命令、错误消息、敌军意图摘要和战局态势摘要。
+- 应用状态层：`GameViewModel` 持有 `GameState`，处理菜单、选择、命令和错误消息；地图战场、战略态势与选中对象的 UI 派生类型分别由 `GameViewModelMapReadouts.swift`、`GameViewModelStrategyReadouts.swift`、`GameViewModelSelectionReadouts.swift` 承载，仍由同一个 `GameViewModel` 组装和提供。
 - 视图层：`RootView` 根据 `isShowingMenu` 切换 `MainMenuView` 和 `BattleView`；战斗 UI 由 `BattleView` 根壳层、`BattleShellControls` 壳层控制、`BattleMapView` 地图、`BattlePanels` 读板和 `BattleViewStyles` 共享样式组成，只展示状态并触发 `GameViewModel` 命令。
 - 存档层：`SaveStore` 用 SQLite 存取编码后的 `GameState`，不得绕过核心状态结构写散落状态。
 - 工具层：`Tools/GameplaySmoke`、`Tools/RenderBattlePreview`、`Tools/verify_project.mjs` 分别负责核心冒烟、战斗页截图和结构检查。

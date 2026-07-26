@@ -13,13 +13,51 @@
 ## 当前状态
 
 - 项目类型：原创 SwiftUI iOS 罗马题材战棋原型。
-- 核心架构：纯 Swift `RomeLegionsCore` 负责玩法规则；`GameViewModel` 负责 UI 状态和派生数据；SwiftUI 视图负责展示和命令入口。
+- 核心架构：纯 Swift `RomeLegionsCore` 负责玩法规则；`GameViewModel` 负责 UI 状态、命令与派生数据组装，地图战场、战略态势和选中对象 readout 分别由三个独立 Swift 文件承载；SwiftUI 视图负责展示和命令入口。
 - 当前玩法：六边形地图、地形、城市、阵营、军团、移动、攻击、反击、占城、招募、科技、任务 requirement、战役目标、胜负结算、结束保护、外交、城市扩建、城市经营与招募读板、军团训练、将领任命、军团成长决策读板、军团成长优先级读板、主动技能、技能冷却、将领详情读板、将领指挥链读板、将领战机威胁桥接读板、将令技能入口链路、将领技能目标与收益读板、被动贡献、战功状态、军团编制与成长读板、选中军团处境命令入口读板、选中军团军令窗口读板、战役推进线 HUD、地图侦察视角 HUD、战术命令建议与补线路径读板、本方将领协同与战术连携读板、将领协同步骤读板、机动落点与地图风险读板、战场焦点与将领机会读板、战场目标链路、战场态势交汇链路、敌情交战闭环 HUD、目标线地图叠层、阶段聚焦、阶段命令预览与联动高亮、地图控制与威胁热区读板、主动地图叠层图例、AI 作战计划与时间线读板、敌方将领协同读板、敌方将领威胁读板、敌情反制建议读板、反制落点/目标地图叠层、反制指令聚焦、反制命令链高亮与反制焦点链路、战术姿态与姿态预览、AI 回合、AI 主攻优先执行、敌军意图预判、敌军意图六边形路径/目标叠层、战线压力读板、战局态势面板。
 - 当前测试入口：Swift Testing、Gameplay Smoke、项目结构检查、SwiftUI 类型检查、战斗页预览图渲染、无签名 Xcode 构建。
 - 当前协作系统：已建立 `AGENTS.md`、`update_log.md`、`md/prompt/`、`md/test/test.md`、`md/flow/flow.md`、`md/flow/flowchart.md`，默认按 `main` 直推、GitHub Actions 云端重验证、Agent C 下载未加密结果包复判，并具备未来由 Agent X 主控调度 Agent A/B/C 多轮循环的文档基线。
 - 当前 CI 入口：`.github/workflows/ci-results.yml`，在 `main` push 和手动触发时运行结构检查、SwiftPM 测试、Gameplay Smoke、RenderBattlePreview 和无签名 Xcode build，并上传 CI 结果包。
 
 ## 历史记录
+
+### v0.57 / GameViewModel 派生读板模块化拆分
+
+日期：2026-07-26
+
+核心变更：
+
+- 将原 7,623 行 `GameViewModel.swift` 中位于状态协调类之前的模块级 UI 派生类型按稳定领域拆为三个编译单元：地图战场类型移入 `GameViewModelMapReadouts.swift`，战略态势类型移入 `GameViewModelStrategyReadouts.swift`，选中对象类型移入 `GameViewModelSelectionReadouts.swift`。
+- `GameViewModel.swift` 收敛为约 3,630 行，只保留 import、`@MainActor final class GameViewModel` 与原有类内实现；72 个模块级派生类型的名称、字段、计算属性、方法、文案、引用关系和默认访问级别保持不变。
+- Xcode App group/Sources phase、RenderBattlePreview 云端编译命令、README/test 的显式源码清单和 `Tools/verify_project.mjs` 已覆盖四个 ViewModel 文件；结构检查改为聚合四个源码后验证原有 token。
+- AGENTS、README、flow、flowchart、test、prompt README 与 v0.57 Agent A 提示词同步当前模块边界；workflow artifact 版本提升到 v0.57。
+
+关键文件：
+
+- `RomeLegionsApp/App/GameViewModel.swift`
+- `RomeLegionsApp/App/GameViewModelMapReadouts.swift`
+- `RomeLegionsApp/App/GameViewModelStrategyReadouts.swift`
+- `RomeLegionsApp/App/GameViewModelSelectionReadouts.swift`
+- `RomeLegionsApp.xcodeproj/project.pbxproj`
+- `.github/workflows/ci-results.yml`
+- `Tools/verify_project.mjs`
+- `README.md`
+- `AGENTS.md`
+- `md/flow/flow.md`
+- `md/flow/flowchart.md`
+- `md/test/test.md`
+- `md/prompt/README.md`
+- `md/prompt/v0（玩法推进）/v0.57（GameViewModel派生读板模块化拆分）.md`
+
+验证结果：
+
+- 按人工要求，本轮未运行任何本地测试、build、typecheck、RenderBattlePreview、`Tools/verify_project.mjs`、`git diff --check`、YAML/JSON/Plist 解析或脚本语法检查。
+- 最新 `main` push、GitHub Actions run 和 Agent C artifact 复判证据等待本轮实现提交后补充。
+
+遗留事项：
+
+- `GameViewModel` 类内仍包含约 3,600 行状态协调、派生组装和命令方法；后续若继续拆分，必须先设计跨文件扩展的访问边界，避免无原则放宽 private 成员。
+- 下一业务轮应回到地图、AI 或将领体验推进，不应连续用纯结构版本替代用户要求的玩法与视觉进展。
 
 ### v0.56 / BattleView 战斗壳层模块化拆分
 

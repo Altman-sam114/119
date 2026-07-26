@@ -17,6 +17,9 @@
 		100000000000000000000008 /* BattleMapView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000110 /* BattleMapView.swift */; };
 		100000000000000000000009 /* BattlePanels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000111 /* BattlePanels.swift */; };
 		100000000000000000000010 /* BattleViewStyles.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000112 /* BattleViewStyles.swift */; };
+		100000000000000000000014 /* GameViewModelMapReadouts.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000113 /* GameViewModelMapReadouts.swift */; };
+		100000000000000000000015 /* GameViewModelStrategyReadouts.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000114 /* GameViewModelStrategyReadouts.swift */; };
+		100000000000000000000016 /* GameViewModelSelectionReadouts.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000115 /* GameViewModelSelectionReadouts.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -33,6 +36,9 @@
 		100000000000000000000110 /* BattleMapView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BattleMapView.swift; sourceTree = "<group>"; };
 		100000000000000000000111 /* BattlePanels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BattlePanels.swift; sourceTree = "<group>"; };
 		100000000000000000000112 /* BattleViewStyles.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BattleViewStyles.swift; sourceTree = "<group>"; };
+		100000000000000000000113 /* GameViewModelMapReadouts.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameViewModelMapReadouts.swift; sourceTree = "<group>"; };
+		100000000000000000000114 /* GameViewModelStrategyReadouts.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameViewModelStrategyReadouts.swift; sourceTree = "<group>"; };
+		100000000000000000000115 /* GameViewModelSelectionReadouts.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameViewModelSelectionReadouts.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXGroup section */
@@ -61,6 +67,9 @@
 			children = (
 				100000000000000000000101 /* RomeLegionsApp.swift */,
 				100000000000000000000102 /* GameViewModel.swift */,
+				100000000000000000000113 /* GameViewModelMapReadouts.swift */,
+				100000000000000000000114 /* GameViewModelStrategyReadouts.swift */,
+				100000000000000000000115 /* GameViewModelSelectionReadouts.swift */,
 			);
 			path = App;
 			sourceTree = "<group>";
@@ -175,6 +184,9 @@
 			files = (
 				100000000000000000000001 /* RomeLegionsApp.swift in Sources */,
 				100000000000000000000002 /* GameViewModel.swift in Sources */,
+				100000000000000000000014 /* GameViewModelMapReadouts.swift in Sources */,
+				100000000000000000000015 /* GameViewModelStrategyReadouts.swift in Sources */,
+				100000000000000000000016 /* GameViewModelSelectionReadouts.swift in Sources */,
 				100000000000000000000003 /* RootView.swift in Sources */,
 				100000000000000000000004 /* MainMenuView.swift in Sources */,
 				100000000000000000000005 /* BattleView.swift in Sources */,

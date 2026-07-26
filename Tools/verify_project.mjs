@@ -7,6 +7,9 @@ const requiredFiles = [
   "RomeLegionsApp.xcodeproj/project.pbxproj",
   "RomeLegionsApp/App/RomeLegionsApp.swift",
   "RomeLegionsApp/App/GameViewModel.swift",
+  "RomeLegionsApp/App/GameViewModelMapReadouts.swift",
+  "RomeLegionsApp/App/GameViewModelStrategyReadouts.swift",
+  "RomeLegionsApp/App/GameViewModelSelectionReadouts.swift",
   "RomeLegionsApp/Views/RootView.swift",
   "RomeLegionsApp/Views/MainMenuView.swift",
   "RomeLegionsApp/Views/BattleView.swift",
@@ -57,6 +60,9 @@ const pbx = readFileSync("RomeLegionsApp.xcodeproj/project.pbxproj", "utf8");
 for (const token of [
   "RomeLegionsApp.swift",
   "GameViewModel.swift",
+  "GameViewModelMapReadouts.swift",
+  "GameViewModelStrategyReadouts.swift",
+  "GameViewModelSelectionReadouts.swift",
   "RootView.swift",
   "MainMenuView.swift",
   "BattleView.swift",
@@ -79,7 +85,12 @@ for (const token of ["moveUnit", "attack", "attackPreview", "CombatPreview", "re
   }
 }
 
-const viewModel = readFileSync("RomeLegionsApp/App/GameViewModel.swift", "utf8");
+const viewModel = [
+  "RomeLegionsApp/App/GameViewModelMapReadouts.swift",
+  "RomeLegionsApp/App/GameViewModelStrategyReadouts.swift",
+  "RomeLegionsApp/App/GameViewModelSelectionReadouts.swift",
+  "RomeLegionsApp/App/GameViewModel.swift"
+].map((path) => readFileSync(path, "utf8")).join("\n");
 for (const token of ["selectedPosition", "selectedTile", "func attackPreview", "primaryMission", "skipSelectedUnit", "--attack-demo", "restSelectedUnit", "isCampaignOver", "campaignStatusTitle"]) {
   if (!viewModel.includes(token)) {
     failures.push(`Game view model does not include ${token}`);

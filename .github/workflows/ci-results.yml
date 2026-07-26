@@ -10,7 +10,7 @@ permissions:
   contents: read
 
 env:
-  CI_VERSION: v0.56
+  CI_VERSION: v0.57
   PROJECT_NAME: RomeLegions
   XCODE_PROJECT: RomeLegionsApp.xcodeproj
   XCODE_SCHEME: RomeLegions
@@ -94,6 +94,9 @@ jobs:
               -o .build/render-battle-preview \
               Tools/RenderBattlePreview/main.swift \
               Sources/RomeLegionsCore/GameState.swift \
+              RomeLegionsApp/App/GameViewModelMapReadouts.swift \
+              RomeLegionsApp/App/GameViewModelStrategyReadouts.swift \
+              RomeLegionsApp/App/GameViewModelSelectionReadouts.swift \
               RomeLegionsApp/App/GameViewModel.swift \
               RomeLegionsApp/Views/BattleView.swift \
               RomeLegionsApp/Views/BattleShellControls.swift \
