@@ -9,6 +9,7 @@ struct BattleInterfaceMetrics: Equatable {
     let mapInset: CGFloat
     let edgeToolVisualSize: CGFloat
     let edgeToolSpacing: CGFloat
+    let commandIdentityWidth: CGFloat
 
     init(container: CGSize) {
         isPortrait = container.height >= container.width
@@ -19,6 +20,7 @@ struct BattleInterfaceMetrics: Equatable {
         mapInset = isShortLandscape ? 4 : 6
         edgeToolVisualSize = isShortLandscape ? 34 : 36
         edgeToolSpacing = 2
+        commandIdentityWidth = container.width < 700 ? 128 : 220
     }
 
     var fixedChromeHeight: CGFloat {
@@ -54,7 +56,10 @@ struct BattleView: View {
                                 .padding(metrics.mapInset)
                                 .frame(maxWidth: .infinity, maxHeight: .infinity)
 
-                            SelectionCommandDockView(isCompact: proxy.size.width < 700) {
+                            SelectionCommandDockView(
+                                isCompact: proxy.size.width < 700,
+                                identityWidth: metrics.commandIdentityWidth
+                            ) {
                                 activeDrawer = .orders
                             }
                             .frame(maxWidth: .infinity)
@@ -297,12 +302,13 @@ struct BattlefieldDrawerView: View {
 struct SelectionCommandDockView: View {
     @EnvironmentObject private var viewModel: GameViewModel
     var isCompact: Bool
+    var identityWidth: CGFloat
     var onShowMore: () -> Void
 
     var body: some View {
         HStack(spacing: 8) {
             selectionIdentity
-                .frame(width: isCompact ? 128 : 220, alignment: .leading)
+                .frame(width: identityWidth, alignment: .leading)
 
             Rectangle()
                 .fill(.white.opacity(0.10))

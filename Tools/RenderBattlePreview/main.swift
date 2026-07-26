@@ -1826,14 +1826,16 @@ struct RenderBattlePreview {
         logicalWidth: Double,
         logicalHeight: Double
     ) -> (x: Int, y: Int, width: Int, height: Int) {
+        let interfaceMetrics = BattleInterfaceMetrics(
+            container: CGSize(width: logicalWidth, height: logicalHeight)
+        )
         let heightRatio = logicalHeight >= logicalWidth ? 0.15 : (logicalHeight < 560 ? 0.23 : 0.15)
-        let xRatio = logicalWidth < 700 ? 0.38 : 0.28
-        let widthRatio = logicalWidth < 700 ? 0.46 : 0.58
+        let commandContentStart = Int(interfaceMetrics.commandIdentityWidth + 25)
         let regionHeight = Int(logicalHeight * heightRatio)
         return (
-            x: Int(logicalWidth * xRatio),
+            x: commandContentStart,
             y: max(0, Int(logicalHeight) - regionHeight - 2),
-            width: Int(logicalWidth * widthRatio),
+            width: max(1, Int(logicalWidth) - commandContentStart - 54),
             height: regionHeight
         )
     }

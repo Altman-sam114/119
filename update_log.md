@@ -49,7 +49,8 @@
 验证结果：
 
 - 按人工要求，本轮未运行任何本地测试、build、typecheck、RenderBattlePreview、`Tools/verify_project.mjs`、`git diff --check`、YAML/JSON/Plist 解析或脚本语法检查。
-- GitHub Actions 和六张战斗预览图等待本轮 commit push 后由 Agent C 下载最新 v0.55 artifact 复判；此处不得使用 v0.54 旧结果。
+- 初始实现 commit `c1209afbe8eb7c9ad7eeaf744236326b70f26079` 对应 run `30076990687`、attempt `1`、artifact `RomeLegions-ci-v0.55-main-c1209af-run30076990687-attempt1`；结构检查、88 项 Swift Testing、Gameplay Smoke 和 Xcode build 均成功，六张 PNG 也完整生成，但宽屏单位命令坞的攻击按钮已移动到旧像素采样区左侧，导致 `missingDistinctCommandDockRender` 误报，因此本次 run 未通过。
+- Agent C 已复判失败 run 的六张 PNG：三种尺寸的地图、横向工具、情报坞和单位/城市命令层级均完整，无空白、裁切或不合理重叠；后续修复让命令身份区宽度和采样起点共用 `BattleInterfaceMetrics`，仍需由新 commit 的最新 v0.55 artifact 重新验收。
 
 遗留事项：
 
