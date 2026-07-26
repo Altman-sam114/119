@@ -14,7 +14,7 @@
 
 - 项目类型：原创 SwiftUI iOS 罗马题材战棋原型。
 - 核心架构：纯 Swift `RomeLegionsCore` 负责玩法规则；`GameViewModel` 负责 UI 状态、命令与派生数据组装，地图战场、战略态势和选中对象 readout 分别由三个独立 Swift 文件承载；SwiftUI 视图负责展示和命令入口。
-- 当前玩法：六边形地图、地形、城市、阵营、军团、移动、攻击、反击、占城、招募、科技、任务 requirement、战役目标、胜负结算、结束保护、外交、城市扩建、城市经营与招募读板、军团训练、将领任命、军团成长决策读板、军团成长优先级读板、主动技能、技能冷却、将领详情读板、将领指挥链读板、将领战机威胁桥接读板、将令技能入口链路、将领技能目标与收益读板、被动贡献、战功状态、军团编制与成长读板、选中军团处境命令入口读板、选中军团军令窗口读板、战役推进线 HUD、地图侦察视角 HUD、战术命令建议与补线路径读板、本方将领协同与战术连携读板、将领协同步骤读板、机动落点与地图风险读板、战场焦点与将领机会读板、战场目标链路、战场态势交汇链路、敌情交战闭环 HUD、目标线地图叠层、阶段聚焦、阶段命令预览与联动高亮、地图控制与威胁热区读板、主动地图叠层图例、AI 作战计划与时间线读板、敌方将领协同读板、敌方将领威胁读板、敌情反制建议读板、反制落点/目标地图叠层、反制指令聚焦、反制命令链高亮与反制焦点链路、战术姿态与姿态预览、AI 回合、AI 主攻优先执行、敌军意图预判、敌军意图六边形路径/目标叠层、战线压力读板、战局态势面板。
+- 当前玩法：六边形地图、战略地图缩放/拖移/选择聚焦/复位、地形、城市、阵营、军团、移动、攻击、反击、占城、招募、科技、任务 requirement、战役目标、胜负结算、结束保护、外交、城市扩建、城市经营与招募读板、军团训练、将领任命、军团成长决策读板、军团成长优先级读板、主动技能、技能冷却、将领详情读板、将领指挥链读板、将领战机威胁桥接读板、将令技能入口链路、将领技能目标与收益读板、被动贡献、战功状态、军团编制与成长读板、选中军团处境命令入口读板、选中军团军令窗口读板、战役推进线 HUD、地图侦察视角 HUD、战术命令建议与补线路径读板、本方将领协同与战术连携读板、将领协同步骤读板、机动落点与地图风险读板、战场焦点与将领机会读板、战场目标链路、战场态势交汇链路、敌情交战闭环 HUD、目标线地图叠层、阶段聚焦、阶段命令预览与联动高亮、地图控制与威胁热区读板、主动地图叠层图例、AI 作战计划与时间线读板、敌方将领协同读板、敌方将领威胁读板、敌情反制建议读板、反制落点/目标地图叠层、反制指令聚焦、反制命令链高亮与反制焦点链路、战术姿态与姿态预览、AI 回合、AI 主攻优先执行、敌军意图预判、敌军意图六边形路径/目标叠层、战线压力读板、战局态势面板。
 - 当前测试入口：Swift Testing、Gameplay Smoke、项目结构检查、SwiftUI 类型检查、战斗页预览图渲染、无签名 Xcode 构建。
 - 当前协作系统：已建立 `AGENTS.md`、`update_log.md`、`md/prompt/`、`md/test/test.md`、`md/flow/flow.md`、`md/flow/flowchart.md`，默认按 `main` 直推、GitHub Actions 云端重验证、Agent C 下载未加密结果包复判，并具备未来由 Agent X 主控调度 Agent A/B/C 多轮循环的文档基线。
 - 当前 CI 入口：`.github/workflows/ci-results.yml`，在 `main` push 和手动触发时运行结构检查、SwiftPM 测试、Gameplay Smoke、RenderBattlePreview 和无签名 Xcode build，并上传 CI 结果包。
@@ -51,7 +51,8 @@
 
 - 按人工要求，本轮未运行任何本地测试、build、typecheck、RenderBattlePreview、`Tools/verify_project.mjs`、`git diff --check`、YAML/JSON/Plist 解析或脚本语法检查。
 - 初始实现 commit `8324dd5e9bba514e68bdedf5b7913ee5f4099f3b` 对应 run `30195124966`、attempt `1`、artifact `RomeLegions-ci-v0.58-main-8324dd5-run30195124966-attempt1`；manifest、JUnit 5/0、88 项 Swift Testing、Gameplay Smoke、RenderBattlePreview、Xcode build 和六图均成功，但 Agent C 在 Render/Xcode 日志发现本轮新引入的单参数 `onChange(of:perform:)` 弃用警告，因此没有给出最终通过结论。
-- Agent B 已将选择聚焦监听改为 iOS 17 / macOS 14 的双参数 `onChange` 闭包；等待追加修复 commit 对应的新 latest run 与 artifact 复判。
+- 修复 commit `1888d61faef89f0afa7590765dc174131a74e672` 将选择聚焦监听改为 iOS 17 / macOS 14 的双参数 `onChange` 闭包；对应 run `30195944484`、attempt `1`、artifact `RomeLegions-ci-v0.58-main-1888d61-run30195944484-attempt1` 的 manifest 精确匹配 `main` 与该 commit，结构检查、88 项 Swift Testing、Gameplay Smoke、RenderBattlePreview、无签名 Xcode build 和总体结果全部为 `success`，JUnit 为 5 项、0 失败，本轮 observer 弃用警告已消失。
+- Agent C 已复判最新六张 PNG：短横屏镜头工具横排，竖屏/宽屏纵排；地图、路线、城市、军团、攻击入口、顶部战况、右上抽屉工具、地图情报坞和命令坞均完整，无空白、裁切、空间层错位或新增不合理重叠。v0.58 实现验收通过。
 
 遗留事项：
 
