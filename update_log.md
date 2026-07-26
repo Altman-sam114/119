@@ -21,6 +21,42 @@
 
 ## 历史记录
 
+### v0.59 / 连续海岸线与地图叠层降噪
+
+日期：2026-07-26
+
+核心变更：
+
+- 对照《大征服者：罗马》参考视觉，新增 `CoastlineBuilder` + `CoastlineSegment` + `CoastlineLayerView`：只读遍历 `state.tiles`，按 `HexMetrics.center(for:)` 两格中心距（`tileWidth * 0.95` 阈值）判定视觉相邻的水-陆对，在地貌层与路线层之间沿两格中点绘制沙色岸线与浅色浪缘，随镜头统一变换，使海域和大陆读作整片战略地图。
+- 战场叠层降噪：`ThreatHeatTileOverlay` 改低透明填充 + 细实线并新增 `isZoneCenter`，等级图标只在热区中心格显示；`MapControlTileOverlay` 降低填充/描边对比并改细实线；`HexTileView` 默认描边由 0.10 减淡至 0.05、线宽收窄，`tileColor` 按坐标做 ±3% 确定性明度微调，弱化逐格填色棋盘感。
+- RenderBattlePreview 新增 `missingCoastlineStrategy`：断言海岸线段超过 10 段、每段一端为水一端为非水且中心距在视觉相邻阈值内、被水完全包围的深海格 `(1,7)` 不产出海岸段。结构检查追加 `CoastlineLayerView`、`CoastlineBuilder`、`isZoneCenter`；workflow `CI_VERSION` 提升到 v0.59。
+- README、flow、flowchart、test、prompt README 与 v0.59 Agent A 提示词同步海岸线与降噪边界。
+
+关键文件：
+
+- `RomeLegionsApp/Views/BattleMapView.swift`
+- `Tools/RenderBattlePreview/main.swift`
+- `Tools/verify_project.mjs`
+- `.github/workflows/ci-results.yml`
+- `README.md`
+- `md/flow/flow.md`
+- `md/flow/flowchart.md`
+- `md/test/test.md`
+- `md/prompt/README.md`
+- `md/prompt/v0（玩法推进）/v0.59（连续海岸线与地图叠层降噪）.md`
+
+验证状态：
+
+- 按人工要求，本轮未运行任何本地测试、build、typecheck、RenderBattlePreview、`Tools/verify_project.mjs`、`git diff --check` 或脚本解析。
+- 初始实现 commit `66eec9fa78b5b3e76bc14b63b2c4f55659e13a7d` 对应 run `30204276654`、attempt `1`、artifact `RomeLegions-ci-v0.59-main-66eec9f-run30204276654-attempt1`；结构检查、90 处通过标记的 Swift Testing、Gameplay Smoke、RenderBattlePreview、无签名 Xcode build 全部 `success`，JUnit 5 项 0 失败。但六图复判发现初版按 `Position.neighbors` 逻辑邻接产出的海岸段与屏幕视觉相邻不一致，出现穿越陆地/水面的斜向短线，视觉验收未通过。
+- 修复 commit `f0971b9051b70c5f9f980d47073095eaaba1eb8f` 将海岸邻接改为 `HexMetrics` 两格中心距判定（阈值 `tileWidth * 0.95`），预览断言与深海格样例同步改为几何判定；对应 run `30205113039`、attempt `1`、artifact `RomeLegions-ci-v0.59-main-f0971b9-run30205113039-attempt1`，manifest 的 branch/commitSha/runId/runAttempt 与 `origin/main` 最新 commit 精确匹配，全部检查 `success`，JUnit 5 项 0 失败，xcodebuild 仅存在既有 AppIntents 元数据噪声警告。
+- 六图目视复判：水陆交界沙色岸线沿真实水陆边界连续分布，无穿越格中心的错向短线；热区/控区叠层不再出现大面积高对比虚线，热区图标只在中心格显示；顶部战况、镜头工具、右上抽屉、情报坞和命令坞无重叠或裁切。v0.59 验收通过。
+
+遗留事项：
+
+- 海岸线目前是每条水-陆边一段直线短笔，弯折处不衔接圆滑；若要进一步接近参考作的连贯岸线，需要把相邻段连成 polyline 或用样条平滑，留待后续版本。
+- 本轮没有修改核心规则、AI、将领内容或存档；后续业务轮应优先推进 AI 多步规划或将领体验。
+
 ### v0.58 / 战略地图镜头与聚焦控制
 
 日期：2026-07-26
