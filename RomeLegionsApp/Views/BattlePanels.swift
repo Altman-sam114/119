@@ -4969,7 +4969,7 @@ struct BattleObjectiveStageBadge: View {
     }
 }
 
-private extension BattleObjectiveMapRole {
+extension BattleObjectiveMapRole {
     var tintColor: Color {
         switch self {
         case .focus:
