@@ -53,7 +53,9 @@
 验证结果：
 
 - 按人工要求，本轮未运行任何本地测试、build、typecheck、RenderBattlePreview、`Tools/verify_project.mjs`、`git diff --check`、YAML/JSON/Plist 解析或脚本语法检查。
-- 最新 `main` push、GitHub Actions run 和 Agent C artifact 复判证据等待本轮实现提交后补充。
+- 初始拆分 commit `e0514d40a57548942fc47eecdcaff9222b45c473` 对应 run `30191331165`、attempt `1`、artifact `RomeLegions-ci-v0.56-main-e0514d4-run30191331165-attempt1`；结构检查、88 项 Swift Testing 与 Gameplay Smoke 成功，但跨文件后的 `BattleObjectiveMapRole.tintColor` 仍受 `private extension` 限制，RenderBattlePreview 与 Xcode build 因同一编译错误失败，因此本次 run 未通过。
+- 最小修复 commit `437e4d675c6bc5c89b59d0de7b7ae10afa0645e1` 将该 UI 颜色映射恢复为模块内可见；对应 run `30191404238`、attempt `1`、artifact `RomeLegions-ci-v0.56-main-437e4d6-run30191404238-attempt1` 的 manifest 精确匹配 `main` 与该 commit，结构检查、88 项 Swift Testing、Gameplay Smoke、RenderBattlePreview、无签名 Xcode build 和总体结果全部为 `success`，JUnit 为 5 项、0 失败。
+- Agent C 已复判最新六张 PNG：横屏、竖屏与宽屏的地图、顶部资源条、右上工具、地图情报坞及城市/军团命令坞均完整，单位态与城市态差异保持，无空白、新增裁切或不合理重叠。v0.56 正式验收通过。
 
 遗留事项：
 
