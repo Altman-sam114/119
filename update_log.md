@@ -21,6 +21,45 @@
 
 ## 历史记录
 
+### v0.56 / BattleView 战斗壳层模块化拆分
+
+日期：2026-07-26
+
+核心变更：
+
+- 将原 8,763 行 `BattleView.swift` 按稳定 UI 子域拆为五个编译单元：根壳层保留在 `BattleView.swift`，壳层控制移入 `BattleShellControls.swift`，地图渲染移入 `BattleMapView.swift`，战斗读板移入 `BattlePanels.swift`，共享样式与展示扩展移入 `BattleViewStyles.swift`。
+- 本轮只做机械移动与编译清单同步，保留全部类型名、视觉参数、环境对象、状态所有权、action、disabled 条件和无障碍语义；没有修改 `GameState`、`GameViewModel`、AI、战斗、任务、经济或存档规则。
+- Xcode Views group/Sources phase、RenderBattlePreview 云端编译命令和 `Tools/verify_project.mjs` 已显式覆盖五个战斗 UI 文件；结构检查改为聚合五个源码后验证原有 token。
+- README、flow、flowchart、test、prompt README 与 v0.56 Agent A 提示词同步当前模块边界；workflow artifact 版本提升到 v0.56。
+
+关键文件：
+
+- `RomeLegionsApp/Views/BattleView.swift`
+- `RomeLegionsApp/Views/BattleShellControls.swift`
+- `RomeLegionsApp/Views/BattleMapView.swift`
+- `RomeLegionsApp/Views/BattlePanels.swift`
+- `RomeLegionsApp/Views/BattleViewStyles.swift`
+- `RomeLegionsApp.xcodeproj/project.pbxproj`
+- `Tools/verify_project.mjs`
+- `.github/workflows/ci-results.yml`
+- `README.md`
+- `AGENTS.md`
+- `md/flow/flow.md`
+- `md/flow/flowchart.md`
+- `md/test/test.md`
+- `md/prompt/README.md`
+- `md/prompt/v0（玩法推进）/v0.56（BattleView战斗壳层模块化拆分）.md`
+
+验证结果：
+
+- 按人工要求，本轮未运行任何本地测试、build、typecheck、RenderBattlePreview、`Tools/verify_project.mjs`、`git diff --check`、YAML/JSON/Plist 解析或脚本语法检查。
+- 最新 `main` push、GitHub Actions run 和 Agent C artifact 复判证据等待本轮实现提交后补充。
+
+遗留事项：
+
+- `BattlePanels.swift` 仍承载较多稳定读板，后续可按选择/将领、战场/敌情、战略/任务继续拆分，但不得与玩法规则改动混在同一轮。
+- `GameViewModel.swift` 仍约 7,623 行，下一独立轮次应优先拆派生摘要与 UI 适配器；AI 多步规划、将领成长内容和原创人物资产继续作为后续业务版本。
+
 ### v0.55 / 战斗指挥层级与命令界面重构
 
 日期：2026-07-24

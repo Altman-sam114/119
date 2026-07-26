@@ -48,6 +48,7 @@
 - 主动地图叠层图例：战斗地图情报坞按当前侦察视角优先排列敌军路线/目标、热区、控区、军议路径、机动落点、战场目标线、反制落点/目标、可移动/可攻击和技能范围，非当前项降权但仍可横向访问，同时保留阵营色说明
 - 地图主导战斗壳层：战斗页使用薄资源带、全宽主地图、五类边缘工具、可关闭按需抽屉和选择驱动底部命令坞；军团、城市与地块的身份和高频命令就地可读，原情报、战场、敌情、科技、外交、任务与战报入口继续复用既有面板和 `GameViewModel` 行为
 - 战斗指挥层级：`BattleInterfaceMetrics` 统一三种尺寸的顶部、地图、命令坞与边缘工具尺度；五个抽屉入口改为地图右上横向贴边控制，底部按“身份、当前目标、主要命令、次要命令”组织，并进一步降低非当前侦察路线和默认格边界权重
+- 战斗 UI 模块化：`BattleView.swift` 只保留根壳层和布局所有权，壳层控制、地图渲染、战斗面板与共享样式分别由独立 Swift 文件维护；状态与命令仍统一来自 `GameViewModel`
 - 地图构图与将领兵牌层级：六边格按屏幕比例采用稳定垂直偏置，竖屏战区上移并减少空场；有将领军团使用原创姓名首字徽章，和普通军团形成不依赖颜色的形状/字符差异
 - 原创战略底图与六类地貌材质：全屏地图背景使用确定性 Canvas 绘制陆地分区、水系、等高线、战略道路和纸面颗粒；平原、森林、丘陵、水域、道路和城市分别使用田垄、树冠、山脊、波纹、路床和街区纹理，短横屏使用稳定的扁平六边比例扩大可见战区；城市和军团升级为城墙/军旗轮廓，继续保留阵营、城防、兵种、将领、生命、战功、姿态、冷却和行动状态
 - 战斗读板标签行 UI 重构：战场态势、选中军团处境和军令窗口等短标签行共享同一 SwiftUI 展示组件，减少重复 UI 结构，不改变 ViewModel 数据源或核心规则
@@ -106,7 +107,12 @@ node Tools/verify_project.mjs
 战斗页三尺寸预览图；渲染前会断言六类地貌 profile 唯一、多层纹理和三种尺寸战区尺度策略，并继续断言敌军意图 ViewModel 叠层包含移动后攻击六边形邻接路径、目标格和预计伤害文案，以及战役推进线 HUD、地图侦察视角 HUD、敌情交战闭环 HUD、主动地图叠层图例、AI 作战计划读板与时间线读板、敌方将领威胁读板、敌情反制建议读板、反制落点/目标地图 overlay、反制指令聚焦与焦点链路、战线压力读板、战场焦点摘要、战场目标链路、战场态势交汇链路、选中军团处境命令入口读板、选中军团军令窗口读板、目标线地图 overlay、阶段聚焦、阶段命令预览与联动高亮 cue、将令技能入口链路、将领指挥链读板、将领战机威胁桥接读板、将领技能目标与收益读板、地图控制摘要、威胁热区摘要、选中单位的军团编制摘要、军团成长决策摘要、军团成长优先级摘要、本方将领协同摘要和步骤读板、机动落点摘要/地图 overlay、战术建议摘要/路径/目标、将领详情、被动贡献、战功摘要、战术姿态预览和城市经营/招募读板存在。渲染后还会采样地图横向三带与青绿/蓝/灰褐材质分布；每个命令会写出请求的城市场景 PNG，并额外写出同尺寸 `*-unit.png` 单位场景 PNG：
 
 ```sh
-env HOME=$PWD/.home CLANG_MODULE_CACHE_PATH=$PWD/.build/module-cache /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/swiftc -parse-as-library -sdk /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX26.5.sdk -target arm64-apple-macosx14.0 -o .build/render-battle-preview Tools/RenderBattlePreview/main.swift Sources/RomeLegionsCore/GameState.swift RomeLegionsApp/App/GameViewModel.swift RomeLegionsApp/Views/BattleView.swift
+env HOME=$PWD/.home CLANG_MODULE_CACHE_PATH=$PWD/.build/module-cache /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/swiftc -parse-as-library -sdk /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX26.5.sdk -target arm64-apple-macosx14.0 -o .build/render-battle-preview \
+  Tools/RenderBattlePreview/main.swift Sources/RomeLegionsCore/GameState.swift \
+  RomeLegionsApp/App/GameViewModel.swift \
+  RomeLegionsApp/Views/BattleView.swift RomeLegionsApp/Views/BattleShellControls.swift \
+  RomeLegionsApp/Views/BattleMapView.swift RomeLegionsApp/Views/BattlePanels.swift \
+  RomeLegionsApp/Views/BattleViewStyles.swift
 .build/render-battle-preview DerivedData/battle-landscape-preview.png 932 430
 .build/render-battle-preview DerivedData/battle-portrait-preview.png 390 844
 .build/render-battle-preview DerivedData/battle-wide-preview.png 1024 768
@@ -121,7 +127,12 @@ DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer /usr/bin/xcrun simctl l
 SwiftUI 源码类型检查：
 
 ```sh
-/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/swiftc -typecheck -swift-version 5 -sdk /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS26.5.sdk -target arm64-apple-ios17.0 -module-cache-path DerivedData/ManualModuleCache Sources/RomeLegionsCore/GameState.swift RomeLegionsApp/App/RomeLegionsApp.swift RomeLegionsApp/App/GameViewModel.swift RomeLegionsApp/Views/RootView.swift RomeLegionsApp/Views/MainMenuView.swift RomeLegionsApp/Views/BattleView.swift
+/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/swiftc -typecheck -swift-version 5 -sdk /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS26.5.sdk -target arm64-apple-ios17.0 -module-cache-path DerivedData/ManualModuleCache \
+  Sources/RomeLegionsCore/GameState.swift RomeLegionsApp/App/RomeLegionsApp.swift \
+  RomeLegionsApp/App/GameViewModel.swift RomeLegionsApp/Views/RootView.swift \
+  RomeLegionsApp/Views/MainMenuView.swift RomeLegionsApp/Views/BattleView.swift \
+  RomeLegionsApp/Views/BattleShellControls.swift RomeLegionsApp/Views/BattleMapView.swift \
+  RomeLegionsApp/Views/BattlePanels.swift RomeLegionsApp/Views/BattleViewStyles.swift
 ```
 
 无签名构建：

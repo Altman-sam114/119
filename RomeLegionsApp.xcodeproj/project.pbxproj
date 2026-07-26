@@ -13,6 +13,10 @@
 		100000000000000000000004 /* MainMenuView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000104 /* MainMenuView.swift */; };
 		100000000000000000000005 /* BattleView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000105 /* BattleView.swift */; };
 		100000000000000000000006 /* GameState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000106 /* GameState.swift */; };
+		100000000000000000000007 /* BattleShellControls.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000109 /* BattleShellControls.swift */; };
+		100000000000000000000008 /* BattleMapView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000110 /* BattleMapView.swift */; };
+		100000000000000000000009 /* BattlePanels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000111 /* BattlePanels.swift */; };
+		100000000000000000000010 /* BattleViewStyles.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000112 /* BattleViewStyles.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -25,6 +29,10 @@
 		100000000000000000000106 /* GameState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/RomeLegionsCore/GameState.swift; sourceTree = SOURCE_ROOT; };
 		100000000000000000000107 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		100000000000000000000108 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		100000000000000000000109 /* BattleShellControls.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BattleShellControls.swift; sourceTree = "<group>"; };
+		100000000000000000000110 /* BattleMapView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BattleMapView.swift; sourceTree = "<group>"; };
+		100000000000000000000111 /* BattlePanels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BattlePanels.swift; sourceTree = "<group>"; };
+		100000000000000000000112 /* BattleViewStyles.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BattleViewStyles.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXGroup section */
@@ -63,6 +71,10 @@
 				100000000000000000000103 /* RootView.swift */,
 				100000000000000000000104 /* MainMenuView.swift */,
 				100000000000000000000105 /* BattleView.swift */,
+				100000000000000000000109 /* BattleShellControls.swift */,
+				100000000000000000000110 /* BattleMapView.swift */,
+				100000000000000000000111 /* BattlePanels.swift */,
+				100000000000000000000112 /* BattleViewStyles.swift */,
 			);
 			path = Views;
 			sourceTree = "<group>";
@@ -167,6 +179,10 @@
 				100000000000000000000004 /* MainMenuView.swift in Sources */,
 				100000000000000000000005 /* BattleView.swift in Sources */,
 				100000000000000000000006 /* GameState.swift in Sources */,
+				100000000000000000000007 /* BattleShellControls.swift in Sources */,
+				100000000000000000000008 /* BattleMapView.swift in Sources */,
+				100000000000000000000009 /* BattlePanels.swift in Sources */,
+				100000000000000000000010 /* BattleViewStyles.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

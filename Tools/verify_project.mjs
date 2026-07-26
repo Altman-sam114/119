@@ -10,6 +10,10 @@ const requiredFiles = [
   "RomeLegionsApp/Views/RootView.swift",
   "RomeLegionsApp/Views/MainMenuView.swift",
   "RomeLegionsApp/Views/BattleView.swift",
+  "RomeLegionsApp/Views/BattleShellControls.swift",
+  "RomeLegionsApp/Views/BattleMapView.swift",
+  "RomeLegionsApp/Views/BattlePanels.swift",
+  "RomeLegionsApp/Views/BattleViewStyles.swift",
   "Tools/RenderBattlePreview/main.swift",
   "RomeLegionsApp/Resources/Info.plist",
   "RomeLegionsApp/Assets.xcassets/Contents.json",
@@ -56,6 +60,10 @@ for (const token of [
   "RootView.swift",
   "MainMenuView.swift",
   "BattleView.swift",
+  "BattleShellControls.swift",
+  "BattleMapView.swift",
+  "BattlePanels.swift",
+  "BattleViewStyles.swift",
   "Sources/RomeLegionsCore/GameState.swift",
   "Assets.xcassets"
 ]) {
@@ -78,7 +86,13 @@ for (const token of ["selectedPosition", "selectedTile", "func attackPreview", "
   }
 }
 
-const battle = readFileSync("RomeLegionsApp/Views/BattleView.swift", "utf8");
+const battle = [
+  "RomeLegionsApp/Views/BattleView.swift",
+  "RomeLegionsApp/Views/BattleShellControls.swift",
+  "RomeLegionsApp/Views/BattleMapView.swift",
+  "RomeLegionsApp/Views/BattlePanels.swift",
+  "RomeLegionsApp/Views/BattleViewStyles.swift"
+].map((path) => readFileSync(path, "utf8")).join("\n");
 for (const token of ["CompactCommandPanelView", "PhoneCommandDeckView", "TacticalStatusStripView", "BattlefieldFocusPanelView", "CityBadgeView", "TerrainGlyphView", "AttackTargetButton", "AttackTargetRing", "forward.end.fill"]) {
   if (!battle.includes(token)) {
     failures.push(`Battle view does not include ${token}`);
