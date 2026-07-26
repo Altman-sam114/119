@@ -21,6 +21,42 @@
 
 ## 历史记录
 
+### v0.58 / 战略地图镜头与聚焦控制
+
+日期：2026-07-26
+
+核心变更：
+
+- `WarMapView` 新增纯 SwiftUI 本地地图镜头，支持双指/按钮缩放、放大后拖移、聚焦当前选择和复位；地貌底图、路线、格子、城市、军团、攻击入口和目标环共享同一个 camera transform，顶部战况、镜头工具和底部情报坞保持固定。
+- `MapViewportState` 统一 1x...1.8x 缩放、拖移 clamp、中心/边缘聚焦和 reset 数学；镜头只观察 `GameViewModel.focusedPosition` 的后续变化，不写入 `GameState`、AI、命令或存档，初次预览保持 1x/零偏移。
+- RenderBattlePreview 新增 `missingMapViewportStrategy`，云端断言默认态、上下限、拖移边界、聚焦和复位；结构检查同步镜头类型、手势与控制入口，workflow artifact 版本提升到 v0.58。
+- README、AGENTS、flow、flowchart、test、prompt README 与 v0.58 Agent A 提示词同步当前镜头边界和云端验收要求。
+
+关键文件：
+
+- `RomeLegionsApp/Views/BattleMapView.swift`
+- `RomeLegionsApp/Views/BattleViewStyles.swift`
+- `Tools/RenderBattlePreview/main.swift`
+- `Tools/verify_project.mjs`
+- `.github/workflows/ci-results.yml`
+- `README.md`
+- `AGENTS.md`
+- `md/flow/flow.md`
+- `md/flow/flowchart.md`
+- `md/test/test.md`
+- `md/prompt/README.md`
+- `md/prompt/v0（玩法推进）/v0.58（战略地图镜头与聚焦控制）.md`
+
+验证状态：
+
+- 按人工要求，本轮未运行任何本地测试、build、typecheck、RenderBattlePreview、`Tools/verify_project.mjs`、`git diff --check`、YAML/JSON/Plist 解析或脚本语法检查。
+- 等待本轮 `main` push 后 GitHub Actions 与 Agent C 对最新 artifact、日志和六张 PNG 的复判；当前不得视为正式验收通过。
+
+遗留事项：
+
+- 真实双指/拖移触控手感仍需后续真机人工体验；本轮云端以镜头纯值策略、编译和默认六图回归作为自动门槛。
+- 本轮没有修改核心规则、AI、将领内容或存档；后续业务轮应优先推进 AI 多步规划或将领体验。
+
 ### v0.57 / GameViewModel 派生读板模块化拆分
 
 日期：2026-07-26

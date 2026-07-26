@@ -1646,6 +1646,27 @@ struct RenderBattlePreview {
         let shortInterfaceMetrics = BattleInterfaceMetrics(container: CGSize(width: 932, height: 430))
         let portraitInterfaceMetrics = BattleInterfaceMetrics(container: CGSize(width: 390, height: 844))
         let wideInterfaceMetrics = BattleInterfaceMetrics(container: CGSize(width: 1024, height: 768))
+        let cameraContainer = CGSize(width: 390, height: 670)
+        let cameraCenter = CGPoint(x: cameraContainer.width / 2, y: cameraContainer.height / 2)
+        var minimumCamera = MapViewportState()
+        minimumCamera.setScale(0.2, in: cameraContainer)
+        minimumCamera.pan(by: CGSize(width: 120, height: -90), in: cameraContainer)
+        var maximumCamera = MapViewportState()
+        maximumCamera.setScale(9, in: cameraContainer)
+        maximumCamera.pan(by: CGSize(width: 10_000, height: -10_000), in: cameraContainer)
+        let maximumCameraOffset = maximumCamera.maximumOffset(in: cameraContainer)
+        var centeredCamera = MapViewportState()
+        centeredCamera.focus(on: cameraCenter, in: cameraContainer)
+        var edgeCamera = MapViewportState()
+        edgeCamera.focus(on: .zero, in: cameraContainer)
+        let edgeCameraLimit = edgeCamera.maximumOffset(in: cameraContainer)
+        let interactiveCamera = MapViewportState().applying(
+            magnification: 1.5,
+            translation: CGSize(width: 10_000, height: 10_000),
+            in: cameraContainer
+        )
+        var resetCamera = edgeCamera
+        resetCamera.reset()
         guard enemyPresentation.showsEnemyIntentDetails,
               enemyPresentation.enemyRouteOpacity == 1,
               !enemyPresentation.showsBattleObjective,
@@ -1675,6 +1696,23 @@ struct RenderBattlePreview {
               shortInterfaceMetrics.edgeToolVisualSize < 44,
               wideInterfaceMetrics.edgeToolSpacing <= 2 else {
             throw PreviewRenderError.missingBattleCommandHierarchy
+        }
+        guard minimumCamera.isDefault,
+              minimumCamera.scale == MapViewportState.minimumScale,
+              minimumCamera.offset == .zero,
+              maximumCamera.scale == MapViewportState.maximumScale,
+              abs(maximumCamera.offset.width - maximumCameraOffset.width) < 0.001,
+              abs(maximumCamera.offset.height + maximumCameraOffset.height) < 0.001,
+              centeredCamera.scale == MapViewportState.focusScale,
+              centeredCamera.offset == .zero,
+              edgeCamera.scale == MapViewportState.focusScale,
+              abs(edgeCamera.offset.width - edgeCameraLimit.width) < 0.001,
+              abs(edgeCamera.offset.height - edgeCameraLimit.height) < 0.001,
+              interactiveCamera.scale == 1.5,
+              abs(interactiveCamera.offset.width - interactiveCamera.maximumOffset(in: cameraContainer).width) < 0.001,
+              abs(interactiveCamera.offset.height - interactiveCamera.maximumOffset(in: cameraContainer).height) < 0.001,
+              resetCamera.isDefault else {
+            throw PreviewRenderError.missingMapViewportStrategy
         }
         guard Set(terrainProfiles.map(\.signature)).count == TerrainType.allCases.count,
               terrainProfiles.allSatisfy({ $0.layerCount >= 3 && $0.landmarkOpacity <= 0.18 }),
@@ -2097,6 +2135,7 @@ enum PreviewRenderError: Error {
     case missingMapIntelligenceDock
     case missingMapOverlayFocusStrategy
     case missingBattleCommandHierarchy
+    case missingMapViewportStrategy
     case missingTerrainMaterialStrategy
     case missingStrategicMapMaterialCoverage
     case missingCommandDockAttackFixture

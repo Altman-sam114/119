@@ -2,6 +2,9 @@ import SwiftUI
 
 struct WarMapView: View {
     @EnvironmentObject private var viewModel: GameViewModel
+    @State private var viewport = MapViewportState()
+    @GestureState private var gestureMagnification: CGFloat = 1
+    @GestureState private var gestureTranslation: CGSize = .zero
 
     var body: some View {
         GeometryReader { proxy in
@@ -39,110 +42,158 @@ struct WarMapView: View {
             let overlayPresentation = MapOverlayPresentation(
                 perspective: viewModel.selectedMapReconPerspective
             )
+            let interactiveViewport = viewport.applying(
+                magnification: gestureMagnification,
+                translation: gestureTranslation,
+                in: proxy.size
+            )
 
             ZStack {
-                MapBackdropView()
+                ZStack {
+                    MapBackdropView()
 
-                EnemyIntentRouteLayerView(overlays: enemyIntentOverlays, metrics: metrics)
-                    .opacity(overlayPresentation.enemyRouteOpacity)
-                    .allowsHitTesting(false)
-                    .zIndex(1)
-
-                if let tacticalRecommendation {
-                    TacticalRecommendationRouteLayerView(summary: tacticalRecommendation, metrics: metrics)
-                        .opacity(overlayPresentation.tacticalRouteOpacity)
+                    EnemyIntentRouteLayerView(overlays: enemyIntentOverlays, metrics: metrics)
+                        .opacity(overlayPresentation.enemyRouteOpacity)
                         .allowsHitTesting(false)
-                        .zIndex(2)
-                }
+                        .zIndex(1)
 
-                if let battleObjectiveOverlay,
-                   overlayPresentation.showsBattleObjective {
-                    BattleObjectiveRouteLayerView(overlay: battleObjectiveOverlay, metrics: metrics)
-                        .allowsHitTesting(false)
-                        .zIndex(2.35)
-                }
-
-                if let countermeasureOverlay,
-                   overlayPresentation.showsCountermeasure {
-                    CountermeasureRouteLayerView(overlay: countermeasureOverlay, metrics: metrics)
-                        .allowsHitTesting(false)
-                        .zIndex(2.5)
-                }
-
-                ForEach(viewModel.state.tiles) { tile in
-                    let city = viewModel.state.city(at: tile.position)
-                    let unit = viewModel.state.unit(at: tile.position)
-                    let center = metrics.center(for: tile.position)
-                    HexTileView(
-                        tile: tile,
-                        city: city,
-                        unit: unit,
-                        enemyIntent: overlayPresentation.showsEnemyIntentDetails
-                            ? unit.flatMap { enemyIntentsByUnit[$0.id] }
-                            : nil,
-                        enemyIntentDestination: overlayPresentation.showsEnemyIntentDetails
-                            ? enemyIntentDestinations[tile.position]
-                            : nil,
-                        enemyIntentTarget: overlayPresentation.showsEnemyIntentDetails
-                            ? enemyIntentTargets[tile.position]
-                            : nil,
-                        tacticalRecommendation: tacticalRecommendation,
-                        maneuverOption: maneuverOptionOverlays[tile.position],
-                        battleObjectiveOverlays: overlayPresentation.showsBattleObjective
-                            ? battleObjectiveOverlays[tile.position, default: []]
-                            : [],
-                        focusedBattleObjectiveRole: activeBattleObjectiveStageRole,
-                        countermeasureOverlay: overlayPresentation.showsCountermeasure
-                            ? countermeasureOverlays[tile.position]
-                            : nil,
-                        mapControlSummary: overlayPresentation.showsTerrainPressure
-                            ? mapControlSummaries[tile.position]
-                            : nil,
-                        threatHeatZoneSummary: overlayPresentation.showsTerrainPressure
-                            ? threatHeatOverlaysByPosition[tile.position]
-                            : nil,
-                        isMapControlOverlay: overlayPresentation.showsTerrainPressure &&
-                            mapControlOverlayPositions.contains(tile.position),
-                        isTacticalRecommendationPath: tacticalRecommendationPathPositions.contains(tile.position),
-                        isTacticalRecommendationTarget: tacticalRecommendationTargetPosition == tile.position,
-                        isSelected: selectedPosition == tile.position,
-                        isReachable: viewModel.reachablePositions.contains(tile.position),
-                        isAttackTarget: attackTargets.contains { $0.position == tile.position },
-                        isSkillRange: skillRangePositions.contains(tile.position),
-                        isSkillTarget: skillTargetPositions.contains(tile.position) ||
-                            unit.map { skillTargetUnitIDs.contains($0.id) } == true ||
-                            city.map { skillTargetCityIDs.contains($0.id) } == true,
-                        scale: metrics.tileScale
-                    )
-                    .frame(width: metrics.tileWidth, height: metrics.tileHeight)
-                    .position(center)
-                    .onTapGesture {
-                        viewModel.selectTile(tile.position)
+                    if let tacticalRecommendation {
+                        TacticalRecommendationRouteLayerView(summary: tacticalRecommendation, metrics: metrics)
+                            .opacity(overlayPresentation.tacticalRouteOpacity)
+                            .allowsHitTesting(false)
+                            .zIndex(2)
                     }
-                }
 
-                ForEach(attackTargets) { target in
-                    let center = metrics.center(for: target.position)
-                    AttackTargetButton(
-                        unit: target,
-                        preview: viewModel.attackPreview(for: target.id),
-                        scale: metrics.actionScale
-                    )
+                    if let battleObjectiveOverlay,
+                       overlayPresentation.showsBattleObjective {
+                        BattleObjectiveRouteLayerView(overlay: battleObjectiveOverlay, metrics: metrics)
+                            .allowsHitTesting(false)
+                            .zIndex(2.35)
+                    }
+
+                    if let countermeasureOverlay,
+                       overlayPresentation.showsCountermeasure {
+                        CountermeasureRouteLayerView(overlay: countermeasureOverlay, metrics: metrics)
+                            .allowsHitTesting(false)
+                            .zIndex(2.5)
+                    }
+
+                    ForEach(viewModel.state.tiles) { tile in
+                        let city = viewModel.state.city(at: tile.position)
+                        let unit = viewModel.state.unit(at: tile.position)
+                        let center = metrics.center(for: tile.position)
+                        HexTileView(
+                            tile: tile,
+                            city: city,
+                            unit: unit,
+                            enemyIntent: overlayPresentation.showsEnemyIntentDetails
+                                ? unit.flatMap { enemyIntentsByUnit[$0.id] }
+                                : nil,
+                            enemyIntentDestination: overlayPresentation.showsEnemyIntentDetails
+                                ? enemyIntentDestinations[tile.position]
+                                : nil,
+                            enemyIntentTarget: overlayPresentation.showsEnemyIntentDetails
+                                ? enemyIntentTargets[tile.position]
+                                : nil,
+                            tacticalRecommendation: tacticalRecommendation,
+                            maneuverOption: maneuverOptionOverlays[tile.position],
+                            battleObjectiveOverlays: overlayPresentation.showsBattleObjective
+                                ? battleObjectiveOverlays[tile.position, default: []]
+                                : [],
+                            focusedBattleObjectiveRole: activeBattleObjectiveStageRole,
+                            countermeasureOverlay: overlayPresentation.showsCountermeasure
+                                ? countermeasureOverlays[tile.position]
+                                : nil,
+                            mapControlSummary: overlayPresentation.showsTerrainPressure
+                                ? mapControlSummaries[tile.position]
+                                : nil,
+                            threatHeatZoneSummary: overlayPresentation.showsTerrainPressure
+                                ? threatHeatOverlaysByPosition[tile.position]
+                                : nil,
+                            isMapControlOverlay: overlayPresentation.showsTerrainPressure &&
+                                mapControlOverlayPositions.contains(tile.position),
+                            isTacticalRecommendationPath: tacticalRecommendationPathPositions.contains(tile.position),
+                            isTacticalRecommendationTarget: tacticalRecommendationTargetPosition == tile.position,
+                            isSelected: selectedPosition == tile.position,
+                            isReachable: viewModel.reachablePositions.contains(tile.position),
+                            isAttackTarget: attackTargets.contains { $0.position == tile.position },
+                            isSkillRange: skillRangePositions.contains(tile.position),
+                            isSkillTarget: skillTargetPositions.contains(tile.position) ||
+                                unit.map { skillTargetUnitIDs.contains($0.id) } == true ||
+                                city.map { skillTargetCityIDs.contains($0.id) } == true,
+                            scale: metrics.tileScale
+                        )
+                        .frame(width: metrics.tileWidth, height: metrics.tileHeight)
+                        .position(center)
+                        .onTapGesture {
+                            viewModel.selectTile(tile.position)
+                        }
+                    }
+
+                    ForEach(attackTargets) { target in
+                        let center = metrics.center(for: target.position)
+                        AttackTargetButton(
+                            unit: target,
+                            preview: viewModel.attackPreview(for: target.id),
+                            scale: metrics.actionScale
+                        )
                         .position(x: center.x, y: center.y - metrics.tileHeight * 0.57)
                         .onTapGesture {
                             viewModel.attack(target.id)
                         }
                         .zIndex(4)
-                }
+                    }
 
-                ForEach(viewModel.state.units.filter { attackTargetIDs.contains($0.id) }) { target in
-                    let center = metrics.center(for: target.position)
-                    AttackTargetRing()
-                        .frame(width: metrics.tileWidth * 0.92, height: metrics.tileHeight * 0.92)
-                        .position(center)
-                        .allowsHitTesting(false)
-                        .zIndex(3)
+                    ForEach(viewModel.state.units.filter { attackTargetIDs.contains($0.id) }) { target in
+                        let center = metrics.center(for: target.position)
+                        AttackTargetRing()
+                            .frame(width: metrics.tileWidth * 0.92, height: metrics.tileHeight * 0.92)
+                            .position(center)
+                            .allowsHitTesting(false)
+                            .zIndex(3)
+                    }
                 }
+                .scaleEffect(interactiveViewport.scale)
+                .offset(interactiveViewport.offset)
+                .contentShape(Rectangle())
+                .simultaneousGesture(mapMagnificationGesture(container: proxy.size))
+                .simultaneousGesture(mapDragGesture(container: proxy.size))
+
+                VStack {
+                    Spacer(minLength: 62)
+                    HStack {
+                        MapCameraControlsView(
+                            usesHorizontalLayout: proxy.size.height < 390,
+                            canFocus: selectedPosition != nil,
+                            canZoomIn: viewport.scale < MapViewportState.maximumScale,
+                            canZoomOut: viewport.scale > MapViewportState.minimumScale,
+                            canReset: !viewport.isDefault,
+                            onZoomIn: {
+                                withAnimation(.easeInOut(duration: 0.18)) {
+                                    viewport.setScale(viewport.scale + 0.2, in: proxy.size)
+                                }
+                            },
+                            onZoomOut: {
+                                withAnimation(.easeInOut(duration: 0.18)) {
+                                    viewport.setScale(viewport.scale - 0.2, in: proxy.size)
+                                }
+                            },
+                            onFocus: {
+                                guard let selectedPosition else { return }
+                                focusViewport(on: selectedPosition, metrics: metrics, container: proxy.size)
+                            },
+                            onReset: {
+                                withAnimation(.easeInOut(duration: 0.22)) {
+                                    viewport.reset()
+                                }
+                            }
+                        )
+                        Spacer()
+                    }
+                    Spacer(minLength: 70)
+                }
+                .padding(.leading, 8)
+                .zIndex(5.05)
 
                 VStack {
                     HStack {
@@ -176,12 +227,110 @@ struct WarMapView: View {
                 }
                 .zIndex(5.1)
             }
+            .onChange(of: selectedPosition) { newPosition in
+                guard let newPosition else { return }
+                focusViewport(on: newPosition, metrics: metrics, container: proxy.size)
+            }
             .clipShape(RoundedRectangle(cornerRadius: 8))
             .overlay {
                 RoundedRectangle(cornerRadius: 8)
                     .stroke(.white.opacity(0.08), lineWidth: 1)
             }
         }
+    }
+
+    private func mapMagnificationGesture(container: CGSize) -> some Gesture {
+        MagnificationGesture()
+            .updating($gestureMagnification) { value, state, _ in
+                state = value
+            }
+            .onEnded { value in
+                viewport.setScale(viewport.scale * value, in: container)
+            }
+    }
+
+    private func mapDragGesture(container: CGSize) -> some Gesture {
+        DragGesture(minimumDistance: 8)
+            .updating($gestureTranslation) { value, state, _ in
+                state = value.translation
+            }
+            .onEnded { value in
+                viewport.pan(by: value.translation, in: container)
+            }
+    }
+
+    private func focusViewport(on position: Position, metrics: HexMetrics, container: CGSize) {
+        let workingCenter = CGPoint(x: container.width / 2, y: max(58, (container.height - 66) / 2))
+        withAnimation(.easeInOut(duration: 0.28)) {
+            viewport.focus(
+                on: metrics.center(for: position),
+                in: container,
+                viewportCenter: workingCenter
+            )
+        }
+    }
+}
+
+struct MapCameraControlsView: View {
+    var usesHorizontalLayout: Bool
+    var canFocus: Bool
+    var canZoomIn: Bool
+    var canZoomOut: Bool
+    var canReset: Bool
+    var onZoomIn: () -> Void
+    var onZoomOut: () -> Void
+    var onFocus: () -> Void
+    var onReset: () -> Void
+
+    var body: some View {
+        Group {
+            if usesHorizontalLayout {
+                HStack(spacing: 2) {
+                    cameraButtons
+                }
+            } else {
+                VStack(spacing: 2) {
+                    cameraButtons
+                }
+            }
+        }
+        .padding(2)
+        .background(.black.opacity(0.52))
+        .clipShape(.rect(cornerRadius: 7))
+        .overlay {
+            RoundedRectangle(cornerRadius: 7)
+                .stroke(.white.opacity(0.14), lineWidth: 1)
+        }
+        .accessibilityElement(children: .contain)
+    }
+
+    @ViewBuilder
+    private var cameraButtons: some View {
+        cameraButton("放大战略地图", symbol: "plus.magnifyingglass", enabled: canZoomIn, action: onZoomIn)
+        cameraButton("缩小战略地图", symbol: "minus.magnifyingglass", enabled: canZoomOut, action: onZoomOut)
+        cameraButton("聚焦当前选择", symbol: "scope", enabled: canFocus, action: onFocus)
+        cameraButton("复位地图镜头", symbol: "arrow.counterclockwise", enabled: canReset, action: onReset)
+    }
+
+    private func cameraButton(
+        _ label: String,
+        symbol: String,
+        enabled: Bool,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(label, systemImage: symbol, action: action)
+            .labelStyle(.iconOnly)
+            .font(.caption.weight(.black))
+            .foregroundStyle(.white)
+            .frame(width: 44, height: 44)
+            .background(.black.opacity(enabled ? 0.46 : 0.18))
+            .clipShape(.rect(cornerRadius: 5))
+            .contentShape(Rectangle())
+            .disabled(!enabled)
+            .opacity(enabled ? 1 : 0.42)
+            .help(label)
+            .accessibilityLabel(label)
+            .accessibilityHint("地图镜头操作，不会改变战局命令")
     }
 }
 

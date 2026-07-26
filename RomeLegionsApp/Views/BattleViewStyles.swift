@@ -60,6 +60,82 @@ struct SecondaryButtonStyle: ButtonStyle {
     }
 }
 
+struct MapViewportState: Equatable {
+    static let minimumScale: CGFloat = 1
+    static let maximumScale: CGFloat = 1.8
+    static let focusScale: CGFloat = 1.34
+
+    private(set) var scale: CGFloat = minimumScale
+    private(set) var offset: CGSize = .zero
+
+    var isDefault: Bool {
+        abs(scale - Self.minimumScale) < 0.001 &&
+            abs(offset.width) < 0.001 &&
+            abs(offset.height) < 0.001
+    }
+
+    mutating func setScale(_ proposedScale: CGFloat, in container: CGSize) {
+        scale = min(Self.maximumScale, max(Self.minimumScale, proposedScale))
+        offset = clampedOffset(offset, in: container)
+    }
+
+    mutating func pan(by translation: CGSize, in container: CGSize) {
+        offset = clampedOffset(
+            CGSize(
+                width: offset.width + translation.width,
+                height: offset.height + translation.height
+            ),
+            in: container
+        )
+    }
+
+    mutating func focus(
+        on point: CGPoint,
+        in container: CGSize,
+        viewportCenter: CGPoint? = nil
+    ) {
+        setScale(max(scale, Self.focusScale), in: container)
+        let transformCenter = CGPoint(x: container.width / 2, y: container.height / 2)
+        let destination = viewportCenter ?? transformCenter
+        let proposedOffset = CGSize(
+            width: destination.x - transformCenter.x - (point.x - transformCenter.x) * scale,
+            height: destination.y - transformCenter.y - (point.y - transformCenter.y) * scale
+        )
+        offset = clampedOffset(proposedOffset, in: container)
+    }
+
+    mutating func reset() {
+        scale = Self.minimumScale
+        offset = .zero
+    }
+
+    func applying(
+        magnification: CGFloat,
+        translation: CGSize,
+        in container: CGSize
+    ) -> MapViewportState {
+        var result = self
+        result.setScale(scale * magnification, in: container)
+        result.pan(by: translation, in: container)
+        return result
+    }
+
+    func maximumOffset(in container: CGSize) -> CGSize {
+        CGSize(
+            width: max(0, container.width * (scale - 1) / 2),
+            height: max(0, container.height * (scale - 1) / 2)
+        )
+    }
+
+    private func clampedOffset(_ proposedOffset: CGSize, in container: CGSize) -> CGSize {
+        let limit = maximumOffset(in: container)
+        return CGSize(
+            width: min(limit.width, max(-limit.width, proposedOffset.width)),
+            height: min(limit.height, max(-limit.height, proposedOffset.height))
+        )
+    }
+}
+
 struct HexMetrics {
     let tileWidth: CGFloat
     let tileHeight: CGFloat

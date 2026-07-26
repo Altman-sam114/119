@@ -10,7 +10,7 @@
 2. `RootView` 根据 `viewModel.isShowingMenu` 展示 `MainMenuView` 或 `BattleView`。
 3. `MainMenuView` 调用 `viewModel.start(mode:)`，创建 `GameState.newCampaign(mode:)` 并进入战斗。
 4. `GameViewModel.swift` 只保留 `@MainActor final class GameViewModel` 状态协调类及其类内实现；`GameViewModelMapReadouts.swift` 承载地图、敌情、反制、目标线、侦察视角和推进派生类型，`GameViewModelStrategyReadouts.swift` 承载控区、热区、AI 计划、敌将、战线和处境派生类型，`GameViewModelSelectionReadouts.swift` 承载军团成长、将领、军令窗口、姿态与城市派生类型。三个文件只定义 UI 友好数据结构，仍由同一个 `GameViewModel` 组装，不持有或修改核心状态。
-5. `BattleView.swift` 只持有战斗根壳层、`BattleInterfaceMetrics` 和抽屉本地 `@State`；`BattleShellControls.swift` 负责薄顶部资源带、五类边缘工具、覆盖抽屉和选择驱动底部命令坞，`BattleMapView.swift` 负责全宽 `WarMapView`、地图 HUD、路线/格子叠层、地貌材质与城市/军团 token，`BattlePanels.swift` 负责完整/紧凑读板和地图图例，`BattleViewStyles.swift` 负责共享按钮样式、六边形布局与展示扩展。五个编译单元继续读取同一个 `GameViewModel`；`MapOverlayPresentation` 只把现有 `selectedMapReconPerspective` 映射为 route/tile/legend 的显示优先级，`MapBackdropView` 与 `TerrainTextureView` 只绘制既有地图数据，这些展示链路不改任何报告、命令或核心状态。
+5. `BattleView.swift` 只持有战斗根壳层、`BattleInterfaceMetrics` 和抽屉本地 `@State`；`BattleShellControls.swift` 负责薄顶部资源带、五类边缘工具、覆盖抽屉和选择驱动底部命令坞，`BattleMapView.swift` 负责全宽 `WarMapView`、地图 HUD、路线/格子叠层、地貌材质、城市/军团 token 和本地镜头交互，`BattlePanels.swift` 负责完整/紧凑读板和地图图例，`BattleViewStyles.swift` 负责共享按钮样式、六边形布局、`MapViewportState` 镜头数学与展示扩展。五个编译单元继续读取同一个 `GameViewModel`；`MapOverlayPresentation` 只把现有 `selectedMapReconPerspective` 映射为 route/tile/legend 的显示优先级，`MapViewportState` 只响应手势、按钮和 `focusedPosition` 变化，`MapBackdropView` 与 `TerrainTextureView` 只绘制既有地图数据，这些展示链路不改任何报告、命令、核心状态或存档。
 6. 用户点击地图或命令按钮后，`GameViewModel` 调用 `GameState` 的 mutating 方法。
 7. `GameState` 修改核心状态并返回中文消息数组。
 8. `GameViewModel.apply` 捕获成功消息或 `GameRuleError`，更新 `bannerMessage`。
@@ -65,6 +65,7 @@
 - `GameViewModel.mapReconPerspectiveHUDReadout` 只读组合当前侦察视角下的敌军路线/闭环、反制建议/指令、战场目标线/阶段命令或热区/控区/态势交汇，输出标题、状态、细节、下一步、风险和 signal；`selectMapReconPerspective(_:)` 只改变 `selectedMapReconPerspective` 与 banner，不改变选择态、叠层、命令或 `GameState`。
 - `BattleView` 在地图底部用单层情报坞切换敌路、反制、目标线、热区/控区；`MapOverlayPresentation` 只过滤或降低非当前 route/tile/legend 的视觉权重，攻击、技能、可达、选中和当前军议命令预览始终保留。它不修改 ViewModel 叠层集合、评分、选择态或 `GameState`，也不自动执行命令。
 - `MapBackdropView` 用固定路径绘制陆地分区、水系、等高线、战略道路和颗粒，`TerrainMaterialProfile` 为平原/森林/丘陵/水域/道路/城市提供唯一材质签名和图层数量，六个 `TerrainTextureView` 子组件据此绘制田垄、树冠、山脊、波纹、路床和街区；`HexMetrics` 使用横竖屏稳定 inset 与 tile aspect 计算唯一坐标系。城市城墙、军团军旗和指挥官盾徽都只消费既有 `City` / `ArmyUnit` 数据，不新增玩法状态。
+- `MapViewportState` 把缩放限制在 1x...1.8x，并统一限制拖移、计算选择聚焦和复位；`WarMapView` 对底图、路线、六边格、城市、军团、攻击按钮和目标环应用同一个 scale/offset，战况 HUD、镜头按钮和情报坞留在屏幕坐标系。`focusedPosition` 的后续变化只驱动镜头动画，不反向写入 ViewModel 或 `GameState`，首帧仍以 1x/零偏移稳定渲染。
 - `BattleInterfaceMetrics` 从容器尺寸统一派生顶部高度、底部命令坞高度、地图 inset 和边缘工具尺寸，`BattleView` 与 RenderBattlePreview 共用同一布局来源；顶部紧凑态只保留罗马/回合主身份与五类资源，五个工具入口改为右上横向贴边控制，不再形成贯穿地图的厚重竖栏。
 - `BattleView` 默认不再用常驻右侧栏压缩地图；边缘工具按“情报军令、战场、敌情、元老院、战报”打开覆盖式抽屉，底部命令坞根据军团、城市或地块按“身份、当前目标/下一步、主要命令、次要命令”显示既有攻击、技能、姿态、休整、跳过、扩建和招募入口。抽屉开关只修改 SwiftUI 本地状态，目标 cue 只读取现有处境/军议/城市简报，所有玩法按钮仍调用原 `GameViewModel` 方法和预览/禁用条件。
 - 战斗 UI 按根壳层、壳层控制、地图、面板和共享样式拆为五个 Swift 编译单元；拆分只改变源码所有权，类型名、视觉参数、环境对象、action、disabled 条件和无障碍语义保持不变，Xcode target、结构检查与 RenderBattlePreview 使用同一文件清单。
@@ -269,6 +270,7 @@ Agent X 不能跳过 Agent C artifact 验收，不能把旧 run、旧 artifact�
 
 ## 用户入口
 
+- v0.58 镜头云端门禁：RenderBattlePreview 在渲染前断言默认态、缩放上下限、拖移边界、中心/边缘聚焦与复位；三尺寸六图继续复判镜头工具、固定 HUD 和地图空间层对齐。
 - 普通运行：打开 `RomeLegionsApp.xcodeproj`，选择 iPhone 或 iPad Simulator，运行 `RomeLegions` target。
 - 命令行 UI 复现：`xcrun simctl launch booted com.codex.RomeLegions --attack-demo`。
 - 预览渲染：`Tools/RenderBattlePreview/main.swift` 生成战斗页 PNG，并在渲染前断言六类地貌 profile 唯一、多层纹理与三种尺寸战区尺度策略，同时保留敌军意图六边形邻接路径、目标格、预计伤害、战役推进线 HUD、地图侦察视角/叠层呈现映射、敌情交战闭环摘要、单层地图情报坞、主动地图叠层图例、AI 作战计划摘要与时间线读板、敌方将领威胁摘要、敌情反制建议摘要、反制地图叠层、反制指令预览、命令链高亮 cue、焦点链路与聚焦、战线压力摘要、战场焦点摘要、战场目标链路、战场态势交汇链路、选中军团处境命令入口读板、选中军团军令窗口读板、战场目标线地图叠层、目标线阶段聚焦、阶段命令预览、阶段联动高亮 cue、将令技能入口链路、将领指挥链读板、将领战机威胁桥接读板、地图控制摘要、威胁热区摘要、军团编制摘要、军团成长决策摘要、军团成长优先级摘要、本方将领协同摘要和步骤读板、机动落点摘要/地图 overlay、战术建议摘要/路径/目标、选中单位将领详情、被动贡献、战功摘要、战术姿态预览和城市经营/招募读板存在；渲染后采样横向三带和青绿/蓝/灰褐材质分布，每个尺寸输出城市场景图和同尺寸 `*-unit.png` 单位场景图。

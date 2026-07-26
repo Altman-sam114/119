@@ -104,7 +104,7 @@ const battle = [
   "RomeLegionsApp/Views/BattlePanels.swift",
   "RomeLegionsApp/Views/BattleViewStyles.swift"
 ].map((path) => readFileSync(path, "utf8")).join("\n");
-for (const token of ["CompactCommandPanelView", "PhoneCommandDeckView", "TacticalStatusStripView", "BattlefieldFocusPanelView", "CityBadgeView", "TerrainGlyphView", "AttackTargetButton", "AttackTargetRing", "forward.end.fill"]) {
+for (const token of ["CompactCommandPanelView", "PhoneCommandDeckView", "TacticalStatusStripView", "BattlefieldFocusPanelView", "CityBadgeView", "TerrainGlyphView", "AttackTargetButton", "AttackTargetRing", "MapViewportState", "MagnificationGesture", "MapCameraControlsView", "focusViewport", "arrow.counterclockwise", "forward.end.fill"]) {
   if (!battle.includes(token)) {
     failures.push(`Battle view does not include ${token}`);
   }

@@ -194,6 +194,7 @@ Agent C 必须核对：
 - v0.55 起 RenderBattlePreview 必须通过 `BattleInterfaceMetrics` 断言 932x430、390x844、1024x768 三种尺寸的顶部/底部固定区域占屏上限、地图 inset、边缘按钮可视尺寸和间距；异常抛出 `missingBattleCommandHierarchy`。四侦察视角门禁还要检查反制、目标线和热区视角下的非焦点敌路/军议路线进一步降权；五个工具入口改按右上横向 44pt 点击槽逐一采样，不得继续沿用旧纵向坐标。Agent C 六图目视复判应确认顶部更薄、右上入口不形成厚重工具条、底部按身份/目标/主次命令可读、默认格边界不压过地貌与当前命令，并检查所有按钮无截断和重叠。
 - v0.56 起 Xcode target、结构检查和 RenderBattlePreview 编译清单必须同时包含 `BattleView.swift`、`BattleShellControls.swift`、`BattleMapView.swift`、`BattlePanels.swift` 与 `BattleViewStyles.swift`；结构检查需聚合五个文件核对原有战斗 UI token，云端六图必须继续通过 v0.55 的全部视觉和像素门禁，证明模块拆分没有丢失类型、入口或绘制层。
 - v0.57 起 Xcode target、结构检查、RenderBattlePreview 和文档中的 SwiftUI typecheck 清单必须同时包含 `GameViewModelMapReadouts.swift`、`GameViewModelStrategyReadouts.swift`、`GameViewModelSelectionReadouts.swift` 与 `GameViewModel.swift`；结构检查需聚合四个文件核对原有 ViewModel token，六张云端预览与全部只读语义断言必须继续通过，证明派生读板拆分没有丢失类型、字段、映射或状态链路。
+- v0.58 起 RenderBattlePreview 必须断言 `MapViewportState` 的默认 1x/零偏移、1x...1.8x clamp、放大后拖移边界、中心目标聚焦、边缘目标受限和 reset，异常抛出 `missingMapViewportStrategy`；结构检查必须覆盖镜头类型、双指缩放、聚焦和复位入口。Agent C 六图目视复判需确认默认地图仍稳定、四个镜头按钮可见且不与顶部战况、右上抽屉工具、底部情报坞或命令坞重叠，地图空间层没有因统一 transform 拆层而错位。
 - 若 workflow 失败，失败摘要和日志路径足以退回 Agent B 修复。
 - 若本地仓库没有 `origin` 或 `gh` 无权限，明确报告阻塞，不能伪造下载核对。
 - 只能使用 `Altman-sam114` 对应 GitHub 权限完成 push、CI 或 artifact 验收；不得使用其他账号伪装完成。

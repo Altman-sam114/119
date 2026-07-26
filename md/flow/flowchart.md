@@ -19,6 +19,8 @@ flowchart TD
     H --> I["返回中文消息或 GameRuleError<br/>说明命令结果"]
     I --> J["GameViewModel 更新 @Published 状态<br/>banner、选择态、派生数据<br/>Map / Strategy / Selection Readouts 分域"]
     J --> E
+    J --> L["focusedPosition 后续变化<br/>MapViewportState 本地聚焦"]
+    L --> E
     E --> K["抽屉分类仅为 SwiftUI 本地状态<br/>底部读取处境/军议/城市简报目标 cue<br/>复用原选择/军令、战场、敌情、内政、战报 panel"]
 ```
 
