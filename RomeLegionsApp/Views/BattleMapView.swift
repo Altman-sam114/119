@@ -49,8 +49,7 @@ struct WarMapView: View {
             )
             let coastlineSegments = CoastlineBuilder.segments(
                 tiles: viewModel.state.tiles,
-                width: viewModel.state.width,
-                height: viewModel.state.height
+                metrics: metrics
             )
 
             ZStack {
@@ -1298,13 +1297,21 @@ struct CoastlineSegment: Identifiable, Hashable {
 }
 
 enum CoastlineBuilder {
-    static func segments(tiles: [Tile], width: Int, height: Int) -> [CoastlineSegment] {
-        let terrainByPosition = Dictionary(uniqueKeysWithValues: tiles.map { ($0.position, $0.terrain) })
+    static func segments(tiles: [Tile], metrics: HexMetrics) -> [CoastlineSegment] {
+        // 视觉相邻用两格中心距离判定：相邻中心距 ≤ 0.87 倍 tileWidth，
+        // 次近中心距 ≥ 1.27 倍 tileWidth，阈值取 0.95 倍稳定区分。
+        let threshold = metrics.tileWidth * 0.95
+        let waterTiles = tiles.filter { $0.terrain == .water }
+        let landTiles = tiles.filter { $0.terrain != .water }
         var segments: [CoastlineSegment] = []
-        for tile in tiles where tile.terrain == .water {
-            for neighbor in tile.position.neighbors(width: width, height: height) {
-                guard let neighborTerrain = terrainByPosition[neighbor], neighborTerrain != .water else { continue }
-                segments.append(CoastlineSegment(waterPosition: tile.position, landPosition: neighbor))
+        for water in waterTiles {
+            let waterCenter = metrics.center(for: water.position)
+            for land in landTiles {
+                let landCenter = metrics.center(for: land.position)
+                let dx = landCenter.x - waterCenter.x
+                let dy = landCenter.y - waterCenter.y
+                guard (dx * dx + dy * dy).squareRoot() <= threshold else { continue }
+                segments.append(CoastlineSegment(waterPosition: water.position, landPosition: land.position))
             }
         }
         return segments

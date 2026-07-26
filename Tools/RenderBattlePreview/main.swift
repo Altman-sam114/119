@@ -1724,22 +1724,32 @@ struct RenderBattlePreview {
         }
         let coastlineSegments = CoastlineBuilder.segments(
             tiles: viewModel.state.tiles,
-            width: viewModel.state.width,
-            height: viewModel.state.height
+            metrics: wideMetrics
         )
         let terrainByPosition = Dictionary(
             uniqueKeysWithValues: viewModel.state.tiles.map { ($0.position, $0.terrain) }
         )
-        let deepSeaPosition = Position(x: 0, y: 6)
+        let coastlineThreshold = wideMetrics.tileWidth * 0.95
+        let deepSeaPosition = Position(x: 1, y: 7)
         let deepSeaIsSurroundedByWater = terrainByPosition[deepSeaPosition] == .water &&
-            deepSeaPosition.neighbors(width: viewModel.state.width, height: viewModel.state.height)
-                .allSatisfy { terrainByPosition[$0] == .water }
+            viewModel.state.tiles.allSatisfy { tile in
+                let deepSeaCenter = wideMetrics.center(for: deepSeaPosition)
+                let center = wideMetrics.center(for: tile.position)
+                let dx = center.x - deepSeaCenter.x
+                let dy = center.y - deepSeaCenter.y
+                let isVisualNeighbor = tile.position != deepSeaPosition &&
+                    (dx * dx + dy * dy).squareRoot() <= coastlineThreshold
+                return !isVisualNeighbor || tile.terrain == .water
+            }
         guard coastlineSegments.count > 10,
               coastlineSegments.allSatisfy({ segment in
-                  terrainByPosition[segment.waterPosition] == .water &&
+                  let waterCenter = wideMetrics.center(for: segment.waterPosition)
+                  let landCenter = wideMetrics.center(for: segment.landPosition)
+                  let dx = landCenter.x - waterCenter.x
+                  let dy = landCenter.y - waterCenter.y
+                  return terrainByPosition[segment.waterPosition] == .water &&
                       terrainByPosition[segment.landPosition] != .water &&
-                      segment.waterPosition.neighbors(width: viewModel.state.width, height: viewModel.state.height)
-                          .contains(segment.landPosition)
+                      (dx * dx + dy * dy).squareRoot() <= coastlineThreshold
               }),
               deepSeaIsSurroundedByWater,
               !coastlineSegments.contains(where: { $0.waterPosition == deepSeaPosition }) else {
