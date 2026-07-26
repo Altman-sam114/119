@@ -6734,6 +6734,8 @@ public struct GameState: Codable, Equatable, Sendable {
         messages.append(contentsOf: performAIRecruitment(for: faction))
 
         let actingIDs = aiActingUnitIDs(for: faction)
+        // 本回合已被本阵营攻击过的目标；用于集火协同评分，不进入持久状态。
+        var engagedTargetIDs: Set<String> = []
 
         for unitID in actingIDs {
             guard !campaignStatus.isGameOver else {
@@ -6771,7 +6773,8 @@ public struct GameState: Codable, Equatable, Sendable {
                 continue
             }
 
-            if let target = bestAITarget(for: orderedUnit) {
+            if let target = bestAITarget(for: orderedUnit, favoring: engagedTargetIDs) {
+                engagedTargetIDs.insert(target.id)
                 messages.append(contentsOf: performAIAttack(attackerID: unitID, defenderID: target.id))
                 if campaignStatus.isGameOver {
                     break
@@ -6796,7 +6799,8 @@ public struct GameState: Codable, Equatable, Sendable {
                 }
 
                 if let movedUnit = self.unit(withID: unitID),
-                   let target = bestAITarget(for: movedUnit) {
+                   let target = bestAITarget(for: movedUnit, favoring: engagedTargetIDs) {
+                    engagedTargetIDs.insert(target.id)
                     messages.append(contentsOf: performAIAttack(attackerID: unitID, defenderID: target.id))
                     if campaignStatus.isGameOver {
                         break
@@ -7724,14 +7728,15 @@ public struct GameState: Codable, Equatable, Sendable {
         (try? attack(attackerID: attackerID, defenderID: defenderID)) ?? []
     }
 
-    private func bestAITarget(for unit: ArmyUnit) -> ArmyUnit? {
+    private func bestAITarget(for unit: ArmyUnit, favoring engagedTargetIDs: Set<String> = []) -> ArmyUnit? {
         attackTargets(for: unit)
             .max { left, right in
-                aiAttackScore(attacker: unit, defender: left) < aiAttackScore(attacker: unit, defender: right)
+                aiAttackScore(attacker: unit, defender: left, engagedTargetIDs: engagedTargetIDs) <
+                    aiAttackScore(attacker: unit, defender: right, engagedTargetIDs: engagedTargetIDs)
             }
     }
 
-    private func aiAttackScore(attacker: ArmyUnit, defender: ArmyUnit) -> Int {
+    private func aiAttackScore(attacker: ArmyUnit, defender: ArmyUnit, engagedTargetIDs: Set<String> = []) -> Int {
         guard let preview = aiCombatPreview(attacker: attacker, defender: defender) else {
             return Int.min / 4
         }
@@ -7741,6 +7746,12 @@ public struct GameState: Codable, Equatable, Sendable {
 
         if damage >= defender.health {
             score += 160
+        }
+
+        // 集火协同：本回合已被本阵营攻击且仍存活的目标优先歼灭，
+        // 加成低于击杀 +160，保证“能击杀谁就打谁”不被翻转。
+        if engagedTargetIDs.contains(defender.id) {
+            score += 55
         }
 
         if defender.faction == .rome {

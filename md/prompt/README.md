@@ -32,6 +32,7 @@ md/prompt/v0（某主题）/v0.3（某任务）.md
 
 当前最新玩法推进提示词：
 
+- `md/prompt/v0（玩法推进）/v0.60（AI集火协同与交战记忆）.md`
 - `md/prompt/v0（玩法推进）/v0.59（连续海岸线与地图叠层降噪）.md`
 - `md/prompt/v0（玩法推进）/v0.58（战略地图镜头与聚焦控制）.md`
 - `md/prompt/v0（玩法推进）/v0.57（GameViewModel派生读板模块化拆分）.md`

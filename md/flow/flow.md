@@ -42,7 +42,7 @@
 - 预览包含基础攻击、防御、地形、友军支援、包夹、将领指挥、守军支援、战术姿态、反击和剩余生命。
 - `state.attack(attackerID:defenderID:)` 必须与预览使用同一套修正逻辑。
 - `state.aiIntents(for:limit:)` 在只读规划态中为直接攻击和移动后攻击调用同一套预览逻辑，敌军意图的 `projectedDamage` 必须等于规划态 `attackPreview.damage`。
-- `state.performSimpleAI(for:)` 在真实 AI 回合中先用当前状态下的单体 `AIIntent.threatScore` 排序尚未行动单位，高威胁主攻单位优先执行；同分按 `unitID` 稳定排序，单位内部的休整、技能、攻击、移动和移动后攻击分支保持原规则。
+- `state.performSimpleAI(for:)` 在真实 AI 回合中先用当前状态下的单体 `AIIntent.threatScore` 排序尚未行动单位，高威胁主攻单位优先执行；同分按 `unitID` 稳定排序，单位内部的休整、技能、攻击、移动和移动后攻击分支保持原规则。回合内维护 `engagedTargetIDs` 交战记忆（局部变量，不进入 `GameState` 持久状态或存档）：`bestAITarget(for:favoring:)` 对本回合已被本阵营攻击且仍存活的目标加 +55 集火加成（低于击杀 +160，高于罗马 +45），使评分接近的后续军团收敛到同一目标；`aiIntents` 静态预测路径继续使用无记忆默认参数，评分不变。
 - `GameViewModel.enemyIntentSummaries` 把 `AIIntent`、来源单位、目标单位和目标城市转成 UI 文案；`enemyIntentMapOverlays` 再派生起点、目的地、目标格、影响文案和路线线段。
 - `state.frontlinePressureReports(against:perFactionLimit:limit:)` 只读聚合交战敌方的 `AIIntent`，按防守方单位或城市分组，输出来源单位、来源阵营、意图数量、攻击/夺城数量、预计伤害合计、最高威胁、压力分和压力等级；它不新增存档字段，不改变 `AIIntent` 或真实 AI 行为。
 - `GameViewModel.frontlinePressureSummaries` 将核心战线压力报告转成目标、来源、压力等级、预计伤害/夺城风险和无障碍文案；`BattleView` 在地图顶部战线 chip、完整战局面板和紧凑战场摘要中展示，不在 SwiftUI 中重新评分。

@@ -687,6 +687,45 @@ private func riskTestPriority(_ risk: TacticalRecommendationRisk) -> Int {
     #expect(state.attackTargets(for: "rome-legion-1").isEmpty)
 }
 
+@Test func aiFocusFireConvergesOnEngagedTarget() throws {
+    // 场景一：alpha 只邻接 anvil；bravo 同时邻接 anvil 和 flanker。
+    // flanker 的防守方经验加成使其在无集火记忆时是 bravo 的更优目标；
+    // bravo 半血进入防御姿态，保证意图威胁分低于 alpha、alpha 先行动。
+    var state = GameState.newCampaign()
+    state.units = [
+        ArmyUnit(id: "rome-anvil", kind: .legion, faction: .rome, position: Position(x: 2, y: 1)),
+        ArmyUnit(id: "rome-flanker", kind: .legion, faction: .rome, position: Position(x: 4, y: 2), experience: 8),
+        ArmyUnit(id: "carthage-alpha", kind: .legion, faction: .carthage, position: Position(x: 2, y: 0), experience: 5),
+        ArmyUnit(id: "carthage-bravo", kind: .legion, faction: .carthage, position: Position(x: 3, y: 2), health: 56)
+    ]
+    state.resources[.carthage] = .zero
+    state.activeFaction = .carthage
+
+    _ = state.performSimpleAI(for: .carthage)
+
+    #expect(state.unit(withID: "carthage-alpha")?.hasActed == true)
+    #expect(state.unit(withID: "carthage-bravo")?.hasActed == true)
+    #expect((state.unit(withID: "rome-anvil")?.health ?? 0) < UnitKind.legion.maxHealth)
+    #expect(state.unit(withID: "rome-flanker")?.health == UnitKind.legion.maxHealth)
+
+    // 场景二：已交战目标被歼灭后，后续军团正常选择剩余目标。
+    var killState = GameState.newCampaign()
+    killState.units = [
+        ArmyUnit(id: "rome-anvil", kind: .legion, faction: .rome, position: Position(x: 2, y: 1), health: 30),
+        ArmyUnit(id: "rome-flanker", kind: .legion, faction: .rome, position: Position(x: 4, y: 2), experience: 8),
+        ArmyUnit(id: "carthage-alpha", kind: .legion, faction: .carthage, position: Position(x: 2, y: 0), experience: 5),
+        ArmyUnit(id: "carthage-bravo", kind: .legion, faction: .carthage, position: Position(x: 3, y: 2))
+    ]
+    killState.resources[.carthage] = .zero
+    killState.activeFaction = .carthage
+
+    _ = killState.performSimpleAI(for: .carthage)
+
+    #expect(killState.unit(withID: "rome-anvil") == nil)
+    #expect(killState.unit(withID: "carthage-bravo")?.hasActed == true)
+    #expect((killState.unit(withID: "rome-flanker")?.health ?? 0) < UnitKind.legion.maxHealth)
+}
+
 @Test func aiMovesIntoRangeThenAttacks() throws {
     var state = GameState.newCampaign()
     state.units = [
