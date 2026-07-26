@@ -1722,6 +1722,29 @@ struct RenderBattlePreview {
               wideMetrics.mapSize.width > 700 else {
             throw PreviewRenderError.missingTerrainMaterialStrategy
         }
+        let coastlineSegments = CoastlineBuilder.segments(
+            tiles: viewModel.state.tiles,
+            width: viewModel.state.width,
+            height: viewModel.state.height
+        )
+        let terrainByPosition = Dictionary(
+            uniqueKeysWithValues: viewModel.state.tiles.map { ($0.position, $0.terrain) }
+        )
+        let deepSeaPosition = Position(x: 0, y: 6)
+        let deepSeaIsSurroundedByWater = terrainByPosition[deepSeaPosition] == .water &&
+            deepSeaPosition.neighbors(width: viewModel.state.width, height: viewModel.state.height)
+                .allSatisfy { terrainByPosition[$0] == .water }
+        guard coastlineSegments.count > 10,
+              coastlineSegments.allSatisfy({ segment in
+                  terrainByPosition[segment.waterPosition] == .water &&
+                      terrainByPosition[segment.landPosition] != .water &&
+                      segment.waterPosition.neighbors(width: viewModel.state.width, height: viewModel.state.height)
+                          .contains(segment.landPosition)
+              }),
+              deepSeaIsSurroundedByWater,
+              !coastlineSegments.contains(where: { $0.waterPosition == deepSeaPosition }) else {
+            throw PreviewRenderError.missingCoastlineStrategy
+        }
         viewModel.state.units.append(commandDockTarget)
         guard viewModel.attackTargets.contains(where: { $0.id == commandDockTarget.id }),
               let commandSituation = viewModel.selectedUnitSituationReadout,
@@ -2137,6 +2160,7 @@ enum PreviewRenderError: Error {
     case missingBattleCommandHierarchy
     case missingMapViewportStrategy
     case missingTerrainMaterialStrategy
+    case missingCoastlineStrategy
     case missingStrategicMapMaterialCoverage
     case missingCommandDockAttackFixture
     case missingDistinctCommandDockRender

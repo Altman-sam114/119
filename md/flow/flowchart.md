@@ -156,6 +156,9 @@ flowchart TD
     ES --> ET["MapOverlayPresentation<br/>只控制 route/tile/legend 显示优先级<br/>攻击、技能、可达、选中和当前命令预览始终保留"]
     TM["Tile.terrain"] --> TN["TerrainMaterialProfile<br/>六类唯一材质签名/图层数/地标透明度"]
     TN --> TO["TerrainTextureView + MapBackdropView<br/>田垄/树冠/山脊/波纹/路床/街区<br/>全屏陆地/水系/等高线/战略道路"]
+    TM --> TS["CoastlineBuilder<br/>只读派生水-陆相邻段"]
+    TS --> TT["CoastlineLayerView<br/>沙色岸线 + 浅色浪缘，随镜头统一变换"]
+    TT --> TR
     TP["容器尺寸 + 棋盘宽高"] --> TQ["HexMetrics<br/>稳定 inset / tileAspect / mapSize / 唯一坐标系"]
     TQ --> TO
     TO --> TR["WarMapView 地貌底层<br/>只改变 SwiftUI 绘制，不改变 GameState / AI / 报告"]

@@ -195,6 +195,7 @@ Agent C 必须核对：
 - v0.56 起 Xcode target、结构检查和 RenderBattlePreview 编译清单必须同时包含 `BattleView.swift`、`BattleShellControls.swift`、`BattleMapView.swift`、`BattlePanels.swift` 与 `BattleViewStyles.swift`；结构检查需聚合五个文件核对原有战斗 UI token，云端六图必须继续通过 v0.55 的全部视觉和像素门禁，证明模块拆分没有丢失类型、入口或绘制层。
 - v0.57 起 Xcode target、结构检查、RenderBattlePreview 和文档中的 SwiftUI typecheck 清单必须同时包含 `GameViewModelMapReadouts.swift`、`GameViewModelStrategyReadouts.swift`、`GameViewModelSelectionReadouts.swift` 与 `GameViewModel.swift`；结构检查需聚合四个文件核对原有 ViewModel token，六张云端预览与全部只读语义断言必须继续通过，证明派生读板拆分没有丢失类型、字段、映射或状态链路。
 - v0.58 起 RenderBattlePreview 必须断言 `MapViewportState` 的默认 1x/零偏移、1x...1.8x clamp、放大后拖移边界、中心目标聚焦、边缘目标受限和 reset，异常抛出 `missingMapViewportStrategy`；结构检查必须覆盖镜头类型、双指缩放、聚焦和复位入口。Agent C 六图目视复判需确认默认地图仍稳定、四个镜头按钮可见且不与顶部战况、右上抽屉工具、底部情报坞或命令坞重叠，地图空间层没有因统一 transform 拆层而错位。
+- v0.59 起 RenderBattlePreview 必须断言 `CoastlineBuilder` 对战役地图产出超过 10 段海岸线、每段一端为水一端为非水且六边相邻、被水完全包围的深海格（如 `(0,6)`）不产出海岸段；异常抛出 `missingCoastlineStrategy`。结构检查必须覆盖 `CoastlineLayerView`、`CoastlineBuilder` 与 `isZoneCenter`。Agent C 六图目视复判需确认水陆交界出现连续沙色岸线与浅色浪缘、热区/控区叠层不再出现大面积高对比虚线、热区图标只在中心格显示、默认格描边减淡后地貌与路线仍清晰，且既有材质覆盖率门禁不回退。
 - 若 workflow 失败，失败摘要和日志路径足以退回 Agent B 修复。
 - 若本地仓库没有 `origin` 或 `gh` 无权限，明确报告阻塞，不能伪造下载核对。
 - 只能使用 `Altman-sam114` 对应 GitHub 权限完成 push、CI 或 artifact 验收；不得使用其他账号伪装完成。

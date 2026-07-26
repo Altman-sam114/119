@@ -47,10 +47,18 @@ struct WarMapView: View {
                 translation: gestureTranslation,
                 in: proxy.size
             )
+            let coastlineSegments = CoastlineBuilder.segments(
+                tiles: viewModel.state.tiles,
+                width: viewModel.state.width,
+                height: viewModel.state.height
+            )
 
             ZStack {
                 ZStack {
                     MapBackdropView()
+
+                    CoastlineLayerView(segments: coastlineSegments, metrics: metrics)
+                        .zIndex(0.5)
 
                     EnemyIntentRouteLayerView(overlays: enemyIntentOverlays, metrics: metrics)
                         .opacity(overlayPresentation.enemyRouteOpacity)
@@ -1282,6 +1290,78 @@ struct TerrainMaterialProfile: Hashable {
     let landmarkOpacity: Double
 }
 
+struct CoastlineSegment: Identifiable, Hashable {
+    let waterPosition: Position
+    let landPosition: Position
+
+    var id: String { "\(waterPosition.description)->\(landPosition.description)" }
+}
+
+enum CoastlineBuilder {
+    static func segments(tiles: [Tile], width: Int, height: Int) -> [CoastlineSegment] {
+        let terrainByPosition = Dictionary(uniqueKeysWithValues: tiles.map { ($0.position, $0.terrain) })
+        var segments: [CoastlineSegment] = []
+        for tile in tiles where tile.terrain == .water {
+            for neighbor in tile.position.neighbors(width: width, height: height) {
+                guard let neighborTerrain = terrainByPosition[neighbor], neighborTerrain != .water else { continue }
+                segments.append(CoastlineSegment(waterPosition: tile.position, landPosition: neighbor))
+            }
+        }
+        return segments
+    }
+}
+
+struct CoastlineLayerView: View {
+    var segments: [CoastlineSegment]
+    var metrics: HexMetrics
+
+    private static let sandColor = Color(red: 0.82, green: 0.72, blue: 0.50)
+    private static let foamColor = Color(red: 0.72, green: 0.86, blue: 0.90)
+
+    var body: some View {
+        Canvas { context, _ in
+            for segment in segments {
+                let water = metrics.center(for: segment.waterPosition)
+                let land = metrics.center(for: segment.landPosition)
+                let mid = CGPoint(x: (water.x + land.x) / 2, y: (water.y + land.y) / 2)
+                let dx = land.x - water.x
+                let dy = land.y - water.y
+                let length = max(1, (dx * dx + dy * dy).squareRoot())
+                let perpX = -dy / length
+                let perpY = dx / length
+                let half = metrics.tileHeight * 0.34
+
+                var shore = Path()
+                shore.move(to: CGPoint(x: mid.x - perpX * half, y: mid.y - perpY * half))
+                shore.addLine(to: CGPoint(x: mid.x + perpX * half, y: mid.y + perpY * half))
+                context.stroke(
+                    shore,
+                    with: .color(Self.sandColor.opacity(0.66)),
+                    style: StrokeStyle(lineWidth: max(2.4, metrics.tileWidth * 0.075), lineCap: .round)
+                )
+
+                let towardWaterX = -dx / length * metrics.tileWidth * 0.075
+                let towardWaterY = -dy / length * metrics.tileWidth * 0.075
+                var foam = Path()
+                foam.move(to: CGPoint(
+                    x: mid.x - perpX * half * 0.82 + towardWaterX,
+                    y: mid.y - perpY * half * 0.82 + towardWaterY
+                ))
+                foam.addLine(to: CGPoint(
+                    x: mid.x + perpX * half * 0.82 + towardWaterX,
+                    y: mid.y + perpY * half * 0.82 + towardWaterY
+                ))
+                context.stroke(
+                    foam,
+                    with: .color(Self.foamColor.opacity(0.34)),
+                    style: StrokeStyle(lineWidth: max(1, metrics.tileWidth * 0.028), lineCap: .round)
+                )
+            }
+        }
+        .allowsHitTesting(false)
+    }
+}
+
 struct HexTileView: View {
     var tile: Tile
     var city: City?
@@ -1322,7 +1402,7 @@ struct HexTileView: View {
                 }
                 .overlay {
                     Hexagon()
-                        .stroke(borderColor, lineWidth: isSelected || isAttackTarget ? max(2.4, 3 * scale) : max(0.55, 0.75 * scale))
+                        .stroke(borderColor, lineWidth: isSelected || isAttackTarget ? max(2.4, 3 * scale) : max(0.4, 0.55 * scale))
                 }
 
             TerrainGlyphView(terrain: tile.terrain, scale: scale)
@@ -1330,7 +1410,11 @@ struct HexTileView: View {
                 .offset(x: 10 * scale, y: 8 * scale)
 
             if let threatHeatZoneSummary {
-                ThreatHeatTileOverlay(summary: threatHeatZoneSummary, scale: scale)
+                ThreatHeatTileOverlay(
+                    summary: threatHeatZoneSummary,
+                    isZoneCenter: threatHeatZoneSummary.targetPosition == tile.position,
+                    scale: scale
+                )
                     .allowsHitTesting(false)
             } else if let mapControlSummary,
                       isMapControlOverlay {
@@ -1429,21 +1513,31 @@ struct HexTileView: View {
     }
 
     private var tileColor: Color {
+        let base: (red: Double, green: Double, blue: Double)
         switch tile.terrain {
-        case .plains: return Color(red: 0.43, green: 0.49, blue: 0.27)
-        case .forest: return Color(red: 0.13, green: 0.32, blue: 0.19)
-        case .hills: return Color(red: 0.47, green: 0.38, blue: 0.27)
-        case .water: return Color(red: 0.12, green: 0.37, blue: 0.52)
-        case .road: return Color(red: 0.51, green: 0.43, blue: 0.29)
-        case .city: return Color(red: 0.43, green: 0.35, blue: 0.27)
+        case .plains: base = (0.43, 0.49, 0.27)
+        case .forest: base = (0.13, 0.32, 0.19)
+        case .hills: base = (0.47, 0.38, 0.27)
+        case .water: base = (0.12, 0.37, 0.52)
+        case .road: base = (0.51, 0.43, 0.29)
+        case .city: base = (0.43, 0.35, 0.27)
         }
+
+        // 按坐标确定性微调明度，弱化逐格填色的棋盘感。
+        let phase = Double((tile.position.x * 7 + tile.position.y * 13) % 5) - 2
+        let tone = 1 + phase * 0.015
+        return Color(
+            red: min(1, max(0, base.red * tone)),
+            green: min(1, max(0, base.green * tone)),
+            blue: min(1, max(0, base.blue * tone))
+        )
     }
 
     private var borderColor: Color {
         if isAttackTarget { return .red }
         if isSelected { return .white }
         if isReachable { return .yellow.opacity(0.8) }
-        return .black.opacity(0.10)
+        return .black.opacity(0.05)
     }
 
     private var controlFaction: Faction? {
@@ -1566,23 +1660,26 @@ struct ReachableTileOverlay: View {
 
 struct ThreatHeatTileOverlay: View {
     var summary: ThreatHeatZoneSummary
+    var isZoneCenter: Bool
     var scale: CGFloat
 
     var body: some View {
         ZStack {
             Hexagon()
-                .fill(summary.threatLevel.tintColor.opacity(0.18))
+                .fill(summary.threatLevel.tintColor.opacity(0.12))
             Hexagon()
                 .stroke(
-                    summary.threatLevel.tintColor.opacity(0.78),
-                    style: StrokeStyle(lineWidth: max(1.1, 1.6 * scale), lineCap: .round, dash: [5 * scale, 4 * scale])
+                    summary.threatLevel.tintColor.opacity(0.42),
+                    style: StrokeStyle(lineWidth: max(0.8, 1.1 * scale), lineCap: .round)
                 )
                 .padding(6 * scale)
-            Image(systemName: summary.threatLevel.systemImage)
-                .font(.system(size: 10 * scale, weight: .black))
-                .foregroundStyle(summary.threatLevel.tintColor)
-                .shadow(color: .black.opacity(0.38), radius: 2, y: 1)
-                .offset(y: 22 * scale)
+            if isZoneCenter {
+                Image(systemName: summary.threatLevel.systemImage)
+                    .font(.system(size: 10 * scale, weight: .black))
+                    .foregroundStyle(summary.threatLevel.tintColor)
+                    .shadow(color: .black.opacity(0.38), radius: 2, y: 1)
+                    .offset(y: 22 * scale)
+            }
         }
         .accessibilityHidden(true)
     }
@@ -1595,11 +1692,11 @@ struct MapControlTileOverlay: View {
     var body: some View {
         ZStack {
             Hexagon()
-                .fill(summary.controlState.tintColor.opacity(0.10))
+                .fill(summary.controlState.tintColor.opacity(0.08))
             Hexagon()
                 .stroke(
-                    summary.controlState.tintColor.opacity(0.64),
-                    style: StrokeStyle(lineWidth: max(1, 1.35 * scale), lineCap: .round, dash: [3 * scale, 5 * scale])
+                    summary.controlState.tintColor.opacity(0.36),
+                    style: StrokeStyle(lineWidth: max(0.8, 1 * scale), lineCap: .round)
                 )
                 .padding(9 * scale)
         }
