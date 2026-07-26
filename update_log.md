@@ -50,7 +50,8 @@
 
 - 按人工要求，本轮未运行任何本地测试、build、typecheck、RenderBattlePreview、`Tools/verify_project.mjs`、`git diff --check`、YAML/JSON/Plist 解析或脚本语法检查。
 - 初始实现 commit `c1209afbe8eb7c9ad7eeaf744236326b70f26079` 对应 run `30076990687`、attempt `1`、artifact `RomeLegions-ci-v0.55-main-c1209af-run30076990687-attempt1`；结构检查、88 项 Swift Testing、Gameplay Smoke 和 Xcode build 均成功，六张 PNG 也完整生成，但宽屏单位命令坞的攻击按钮已移动到旧像素采样区左侧，导致 `missingDistinctCommandDockRender` 误报，因此本次 run 未通过。
-- Agent C 已复判失败 run 的六张 PNG：三种尺寸的地图、横向工具、情报坞和单位/城市命令层级均完整，无空白、裁切或不合理重叠；后续修复让命令身份区宽度和采样起点共用 `BattleInterfaceMetrics`，仍需由新 commit 的最新 v0.55 artifact 重新验收。
+- 修复 commit `14ac27aa97e552c505add1a9ba53885d2afc70ef` 让命令身份区宽度和采样起点共用 `BattleInterfaceMetrics`；对应 run `30188855359`、attempt `1`、artifact `RomeLegions-ci-v0.55-main-14ac27a-run30188855359-attempt1` 的 manifest 精确匹配 `main` 与该 commit，结构检查、88 项 Swift Testing、Gameplay Smoke、RenderBattlePreview、无签名 Xcode build 和总体结果全部为 `success`，JUnit 为 5 项、0 失败。
+- Agent C 已复判最新六张 PNG：三种尺寸的顶部战役带、右上五个横向工具入口、地图材质、侦察情报坞和单位/城市命令层级均完整，无空白、裁切或不合理重叠；宽屏单位/城市命令签名分别为红色 `220/83`、橙色 `46/856`，差异门禁与真实按钮位置一致。v0.55 正式验收通过。
 
 遗留事项：
 
