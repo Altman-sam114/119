@@ -21,6 +21,41 @@
 
 ## 历史记录
 
+### v0.61 / AI 击杀优先保护与移动集火协同
+
+日期：2026-07-28
+
+核心变更：
+
+- `bestAITarget(for:favoring:)` 先用同源 `aiCombatPreview` 将可立即击杀目标独立成第一候选层，再在层内按既有战术分、回合集火偏好与目标 ID 稳定排序，不再依赖固定加分的相对大小证明击杀优先。
+- 真实 `performSimpleAI(for:)` 将同一回合局部 `engagedTargetIDs` 传入 `bestAIDestination` 和 `aiPositionScore`，让后续军团的移动落点与移动后攻击共同向已交战目标收敛；静态 `aiIntents` 仍使用默认空集合的只读预测。
+- Swift Testing 新增 `aiKillableTargetOutranksEngagedNonLethalTarget` 与 `aiMovementConvergesOnEngagedTarget`，分别锁定击杀候选分层和先移动再集火的完整链路；结构门禁、README、flow、flowchart、test 和 v0.61 Agent A 提示词同步。
+
+关键文件：
+
+- `Sources/RomeLegionsCore/GameState.swift`
+- `Tests/RomeLegionsCoreTests/GameStateTests.swift`
+- `Tools/verify_project.mjs`
+- `.github/workflows/ci-results.yml`
+- `README.md`
+- `md/flow/flow.md`
+- `md/flow/flowchart.md`
+- `md/test/test.md`
+- `md/prompt/README.md`
+- `md/prompt/v0（玩法推进）/v0.61（AI击杀优先保护与移动集火协同）.md`
+
+验证状态：
+
+- 按人工要求，本轮未运行任何本地测试、build、typecheck、RenderBattlePreview、`Tools/verify_project.mjs`、`git diff --check` 或脚本解析。
+- 实现 commit `328218fad3f050433514c5657e6d80e39be57bba` 已推送到 `origin/main`；对应 GitHub Actions run `30323207165`、attempt `1`、artifact `RomeLegions-ci-v0.61-main-328218f-run30323207165-attempt1`。manifest 的 `version`、branch、commitSha、runId、runAttempt 与 `origin/main` 实现提交精确匹配，结构检查、Swift Testing、Gameplay Smoke、RenderBattlePreview、无签名 Xcode build 和总体结果全部为 `success`，JUnit 为 5 项、0 失败。
+- Swift Testing 日志记录 91 项通过，两个 v0.61 新用例均单独通过；Gameplay Smoke 输出 `Gameplay smoke test passed.`，Xcode 日志以 `** BUILD SUCCEEDED **` 结束。既有未变变量和 AppIntents 元数据提示仍为历史警告；workflow 另有 GitHub Actions Node.js 20 弃用提示，不影响本轮结果。
+- Agent C 已复判三尺寸六张 PNG：城市/单位场景的地图、海岸线、镜头工具、右上抽屉、地图情报坞和命令坞均完整，无新增空白、裁切、错层或不合理重叠。v0.60 的 P1 击杀优先保护与 P2 移动交战记忆传递已关闭，v0.61 实现验收通过。
+
+遗留事项：
+
+- 交战记忆仍只在单次 AI 回合内生效，不是跨回合计划、目标预留、路径占位预约或多步搜索。
+- 本轮没有修改 UI、地图、将领内容、战斗预演、存档结构或静态敌军意图读板；后续优先进入 v0.62 “战斗目标锁定与攻击预演”。
+
 ### v0.60 / AI 集火协同与交战记忆
 
 日期：2026-07-28
