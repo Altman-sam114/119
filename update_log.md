@@ -14,12 +14,48 @@
 
 - 项目类型：原创 SwiftUI iOS 罗马题材战棋原型。
 - 核心架构：纯 Swift `RomeLegionsCore` 负责玩法规则；`GameViewModel` 负责 UI 状态、命令与派生数据组装，地图战场、战略态势和选中对象 readout 分别由三个独立 Swift 文件承载；SwiftUI 视图负责展示和命令入口。
-- 当前玩法：六边形地图、战略地图缩放/拖移/选择聚焦/复位、地形、城市、阵营、军团、移动、攻击、反击、占城、招募、科技、任务 requirement、战役目标、胜负结算、结束保护、外交、城市扩建、城市经营与招募读板、军团训练、将领任命、军团成长决策读板、军团成长优先级读板、主动技能、技能冷却、将领详情读板、将领指挥链读板、将领战机威胁桥接读板、将令技能入口链路、将领技能目标与收益读板、被动贡献、战功状态、军团编制与成长读板、选中军团处境命令入口读板、选中军团军令窗口读板、战役推进线 HUD、地图侦察视角 HUD、战术命令建议与补线路径读板、本方将领协同与战术连携读板、将领协同步骤读板、机动落点与地图风险读板、战场焦点与将领机会读板、战场目标链路、战场态势交汇链路、敌情交战闭环 HUD、目标线地图叠层、阶段聚焦、阶段命令预览与联动高亮、地图控制与威胁热区读板、主动地图叠层图例、AI 作战计划与时间线读板、敌方将领协同读板、敌方将领威胁读板、敌情反制建议读板、反制落点/目标地图叠层、反制指令聚焦、反制命令链高亮与反制焦点链路、战术姿态与姿态预览、AI 回合、AI 主攻优先执行、敌军意图预判、敌军意图六边形路径/目标叠层、战线压力读板、战局态势面板。
+- 当前玩法：六边形地图、战略地图缩放/拖移/选择聚焦/复位、地形、城市、阵营、军团、移动、攻击、反击、占城、招募、科技、任务 requirement、战役目标、胜负结算、结束保护、外交、城市扩建、城市经营与招募读板、军团训练、将领任命、军团成长决策读板、军团成长优先级读板、主动技能、技能冷却、将领详情读板、将领指挥链读板、将领战机威胁桥接读板、将令技能入口链路、将领技能目标与收益读板、被动贡献、战功状态、军团编制与成长读板、选中军团处境命令入口读板、选中军团军令窗口读板、战役推进线 HUD、地图侦察视角 HUD、战术命令建议与补线路径读板、本方将领协同与战术连携读板、将领协同步骤读板、机动落点与地图风险读板、战场焦点与将领机会读板、战场目标链路、战场态势交汇链路、敌情交战闭环 HUD、目标线地图叠层、阶段聚焦、阶段命令预览与联动高亮、地图控制与威胁热区读板、主动地图叠层图例、AI 作战计划与时间线读板、敌方将领协同读板、敌方将领威胁读板、敌情反制建议读板、反制落点/目标地图叠层、反制指令聚焦、反制命令链高亮与反制焦点链路、战术姿态与姿态预览、AI 回合、AI 主攻优先执行、AI 回合内集火协同、敌军意图预判、敌军意图六边形路径/目标叠层、战线压力读板、战局态势面板。
 - 当前测试入口：Swift Testing、Gameplay Smoke、项目结构检查、SwiftUI 类型检查、战斗页预览图渲染、无签名 Xcode 构建。
 - 当前协作系统：已建立 `AGENTS.md`、`update_log.md`、`md/prompt/`、`md/test/test.md`、`md/flow/flow.md`、`md/flow/flowchart.md`，默认按 `main` 直推、GitHub Actions 云端重验证、Agent C 下载未加密结果包复判，并具备未来由 Agent X 主控调度 Agent A/B/C 多轮循环的文档基线。
 - 当前 CI 入口：`.github/workflows/ci-results.yml`，在 `main` push 和手动触发时运行结构检查、SwiftPM 测试、Gameplay Smoke、RenderBattlePreview 和无签名 Xcode build，并上传 CI 结果包。
 
 ## 历史记录
+
+### v0.60 / AI 集火协同与交战记忆
+
+日期：2026-07-28
+
+核心变更：
+
+- `performSimpleAI(for:)` 在单次 AI 回合内维护局部 `engagedTargetIDs`，让后续军团优先继续攻击本阵营本回合已交战且仍存活的目标；集合不进入 `GameState` 持久状态、Codable 或存档。
+- `bestAITarget(for:favoring:)` 与 `aiAttackScore` 对已交战目标增加 +55 集火分，低于既有击杀 +160、高于罗马目标 +45；已被歼灭的目标自然离开可攻击集合，不影响后续选择。
+- `aiIntents(for:limit:)` 继续使用空交战记忆的默认参数，静态意图预测、规划态伤害、主攻执行顺序和既有攻击结算语义保持不变。
+- Swift Testing 新增 `aiFocusFireConvergesOnEngagedTarget`，同时覆盖评分接近时的连续集火和首要目标被歼灭后的剩余目标选择；结构检查、README、flow、flowchart、test 与 v0.60 Agent A 提示词同步。
+
+关键文件：
+
+- `Sources/RomeLegionsCore/GameState.swift`
+- `Tests/RomeLegionsCoreTests/GameStateTests.swift`
+- `Tools/verify_project.mjs`
+- `.github/workflows/ci-results.yml`
+- `README.md`
+- `md/flow/flow.md`
+- `md/flow/flowchart.md`
+- `md/test/test.md`
+- `md/prompt/README.md`
+- `md/prompt/v0（玩法推进）/v0.60（AI集火协同与交战记忆）.md`
+
+验证状态：
+
+- 按人工要求，本轮未运行任何本地测试、build、typecheck、RenderBattlePreview、`Tools/verify_project.mjs`、`git diff --check` 或脚本解析。
+- 实现 commit `927299771834b24e27b2d4630ee5870273a44385` 对应 GitHub Actions run `30209194450`、attempt `1`、artifact `RomeLegions-ci-v0.60-main-9272997-run30209194450-attempt1`；manifest 的 branch、commitSha、runId、runAttempt 精确匹配 `origin/main`，结构检查、Swift Testing、Gameplay Smoke、RenderBattlePreview、无签名 Xcode build 和总体结果全部为 `success`，JUnit 为 5 项、0 失败。
+- Swift Testing 日志记录 89 项通过，`aiFocusFireConvergesOnEngagedTarget` 单独通过；Gameplay Smoke 输出 `Gameplay smoke test passed.`，Xcode 日志以 `** BUILD SUCCEEDED **` 结束。既有未变变量与 AppIntents 元数据提示仍是历史警告，没有新增 v0.60 编译警告。
+- Agent C 已复判三尺寸六张 PNG：城市/单位场景的地图、海岸线、镜头工具、右上抽屉、地图情报坞和命令坞均完整，无新增空白、裁切、错层或不合理重叠。v0.60 实现验收通过。
+
+遗留事项：
+
+- 集火记忆只覆盖同一 AI 回合内已经发生的攻击，不是跨回合计划、目标预留或多步搜索；后续可独立推进移动阶段的协同目标预留。
+- 本轮没有修改 UI、地图、将领内容、AI 意图静态预测或存档结构。
 
 ### v0.59 / 连续海岸线与地图叠层降噪
 
