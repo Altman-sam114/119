@@ -65,7 +65,7 @@ flowchart TD
     M --> W["BattleView 地图折线路径、目的地叠层、目标格叠层<br/>侧栏显示来源、去向、目标和预计伤害"]
     M --> BL["GameViewModel.activeMapOverlayLegendItems<br/>汇总敌路/目标、热区、控区、军议、机动、目标线、反制、可达、攻击、技能等当前可见叠层图例"]
     L --> LF["performSimpleAI 当前状态排序<br/>读取单体 AIIntent.threatScore<br/>高威胁主攻单位先行动"]
-    LF --> LG["真实 AI 执行<br/>回合内维护 engagedTargetIDs 交战记忆<br/>后续军团优先集火仍存活目标<br/>单位内部仍走原休整、技能、攻击、移动后攻击分支"]
+    LF --> LG["真实 AI 执行<br/>回合内维护 engagedTargetIDs 交战记忆<br/>目标先分可击杀层，再按战术分、集火和 ID 排序<br/>直接攻击、移动落点、移动后攻击共享同一集合"]
     L --> AB["GameState.frontlinePressureReports<br/>按罗马单位或城市聚合多路意图<br/>来源、预计伤害、夺城风险、压力等级"]
     AB --> AC["GameViewModel.frontlinePressureSummaries<br/>目标、来源、压力标签、影响文案、无障碍说明"]
     AC --> AD["BattleView 战线 chip 与战局面板<br/>展示高压目标和防守优先级"]

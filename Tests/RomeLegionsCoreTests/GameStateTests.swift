@@ -726,6 +726,88 @@ private func riskTestPriority(_ risk: TacticalRecommendationRisk) -> Int {
     #expect((killState.unit(withID: "rome-flanker")?.health ?? 0) < UnitKind.legion.maxHealth)
 }
 
+@Test func aiKillableTargetOutranksEngagedNonLethalTarget() throws {
+    // alpha 的高经验保证它先攻击 anvil；anvil 的城市、将领和经验价值足以让
+    // v0.60 的完整加权分越过低血量 flanker，候选分层必须仍让 bravo 先完成击杀。
+    var state = GameState.newCampaign()
+    state.cities = [
+        City(
+            id: "rome",
+            name: "罗马",
+            position: Position(x: 2, y: 1),
+            owner: .rome,
+            production: EmpireResources(gold: 100, grain: 20, iron: 20, science: 10, prestige: 2),
+            fortification: 20
+        )
+    ]
+    state.units = [
+        ArmyUnit(
+            id: "rome-anvil",
+            kind: .legion,
+            faction: .rome,
+            position: Position(x: 2, y: 1),
+            experience: 20,
+            generalName: "守城将",
+            generalTrait: .shieldWall
+        ),
+        ArmyUnit(id: "gaul-flanker", kind: .archer, faction: .gaul, position: Position(x: 4, y: 2), health: 1),
+        ArmyUnit(id: "carthage-alpha", kind: .legion, faction: .carthage, position: Position(x: 2, y: 0), experience: 10),
+        ArmyUnit(id: "carthage-bravo", kind: .legion, faction: .carthage, position: Position(x: 3, y: 2), health: 56)
+    ]
+    state.resources[.carthage] = .zero
+    state.activeFaction = .carthage
+
+    _ = state.performSimpleAI(for: .carthage)
+
+    #expect(state.unit(withID: "carthage-alpha")?.hasActed == true)
+    #expect(state.unit(withID: "carthage-bravo")?.hasActed == true)
+    #expect(state.unit(withID: "rome-anvil") != nil)
+    #expect((state.unit(withID: "rome-anvil")?.health ?? 0) < UnitKind.legion.maxHealth)
+    #expect(state.unit(withID: "gaul-flanker") == nil)
+}
+
+@Test func aiMovementConvergesOnEngagedTarget() throws {
+    // 两个目标关于 bravo 的起点对称；flanker 的 7 点经验让空记忆落点评分高 56，
+    // 足以越过 anvil 侧既有夹击收益，而 +55 集火偏好应把移动方向翻回已交战目标。
+    var state = GameState.newCampaign()
+    state.tiles = state.tiles.map { Tile(position: $0.position, terrain: .plains) }
+    state.cities = [
+        City(
+            id: "rome",
+            name: "罗马",
+            position: Position(x: 5, y: 7),
+            owner: .rome,
+            production: EmpireResources(gold: 20, grain: 20, iron: 10, science: 5, prestige: 1),
+            fortification: 5
+        )
+    ]
+    state.units = [
+        ArmyUnit(id: "rome-anvil", kind: .legion, faction: .rome, position: Position(x: 2, y: 1)),
+        ArmyUnit(id: "rome-flanker", kind: .legion, faction: .rome, position: Position(x: 8, y: 1), experience: 7),
+        ArmyUnit(
+            id: "carthage-alpha",
+            kind: .legion,
+            faction: .carthage,
+            position: Position(x: 2, y: 0),
+            experience: 5,
+            tacticalOrder: .assault
+        ),
+        ArmyUnit(id: "carthage-bravo", kind: .cavalry, faction: .carthage, position: Position(x: 5, y: 1))
+    ]
+    state.resources[.carthage] = .zero
+    state.activeFaction = .carthage
+    let alphaDamage = try state.attackPreview(attackerID: "carthage-alpha", defenderID: "rome-anvil").damage
+
+    _ = state.performSimpleAI(for: .carthage)
+
+    let bravo = state.unit(withID: "carthage-bravo")
+    #expect(state.unit(withID: "carthage-alpha")?.hasActed == true)
+    #expect(bravo?.hasActed == true)
+    #expect(bravo?.position.hexDistance(to: Position(x: 2, y: 1)) == 1)
+    #expect((state.unit(withID: "rome-anvil")?.health ?? 0) < UnitKind.legion.maxHealth - alphaDamage)
+    #expect(state.unit(withID: "rome-flanker")?.health == UnitKind.legion.maxHealth)
+}
+
 @Test func aiMovesIntoRangeThenAttacks() throws {
     var state = GameState.newCampaign()
     state.units = [

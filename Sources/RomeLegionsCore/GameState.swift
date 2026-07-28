@@ -6782,7 +6782,7 @@ public struct GameState: Codable, Equatable, Sendable {
                 continue
             }
 
-            guard let destination = bestAIDestination(for: orderedUnit) else {
+            guard let destination = bestAIDestination(for: orderedUnit, favoring: engagedTargetIDs) else {
                 if let refreshed = self.unit(withID: unitID),
                    shouldAIRest(refreshed),
                    let result = try? restUnit(id: unitID) {
@@ -7729,11 +7729,28 @@ public struct GameState: Codable, Equatable, Sendable {
     }
 
     private func bestAITarget(for unit: ArmyUnit, favoring engagedTargetIDs: Set<String> = []) -> ArmyUnit? {
-        attackTargets(for: unit)
-            .max { left, right in
-                aiAttackScore(attacker: unit, defender: left, engagedTargetIDs: engagedTargetIDs) <
-                    aiAttackScore(attacker: unit, defender: right, engagedTargetIDs: engagedTargetIDs)
+        let candidates = attackTargets(for: unit).compactMap { defender -> (unit: ArmyUnit, isKillable: Bool, score: Int)? in
+            guard let preview = aiCombatPreview(attacker: unit, defender: defender) else {
+                return nil
             }
+
+            return (
+                unit: defender,
+                isKillable: preview.damage >= defender.health,
+                score: aiAttackScore(attacker: unit, defender: defender, engagedTargetIDs: engagedTargetIDs)
+            )
+        }
+        let hasKillableTarget = candidates.contains { $0.isKillable }
+
+        return candidates
+            .filter { !hasKillableTarget || $0.isKillable }
+            .sorted { left, right in
+                if left.score == right.score {
+                    return left.unit.id < right.unit.id
+                }
+                return left.score > right.score
+            }
+            .first?.unit
     }
 
     private func aiAttackScore(attacker: ArmyUnit, defender: ArmyUnit, engagedTargetIDs: Set<String> = []) -> Int {
@@ -7748,8 +7765,7 @@ public struct GameState: Codable, Equatable, Sendable {
             score += 160
         }
 
-        // 集火协同：本回合已被本阵营攻击且仍存活的目标优先歼灭，
-        // 加成低于击杀 +160，保证“能击杀谁就打谁”不被翻转。
+        // 集火只参与同一击杀层内的战术排序；候选分层负责保证击杀优先。
         if engagedTargetIDs.contains(defender.id) {
             score += 55
         }
@@ -7814,7 +7830,11 @@ public struct GameState: Codable, Equatable, Sendable {
         return unitObjectives + cityObjectives
     }
 
-    private func aiPositionScore(_ position: Position, for unit: ArmyUnit) -> Int {
+    private func aiPositionScore(
+        _ position: Position,
+        for unit: ArmyUnit,
+        favoring engagedTargetIDs: Set<String> = []
+    ) -> Int {
         let objectives = aiObjectivePositions(for: unit.faction)
         let closestObjectiveDistance = objectives.map { position.hexDistance(to: $0) }.min() ?? 0
         var score = -closestObjectiveDistance * 18
@@ -7836,7 +7856,11 @@ public struct GameState: Codable, Equatable, Sendable {
                     hasMoved: true,
                     hasActed: unit.hasActed
                 )
-                score += aiAttackScore(attacker: movedAttacker, defender: enemy) + 140
+                score += aiAttackScore(
+                    attacker: movedAttacker,
+                    defender: enemy,
+                    engagedTargetIDs: engagedTargetIDs
+                ) + 140
             } else {
                 score += max(0, 7 - distance) * 8
             }
@@ -8072,15 +8096,18 @@ public struct GameState: Codable, Equatable, Sendable {
         return 80 + nearbyEnemyPressure + cityValue
     }
 
-    private func bestAIDestination(for unit: ArmyUnit) -> Position? {
+    private func bestAIDestination(
+        for unit: ArmyUnit,
+        favoring engagedTargetIDs: Set<String> = []
+    ) -> Position? {
         let reachable = reachablePositions(for: unit)
         guard !reachable.isEmpty else {
             return nil
         }
 
         let ranked = reachable.sorted { left, right in
-            let leftScore = aiPositionScore(left, for: unit)
-            let rightScore = aiPositionScore(right, for: unit)
+            let leftScore = aiPositionScore(left, for: unit, favoring: engagedTargetIDs)
+            let rightScore = aiPositionScore(right, for: unit, favoring: engagedTargetIDs)
             if leftScore == rightScore {
                 if left.y == right.y {
                     return left.x < right.x

@@ -79,7 +79,7 @@ for (const token of [
 }
 
 const core = readFileSync("Sources/RomeLegionsCore/GameState.swift", "utf8");
-for (const token of ["moveUnit", "attack", "attackPreview", "CombatPreview", "recruit", "research", "performSimpleAI", "skipUnit", "performAIRecruitment", "bestAITarget", "engagedTargetIDs", "developCity", "trainUnit", "appointGeneral", "sendEnvoy", "CampaignStatus", "campaignStatus", "MissionRequirement", "campaignAlreadyEnded"]) {
+for (const token of ["moveUnit", "attack", "attackPreview", "CombatPreview", "recruit", "research", "performSimpleAI", "skipUnit", "performAIRecruitment", "bestAITarget", "hasKillableTarget", "bestAIDestination", "favoring engagedTargetIDs", "developCity", "trainUnit", "appointGeneral", "sendEnvoy", "CampaignStatus", "campaignStatus", "MissionRequirement", "campaignAlreadyEnded"]) {
   if (!core.includes(token)) {
     failures.push(`Core game state does not include ${token}`);
   }

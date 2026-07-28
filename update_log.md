@@ -28,7 +28,7 @@
 核心变更：
 
 - `performSimpleAI(for:)` 在单次 AI 回合内维护局部 `engagedTargetIDs`，让后续军团优先继续攻击本阵营本回合已交战且仍存活的目标；集合不进入 `GameState` 持久状态、Codable 或存档。
-- `bestAITarget(for:favoring:)` 与 `aiAttackScore` 对已交战目标增加 +55 集火分，低于既有击杀 +160、高于罗马目标 +45；已被歼灭的目标自然离开可攻击集合，不影响后续选择。
+- `bestAITarget(for:favoring:)` 与 `aiAttackScore` 对已交战目标增加 +55 集火分；已被歼灭的目标自然离开可攻击集合，不影响后续选择。后续代码复核确认，固定加分的相对大小不能证明完整总分下的击杀优先级。
 - `aiIntents(for:limit:)` 继续使用空交战记忆的默认参数，静态意图预测、规划态伤害、主攻执行顺序和既有攻击结算语义保持不变。
 - Swift Testing 新增 `aiFocusFireConvergesOnEngagedTarget`，同时覆盖评分接近时的连续集火和首要目标被歼灭后的剩余目标选择；结构检查、README、flow、flowchart、test 与 v0.60 Agent A 提示词同步。
 
@@ -50,11 +50,13 @@
 - 按人工要求，本轮未运行任何本地测试、build、typecheck、RenderBattlePreview、`Tools/verify_project.mjs`、`git diff --check` 或脚本解析。
 - 实现 commit `927299771834b24e27b2d4630ee5870273a44385` 对应 GitHub Actions run `30209194450`、attempt `1`、artifact `RomeLegions-ci-v0.60-main-9272997-run30209194450-attempt1`；manifest 的 branch、commitSha、runId、runAttempt 精确匹配 `origin/main`，结构检查、Swift Testing、Gameplay Smoke、RenderBattlePreview、无签名 Xcode build 和总体结果全部为 `success`，JUnit 为 5 项、0 失败。
 - Swift Testing 日志记录 89 项通过，`aiFocusFireConvergesOnEngagedTarget` 单独通过；Gameplay Smoke 输出 `Gameplay smoke test passed.`，Xcode 日志以 `** BUILD SUCCEEDED **` 结束。既有未变变量与 AppIntents 元数据提示仍是历史警告，没有新增 v0.60 编译警告。
-- Agent C 已复判三尺寸六张 PNG：城市/单位场景的地图、海岸线、镜头工具、右上抽屉、地图情报坞和命令坞均完整，无新增空白、裁切、错层或不合理重叠。v0.60 实现验收通过。
+- 文档 commit `f49e1a906ab89db1dadcec5803d82deb225704c0` 对应 GitHub Actions run `30321290405`、attempt `1`、artifact `RomeLegions-ci-v0.60-main-f49e1a9-run30321290405-attempt1`；五项门禁和三尺寸六图均通过，证明该 commit 的自动检查与视觉基线没有回退。
+- Agent C 随后的源码复核判定 v0.60 不通过：P1 为 +160 击杀分与 +55 集火分混在完整总分中，不能保证可击杀候选绝对优先；P2 为真实移动仍未把 `engagedTargetIDs` 传入 `bestAIDestination` / `aiPositionScore`，第二单位可能先向其他目标移动。早先“v0.60 实现验收通过”的结论由此撤销；两个问题只有在 v0.61 最新 artifact 和源码复判通过后才能关闭。
 
 遗留事项：
 
-- 集火记忆只覆盖同一 AI 回合内已经发生的攻击，不是跨回合计划、目标预留或多步搜索；后续可独立推进移动阶段的协同目标预留。
+- 集火记忆只覆盖同一 AI 回合内已经发生的攻击，不是跨回合计划、目标预留或多步搜索。
+- v0.60 的 P1 击杀优先保护与 P2 移动阶段交战记忆传递已退回 v0.61 修复，当前不得标记关闭。
 - 本轮没有修改 UI、地图、将领内容、AI 意图静态预测或存档结构。
 
 ### v0.59 / 连续海岸线与地图叠层降噪

@@ -197,6 +197,7 @@ Agent C 必须核对：
 - v0.58 起 RenderBattlePreview 必须断言 `MapViewportState` 的默认 1x/零偏移、1x...1.8x clamp、放大后拖移边界、中心目标聚焦、边缘目标受限和 reset，异常抛出 `missingMapViewportStrategy`；结构检查必须覆盖镜头类型、双指缩放、聚焦和复位入口。Agent C 六图目视复判需确认默认地图仍稳定、四个镜头按钮可见且不与顶部战况、右上抽屉工具、底部情报坞或命令坞重叠，地图空间层没有因统一 transform 拆层而错位。
 - v0.59 起 RenderBattlePreview 必须断言 `CoastlineBuilder` 对战役地图产出超过 10 段海岸线、每段一端为水一端为非水且两格中心距在 `tileWidth * 0.95` 视觉相邻阈值内、被水完全包围的深海格（如 `(1,7)`）不产出海岸段；异常抛出 `missingCoastlineStrategy`。结构检查必须覆盖 `CoastlineLayerView`、`CoastlineBuilder` 与 `isZoneCenter`。Agent C 六图目视复判需确认水陆交界出现连续沙色岸线与浅色浪缘、热区/控区叠层不再出现大面积高对比虚线、热区图标只在中心格显示、默认格描边减淡后地貌与路线仍清晰，且既有材质覆盖率门禁不回退。
 - v0.60 起 Swift Testing 必须包含 `aiFocusFireConvergesOnEngagedTarget`：锁定 AI 回合内交战记忆——评分接近时第二支军团集火第一支已交战的存活目标，且已交战目标被歼灭后后续军团正常选择剩余目标；既有 `aiMovesIntoRangeThenAttacks`、`aiExecutionPrioritizesHighestThreatIntent`、`aiIntentAdvanceAttackDamageMatchesPreviewAndResolution` 等 AI 行为与意图预测测试不得修改断言迁就新行为。结构检查必须覆盖 `engagedTargetIDs`。本轮无 UI 变化，六图应与 v0.59 基线一致。
+- v0.61 起 Swift Testing 必须分别包含 `aiKillableTargetOutranksEngagedNonLethalTarget` 与 `aiMovementConvergesOnEngagedTarget`：前者锁定可立即击杀候选层不能被高价值已交战非致死目标翻转，后者锁定第二单位必须先移动时仍把回合交战记忆传入落点评分并攻击同一目标。结构检查必须覆盖 `hasKillableTarget`、`bestAIDestination` 与 `favoring engagedTargetIDs` 的真实调用链；静态 `aiIntents` 继续使用空集合，既有 AI 测试断言不得削弱。本轮无 UI 变化，六图应与 v0.60 基线一致。
 - 若 workflow 失败，失败摘要和日志路径足以退回 Agent B 修复。
 - 若本地仓库没有 `origin` 或 `gh` 无权限，明确报告阻塞，不能伪造下载核对。
 - 只能使用 `Altman-sam114` 对应 GitHub 权限完成 push、CI 或 artifact 验收；不得使用其他账号伪装完成。
@@ -335,8 +336,8 @@ env HOME=$PWD/.home CLANG_MODULE_CACHE_PATH=$PWD/.build/module-cache DEVELOPER_D
 
 当前基线：
 
-- `Tests/RomeLegionsCoreTests/GameStateTests.swift` 当前包含 89 个 Swift Testing 用例。
-- 基线覆盖地形移动、占城、攻击、预览结算一致性、招募预览、招募部署位置、舰队港口预览、舰队港口被占阻塞、资源/港口阻塞、科技重复保护、城市扩建预览、城市扩建、训练预览与结算一致性、任命预览与候选一致性、军团成长优先级推荐只读与预览复用、训练、将领、战术姿态、支援/包夹/指挥/守军支援、主动技能预览与释放一致性、技能冷却写入/递减/阻止释放/预览只读、攻城无目标预览、AI 技能意图目标、AI 技能冷却保护、AI 作战计划读板、敌方将领技能协同计划、敌方将领威胁读板、敌情反制建议读板、本方将领协同读板、合击修正解释、协同目标位置一致性、协同冷却阻塞、不可执行技能排序降级、机动落点打击/夺城/条约过滤/风险排序/已移动只读、战功状态、军团编制与成长报告、战术命令建议报告、战场焦点报告、地图控制报告、威胁热区报告、旧 `ArmyUnit` JSON 冷却字段兼容、外交保护、回合收入、跳过单位、AI 攻击、AI 意图、AI 主攻优先执行、AI 回合内集火协同、AI 移动后攻击 projectedDamage 与规划态预览一致性、直接攻击/移动后攻击/夺城意图供 UI 叠层使用的目的地和目标字段、战线压力聚合、城市夺取压力、停战势力过滤、AI 招募、任务 requirement、奖励幂等、战役胜利、战役失败、结束保护、AI 结束后停止和 Codable 兼容。
+- `Tests/RomeLegionsCoreTests/GameStateTests.swift` 当前包含 91 个 Swift Testing 用例；通过数以 v0.61 最新 GitHub Actions artifact 为准。
+- 基线覆盖地形移动、占城、攻击、预览结算一致性、招募预览、招募部署位置、舰队港口预览、舰队港口被占阻塞、资源/港口阻塞、科技重复保护、城市扩建预览、城市扩建、训练预览与结算一致性、任命预览与候选一致性、军团成长优先级推荐只读与预览复用、训练、将领、战术姿态、支援/包夹/指挥/守军支援、主动技能预览与释放一致性、技能冷却写入/递减/阻止释放/预览只读、攻城无目标预览、AI 技能意图目标、AI 技能冷却保护、AI 作战计划读板、敌方将领技能协同计划、敌方将领威胁读板、敌情反制建议读板、本方将领协同读板、合击修正解释、协同目标位置一致性、协同冷却阻塞、不可执行技能排序降级、机动落点打击/夺城/条约过滤/风险排序/已移动只读、战功状态、军团编制与成长报告、战术命令建议报告、战场焦点报告、地图控制报告、威胁热区报告、旧 `ArmyUnit` JSON 冷却字段兼容、外交保护、回合收入、跳过单位、AI 攻击、AI 意图、AI 主攻优先执行、AI 回合内集火协同、可击杀候选分层、移动集火记忆传递、AI 移动后攻击 projectedDamage 与规划态预览一致性、直接攻击/移动后攻击/夺城意图供 UI 叠层使用的目的地和目标字段、战线压力聚合、城市夺取压力、停战势力过滤、AI 招募、任务 requirement、奖励幂等、战役胜利、战役失败、结束保护、AI 结束后停止和 Codable 兼容。
 
 ### Full
 
