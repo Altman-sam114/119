@@ -12,6 +12,7 @@ final class GameViewModel: ObservableObject {
     @Published var selectedTechnology: Technology?
     @Published var focusedCountermeasureID: String?
     @Published var focusedBattleObjectiveRole: BattleObjectiveMapRole?
+    @Published var focusedEnemyCommanderThreatID: String?
     @Published var selectedMapReconPerspective: MapReconPerspectiveKind = .enemyIntent
     @Published var bannerMessage = "元老院等待你的命令。"
     @Published var isShowingMenu = true
@@ -216,6 +217,44 @@ final class GameViewModel: ObservableObject {
 
     var primaryEnemyCommanderThreatSummary: EnemyCommanderThreatSummary? {
         enemyCommanderThreatSummaries.first
+    }
+
+    var focusedEnemyCommanderThreatSummary: EnemyCommanderThreatSummary? {
+        guard let focusedEnemyCommanderThreatID else { return nil }
+        return enemyCommanderThreatSummaries.first { $0.id == focusedEnemyCommanderThreatID }
+    }
+
+    var enemyCommanderThreatMapOverlays: [EnemyCommanderThreatMapOverlay] {
+        let focusedID = focusedEnemyCommanderThreatID
+        return enemyCommanderThreatSummaries.map { summary in
+            EnemyCommanderThreatMapOverlay(
+                summary: summary,
+                isFocused: summary.id == focusedID
+            )
+        }
+    }
+
+    var primaryEnemyCommanderThreatMapOverlay: EnemyCommanderThreatMapOverlay? {
+        guard let summary = focusedEnemyCommanderThreatSummary ?? primaryEnemyCommanderThreatSummary else {
+            return nil
+        }
+
+        return EnemyCommanderThreatMapOverlay(
+            summary: summary,
+            isFocused: summary.id == focusedEnemyCommanderThreatID
+        )
+    }
+
+    var enemyCommanderThreatMapOverlaysByPosition: [Position: [EnemyCommanderThreatPositionOverlay]] {
+        enemyCommanderThreatMapOverlays.reduce(into: [Position: [EnemyCommanderThreatPositionOverlay]]()) { result, overlay in
+            for positionOverlay in overlay.positionOverlays {
+                result[positionOverlay.position, default: []].append(positionOverlay)
+            }
+        }
+    }
+
+    var enemyCommanderThreatOverlayPositions: Set<Position> {
+        Set(enemyCommanderThreatMapOverlaysByPosition.keys)
     }
 
     var countermeasureSummaries: [CountermeasureSummary] {
@@ -757,6 +796,7 @@ final class GameViewModel: ObservableObject {
         let threatHeat = primaryThreatHeatZoneSummary
         let mapControl = selectedMapControlSummary ?? primaryMapControlSummary
         let convergence = primaryBattlefieldConvergenceSummary
+        let enemyCommanderThreat = focusedEnemyCommanderThreatSummary ?? primaryEnemyCommanderThreatSummary
         var signals: [MapReconPerspectiveSignal] = []
 
         func append(
@@ -868,6 +908,16 @@ final class GameViewModel: ObservableObject {
             }
         }
 
+        if let enemyCommanderThreat {
+            append(
+                .enemyCommander,
+                title: enemyCommanderThreat.commanderLabel,
+                detail: "\(enemyCommanderThreat.skillName) · \(enemyCommanderThreat.spaceChainLabel)",
+                position: enemyCommanderThreat.originPosition,
+                sourceID: enemyCommanderThreat.id
+            )
+        }
+
         let title = "地图侦察"
         let statusLabel: String
         let detailLabel: String
@@ -878,9 +928,11 @@ final class GameViewModel: ObservableObject {
         switch selectedMapReconPerspective {
         case .enemyIntent:
             statusLabel = engagementLoop?.statusLabel ?? intent?.summary.threatLabel ?? "监视"
-            detailLabel = intent.map { "\($0.summary.shortTitle) · \($0.summary.destinationLabel)" } ?? "敌路待确认"
-            nextStepLabel = engagementLoop?.nextStepLabel ?? intent?.impactLabel ?? "先确认敌军目标"
-            riskLabel = engagementLoop?.riskLabel ?? primaryFrontlinePressureSummary?.pressureLabel ?? "风险待确认"
+            detailLabel = intent.map { "\($0.summary.shortTitle) · \($0.summary.destinationLabel)" } ??
+                enemyCommanderThreat.map { "敌将\($0.commanderLabel) · \($0.rangeLabel)" } ??
+                "敌路待确认"
+            nextStepLabel = engagementLoop?.nextStepLabel ?? enemyCommanderThreat.map { "定位\($0.commanderLabel)技能范围" } ?? intent?.impactLabel ?? "先确认敌军目标"
+            riskLabel = engagementLoop?.riskLabel ?? enemyCommanderThreat?.levelLabel ?? primaryFrontlinePressureSummary?.pressureLabel ?? "风险待确认"
             compactLabel = "敌路 · \(detailLabel)"
 
         case .countermeasure:
@@ -918,6 +970,7 @@ final class GameViewModel: ObservableObject {
             riskLabel: riskLabel,
             signals: signals,
             intentID: intent?.id,
+            enemyCommanderThreatID: enemyCommanderThreat?.id,
             engagementLoopID: engagementLoop?.compactLabel,
             countermeasureID: countermeasure?.id,
             countermeasurePreviewID: countermeasurePreview?.id,
@@ -1384,6 +1437,15 @@ final class GameViewModel: ObservableObject {
         if !enemyIntentDestinationOverlays(for: intentOverlays).isEmpty ||
             !enemyIntentTargetOverlays(for: intentOverlays).isEmpty {
             append(.enemyTarget, symbol: "scope", title: "敌标", detail: "准星标出敌军目标")
+        }
+
+        if !enemyCommanderThreatOverlayPositions.isEmpty {
+            append(
+                .enemyCommanderThreat,
+                symbol: "crown.fill",
+                title: "敌将威胁",
+                detail: "徽标、范围和影响区来自敌将技能预演"
+            )
         }
 
         if !threatHeatOverlayPositions.isEmpty {
@@ -3394,6 +3456,7 @@ final class GameViewModel: ObservableObject {
         selectedTechnology = nil
         focusedCountermeasureID = nil
         focusedBattleObjectiveRole = nil
+        focusedEnemyCommanderThreatID = nil
         selectedMapReconPerspective = .enemyIntent
         isShowingMenu = false
         bannerMessage = "\(mode.displayName)开始：控制罗马军团扩张疆域。"
@@ -3405,6 +3468,7 @@ final class GameViewModel: ObservableObject {
 
     func selectTile(_ position: Position) {
         focusedBattleObjectiveRole = nil
+        focusedEnemyCommanderThreatID = nil
 
         if let unit = state.unit(at: position) {
             if let target = attackTargets.first(where: { $0.id == unit.id }) {
@@ -3474,6 +3538,7 @@ final class GameViewModel: ObservableObject {
         }
 
         selectedAttackTargetID = nil
+        focusedEnemyCommanderThreatID = nil
         selectedUnitID = responseUnit.id
         selectedCityID = state.city(at: responseUnit.position)?.id
         selectedPosition = responseUnit.position
@@ -3489,6 +3554,7 @@ final class GameViewModel: ObservableObject {
         }
 
         selectedAttackTargetID = nil
+        focusedEnemyCommanderThreatID = nil
         selectedPosition = overlay.position
         focusedBattleObjectiveRole = role
         focusedCountermeasureID = nil
@@ -3533,6 +3599,7 @@ final class GameViewModel: ObservableObject {
         }
 
         selectedAttackTargetID = target.id
+        focusedEnemyCommanderThreatID = nil
         selectedPosition = target.position
         focusedCountermeasureID = nil
         focusedBattleObjectiveRole = nil
@@ -3552,6 +3619,7 @@ final class GameViewModel: ObservableObject {
         let attacker = selectedUnit
         let forecast = selectedCombatForecast
         selectedAttackTargetID = nil
+        focusedEnemyCommanderThreatID = nil
         focusedCountermeasureID = nil
         focusedBattleObjectiveRole = nil
 
@@ -3575,6 +3643,23 @@ final class GameViewModel: ObservableObject {
         }
 
         attack(defenderID)
+    }
+
+    func focusEnemyCommanderThreat(_ id: String) {
+        guard let summary = enemyCommanderThreatSummaries.first(where: { $0.id == id }) else {
+            bannerMessage = "敌将威胁已失效，无法定位。"
+            return
+        }
+
+        selectedAttackTargetID = nil
+        focusedCountermeasureID = nil
+        focusedBattleObjectiveRole = nil
+        focusedEnemyCommanderThreatID = summary.id
+        selectedUnitID = nil
+        selectedCityID = nil
+        selectedPosition = summary.originPosition
+        selectedMapReconPerspective = .enemyIntent
+        bannerMessage = "已定位敌将\(summary.commanderLabel)：\(summary.skillName) · \(summary.spaceChainLabel)。仅供侦察，不会执行技能。"
     }
 
     func attack(_ defenderID: String) {
@@ -3726,6 +3811,7 @@ final class GameViewModel: ObservableObject {
         selectedCityID = nil
         selectedPosition = nil
         selectedAttackTargetID = nil
+        focusedEnemyCommanderThreatID = nil
         if state.campaignStatus.isGameOver {
             bannerMessage = messages.last ?? "\(campaignStatusTitle)：\(campaignStatusDetail)"
         } else {
@@ -3735,6 +3821,7 @@ final class GameViewModel: ObservableObject {
 
     private func apply(_ operation: () throws -> [String]) {
         selectedAttackTargetID = nil
+        focusedEnemyCommanderThreatID = nil
         do {
             let messages = try operation()
             let fallback = state.campaignStatus.isGameOver ? "\(campaignStatusTitle)：\(campaignStatusDetail)" : "命令已执行。"

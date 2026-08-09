@@ -200,6 +200,7 @@ Agent C 必须核对：
 - v0.61 起 Swift Testing 必须分别包含 `aiKillableTargetOutranksEngagedNonLethalTarget` 与 `aiMovementConvergesOnEngagedTarget`：前者锁定可立即击杀候选层不能被高价值已交战非致死目标翻转，后者锁定第二单位必须先移动时仍把回合交战记忆传入落点评分并攻击同一目标。结构检查必须覆盖 `hasKillableTarget`、`bestAIDestination` 与 `favoring engagedTargetIDs` 的真实调用链；静态 `aiIntents` 继续使用空集合，既有 AI 测试断言不得削弱。本轮无 UI 变化，六图应与 v0.60 基线一致。
 - v0.62 起 RenderBattlePreview 必须在单位场景前用相邻敌军 fixture 调用 `focusAttackTarget`，断言 `selectedAttackTargetID`、`selectedCombatForecast` 和 `CombatPreview` 字段完整，且锁定前后单位/城市/资源/回合/阵营状态完全一致；`selectedCombatForecast.preview` 必须等于 `state.attackPreview`，否则抛出 `missingAttackForecast`。单位场景渲染后必须清除锁定再进入城市场景。结构检查必须覆盖 `selectedAttackTargetID`、`selectedCombatForecast`、`focusAttackTarget`、`confirmSelectedAttack`、`AttackTargetMenuButton`、`AttackTargetSelectionMenuView` 和 `CombatForecastReadoutView`；Agent C 六图复判需确认地图徽标只锁定不结算、目标菜单不截断、金白焦点环与命令坞预演读板无重叠。
 - v0.63 起 RenderBattlePreview 还必须断言 `attackerIdentityLabel`、`defenderIdentityLabel`、`identityChainLabel`、将领/坐标字段，以及紧凑 `compactLabel`、完整 `detailLabel` 与同一 `CombatPreview` 同源；锁定前后 `GameState`、JSON 存档编码、AI 意图快照、城市选择、回合和活动阵营不变。调用 `cancelSelectedAttackTarget()` 后必须清空 `selectedAttackTargetID`、恢复攻击者 `selectedUnitID`/位置、清理锁定专属焦点且不进入 `attack(_:)`；第二次取消仍不改变任何核心或派生快照。结构检查必须覆盖 `AttackLockMapReadoutView`、取消按钮和 v0.63 prompt；Agent C 六图复判需确认地图身份 HUD、目标焦点环、命令坞/紧凑/完整预演、取消入口和固定 HUD 在三尺寸无空白、裁切或重叠。
+- v0.64 起 RenderBattlePreview 还必须沿用 `carthage-commander` fixture 断言 `EnemyCommanderThreatReport -> EnemyCommanderThreatSummary -> EnemyCommanderThreatMapOverlay` 同源：overlay id/threatID 与 summary/report 一致，起点、技能范围、受影响位置/对象、目标/目的地、技能/影响/状态、角色标记、路线段、链路和无障碍文案完整；`enemyCommanderThreatOverlaysByPosition` 与 `enemyCommanderThreatOverlayPositions` 不丢失起点、范围、影响或目标重叠信号，空影响必须保留明确无直接影响文案。必须包含 `MapOverlayLegendKind.enemyCommanderThreat`，四种 `MapOverlayPresentation` 视角按敌路突出敌将威胁、其他视角降权但不隐藏当前聚焦范围/目标，侦察 HUD signal 通过 `enemyCommanderThreatID` 引用同一 threat id。调用 `focusEnemyCommanderThreat(_:)` 后必须设置 `focusedEnemyCommanderThreatID`、选择位置/敌将身份、侦察上下文和 banner；重复聚焦幂等；无效 id 只更新错误 banner；调用前后 `GameState`、JSON 存档编码、单位/城市/资源、回合、活动阵营和 AI 意图快照完全不变，并且不会产生可执行的本方 `useGeneralSkill`/`attack`/`moveUnit` 入口。结构检查必须覆盖 `EnemyCommanderThreatMapOverlay`、`primaryEnemyCommanderThreatMapOverlay`、按位置集合、`focusEnemyCommanderThreat`、`focusedEnemyCommanderThreatID`、`enemyCommanderThreatID`、敌将图例 kind 和 v0.64 prompt；Agent C 六图复判需确认敌将起点徽标、技能范围、影响/目标标记、威胁链线与既有敌路/反制/目标线/热区、地图材质、固定 HUD、镜头工具、敌情卡定位按钮和 VoiceOver 在横屏/竖屏/宽屏无空白、裁切、重叠或大面积遮盖。
 - 若 workflow 失败，失败摘要和日志路径足以退回 Agent B 修复。
 - 若本地仓库没有 `origin` 或 `gh` 无权限，明确报告阻塞，不能伪造下载核对。
 - 只能使用 `Altman-sam114` 对应 GitHub 权限完成 push、CI 或 artifact 验收；不得使用其他账号伪装完成。
@@ -264,7 +265,7 @@ swiftc -swift-version 5 -module-cache-path .build/module-cache Sources/RomeLegio
 
 触发条件：
 
-- `BattleView`、`GameViewModel` UI 派生数据、战斗读板共享标签行组件、HUD 信号胶囊共享组件、战役推进线 HUD、地图侦察视角 HUD、敌情交战闭环 HUD、AI 作战计划读板与时间线读板、敌方将领威胁读板、敌情反制建议读板、反制落点/目标地图叠层、反制指令聚焦与执行预览、反制命令链高亮、反制焦点链路、战场目标链路、战场态势交汇链路、选中军团处境命令入口读板、选中军团军令窗口读板、战场目标线地图叠层、目标线阶段聚焦、目标线阶段命令预览、目标线阶段联动高亮、将令技能入口链路、将领指挥链读板、将领战机威胁桥接读板、将领技能目标与收益读板、本方将领协同读板、机动落点读板、战线压力读板、战场焦点读板、地图控制读板、威胁热区叠层、战术命令建议读板、城市经营读板、招募按钮、地图叠层、将领卡、战术姿态按钮或战斗页布局变化。
+- `BattleView`、`GameViewModel` UI 派生数据、战斗读板共享标签行组件、HUD 信号胶囊共享组件、战役推进线 HUD、地图侦察视角 HUD、敌情交战闭环 HUD、AI 作战计划读板与时间线读板、敌方将领威胁读板、敌将技能威胁地图 overlay/焦点、敌情反制建议读板、反制落点/目标地图叠层、反制指令聚焦与执行预览、反制命令链高亮、反制焦点链路、战场目标链路、战场态势交汇链路、选中军团处境命令入口读板、选中军团军令窗口读板、战场目标线地图叠层、目标线阶段聚焦、目标线阶段命令预览、目标线阶段联动高亮、将令技能入口链路、将领指挥链读板、将领战机威胁桥接读板、将领技能目标与收益读板、本方将领协同读板、机动落点读板、战线压力读板、战场焦点读板、地图控制读板、威胁热区叠层、战术命令建议读板、城市经营读板、招募按钮、地图叠层、将领卡、战术姿态按钮或战斗页布局变化。
 
 命令：
 
@@ -292,6 +293,7 @@ env HOME=$PWD/.home CLANG_MODULE_CACHE_PATH=$PWD/.build/module-cache /Applicatio
 - 渲染前应断言首要地图控制摘要存在，控制状态、热度、来源、详情、无障碍文案和控区 overlay positions 可用；失败会抛出 `missingMapControlSummary`。
 - 渲染前应断言首要 AI 作战计划摘要存在，计划列表非空，来源包含预览敌军，标题、类型、来源、影响、详情和无障碍文案可用；失败会抛出 `missingAIOperationalPlanSummary`。
 - 渲染前应断言首要敌方将领威胁摘要存在，敌将威胁列表非空，预览敌将存在，标题、紧凑标题、将领、trait、等级、意图、影响、状态和无障碍文案可用；失败会抛出 `missingEnemyCommanderThreatSummary`。
+- v0.64 还应断言首要 `EnemyCommanderThreatMapOverlay` 与敌将摘要/报告同源，包含起点、范围、影响、目标/目的地、角色标记、路线段、链路和无障碍文案；`focusEnemyCommanderThreat(_:)` 的有效、重复和无效路径只改变 ViewModel 聚焦态/banner/侦察上下文，不改变核心状态、存档和 AI 意图快照；图例与 HUD signal 引用同一 threat id，失败会抛出 `missingEnemyCommanderThreatMapOverlay`。
 - 渲染前应断言首要敌情反制建议摘要存在，反制列表非空，至少一条建议关联敌方将领威胁或 AI 作战计划，标题、类型、优先级、威胁、回应、单位、收益、风险、命令和无障碍文案可用；失败会抛出 `missingCountermeasureSummary`。
 - 渲染前应断言首要反制地图叠层存在，反制路线线段、按位置索引 overlay 和 overlay positions 非空，且包含首要反制建议的回应位置、推荐落点和威胁目标；每个 overlay 必须有阶段标签、焦点文案、链路摘要和无障碍文案；失败会抛出 `missingCountermeasureOverlay`。
 - 渲染前应断言首要反制指令预览存在，关联首要反制建议，回应单位、推荐姿态、落点、目标、下一步、命令链短标签、焦点链路摘要、姿态 cue、移动 cue、攻击 cue、目标阶段 cue、按钮文案、步骤和无障碍文案可读；调用 `focusCountermeasure(_:)` 后应选中回应军团、记录聚焦反制 ID、聚焦其位置、刷新选中单位姿态预览并显示反制 banner；若反制目标当前可攻击，应能通过 ViewModel 判断攻击按钮和地图目标 overlay 属于同一反制目标；失败会抛出 `missingCountermeasureCommandPreview`。

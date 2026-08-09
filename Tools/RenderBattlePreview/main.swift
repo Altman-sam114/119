@@ -314,10 +314,153 @@ struct RenderBattlePreview {
               !enemyCommanderThreat.traitLabel.isEmpty,
               !enemyCommanderThreat.levelLabel.isEmpty,
               !enemyCommanderThreat.intentLabel.isEmpty,
+              !enemyCommanderThreat.originLabel.isEmpty,
+              !enemyCommanderThreat.rangeLabel.isEmpty,
+              !enemyCommanderThreat.affectedPositionLabel.isEmpty,
+              !enemyCommanderThreat.targetPositionLabel.isEmpty,
+              !enemyCommanderThreat.destinationLabel.isEmpty,
+              !enemyCommanderThreat.spaceChainLabel.isEmpty,
               !enemyCommanderThreat.impactLabel.isEmpty,
               !enemyCommanderThreat.statusLabel.isEmpty,
               !enemyCommanderThreat.accessibilityLabel.isEmpty else {
             throw PreviewRenderError.missingEnemyCommanderThreatSummary
+        }
+        var enemyThreatExpectedPositions = Set([enemyCommanderThreat.report.position, enemyCommanderThreat.targetPosition])
+        enemyThreatExpectedPositions.formUnion(enemyCommanderThreat.report.rangePositions)
+        enemyThreatExpectedPositions.formUnion(enemyCommanderThreat.report.affectedPositions)
+        if let destination = enemyCommanderThreat.report.destination {
+            enemyThreatExpectedPositions.insert(destination)
+        }
+        guard let enemyCommanderThreatOverlay = viewModel.primaryEnemyCommanderThreatMapOverlay,
+              enemyCommanderThreatOverlay.id == enemyCommanderThreat.id,
+              enemyCommanderThreatOverlay.threatID == enemyCommanderThreat.id,
+              enemyCommanderThreatOverlay.position == enemyCommanderThreat.report.position,
+              enemyCommanderThreatOverlay.commanderPosition == enemyCommanderThreat.report.position,
+              enemyCommanderThreatOverlay.targetPosition == enemyCommanderThreat.targetPosition,
+              enemyCommanderThreatOverlay.destination == enemyCommanderThreat.report.destination,
+              enemyCommanderThreatOverlay.rangePositions == enemyCommanderThreat.report.rangePositions,
+              enemyCommanderThreatOverlay.affectedPositions == enemyCommanderThreat.report.affectedPositions,
+              enemyCommanderThreatOverlay.commanderLabel == enemyCommanderThreat.commanderLabel,
+              enemyCommanderThreatOverlay.skillName == enemyCommanderThreat.skillName,
+              !enemyCommanderThreatOverlay.impactLabel.isEmpty,
+              !enemyCommanderThreatOverlay.statusLabel.isEmpty,
+              !enemyCommanderThreatOverlay.chainLabel.isEmpty,
+              !enemyCommanderThreatOverlay.accessibilityLabel.isEmpty,
+              enemyCommanderThreatOverlay.references(enemyCommanderThreat),
+              enemyCommanderThreatOverlay.references(enemyCommanderThreat.report),
+              !enemyCommanderThreatOverlay.rangePositions.isEmpty,
+              enemyCommanderThreatOverlay.position.isInside(width: viewModel.state.width, height: viewModel.state.height),
+              enemyCommanderThreatOverlay.targetPosition.isInside(width: viewModel.state.width, height: viewModel.state.height),
+              enemyCommanderThreatOverlay.rangePositions.allSatisfy({ $0.isInside(width: viewModel.state.width, height: viewModel.state.height) }),
+              enemyCommanderThreatOverlay.affectedPositions.allSatisfy({ $0.isInside(width: viewModel.state.width, height: viewModel.state.height) }),
+              enemyCommanderThreatOverlay.destination.map({ $0.isInside(width: viewModel.state.width, height: viewModel.state.height) }) ?? true,
+              !enemyCommanderThreatOverlay.positionOverlays.isEmpty,
+              enemyCommanderThreatOverlay.positionOverlays.allSatisfy({ overlay in
+                  overlay.threatID == enemyCommanderThreat.id &&
+                      !overlay.label.isEmpty &&
+                      !overlay.accessibilityLabel.isEmpty &&
+                      overlay.position.isInside(width: viewModel.state.width, height: viewModel.state.height)
+              }),
+              Set(enemyCommanderThreatOverlay.positionOverlays.map(\.position)).isSuperset(of: enemyThreatExpectedPositions),
+              Set(enemyCommanderThreatOverlay.positionOverlays.map(\.role)).contains(.origin),
+              Set(enemyCommanderThreatOverlay.positionOverlays.map(\.role)).contains(.range),
+              Set(enemyCommanderThreatOverlay.positionOverlays.map(\.role)).contains(.target),
+              enemyCommanderThreat.report.affectedPositions.isEmpty
+                  ? !enemyCommanderThreatOverlay.positionOverlays.contains(where: { $0.role == .affected })
+                  : enemyCommanderThreatOverlay.positionOverlays.contains(where: { $0.role == .affected }),
+              enemyCommanderThreat.report.destination.map({ destination in
+                  enemyCommanderThreatOverlay.positionOverlays.contains(where: { $0.role == .destination && $0.position == destination })
+              }) ?? true,
+              enemyCommanderThreat.report.affectedPositions.isEmpty
+                  ? enemyCommanderThreatOverlay.chainLabel.contains("无直接影响")
+                  : enemyCommanderThreatOverlay.positionOverlays.contains(where: { $0.role == .affected }),
+              !enemyCommanderThreatOverlay.routeSegments.isEmpty,
+              enemyCommanderThreatOverlay.routeSegments.allSatisfy({ segment in
+                  segment.from.isInside(width: viewModel.state.width, height: viewModel.state.height) &&
+                      segment.to.isInside(width: viewModel.state.width, height: viewModel.state.height)
+              }),
+              enemyCommanderThreatOverlay.routeSegments.contains(where: { segment in
+                  segment.isTargetLeg &&
+                      segment.to == enemyCommanderThreatOverlay.targetPosition &&
+                      segment.from == (enemyCommanderThreatOverlay.destination ?? enemyCommanderThreatOverlay.position)
+              }),
+              !viewModel.enemyCommanderThreatMapOverlays.isEmpty,
+              viewModel.enemyCommanderThreatOverlayPositions.isSuperset(of: enemyThreatExpectedPositions),
+              viewModel.enemyCommanderThreatMapOverlaysByPosition.values.flatMap({ $0 }).contains(where: { $0.threatID == enemyCommanderThreat.id }) else {
+            throw PreviewRenderError.missingEnemyCommanderThreatMapOverlay
+        }
+        let threatLegendKinds = Set(viewModel.activeMapOverlayLegendItems.map(\.kind))
+        let enemyThreatPresentation = MapOverlayPresentation(perspective: .enemyIntent)
+        let counterThreatPresentation = MapOverlayPresentation(perspective: .countermeasure)
+        let objectiveThreatPresentation = MapOverlayPresentation(perspective: .objective)
+        let terrainThreatPresentation = MapOverlayPresentation(perspective: .terrainPressure)
+        guard threatLegendKinds.contains(.enemyCommanderThreat),
+              enemyThreatPresentation.isFocusedLegend(.enemyCommanderThreat),
+              enemyThreatPresentation.legendPriority(.enemyCommanderThreat) == 0,
+              enemyThreatPresentation.enemyCommanderThreatOpacity > counterThreatPresentation.enemyCommanderThreatOpacity,
+              enemyThreatPresentation.enemyCommanderThreatOpacity > objectiveThreatPresentation.enemyCommanderThreatOpacity,
+              enemyThreatPresentation.enemyCommanderThreatOpacity > terrainThreatPresentation.enemyCommanderThreatOpacity,
+              counterThreatPresentation.showsEnemyCommanderThreatDetails,
+              objectiveThreatPresentation.showsEnemyCommanderThreatDetails,
+              terrainThreatPresentation.showsEnemyCommanderThreatDetails,
+              counterThreatPresentation.legendPriority(.enemyCommanderThreat) <= 1,
+              objectiveThreatPresentation.legendPriority(.enemyCommanderThreat) >= 1,
+              terrainThreatPresentation.legendPriority(.enemyCommanderThreat) >= 1 else {
+            throw PreviewRenderError.missingEnemyCommanderThreatMapOverlay
+        }
+        let stateBeforeEnemyCommanderThreatFocus = viewModel.state
+        let threatStateEncoder = JSONEncoder()
+        threatStateEncoder.outputFormatting = [.sortedKeys]
+        let stateArchiveBeforeEnemyCommanderThreatFocus = try threatStateEncoder.encode(stateBeforeEnemyCommanderThreatFocus)
+        let aiIntentSnapshotBeforeEnemyCommanderThreatFocus = viewModel.enemyIntentSummaries.map(\.intent)
+        viewModel.focusEnemyCommanderThreat(enemyCommanderThreat.id)
+        let stateArchiveAfterEnemyCommanderThreatFocus = try threatStateEncoder.encode(viewModel.state)
+        let aiIntentSnapshotAfterEnemyCommanderThreatFocus = viewModel.enemyIntentSummaries.map(\.intent)
+        guard let focusedEnemyCommanderThreatOverlay = viewModel.primaryEnemyCommanderThreatMapOverlay,
+              focusedEnemyCommanderThreatOverlay.id == enemyCommanderThreat.id,
+              focusedEnemyCommanderThreatOverlay.isFocused,
+              viewModel.focusedEnemyCommanderThreatID == enemyCommanderThreat.id,
+              viewModel.selectedUnitID == nil,
+              viewModel.selectedCityID == nil,
+              viewModel.selectedPosition == enemyCommanderThreatOverlay.position,
+              viewModel.selectedMapReconPerspective == .enemyIntent,
+              viewModel.mapReconPerspectiveHUDReadout.references(threat: focusedEnemyCommanderThreatOverlay),
+              viewModel.mapReconPerspectiveHUDReadout.enemyCommanderThreatID == enemyCommanderThreat.id,
+              viewModel.mapReconPerspectiveHUDReadout.signals.contains(where: { signal in
+                  signal.kind == .enemyCommander &&
+                      signal.sourceID == enemyCommanderThreat.id &&
+                      signal.position == enemyCommanderThreatOverlay.position &&
+                      !signal.accessibilityLabel.isEmpty
+              }),
+              viewModel.bannerMessage.contains("仅供侦察"),
+              viewModel.state == stateBeforeEnemyCommanderThreatFocus,
+              stateArchiveBeforeEnemyCommanderThreatFocus == stateArchiveAfterEnemyCommanderThreatFocus,
+              aiIntentSnapshotBeforeEnemyCommanderThreatFocus == aiIntentSnapshotAfterEnemyCommanderThreatFocus,
+              viewModel.selectedGeneralSkillPreview == nil,
+              viewModel.attackTargets.isEmpty else {
+            throw PreviewRenderError.missingEnemyCommanderThreatMapOverlay
+        }
+        let focusedBanner = viewModel.bannerMessage
+        let focusedPosition = viewModel.selectedPosition
+        viewModel.focusEnemyCommanderThreat(enemyCommanderThreat.id)
+        let stateArchiveAfterRepeatedEnemyCommanderThreatFocus = try threatStateEncoder.encode(viewModel.state)
+        guard viewModel.focusedEnemyCommanderThreatID == enemyCommanderThreat.id,
+              viewModel.selectedPosition == focusedPosition,
+              viewModel.bannerMessage == focusedBanner,
+              viewModel.state == stateBeforeEnemyCommanderThreatFocus,
+              stateArchiveBeforeEnemyCommanderThreatFocus == stateArchiveAfterRepeatedEnemyCommanderThreatFocus,
+              aiIntentSnapshotBeforeEnemyCommanderThreatFocus == viewModel.enemyIntentSummaries.map(\.intent) else {
+            throw PreviewRenderError.missingEnemyCommanderThreatMapOverlay
+        }
+        viewModel.focusEnemyCommanderThreat("missing-enemy-commander-threat")
+        let stateArchiveAfterInvalidEnemyCommanderThreatFocus = try threatStateEncoder.encode(viewModel.state)
+        guard viewModel.focusedEnemyCommanderThreatID == enemyCommanderThreat.id,
+              viewModel.selectedPosition == focusedPosition,
+              viewModel.state == stateBeforeEnemyCommanderThreatFocus,
+              stateArchiveBeforeEnemyCommanderThreatFocus == stateArchiveAfterInvalidEnemyCommanderThreatFocus,
+              aiIntentSnapshotBeforeEnemyCommanderThreatFocus == viewModel.enemyIntentSummaries.map(\.intent),
+              viewModel.bannerMessage.contains("无法定位") else {
+            throw PreviewRenderError.missingEnemyCommanderThreatMapOverlay
         }
         guard let countermeasure = viewModel.primaryCountermeasureSummary,
               !viewModel.countermeasureSummaries.isEmpty,
@@ -2315,6 +2458,7 @@ enum PreviewRenderError: Error {
     case missingAIOperationalPlanSummary
     case missingAIOperationalPlanTimelineReadout
     case missingEnemyCommanderThreatSummary
+    case missingEnemyCommanderThreatMapOverlay
     case missingCountermeasureSummary
     case missingCountermeasureOverlay
     case missingCountermeasureCommandPreview

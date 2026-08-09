@@ -1274,6 +1274,7 @@ struct AIOperationalPlanRowView: View {
 }
 
 struct EnemyCommanderThreatRowView: View {
+    @EnvironmentObject private var viewModel: GameViewModel
     var summary: EnemyCommanderThreatSummary
 
     var body: some View {
@@ -1314,6 +1315,15 @@ struct EnemyCommanderThreatRowView: View {
                     .foregroundStyle(.white.opacity(0.58))
                     .lineLimit(1)
                     .minimumScaleFactor(0.72)
+                Button("定位敌将", systemImage: "scope") {
+                    viewModel.focusEnemyCommanderThreat(summary.id)
+                }
+                .labelStyle(.iconOnly)
+                .font(.caption.weight(.black))
+                .frame(width: 44, height: 44)
+                .buttonStyle(SecondaryButtonStyle())
+                .accessibilityLabel("定位敌将\(summary.commanderLabel)，\(summary.spaceChainLabel)")
+                .accessibilityHint("只查看敌将技能威胁地图，不会执行技能")
             }
         }
         .padding(.horizontal, 8)
@@ -2920,6 +2930,7 @@ struct EnemyIntentPanelView: View {
 }
 
 struct EnemyCommanderThreatCardView: View {
+    @EnvironmentObject private var viewModel: GameViewModel
     var summary: EnemyCommanderThreatSummary
 
     var body: some View {
@@ -2951,7 +2962,7 @@ struct EnemyCommanderThreatCardView: View {
                 .minimumScaleFactor(0.72)
 
             HStack(spacing: 6) {
-                Label(summary.targetLabel, systemImage: "scope")
+                Label("\(summary.targetLabel) · \(summary.targetPositionLabel)", systemImage: "scope")
                 Spacer(minLength: 0)
                 Label(summary.intentLabel, systemImage: "bolt.shield.fill")
                 Spacer(minLength: 0)
@@ -2962,11 +2973,40 @@ struct EnemyCommanderThreatCardView: View {
             .lineLimit(1)
             .minimumScaleFactor(0.70)
 
+            HStack(spacing: 6) {
+                Label(summary.originLabel, systemImage: "person.crop.circle")
+                Spacer(minLength: 0)
+                Label(summary.rangeLabel, systemImage: "dot.scope")
+                Spacer(minLength: 0)
+                Label(summary.affectedPositionLabel, systemImage: "exclamationmark.triangle")
+            }
+            .font(.caption2.weight(.semibold))
+            .foregroundStyle(.white.opacity(0.60))
+            .lineLimit(1)
+            .minimumScaleFactor(0.62)
+
+            if summary.destinationPosition != nil {
+                Label(summary.destinationLabel, systemImage: "arrow.down.circle")
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(.white.opacity(0.60))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.68)
+            }
+
             Text(summary.detail)
                 .font(.caption2)
                 .foregroundStyle(.white.opacity(0.54))
                 .lineLimit(2)
                 .minimumScaleFactor(0.70)
+
+            Button("定位敌将", systemImage: "scope") {
+                viewModel.focusEnemyCommanderThreat(summary.id)
+            }
+            .font(.caption.weight(.bold))
+            .frame(maxWidth: .infinity, minHeight: 44)
+            .buttonStyle(SecondaryButtonStyle())
+            .accessibilityLabel("定位敌将\(summary.commanderLabel)，\(summary.spaceChainLabel)")
+            .accessibilityHint("只查看敌将威胁的地图空间，不会执行技能或改变战局")
         }
         .padding(8)
         .background(summary.level.tintColor.opacity(0.11))
@@ -5116,6 +5156,8 @@ private extension MapOverlayLegendKind {
         switch self {
         case .enemyRoute, .enemyTarget:
             return .red
+        case .enemyCommanderThreat:
+            return .purple
         case .threatHeat:
             return .orange
         case .mapControl:

@@ -1,6 +1,6 @@
 # 项目核心流程文档
 
-一句话总览：`RomeLegions` 当前是 SwiftUI App + 纯 Swift 核心规则的罗马题材战棋原型，用户在菜单选择模式后进入战场，SwiftUI 通过 `GameViewModel` 调用 `GameState` 完成移动、战斗、城市、科技、外交、战役胜负结算、AI、敌军意图、AI 作战计划与时间线读板、敌方将领威胁、敌情反制建议及地图叠层、战线压力、战场焦点、战场态势交汇、选中军团处境与命令入口、选中军团军令窗口、将领战机威胁桥接、地图控制、威胁热区、玩家侧战术建议、本方将领协同、将领协同步骤和机动落点展示；真实 AI 回合会按当前意图威胁分优先执行主攻单位；协作层默认通过 `main` 直推触发 GitHub Actions，并由 Agent C 下载未加密结果包复判；未来可由 Agent X 围绕人工总目标调度 A/B/C 多轮迭代。
+一句话总览：`RomeLegions` 当前是 SwiftUI App + 纯 Swift 核心规则的罗马题材战棋原型，用户在菜单选择模式后进入战场，SwiftUI 通过 `GameViewModel` 调用 `GameState` 完成移动、战斗、城市、科技、外交、战役胜负结算、AI、敌军意图、AI 作战计划与时间线读板、敌方将领威胁及其技能威胁地图焦点/空间叠层、敌情反制建议及地图叠层、战线压力、战场焦点、战场态势交汇、选中军团处境与命令入口、选中军团军令窗口、将领战机威胁桥接、地图控制、威胁热区、玩家侧战术建议、本方将领协同、将领协同步骤和机动落点展示；真实 AI 回合会按当前意图威胁分优先执行主攻单位；协作层默认通过 `main` 直推触发 GitHub Actions，并由 Agent C 下载未加密结果包复判；未来可由 Agent X 围绕人工总目标调度 A/B/C 多轮迭代。
 
 本文只记录当前真实链路，不写历史叙事。
 
@@ -15,6 +15,13 @@
 7. `GameState` 修改核心状态并返回中文消息数组。
 8. `GameViewModel.apply` 捕获成功消息或 `GameRuleError`，更新 `bannerMessage`。
 9. SwiftUI 根据 `@Published` 状态自动刷新地图、侧栏、命令面板和状态条。
+
+### 敌将技能威胁地图链（v0.64）
+
+- `EnemyCommanderThreatReport` 是唯一威胁来源；`GameViewModel.enemyCommanderThreatSummaries` 只把报告的将领、技能、起点、范围、受影响对象、目标/目的地和状态转成可读字段，不在视图中重算范围、评分或反制收益。
+- `primaryEnemyCommanderThreatMapOverlay`、`enemyCommanderThreatOverlaysByPosition` 和 `enemyCommanderThreatOverlayPositions` 由同一 summary/report 派生 `EnemyCommanderThreatMapOverlay`，保留起点、范围、影响、目标/目的地、角色标签、路线段、技能/影响/状态和 VoiceOver 文案；地图使用已有六边坐标与镜头变换，叠层只读且禁用命中测试。
+- 敌情卡调用 `focusEnemyCommanderThreat(_:)` 定位同一个 threat id。有效、重复和无效聚焦只更新 `focusedEnemyCommanderThreatID`、选择位置、侦察上下文和 banner；不写 `GameState`、`SaveStore`、AI 意图、回合、资源、单位/城市或活动阵营，也不调用移动、攻击、技能或其他写状态命令。
+- 地图图例使用 `MapOverlayLegendKind.enemyCommanderThreat`，`mapReconPerspectiveHUDReadout` 通过 `enemyCommanderThreatID`/`references(threat:)` 与 overlay 同源；敌路视角突出敌将技能范围，反制、目标线和热区视角保留低权重的聚焦范围/目标及可访问标签，既有反制建议仍来自核心报告。
 
 ## 当前核心执行流
 
@@ -86,7 +93,8 @@
 - `state.aiOperationalPlanReports(against:perFactionLimit:limit:)` 只读聚合敌军意图、战线压力、威胁热区和敌方将领技能机会，输出集火、夺城、将领技能、推进、固守或整备计划、协同角色、来源单位、目标、预计伤害和详情；它在敌方 forecast copy 上读取将领技能机会，不新增存档字段，不改变真实 AI 行为、AI 评分、移动、攻击、技能释放或胜负结算。
 - `GameViewModel.aiOperationalPlanSummaries` 将核心作战计划报告转成计划 chip、敌情计划卡、战局计划行、行动时间线和无障碍文案；时间线逐步展示 `AIPlanStepReport` 的角色、军团、意图、起点、落点、目标、姿态和预计影响，`BattleView` 只展示这些 UI 派生字段，不在 SwiftUI 中重新聚合敌军目标、行动顺序或技能机会。
 - `state.enemyCommanderThreatReports(against:limit:)` 只读聚合敌方将领 trait、技能预览、AI 意图、AI 作战计划、战线压力和热区，输出敌将威胁等级、目标、技能窗口、预计伤害/恢复/削城防、理由和影响；它在敌方 forecast copy 上读取技能预览，不新增存档字段，不改变真实 AI 行为、技能释放、攻击、移动或胜负结算。
-- `GameViewModel.enemyCommanderThreatSummaries` 将核心敌将威胁报告转成敌将 chip、敌情卡、战局敌将行和无障碍文案；`BattleView` 只展示核心报告，不在 SwiftUI 中重新计算威胁分或技能目标。
+- `GameViewModel.enemyCommanderThreatSummaries` 将核心敌将威胁报告转成敌将 chip、敌情卡、战局敌将行和无障碍文案；`EnemyCommanderThreatMapOverlay` 再从同一 summary/report 派生起点、技能范围、受影响位置/对象、目标/目的地、角色标记和威胁路线，供地图空间层使用。`BattleView` 只展示核心报告，不在 SwiftUI 中重新计算威胁分、技能目标或范围。
+- `primaryEnemyCommanderThreatMapOverlay`、`enemyCommanderThreatOverlaysByPosition` 和 `enemyCommanderThreatOverlayPositions` 与 `EnemyCommanderThreatSummary.id`/`EnemyCommanderThreatReport.id` 保持同源；`focusEnemyCommanderThreat(_:)` 只改变 ViewModel 的敌将焦点、选择位置、侦察上下文和 banner，聚焦入口不会调用 `useGeneralSkill`、`attack`、`moveUnit` 或任何核心写命令。有效、重复、无效聚焦均保持 `GameState`、存档、AI 意图和回合快照不变。
 - `state.countermeasureReports(for:limit:)` 和 `countermeasureReport(for:)` 只读聚合敌方将领威胁、AI 作战计划、战线压力、威胁热区、本方战术建议、机动落点和将领协同，输出打断敌将、稳住战线、补防城市、打击威胁、将令反制或机动换位建议；它不自动下令，不改变敌军意图、AI 评分、真实移动、攻击、技能或姿态结算。
 - `GameViewModel.countermeasureSummaries`、`primaryCountermeasureSummary`、`primaryCountermeasureMapOverlay`、`countermeasureRouteSegments` 和 `countermeasureOverlaysByPosition` 将核心反制建议转成反制 chip、敌情反制卡、战局反制行、收益/风险/命令、回应位置、推荐落点、威胁目标、地图引导线、1/2/3 阶段标签、焦点链路摘要和无障碍文案；`BattleView` 只展示摘要和叠层，不在 SwiftUI 中重新匹配目标、回应单位或评分。
 - `GameViewModel.countermeasureCommandPreviews`、`primaryCountermeasureCommandPreview`、`selectedCountermeasureCommandPreview` 和 `focusedCountermeasureID` 继续把反制建议转成只读指令预览，说明推荐姿态、落点是否可达、目标是否可直接攻击、命令链短标签、焦点链路摘要、目标阶段 cue 和阻塞原因；`focusCountermeasure(_:)` 只改变 ViewModel 选择态、位置、聚焦 ID 和 banner，使现有可达格、攻击目标和姿态预览自然刷新，不移动单位、不攻击、不切换姿态，也不改变 `GameState`。
@@ -223,7 +231,8 @@ Agent X 不能跳过 Agent C artifact 验收，不能把旧 run、旧 artifact�
 - `AIOperationalPlanKind` / `AIPlanCoordinationRole` / `AIPlanStepReport` / `AIOperationalPlanReport`：`GameState` 的敌军作战计划只读报告，展示敌方集火、夺城、将领技能、推进、固守或整备计划的来源、目标、协同角色、压力/热区和预计伤害。
 - `AIOperationalPlanTimelineStepReadout` / `AIOperationalPlanSummary`：`GameViewModel` 的 AI 作战计划 UI 派生数据，供顶部计划 chip、敌情计划卡、时间线步骤和战局计划行展示。
 - `EnemyCommanderThreatLevel` / `EnemyCommanderThreatReport`：`GameState` 的敌方将领威胁只读报告，展示敌将 trait、技能窗口、AI 意图、目标、压力/热区、预计伤害/恢复/削城防和威胁评分。
-- `EnemyCommanderThreatSummary`：`GameViewModel` 的敌方将领威胁 UI 派生数据，供顶部敌将 chip、敌情卡和战局敌将行展示。
+- `EnemyCommanderThreatSummary`：`GameViewModel` 的敌方将领威胁 UI 派生数据，供顶部敌将 chip、敌情卡、战局敌将行和地图威胁 overlay 展示。
+- `EnemyCommanderThreatMapOverlay`：只读敌将空间叠层，保留报告起点、技能范围、影响位置/对象、目标/目的地、角色标记、路线和无障碍链路；`MapOverlayLegendKind.enemyCommanderThreat` 与地图侦察 HUD 的 `enemyCommanderThreatID` 指向同一个 threat id。
 - `CountermeasureKind` / `CountermeasurePriority` / `CountermeasureReport`：`GameState` 的敌情反制建议只读报告，复用敌方威胁和本方战术/机动/将令报告，展示回应单位、命令、收益、风险和关联来源。
 - `CountermeasureSummary`：`GameViewModel` 的敌情反制 UI 派生数据，供顶部反制 chip、敌情反制卡和战局反制行展示。
 - `CountermeasureCommandPreview`：`GameViewModel` 的反制指令 UI 派生数据，供敌情反制卡、战局反制行和选中回应军团后的军令面板展示推荐姿态、落点、目标、下一步、阻塞原因、命令链短标签、焦点链路摘要、姿态按钮 cue 和攻击按钮 cue。
@@ -258,7 +267,7 @@ Agent X 不能跳过 Agent C artifact 验收，不能把旧 run、旧 artifact�
 - `SaveStore` 存取完整 `GameState`，不得维护另一套玩法状态。
 - AI 意图预测不得改变 `GameState`。
 - AI 作战计划读板和时间线步骤不得改变 `GameState`、AI 评分或真实 AI 决策；真实 AI 只复用当前单体意图威胁分决定单位执行顺序，不复用作战计划报告自动下令。
-- 敌方将领威胁读板不得改变 `GameState`、AI 评分、技能释放、技能冷却、攻击预览或真实 AI 决策；敌方技能窗口必须在敌方 forecast 语义下读取。
+- 敌方将领威胁读板和 `EnemyCommanderThreatMapOverlay` 不得改变 `GameState`、AI 评分、技能释放、技能冷却、攻击预览或真实 AI 决策；敌方技能窗口必须在敌方 forecast 语义下读取。敌将定位只能改变 ViewModel 选择态、banner 和镜头上下文，不能产生本方可执行技能/攻击入口。
 - 敌情交战闭环摘要、地图单层情报坞和战役推进线 HUD 不得改变 `GameState`、AI 评分、任务完成判断、敌军路线、敌将威胁、反制评分、目标线阶段、热区控区、将领链、移动、攻击、技能、姿态或真实 AI 决策；侦察视角切换只改变 ViewModel UI 选择态、banner 和 SwiftUI route/tile/legend 显示优先级。
 - 敌情反制建议读板、指令预览、命令链高亮和焦点链路不得改变 `GameState`、AI 评分、技能释放、攻击预览、移动、姿态或真实 AI 决策；反制建议只能链接现有敌方威胁和本方战术/机动/将令报告，聚焦方法只改变 ViewModel 选择态，地图阶段标记和按钮高亮只解释既有命令入口，不自动执行。
 - 本方将领协同读板和步骤读板不得改变 `GameState`、攻击预览、技能释放、姿态切换、AI 评分或真实结算。
@@ -274,7 +283,7 @@ Agent X 不能跳过 Agent C artifact 验收，不能把旧 run、旧 artifact�
 - v0.58 镜头云端门禁：RenderBattlePreview 在渲染前断言默认态、缩放上下限、拖移边界、中心/边缘聚焦与复位；三尺寸六图继续复判镜头工具、固定 HUD 和地图空间层对齐。
 - 普通运行：打开 `RomeLegionsApp.xcodeproj`，选择 iPhone 或 iPad Simulator，运行 `RomeLegions` target。
 - 命令行 UI 复现：`xcrun simctl launch booted com.codex.RomeLegions --attack-demo`。
-- 预览渲染：`Tools/RenderBattlePreview/main.swift` 生成战斗页 PNG，并在渲染前断言六类地貌 profile 唯一、多层纹理与三种尺寸战区尺度策略，同时保留敌军意图六边形邻接路径、目标格、预计伤害、战役推进线 HUD、地图侦察视角/叠层呈现映射、敌情交战闭环摘要、单层地图情报坞、主动地图叠层图例、AI 作战计划摘要与时间线读板、敌方将领威胁摘要、敌情反制建议摘要、反制地图叠层、反制指令预览、命令链高亮 cue、焦点链路与聚焦、战线压力摘要、战场焦点摘要、战场目标链路、战场态势交汇链路、选中军团处境命令入口读板、选中军团军令窗口读板、战场目标线地图叠层、目标线阶段聚焦、阶段命令预览、阶段联动高亮 cue、将令技能入口链路、将领指挥链读板、将领战机威胁桥接读板、地图控制摘要、威胁热区摘要、军团编制摘要、军团成长决策摘要、军团成长优先级摘要、本方将领协同摘要和步骤读板、机动落点摘要/地图 overlay、战术建议摘要/路径/目标、选中单位将领详情、被动贡献、战功摘要、战术姿态预览和城市经营/招募读板存在；渲染后采样横向三带和青绿/蓝/灰褐材质分布，每个尺寸输出城市场景图和同尺寸 `*-unit.png` 单位场景图。
+- 预览渲染：`Tools/RenderBattlePreview/main.swift` 生成战斗页 PNG，并在渲染前断言六类地貌 profile 唯一、多层纹理与三种尺寸战区尺度策略，同时保留敌军意图六边形邻接路径、目标格、预计伤害、战役推进线 HUD、地图侦察视角/叠层呈现映射、敌情交战闭环摘要、单层地图情报坞、主动地图叠层图例、AI 作战计划摘要与时间线读板、敌方将领威胁摘要及 `EnemyCommanderThreatMapOverlay` 同源起点/范围/影响/目标/路线/焦点幂等断言、敌情反制建议摘要、反制地图叠层、反制指令预览、命令链高亮 cue、焦点链路与聚焦、战线压力摘要、战场焦点摘要、战场目标链路、战场态势交汇链路、选中军团处境命令入口读板、选中军团军令窗口读板、战场目标线地图叠层、目标线阶段聚焦、阶段命令预览、阶段联动高亮 cue、将令技能入口链路、将领指挥链读板、将领战机威胁桥接读板、地图控制摘要、威胁热区摘要、军团编制摘要、军团成长决策摘要、军团成长优先级摘要、本方将领协同摘要和步骤读板、机动落点摘要/地图 overlay、战术建议摘要/路径/目标、选中单位将领详情、被动贡献、战功摘要、战术姿态预览和城市经营/招募读板存在；渲染后采样横向三带和青绿/蓝/灰褐材质分布，每个尺寸输出城市场景图和同尺寸 `*-unit.png` 单位场景图。
 - 核心测试：Swift Testing 和 Gameplay Smoke。
 - 云端验证：push 到 `origin/main` 后由 `.github/workflows/ci-results.yml` 上传 CI 结果包。
 

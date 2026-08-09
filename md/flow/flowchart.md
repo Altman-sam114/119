@@ -360,3 +360,21 @@ flowchart LR
     I -->|确认攻击| K["confirmSelectedAttack"]
     K --> L["GameState.attack<br/>唯一结算入口"]
 ```
+
+## v0.64 敌将技能威胁地图焦点链
+
+读图说明：敌将地图叠层只把核心威胁报告翻译为空间信息。起点、技能范围、受影响位置/对象和目标/目的地来自同一个 `EnemyCommanderThreatReport`，地图焦点与 HUD/图例通过同一个 threat id 关联；定位按钮只改变 `GameViewModel` 的选择态和镜头上下文，下一步反制仍由既有反制报告和命令预览提供。
+
+```mermaid
+flowchart LR
+    R["GameState.EnemyCommanderThreatReport<br/>敌将起点、技能范围、受影响位置/对象、目标/目的地、技能状态"] --> S["GameViewModel.EnemyCommanderThreatSummary<br/>将领、技能、范围、影响、状态和无障碍文案"]
+    S --> O["EnemyCommanderThreatMapOverlay<br/>同源 threatID、position、range/affected、target/destination、角色标记和路线"]
+    O --> M["BattleMap<br/>敌将徽标、技能范围、影响/目标标记和威胁链线<br/>共用 HexMetrics/镜头变换，叠层不抢地图命中"]
+    S --> C["敌情卡定位按钮<br/>focusEnemyCommanderThreat(id)"]
+    C --> F["GameViewModel focusedEnemyCommanderThreatID<br/>selectedPosition、侦察上下文、banner/镜头聚焦"]
+    F --> M
+    F --> H["地图侦察 HUD + MapOverlayLegendKind.enemyCommanderThreat<br/>enemyCommanderThreatID 与同一 threat id"]
+    S --> X["既有 CountermeasureReport / CommandPreview<br/>反制建议仍由核心只读报告生成"]
+    X --> Y["反制入口<br/>只读下一步，不由敌将定位自动执行"]
+    F -.->|有效/重复/无效聚焦均不写核心状态| G["GameState / SaveStore / AI intent / 回合 / 资源保持不变"]
+```

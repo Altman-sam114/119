@@ -336,6 +336,27 @@ struct EnemyCommanderThreatSummary: Identifiable {
     var trait: GeneralTrait { report.generalTrait }
     var targetPosition: Position { report.targetPosition }
 
+    var originPosition: Position {
+        report.position
+    }
+
+    var originLabel: String {
+        "起点\(originPosition.description)"
+    }
+
+    var targetPositionLabel: String {
+        "目标位置\(targetPosition.description)"
+    }
+
+    var destinationPosition: Position? {
+        report.destination
+    }
+
+    var destinationLabel: String {
+        guard let destinationPosition else { return "无意图落点" }
+        return "落点\(destinationPosition.description)"
+    }
+
     var title: String {
         report.title
     }
@@ -418,12 +439,32 @@ struct EnemyCommanderThreatSummary: Identifiable {
         return targetLabel
     }
 
+    var affectedPositionLabel: String {
+        if report.affectedPositions.isEmpty {
+            return "无直接影响位置"
+        }
+
+        let positions = report.affectedPositions.prefix(4).map { $0.description }
+        let suffix = report.affectedPositions.count > positions.count ? "等 \(report.affectedPositions.count) 格" : ""
+        return "影响位置\(positions.joined(separator: "、"))\(suffix)"
+    }
+
+    var spaceChainLabel: String {
+        [originLabel, rangeLabel, affectedPositionLabel, targetPositionLabel, destinationLabel]
+            .joined(separator: " · ")
+    }
+
     var accessibilityLabel: String {
         [
             "敌方将领\(commanderLabel)",
             traitLabel,
             "等级\(levelLabel)",
             "意图\(intentLabel)",
+            originLabel,
+            rangeLabel,
+            affectedPositionLabel,
+            targetPositionLabel,
+            destinationLabel,
             "目标\(targetLabel)",
             impactLabel,
             statusLabel,

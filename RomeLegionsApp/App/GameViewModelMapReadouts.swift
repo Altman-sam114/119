@@ -20,9 +20,193 @@ struct EnemyIntentRouteSegment: Identifiable {
     var isHighThreat: Bool
 }
 
+enum EnemyCommanderThreatMapRole: String, CaseIterable, Identifiable {
+    case origin
+    case range
+    case affected
+    case target
+    case destination
+
+    var id: String { rawValue }
+
+    var displayName: String {
+        switch self {
+        case .origin:
+            return "敌将起点"
+        case .range:
+            return "技能范围"
+        case .affected:
+            return "影响区"
+        case .target:
+            return "威胁目标"
+        case .destination:
+            return "意图落点"
+        }
+    }
+
+    var systemImage: String {
+        switch self {
+        case .origin:
+            return "crown.fill"
+        case .range:
+            return "circle.dashed"
+        case .affected:
+            return "burst.fill"
+        case .target:
+            return "scope"
+        case .destination:
+            return "flag.fill"
+        }
+    }
+}
+
+struct EnemyCommanderThreatRouteSegment: Identifiable {
+    var id: String
+    var from: Position
+    var to: Position
+    var isTargetLeg: Bool
+}
+
+struct EnemyCommanderThreatPositionOverlay: Identifiable {
+    var threatID: String
+    var role: EnemyCommanderThreatMapRole
+    var position: Position
+    var isFocused: Bool
+    var label: String
+    var accessibilityLabel: String
+
+    var id: String {
+        "\(threatID)-\(role.rawValue)-\(position.x)-\(position.y)"
+    }
+
+    var stageLabel: String {
+        role.displayName
+    }
+}
+
+struct EnemyCommanderThreatMapOverlay: Identifiable {
+    var summary: EnemyCommanderThreatSummary
+    var isFocused: Bool
+
+    var id: String { summary.id }
+    var threatID: String { summary.id }
+    var position: Position { summary.report.position }
+    var commanderPosition: Position { summary.report.position }
+    var targetPosition: Position { summary.targetPosition }
+    var destination: Position? { summary.report.destination }
+    var destinationPosition: Position? { destination }
+    var rangePositions: [Position] { summary.report.rangePositions }
+    var affectedPositions: [Position] { summary.report.affectedPositions }
+    var commanderLabel: String { summary.commanderLabel }
+    var skillName: String { summary.skillName }
+    var skillLabel: String { skillName }
+    var targetLabel: String { summary.targetLabel }
+    var rangeLabel: String { summary.rangeLabel }
+    var impactLabel: String { summary.impactLabel }
+    var statusLabel: String { summary.statusLabel }
+
+    var routeSegments: [EnemyCommanderThreatRouteSegment] {
+        var segments: [EnemyCommanderThreatRouteSegment] = []
+        let origin = position
+
+        if let destination,
+           destination != origin {
+            segments.append(
+                EnemyCommanderThreatRouteSegment(
+                    id: "\(id)-move",
+                    from: origin,
+                    to: destination,
+                    isTargetLeg: false
+                )
+            )
+        }
+
+        let routeOrigin = destination ?? origin
+        if targetPosition != routeOrigin || segments.isEmpty {
+            segments.append(
+                EnemyCommanderThreatRouteSegment(
+                    id: "\(id)-target",
+                    from: routeOrigin,
+                    to: targetPosition,
+                    isTargetLeg: true
+                )
+            )
+        }
+
+        return segments
+    }
+
+    var positionOverlays: [EnemyCommanderThreatPositionOverlay] {
+        var overlays: [EnemyCommanderThreatPositionOverlay] = []
+
+        func append(_ role: EnemyCommanderThreatMapRole, _ position: Position, _ label: String) {
+            overlays.append(
+                EnemyCommanderThreatPositionOverlay(
+                    threatID: id,
+                    role: role,
+                    position: position,
+                    isFocused: isFocused,
+                    label: label,
+                    accessibilityLabel: "敌将\(commanderLabel)，\(role.displayName)\(position.description)，\(label)"
+                )
+            )
+        }
+
+        append(.origin, position, "\(skillName)起点")
+
+        for rangePosition in sortedPositions(rangePositions) {
+            append(.range, rangePosition, "\(skillName)可覆盖")
+        }
+
+        if affectedPositions.isEmpty {
+            // Keep the empty-impact state in the summary; do not invent map positions.
+        } else {
+            for affectedPosition in sortedPositions(affectedPositions) {
+                append(.affected, affectedPosition, "技能影响")
+            }
+        }
+
+        append(.target, targetPosition, "\(summary.targetLabel) · \(impactLabel)")
+        if let destination {
+            append(.destination, destination, "\(summary.intentLabel)落点")
+        }
+
+        return overlays
+    }
+
+    var chainLabel: String {
+        let rangeLabel = summary.rangeLabel
+        let affectedLabel = affectedPositions.isEmpty ? "无直接影响位置" : "影响 \(affectedPositions.count) 格"
+        let destinationLabel = destination.map { "落点\($0.description)" } ?? "无意图落点"
+        return "起点\(position.description) · \(rangeLabel) · \(affectedLabel) · 目标\(targetPosition.description) · \(destinationLabel)"
+    }
+
+    var accessibilityLabel: String {
+        "敌将威胁，\(commanderLabel)，\(skillName)，\(chainLabel)，\(impactLabel)，\(statusLabel)"
+    }
+
+    func references(_ candidate: EnemyCommanderThreatSummary) -> Bool {
+        candidate.id == id
+    }
+
+    func references(_ candidate: EnemyCommanderThreatReport) -> Bool {
+        candidate.id == id
+    }
+
+    private func sortedPositions(_ positions: [Position]) -> [Position] {
+        positions.sorted {
+            if $0.x == $1.x {
+                return $0.y < $1.y
+            }
+            return $0.x < $1.x
+        }
+    }
+}
+
 enum MapOverlayLegendKind: String, Identifiable {
     case enemyRoute
     case enemyTarget
+    case enemyCommanderThreat
     case threatHeat
     case mapControl
     case tacticalPath
@@ -1927,6 +2111,7 @@ struct EnemyEngagementLoopReadout {
 
 enum MapReconPerspectiveSignalKind: String {
     case enemyIntent
+    case enemyCommander
     case engagementLoop
     case countermeasure
     case counterCommand
@@ -1940,6 +2125,8 @@ enum MapReconPerspectiveSignalKind: String {
         switch self {
         case .enemyIntent:
             return "敌路"
+        case .enemyCommander:
+            return "敌将"
         case .engagementLoop:
             return "闭环"
         case .countermeasure:
@@ -2002,6 +2189,7 @@ struct MapReconPerspectiveHUDReadout {
     var riskLabel: String
     var signals: [MapReconPerspectiveSignal]
     var intentID: String?
+    var enemyCommanderThreatID: String?
     var engagementLoopID: String?
     var countermeasureID: String?
     var countermeasurePreviewID: String?
@@ -2032,6 +2220,14 @@ struct MapReconPerspectiveHUDReadout {
 
     func references(intent candidate: EnemyIntentMapOverlay) -> Bool {
         intentID == candidate.id
+    }
+
+    func references(threat candidate: EnemyCommanderThreatMapOverlay) -> Bool {
+        enemyCommanderThreatID == candidate.id
+    }
+
+    func references(threat candidate: EnemyCommanderThreatSummary) -> Bool {
+        enemyCommanderThreatID == candidate.id
     }
 
     func references(engagementLoop candidate: EnemyEngagementLoopReadout) -> Bool {

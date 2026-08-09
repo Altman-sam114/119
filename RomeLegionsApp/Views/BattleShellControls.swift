@@ -42,6 +42,18 @@ struct MapOverlayPresentation {
         }
     }
 
+    /// Enemy commander threat remains visible in every perspective so a focused
+    /// threat never loses its spatial context. The enemy route perspective gives
+    /// it the strongest contrast; response and objective views keep it subdued.
+    var enemyCommanderThreatOpacity: Double {
+        switch perspective {
+        case .enemyIntent: return 0.96
+        case .countermeasure: return 0.38
+        case .objective: return 0.24
+        case .terrainPressure: return 0.30
+        }
+    }
+
     var tacticalRouteOpacity: Double {
         switch perspective {
         case .objective: return 0.95
@@ -53,6 +65,10 @@ struct MapOverlayPresentation {
 
     var showsEnemyIntentDetails: Bool {
         perspective == .enemyIntent || perspective == .countermeasure
+    }
+
+    var showsEnemyCommanderThreatDetails: Bool {
+        true
     }
 
     var showsBattleObjective: Bool {
@@ -73,6 +89,8 @@ struct MapOverlayPresentation {
             return true
         case .enemyRoute, .enemyTarget:
             return perspective == .enemyIntent
+        case .enemyCommanderThreat:
+            return perspective == .enemyIntent
         case .countermeasure:
             return perspective == .countermeasure
         case .battleObjective, .tacticalPath, .maneuverOption:
@@ -85,6 +103,9 @@ struct MapOverlayPresentation {
     func legendPriority(_ kind: MapOverlayLegendKind) -> Int {
         if isFocusedLegend(kind) { return 0 }
         if perspective == .countermeasure && (kind == .enemyRoute || kind == .enemyTarget) {
+            return 1
+        }
+        if perspective == .countermeasure && kind == .enemyCommanderThreat {
             return 1
         }
         return 2

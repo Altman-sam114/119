@@ -20,6 +20,8 @@ struct WarMapView: View {
             let enemyIntentsByUnit = Dictionary(uniqueKeysWithValues: enemyIntentSummaries.map { ($0.unit.id, $0) })
             let enemyIntentDestinations = viewModel.enemyIntentDestinationOverlays(for: enemyIntentOverlays)
             let enemyIntentTargets = viewModel.enemyIntentTargetOverlays(for: enemyIntentOverlays)
+            let enemyCommanderThreatOverlay = viewModel.primaryEnemyCommanderThreatMapOverlay
+            let enemyCommanderThreatOverlaysByPosition = viewModel.enemyCommanderThreatMapOverlaysByPosition
             let tacticalRecommendation = viewModel.selectedTacticalRecommendationSummary
             let tacticalRecommendationPathPositions = viewModel.selectedTacticalRecommendationPathPositions
             let tacticalRecommendationTargetPosition = viewModel.selectedTacticalRecommendationTargetPosition
@@ -64,6 +66,16 @@ struct WarMapView: View {
                         .opacity(overlayPresentation.enemyRouteOpacity)
                         .allowsHitTesting(false)
                         .zIndex(1)
+
+                    if let enemyCommanderThreatOverlay {
+                        EnemyCommanderThreatRouteLayerView(
+                            overlay: enemyCommanderThreatOverlay,
+                            metrics: metrics
+                        )
+                        .opacity(overlayPresentation.enemyCommanderThreatOpacity)
+                        .allowsHitTesting(false)
+                        .zIndex(2.15)
+                    }
 
                     if let tacticalRecommendation {
                         TacticalRecommendationRouteLayerView(summary: tacticalRecommendation, metrics: metrics)
@@ -118,6 +130,10 @@ struct WarMapView: View {
                             threatHeatZoneSummary: overlayPresentation.showsTerrainPressure
                                 ? threatHeatOverlaysByPosition[tile.position]
                                 : nil,
+                            enemyCommanderThreatOverlays: overlayPresentation.showsEnemyCommanderThreatDetails
+                                ? enemyCommanderThreatOverlaysByPosition[tile.position, default: []]
+                                : [],
+                            enemyCommanderThreatOpacity: overlayPresentation.enemyCommanderThreatOpacity,
                             isMapControlOverlay: overlayPresentation.showsTerrainPressure &&
                                 mapControlOverlayPositions.contains(tile.position),
                             isTacticalRecommendationPath: tacticalRecommendationPathPositions.contains(tile.position),
@@ -997,6 +1013,8 @@ struct MapReconPerspectiveHUDView: View {
         switch kind {
         case .enemyIntent:
             return "arrow.right.circle.fill"
+        case .enemyCommander:
+            return "person.crop.circle.badge.exclamationmark"
         case .engagementLoop:
             return "arrow.triangle.2.circlepath"
         case .countermeasure:
@@ -1033,6 +1051,8 @@ struct MapReconPerspectiveHUDView: View {
         switch kind {
         case .enemyIntent:
             return .red
+        case .enemyCommander:
+            return .purple
         case .engagementLoop:
             return Color(red: 0.96, green: 0.42, blue: 0.22)
         case .countermeasure, .counterCommand:
@@ -1471,6 +1491,8 @@ struct HexTileView: View {
     var countermeasureOverlay: CountermeasurePositionOverlay?
     var mapControlSummary: MapControlSummary?
     var threatHeatZoneSummary: ThreatHeatZoneSummary?
+    var enemyCommanderThreatOverlays: [EnemyCommanderThreatPositionOverlay]
+    var enemyCommanderThreatOpacity: Double = 1
     var isMapControlOverlay: Bool
     var isTacticalRecommendationPath: Bool
     var isTacticalRecommendationTarget: Bool
@@ -1516,6 +1538,15 @@ struct HexTileView: View {
                       isMapControlOverlay {
                 MapControlTileOverlay(summary: mapControlSummary, scale: scale)
                     .allowsHitTesting(false)
+            }
+
+            if !enemyCommanderThreatOverlays.isEmpty {
+                EnemyCommanderThreatTileOverlay(
+                    overlays: enemyCommanderThreatOverlays,
+                    scale: scale
+                )
+                .opacity(enemyCommanderThreatOpacity)
+                .allowsHitTesting(false)
             }
 
             if isSkillRange && !isAttackTarget {
@@ -1707,6 +1738,9 @@ struct HexTileView: View {
         }
         if let threatHeatZoneSummary {
             parts.append("热区\(threatHeatZoneSummary.levelLabel)，\(threatHeatZoneSummary.impactLabel)")
+        }
+        if !enemyCommanderThreatOverlays.isEmpty {
+            parts.append(enemyCommanderThreatOverlays.map(\.accessibilityLabel).joined(separator: "、"))
         }
         if let enemyIntentDestination {
             parts.append("敌军意图目的地\(enemyIntentDestination.summary.destinationLabel)")
@@ -2194,6 +2228,195 @@ struct EnemyIntentTargetOverlay: View {
         }
         .shadow(color: Color.red.opacity(0.30), radius: 4 * scale)
         .accessibilityLabel(overlay.accessibilityLabel)
+    }
+}
+
+struct EnemyCommanderThreatRouteLayerView: View {
+    var overlay: EnemyCommanderThreatMapOverlay
+    var metrics: HexMetrics
+
+    var body: some View {
+        ZStack {
+            ForEach(overlay.routeSegments) { segment in
+                EnemyCommanderThreatRouteSegmentView(segment: segment, metrics: metrics)
+            }
+        }
+        .accessibilityLabel(overlay.accessibilityLabel)
+    }
+}
+
+struct EnemyCommanderThreatRouteSegmentView: View {
+    var segment: EnemyCommanderThreatRouteSegment
+    var metrics: HexMetrics
+
+    private let threatTint = Color(red: 0.68, green: 0.38, blue: 0.86)
+
+    var body: some View {
+        let start = metrics.center(for: segment.from)
+        let end = metrics.center(for: segment.to)
+        let width = max(1.4, 2.25 * metrics.tileScale)
+        let dash = segment.isTargetLeg
+            ? [4 * metrics.tileScale, 4 * metrics.tileScale]
+            : [8 * metrics.tileScale, 3 * metrics.tileScale]
+        let color = threatTint.opacity(segment.isTargetLeg ? 0.78 : 0.90)
+        let angle = Angle(radians: atan2(Double(end.y - start.y), Double(end.x - start.x)))
+
+        ZStack {
+            Path { path in
+                path.move(to: start)
+                path.addLine(to: end)
+            }
+            .stroke(
+                .black.opacity(0.36),
+                style: StrokeStyle(
+                    lineWidth: width + 2.2,
+                    lineCap: .round,
+                    lineJoin: .round,
+                    dash: dash
+                )
+            )
+
+            Path { path in
+                path.move(to: start)
+                path.addLine(to: end)
+            }
+            .stroke(
+                color,
+                style: StrokeStyle(
+                    lineWidth: width,
+                    lineCap: .round,
+                    lineJoin: .round,
+                    dash: dash
+                )
+            )
+
+            Image(systemName: segment.isTargetLeg ? "scope" : "bolt.fill")
+                .font(.system(size: max(8, 10 * metrics.tileScale), weight: .black))
+                .foregroundStyle(color)
+                .shadow(color: .black.opacity(0.45), radius: 2, y: 1)
+                .rotationEffect(segment.isTargetLeg ? .zero : angle)
+                .position(end)
+        }
+        .accessibilityHidden(true)
+    }
+}
+
+struct EnemyCommanderThreatTileOverlay: View {
+    var overlays: [EnemyCommanderThreatPositionOverlay]
+    var scale: CGFloat
+
+    var body: some View {
+        ZStack {
+            ForEach(overlays) { overlay in
+                marker(for: overlay)
+            }
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(overlays.map(\.accessibilityLabel).joined(separator: "、"))
+    }
+
+    @ViewBuilder
+    private func marker(for overlay: EnemyCommanderThreatPositionOverlay) -> some View {
+        let tint = Color(red: 0.68, green: 0.38, blue: 0.86)
+        let focusOpacity = overlay.isFocused ? 1.0 : 0.72
+
+        switch overlay.role {
+        case .range:
+            Hexagon()
+                .fill(tint.opacity(0.10 * focusOpacity))
+                .overlay {
+                    Hexagon()
+                        .stroke(
+                            tint.opacity(0.58 * focusOpacity),
+                            style: StrokeStyle(
+                                lineWidth: max(0.9, 1.25 * scale),
+                                lineCap: .round,
+                                dash: [4 * scale, 4 * scale]
+                            )
+                        )
+                        .padding(7 * scale)
+                }
+
+        case .affected:
+            Hexagon()
+                .fill(Color.pink.opacity(0.14 * focusOpacity))
+                .overlay {
+                    Hexagon()
+                        .stroke(
+                            Color.pink.opacity(0.84 * focusOpacity),
+                            lineWidth: max(1.2, 1.8 * scale)
+                        )
+                        .padding(4 * scale)
+                }
+                .overlay {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .font(.system(size: max(9, 12 * scale), weight: .black))
+                        .foregroundStyle(.white)
+                        .shadow(color: .black.opacity(0.45), radius: 2, y: 1)
+                        .offset(y: 20 * scale)
+                }
+
+        case .origin:
+            Hexagon()
+                .stroke(tint.opacity(0.92 * focusOpacity), lineWidth: max(1.5, 2.2 * scale))
+                .padding(3 * scale)
+                .overlay {
+                    ZStack {
+                        Circle()
+                            .fill(tint.opacity(0.92 * focusOpacity))
+                        Image(systemName: "person.crop.circle.badge.exclamationmark")
+                            .font(.system(size: max(10, 13 * scale), weight: .black))
+                            .foregroundStyle(.white)
+                    }
+                    .frame(width: 24 * scale, height: 24 * scale)
+                    .shadow(color: .black.opacity(0.42), radius: 3, y: 1)
+                    .offset(x: -21 * scale, y: -20 * scale)
+                }
+
+        case .target:
+            Hexagon()
+                .fill(Color.white.opacity(0.08 * focusOpacity))
+                .overlay {
+                    Hexagon()
+                        .stroke(.white.opacity(0.88 * focusOpacity), lineWidth: max(1.4, 2 * scale))
+                        .padding(4 * scale)
+                }
+                .overlay {
+                    Circle()
+                        .stroke(tint.opacity(0.96 * focusOpacity), lineWidth: max(1, 1.45 * scale))
+                        .frame(width: 20 * scale, height: 20 * scale)
+                        .overlay {
+                            Image(systemName: "scope")
+                                .font(.system(size: max(10, 13 * scale), weight: .black))
+                                .foregroundStyle(tint)
+                                .shadow(color: .black.opacity(0.45), radius: 2, y: 1)
+                        }
+                        .offset(y: -21 * scale)
+                }
+
+        case .destination:
+            Hexagon()
+                .fill(tint.opacity(0.10 * focusOpacity))
+                .overlay {
+                    Hexagon()
+                        .stroke(
+                            tint.opacity(0.76 * focusOpacity),
+                            style: StrokeStyle(
+                                lineWidth: max(1.1, 1.6 * scale),
+                                lineCap: .round,
+                                dash: [5 * scale, 4 * scale]
+                            )
+                        )
+                        .padding(7 * scale)
+                }
+                .overlay {
+                    Image(systemName: "arrow.down.circle.fill")
+                        .font(.system(size: max(10, 13 * scale), weight: .black))
+                        .foregroundStyle(tint)
+                        .shadow(color: .black.opacity(0.38), radius: 2, y: 1)
+                        .offset(y: 20 * scale)
+                }
+        }
     }
 }
 
