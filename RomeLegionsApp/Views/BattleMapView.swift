@@ -146,7 +146,13 @@ struct WarMapView: View {
                             scale: metrics.actionScale,
                             isFocused: viewModel.isSelectedAttackTarget(target.id),
                             accessibilityLabel: viewModel.attackTargetAccessibilityLabel(for: target),
-                            action: { viewModel.focusAttackTarget(target.id) }
+                            action: {
+                                if viewModel.isSelectedAttackTarget(target.id) {
+                                    viewModel.cancelSelectedAttackTarget()
+                                } else {
+                                    viewModel.focusAttackTarget(target.id)
+                                }
+                            }
                         )
                         .position(x: center.x, y: center.y - metrics.tileHeight * 0.57)
                         .zIndex(4)
@@ -221,6 +227,20 @@ struct WarMapView: View {
                 .allowsHitTesting(false)
                 .zIndex(5)
 
+                if let forecast = viewModel.selectedCombatForecast {
+                    VStack {
+                        HStack {
+                            AttackLockMapReadoutView(forecast: forecast)
+                                .frame(maxWidth: proxy.size.width - 20, alignment: .leading)
+                            Spacer(minLength: 0)
+                        }
+                        .padding(.horizontal, 10)
+                        .padding(.top, 56)
+                        Spacer()
+                    }
+                    .zIndex(5.15)
+                }
+
                 VStack {
                     Spacer()
                     MapIntelligenceDockView(
@@ -276,6 +296,58 @@ struct WarMapView: View {
                 viewportCenter: workingCenter
             )
         }
+    }
+}
+
+struct AttackLockMapReadoutView: View {
+    @EnvironmentObject private var viewModel: GameViewModel
+    var forecast: SelectedCombatForecast
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "scope")
+                .font(.caption.weight(.black))
+                .foregroundStyle(.yellow)
+                .frame(width: 24, height: 24)
+                .background(.yellow.opacity(0.14))
+                .clipShape(.rect(cornerRadius: 5))
+
+            VStack(alignment: .leading, spacing: 1) {
+                Text("已锁定 · \(forecast.identityChainLabel)")
+                    .font(.caption2.weight(.bold))
+                    .foregroundStyle(.white)
+                    .lineLimit(2)
+                    .minimumScaleFactor(0.64)
+                Text("\(forecast.positionChainLabel) · \(forecast.outcomeLabel)")
+                    .font(.caption2.monospacedDigit().weight(.semibold))
+                    .foregroundStyle(.white.opacity(0.64))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.64)
+            }
+            .layoutPriority(1)
+
+            Button("取消", systemImage: "xmark.circle") {
+                viewModel.cancelSelectedAttackTarget()
+            }
+            .font(.caption2.weight(.bold))
+            .foregroundStyle(.white)
+            .frame(minWidth: 44, minHeight: 44)
+            .background(.black.opacity(0.30))
+            .clipShape(.rect(cornerRadius: 6))
+            .contentShape(Rectangle())
+            .accessibilityLabel(forecast.cancelAccessibilityLabel)
+            .accessibilityHint("清除目标锁定，不会结算攻击")
+        }
+        .padding(.horizontal, 8)
+        .padding(.vertical, 4)
+        .background(.black.opacity(0.72))
+        .clipShape(.rect(cornerRadius: 7))
+        .overlay {
+            RoundedRectangle(cornerRadius: 7)
+                .stroke(Color.yellow.opacity(0.60), lineWidth: 1)
+        }
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel(forecast.accessibilityLabel)
     }
 }
 
@@ -357,14 +429,14 @@ struct AttackTargetButton: View {
                         .fill(isFocused ? Color(red: 0.90, green: 0.60, blue: 0.08) : Color(red: 0.78, green: 0.08, blue: 0.05))
                     Circle()
                         .stroke(.white.opacity(0.92), lineWidth: 2)
-                    Image(systemName: isFocused ? "scope" : "bolt.fill")
+                    Image(systemName: isFocused ? "xmark.circle.fill" : "bolt.fill")
                         .font(.system(size: 15 * scale, weight: .black))
                         .foregroundStyle(.white)
                         .shadow(color: .black.opacity(0.45), radius: 2, y: 1)
                         .offset(y: preview == nil ? 0 : -3 * scale)
 
                     if let preview {
-                        Text(preview.defeatsDefender ? "破" : "-\(preview.damage)")
+                        Text(isFocused ? "取消" : (preview.defeatsDefender ? "破" : "-\(preview.damage)"))
                             .font(.system(size: 8 * scale, weight: .black, design: .rounded))
                             .monospacedDigit()
                             .foregroundStyle(.white)
@@ -386,8 +458,9 @@ struct AttackTargetButton: View {
         .frame(minWidth: 44, minHeight: 44)
         .contentShape(Rectangle())
         .accessibilityLabel(accessibilityLabel)
-        .accessibilityHint(isFocused ? "已锁定目标，再次选择可更新攻击预演" : "点击锁定目标并查看攻击预演")
+        .accessibilityHint(isFocused ? "点击取消锁定，保留当前攻击者选择" : "点击锁定目标并查看攻击预演")
         .accessibilityAddTraits(isFocused ? .isSelected : AccessibilityTraits())
+        .accessibilityHidden(isFocused)
     }
 }
 

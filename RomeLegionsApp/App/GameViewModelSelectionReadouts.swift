@@ -6,6 +6,12 @@ struct SelectedCombatForecast: Identifiable {
     var defender: ArmyUnit
     var preview: CombatPreview
 
+    /// Stable identity formatting shared by map, command dock and forecast readouts.
+    static func identityLabel(for unit: ArmyUnit) -> String {
+        let commander = unit.generalName ?? "无将领"
+        return "\(unit.faction.displayName)\(unit.kind.displayName) · \(commander) · \(unit.position.description)"
+    }
+
     var id: String {
         "\(attacker.id)-\(defender.id)"
     }
@@ -16,6 +22,38 @@ struct SelectedCombatForecast: Identifiable {
 
     var defenderLabel: String {
         "\(defender.faction.displayName)\(defender.kind.displayName)"
+    }
+
+    var attackerGeneralLabel: String {
+        attacker.generalName ?? "无将领"
+    }
+
+    var defenderGeneralLabel: String {
+        defender.generalName ?? "无将领"
+    }
+
+    var attackerPositionLabel: String {
+        "位置\(attacker.position.description)"
+    }
+
+    var defenderPositionLabel: String {
+        "位置\(defender.position.description)"
+    }
+
+    var attackerIdentityLabel: String {
+        Self.identityLabel(for: attacker)
+    }
+
+    var defenderIdentityLabel: String {
+        Self.identityLabel(for: defender)
+    }
+
+    var identityChainLabel: String {
+        "\(attackerIdentityLabel) → \(defenderIdentityLabel)"
+    }
+
+    var positionChainLabel: String {
+        "\(attackerPositionLabel) → \(defenderPositionLabel)"
     }
 
     var damageLabel: String {
@@ -74,7 +112,7 @@ struct SelectedCombatForecast: Identifiable {
     }
 
     var compactLabel: String {
-        "→\(defenderLabel) · 伤\(preview.damage) · 反\(preview.retaliation) · 我\(preview.attackerRemainingHealth) · 敌\(preview.defenderRemainingHealth)"
+        "\(identityChainLabel) · 伤\(preview.damage) · 反\(preview.retaliation) · 我\(preview.attackerRemainingHealth) · 敌\(preview.defenderRemainingHealth)"
     }
 
     var confirmationTitle: String {
@@ -82,15 +120,19 @@ struct SelectedCombatForecast: Identifiable {
     }
 
     var confirmationAccessibilityLabel: String {
-        "确认攻击\(defenderLabel)，\(damageLabel)，\(retaliationLabel)，\(healthLabel)，\(outcomeLabel)"
+        "确认攻击：\(identityChainLabel)，\(damageLabel)，\(retaliationLabel)，\(healthLabel)，\(modifierLabel)，\(outcomeLabel)"
+    }
+
+    var cancelAccessibilityLabel: String {
+        "取消攻击目标锁定：\(identityChainLabel)，保留攻击者选择"
     }
 
     var detailLabel: String {
-        "\(attackerLabel) → \(defenderLabel) · \(damageLabel) · \(retaliationLabel) · \(healthLabel) · \(modifierLabel)"
+        "\(identityChainLabel) · \(damageLabel) · \(retaliationLabel) · \(healthLabel) · \(modifierLabel)"
     }
 
     var accessibilityLabel: String {
-        "攻击预演：\(attackerLabel)对\(defenderLabel)，\(damageLabel)，\(retaliationLabel)，\(healthLabel)，\(modifierLabel)，\(outcomeLabel)"
+        "攻击预演：攻击者\(attackerIdentityLabel)，防守者\(defenderIdentityLabel)，\(damageLabel)，\(retaliationLabel)，\(healthLabel)，\(modifierLabel)，\(outcomeLabel)"
     }
 }
 

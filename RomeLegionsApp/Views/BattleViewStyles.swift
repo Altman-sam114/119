@@ -4,6 +4,7 @@ struct CommandButtonLabel: View {
     var symbol: String
     var text: String
     var detail: String? = nil
+    var textLineLimit: Int = 1
 
     var body: some View {
         HStack(spacing: 8) {
@@ -12,8 +13,8 @@ struct CommandButtonLabel: View {
             VStack(alignment: .leading, spacing: 2) {
                 Text(text)
                     .font(.subheadline.weight(.bold))
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.72)
+                    .lineLimit(textLineLimit)
+                    .minimumScaleFactor(textLineLimit > 1 ? 0.64 : 0.72)
                 if let detail {
                     Text(detail)
                         .font(.caption2.monospacedDigit().weight(.bold))
@@ -24,7 +25,7 @@ struct CommandButtonLabel: View {
             }
             Spacer(minLength: 0)
         }
-        .frame(minHeight: detail == nil ? 38 : 50)
+        .frame(minHeight: detail == nil ? (textLineLimit > 1 ? 48 : 38) : (textLineLimit > 1 ? 64 : 50))
         .padding(.horizontal, 10)
     }
 }

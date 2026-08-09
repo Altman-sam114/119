@@ -32,7 +32,8 @@ const requiredFiles = [
   "md/prompt/README.md",
   ".github/workflows/ci-results.yml",
   "md/prompt/v0（协作系统）/v0.1（建立多Agent协作文档）.md",
-  "md/prompt/v0（玩法推进）/v0.4（战役目标与胜负结算）.md"
+  "md/prompt/v0（玩法推进）/v0.4（战役目标与胜负结算）.md",
+  "md/prompt/v0（玩法推进）/v0.63（战斗目标锁定身份与取消入口）.md"
 ];
 
 const failures = [];
@@ -91,7 +92,7 @@ const viewModel = [
   "RomeLegionsApp/App/GameViewModelSelectionReadouts.swift",
   "RomeLegionsApp/App/GameViewModel.swift"
 ].map((path) => readFileSync(path, "utf8")).join("\n");
-for (const token of ["selectedPosition", "selectedTile", "selectedAttackTargetID", "selectedCombatForecast", "func attackPreview", "focusAttackTarget", "confirmSelectedAttack", "primaryMission", "skipSelectedUnit", "--attack-demo", "restSelectedUnit", "isCampaignOver", "campaignStatusTitle"]) {
+for (const token of ["selectedPosition", "selectedTile", "selectedAttackTargetID", "selectedCombatForecast", "attackerIdentityLabel", "defenderIdentityLabel", "identityChainLabel", "func attackPreview", "focusAttackTarget", "cancelSelectedAttackTarget", "confirmSelectedAttack", "primaryMission", "skipSelectedUnit", "--attack-demo", "restSelectedUnit", "isCampaignOver", "campaignStatusTitle"]) {
   if (!viewModel.includes(token)) {
     failures.push(`Game view model does not include ${token}`);
   }
@@ -104,14 +105,14 @@ const battle = [
   "RomeLegionsApp/Views/BattlePanels.swift",
   "RomeLegionsApp/Views/BattleViewStyles.swift"
 ].map((path) => readFileSync(path, "utf8")).join("\n");
-for (const token of ["CompactCommandPanelView", "PhoneCommandDeckView", "TacticalStatusStripView", "BattlefieldFocusPanelView", "CityBadgeView", "TerrainGlyphView", "AttackTargetButton", "AttackTargetRing", "AttackTargetMenuButton", "AttackTargetSelectionMenuView", "CombatForecastReadoutView", "MapViewportState", "MagnificationGesture", "MapCameraControlsView", "focusViewport", "arrow.counterclockwise", "forward.end.fill", "CoastlineLayerView", "CoastlineBuilder", "isZoneCenter"]) {
+for (const token of ["CompactCommandPanelView", "PhoneCommandDeckView", "TacticalStatusStripView", "BattlefieldFocusPanelView", "CityBadgeView", "TerrainGlyphView", "AttackTargetButton", "AttackTargetRing", "AttackTargetMenuButton", "AttackTargetSelectionMenuView", "AttackLockMapReadoutView", "CombatForecastReadoutView", "cancelSelectedAttackTarget", "MapViewportState", "MagnificationGesture", "MapCameraControlsView", "focusViewport", "arrow.counterclockwise", "forward.end.fill", "CoastlineLayerView", "CoastlineBuilder", "isZoneCenter"]) {
   if (!battle.includes(token)) {
     failures.push(`Battle view does not include ${token}`);
   }
 }
 
 const renderPreview = readFileSync("Tools/RenderBattlePreview/main.swift", "utf8");
-for (const token of ["commandDockSecondaryTarget", "selectedAttackTargetID", "selectedCombatForecast", "missingAttackForecast", "stateBeforeAttackForecast"]) {
+for (const token of ["commandDockSecondaryTarget", "selectedAttackTargetID", "selectedCombatForecast", "attackerIdentityLabel", "identityChainLabel", "cancelSelectedAttackTarget", "stateArchiveBeforeAttackForecast", "stateArchiveAfterCancel", "stateArchiveAfterRepeatedCancel", "aiIntentSnapshotBeforeAttackForecast", "missingAttackForecast", "stateBeforeAttackForecast"]) {
   if (!renderPreview.includes(token)) {
     failures.push(`RenderBattlePreview does not include ${token}`);
   }
@@ -157,6 +158,9 @@ for (const token of ["RomeLegions CI Results", "branches:", "main", "ci-artifact
   if (!ciWorkflow.includes(token)) {
     failures.push(`.github/workflows/ci-results.yml does not include ${token}`);
   }
+}
+if (!ciWorkflow.includes("CI_VERSION: v0.63")) {
+  failures.push(".github/workflows/ci-results.yml does not include CI_VERSION v0.63");
 }
 
 if (failures.length > 0) {

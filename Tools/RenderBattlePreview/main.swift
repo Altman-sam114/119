@@ -1773,6 +1773,11 @@ struct RenderBattlePreview {
             throw PreviewRenderError.missingCommandDockAttackFixture
         }
         let stateBeforeAttackForecast = viewModel.state
+        let stateEncoder = JSONEncoder()
+        stateEncoder.outputFormatting = [.sortedKeys]
+        let stateArchiveBeforeAttackForecast = try stateEncoder.encode(stateBeforeAttackForecast)
+        let aiIntentSnapshotBeforeAttackForecast = viewModel.enemyIntentSummaries.map(\.intent)
+        let selectedCityBeforeAttackForecast = viewModel.selectedCityID
         let unitStateBeforeAttackForecast = viewModel.state.units
             .sorted { $0.id < $1.id }
             .map { unit in
@@ -1797,11 +1802,20 @@ struct RenderBattlePreview {
               let selectedCombatForecast = viewModel.selectedCombatForecast,
               selectedCombatForecast.attacker.id == "rome-legion-1",
               selectedCombatForecast.defender.id == commandDockTarget.id,
+              selectedCombatForecast.attackerIdentityLabel.contains("罗马军团"),
+              selectedCombatForecast.defenderIdentityLabel.contains("迦太基"),
+              selectedCombatForecast.attackerGeneralLabel == "凯撒",
+              selectedCombatForecast.attackerPositionLabel.contains("(3,3)"),
+              selectedCombatForecast.defenderPositionLabel.contains(commandDockTarget.position.description),
+              selectedCombatForecast.identityChainLabel.contains(selectedCombatForecast.attackerIdentityLabel),
+              selectedCombatForecast.identityChainLabel.contains(selectedCombatForecast.defenderIdentityLabel),
               let canonicalCombatPreview = try? viewModel.state.attackPreview(
                   attackerID: "rome-legion-1",
                   defenderID: commandDockTarget.id
               ),
               selectedCombatForecast.preview == canonicalCombatPreview,
+              selectedCombatForecast.compactLabel.contains(selectedCombatForecast.identityChainLabel),
+              selectedCombatForecast.detailLabel.contains(selectedCombatForecast.identityChainLabel),
               !selectedCombatForecast.compactLabel.isEmpty,
               !selectedCombatForecast.detailLabel.isEmpty,
               !selectedCombatForecast.accessibilityLabel.isEmpty else {
@@ -1823,10 +1837,14 @@ struct RenderBattlePreview {
                 let resources = entry.value
                 return "\(entry.key.rawValue)|\(resources.gold)|\(resources.grain)|\(resources.iron)|\(resources.science)|\(resources.prestige)"
             }
+        let stateArchiveAfterAttackForecast = try stateEncoder.encode(viewModel.state)
+        let aiIntentSnapshotAfterAttackForecast = viewModel.enemyIntentSummaries.map(\.intent)
         guard unitStateBeforeAttackForecast == unitStateAfterAttackForecast,
               cityStateBeforeAttackForecast == cityStateAfterAttackForecast,
               resourcesBeforeAttackForecast == resourcesAfterAttackForecast,
               stateBeforeAttackForecast == viewModel.state,
+              stateArchiveBeforeAttackForecast == stateArchiveAfterAttackForecast,
+              aiIntentSnapshotBeforeAttackForecast == aiIntentSnapshotAfterAttackForecast,
               turnBeforeAttackForecast == viewModel.state.turn,
               activeFactionBeforeAttackForecast == viewModel.state.activeFaction else {
             throw PreviewRenderError.missingAttackForecast
@@ -1851,13 +1869,39 @@ struct RenderBattlePreview {
             throw PreviewRenderError.missingCompactCommandRender
         }
 
+        viewModel.cancelSelectedAttackTarget()
+        let stateArchiveAfterCancel = try stateEncoder.encode(viewModel.state)
+        let aiIntentSnapshotAfterCancel = viewModel.enemyIntentSummaries.map(\.intent)
+        guard viewModel.selectedAttackTargetID == nil,
+              viewModel.selectedCombatForecast == nil,
+              viewModel.selectedUnitID == "rome-legion-1",
+              viewModel.selectedCityID == selectedCityBeforeAttackForecast,
+              viewModel.selectedPosition == Position(x: 3, y: 3),
+              viewModel.focusedCountermeasureID == nil,
+              viewModel.focusedBattleObjectiveRole == nil,
+              viewModel.state == stateBeforeAttackForecast,
+              stateArchiveBeforeAttackForecast == stateArchiveAfterCancel,
+              aiIntentSnapshotBeforeAttackForecast == aiIntentSnapshotAfterCancel else {
+            throw PreviewRenderError.missingAttackForecast
+        }
+        viewModel.cancelSelectedAttackTarget()
+        let stateArchiveAfterRepeatedCancel = try stateEncoder.encode(viewModel.state)
+        guard viewModel.selectedAttackTargetID == nil,
+              viewModel.selectedUnitID == "rome-legion-1",
+              viewModel.selectedCityID == selectedCityBeforeAttackForecast,
+              viewModel.selectedPosition == Position(x: 3, y: 3),
+              viewModel.state == stateBeforeAttackForecast,
+              stateArchiveBeforeAttackForecast == stateArchiveAfterRepeatedCancel else {
+            throw PreviewRenderError.missingAttackForecast
+        }
+
         guard let previewCity = viewModel.state.city(withID: "neapolis") else {
             throw PreviewRenderError.missingCityReadout
         }
         viewModel.selectedUnitID = nil
         viewModel.selectedCityID = previewCity.id
         viewModel.selectedPosition = previewCity.position
-        viewModel.selectedAttackTargetID = nil
+        viewModel.cancelSelectedAttackTarget()
         viewModel.bannerMessage = "预览城市：城市经营、扩建收益和招募部署已显示。"
 
         guard viewModel.selectedUnitID == nil,

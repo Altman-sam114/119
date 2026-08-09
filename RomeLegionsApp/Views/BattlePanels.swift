@@ -698,37 +698,8 @@ struct BattlefieldFocusPanelView: View {
                             .foregroundStyle(.white.opacity(0.76))
                         }
 
-                        if viewModel.selectedCombatForecast == nil,
-                           viewModel.attackTargets.count == 1,
-                           let target = viewModel.attackTargets.first,
-                           let preview = viewModel.attackPreview(for: target.id) {
-                            VStack(alignment: .leading, spacing: 7) {
-                                HStack(spacing: 8) {
-                                    Image(systemName: preview.defeatsDefender ? "flame.fill" : "bolt.fill")
-                                        .foregroundStyle(preview.defeatsDefender ? .orange : .red)
-                                    VStack(alignment: .leading, spacing: 1) {
-                                        Text("\(target.faction.displayName)\(target.kind.displayName)")
-                                            .font(.caption.weight(.bold))
-                                        Text("伤害 \(preview.damage) · 反击 \(preview.retaliation)")
-                                            .font(.caption2.monospacedDigit().weight(.semibold))
-                                            .foregroundStyle(.white.opacity(0.64))
-                                    }
-                                    Spacer(minLength: 0)
-                                    if preview.defeatsDefender {
-                                        Text("击溃")
-                                            .font(.caption2.weight(.black))
-                                            .foregroundStyle(.black.opacity(0.72))
-                                            .padding(.horizontal, 6)
-                                            .frame(height: 20)
-                                            .background(Color(red: 0.86, green: 0.68, blue: 0.34))
-                                            .clipShape(RoundedRectangle(cornerRadius: 5))
-                                    }
-                                }
-                                CombatModifierStripView(preview: preview)
-                            }
-                            .padding(8)
-                            .background(.black.opacity(0.20))
-                            .clipShape(RoundedRectangle(cornerRadius: 7))
+                        if let forecast = viewModel.selectedCombatForecast {
+                            CombatForecastReadoutView(forecast: forecast)
                         }
                     }
                 }
@@ -3085,6 +3056,7 @@ struct CountermeasureCardView: View {
 }
 
 struct CombatForecastReadoutView: View {
+    @EnvironmentObject private var viewModel: GameViewModel
     var forecast: SelectedCombatForecast
 
     var body: some View {
@@ -3094,11 +3066,11 @@ struct CombatForecastReadoutView: View {
                     Label("攻击预演", systemImage: forecast.outcomeSymbol)
                         .font(.caption.weight(.bold))
                         .foregroundStyle(forecast.isHighRisk ? .orange : .yellow)
-                    Text("\(forecast.attackerLabel) → \(forecast.defenderLabel)")
+                    Text(forecast.identityChainLabel)
                         .font(.caption2.weight(.semibold))
                         .foregroundStyle(.white.opacity(0.70))
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.72)
+                        .lineLimit(2)
+                        .minimumScaleFactor(0.68)
                 }
                 Spacer(minLength: 0)
                 Text(forecast.outcomeLabel)
@@ -3113,11 +3085,28 @@ struct CombatForecastReadoutView: View {
                 CombatForecastStat(label: "敌方余", value: "\(forecast.preview.defenderRemainingHealth)", tint: .cyan)
             }
 
+            Text(forecast.positionChainLabel)
+                .font(.caption2.monospacedDigit().weight(.semibold))
+                .foregroundStyle(.white.opacity(0.58))
+                .lineLimit(1)
+                .minimumScaleFactor(0.68)
+
             Text(forecast.modifierLabel)
                 .font(.caption2.monospacedDigit().weight(.bold))
                 .foregroundStyle(.white.opacity(0.68))
                 .lineLimit(1)
                 .minimumScaleFactor(0.7)
+
+            Button {
+                viewModel.cancelSelectedAttackTarget()
+            } label: {
+                Label("取消锁定", systemImage: "xmark.circle")
+                    .font(.caption2.weight(.bold))
+                    .frame(maxWidth: .infinity, minHeight: 44)
+            }
+            .buttonStyle(SecondaryButtonStyle())
+            .accessibilityLabel(forecast.cancelAccessibilityLabel)
+            .accessibilityHint("清除目标锁定，不会结算攻击或改变战局")
         }
         .padding(8)
         .background(.black.opacity(0.22))
@@ -3126,7 +3115,7 @@ struct CombatForecastReadoutView: View {
             RoundedRectangle(cornerRadius: 7)
                 .stroke((forecast.isHighRisk ? Color.orange : Color.yellow).opacity(0.42), lineWidth: 1)
         }
-        .accessibilityElement(children: .ignore)
+        .accessibilityElement(children: .contain)
         .accessibilityLabel(forecast.accessibilityLabel)
     }
 }
@@ -3156,9 +3145,19 @@ struct AttackTargetSelectionMenuView: View {
 
     var body: some View {
         Menu {
+            if let forecast = viewModel.selectedCombatForecast {
+                Button {
+                    viewModel.cancelSelectedAttackTarget()
+                } label: {
+                    Label("取消锁定", systemImage: "xmark.circle")
+                }
+                .accessibilityLabel(forecast.cancelAccessibilityLabel)
+                .accessibilityHint("清除目标锁定，不会结算攻击")
+            }
+
             ForEach(viewModel.attackTargets) { target in
                 let preview = viewModel.attackPreview(for: target.id)
-                Button("锁定\(target.faction.displayName)\(target.kind.displayName)") {
+                Button("锁定\(SelectedCombatForecast.identityLabel(for: target))") {
                     viewModel.focusAttackTarget(target.id)
                 }
                 .accessibilityLabel(viewModel.attackTargetAccessibilityLabel(for: target))
@@ -3172,8 +3171,8 @@ struct AttackTargetSelectionMenuView: View {
             )
         }
         .buttonStyle(PrimaryButtonStyle())
-        .accessibilityLabel("选择攻击目标")
-        .accessibilityHint("打开全部合法目标，锁定后查看预演")
+        .accessibilityLabel(viewModel.selectedCombatForecast.map { "已锁定，\($0.accessibilityLabel)" } ?? "选择攻击目标")
+        .accessibilityHint(viewModel.selectedCombatForecast == nil ? "打开全部合法目标，锁定后查看预演" : "打开目标列表，或选择取消锁定")
     }
 }
 
@@ -4405,6 +4404,30 @@ struct ActionsPanelView: View {
                         Spacer()
                     }
 
+                    if let forecast = viewModel.selectedCombatForecast {
+                        HStack(spacing: 6) {
+                            Image(systemName: "scope")
+                                .foregroundStyle(.yellow)
+                            Text("当前锁定：\(forecast.identityChainLabel)")
+                                .font(.caption2.weight(.bold))
+                                .foregroundStyle(.white.opacity(0.72))
+                                .lineLimit(2)
+                                .minimumScaleFactor(0.68)
+                            Spacer(minLength: 0)
+                            Button("取消", systemImage: "xmark.circle") {
+                                viewModel.cancelSelectedAttackTarget()
+                            }
+                            .font(.caption2.weight(.bold))
+                            .buttonStyle(SecondaryButtonStyle())
+                            .frame(minWidth: 44, minHeight: 44)
+                            .contentShape(Rectangle())
+                            .accessibilityLabel(forecast.cancelAccessibilityLabel)
+                            .accessibilityHint("清除目标锁定，不会结算攻击")
+                        }
+                        .accessibilityElement(children: .contain)
+                        .accessibilityLabel(forecast.accessibilityLabel)
+                    }
+
                     ForEach(viewModel.attackTargets) { target in
                         let preview = viewModel.attackPreview(for: target.id)
                         let countermeasurePreview = viewModel.selectedCountermeasureCommandPreview
@@ -4419,12 +4442,19 @@ struct ActionsPanelView: View {
                             preview?.commandModifierSummary
                         ].compactMap { $0 }.joined(separator: " · ")
                         Button {
-                            viewModel.focusAttackTarget(target.id)
+                            if viewModel.isSelectedAttackTarget(target.id) {
+                                viewModel.cancelSelectedAttackTarget()
+                            } else {
+                                viewModel.focusAttackTarget(target.id)
+                            }
                         } label: {
                             CommandButtonLabel(
                                 symbol: "bolt.fill",
-                                text: preview.map { "\(lockLabel) \(attackActionLabel) \(target.faction.displayName)\(target.kind.displayName) · 伤害 \($0.damage)" } ?? "\(lockLabel) \(attackActionLabel) \(target.faction.displayName)\(target.kind.displayName)",
-                                detail: attackDetail.isEmpty ? nil : attackDetail
+                                text: preview.map {
+                                    "\(lockLabel) \(attackActionLabel) \(SelectedCombatForecast.identityLabel(for: target)) · 伤害 \($0.damage)"
+                                } ?? "\(lockLabel) \(attackActionLabel) \(SelectedCombatForecast.identityLabel(for: target))",
+                                detail: attackDetail.isEmpty ? nil : attackDetail,
+                                textLineLimit: 2
                             )
                         }
                         .buttonStyle(PrimaryButtonStyle())

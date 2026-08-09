@@ -256,11 +256,7 @@ struct SelectionCommandDockView: View {
                         .font(.caption)
                         .foregroundStyle(.white.opacity(0.70))
                         .lineLimit(1)
-                    Label(unitCommandCue, systemImage: unitCommandCueSymbol)
-                        .font(.caption.monospacedDigit().weight(.bold))
-                        .foregroundStyle(Color(red: 0.91, green: 0.74, blue: 0.38))
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.66)
+                    unitCommandCueView
                 }
             }
             .accessibilityElement(children: .combine)
@@ -316,6 +312,37 @@ struct SelectionCommandDockView: View {
             return "目标 \(recommendation.targetLabel)"
         }
         return "等待军令"
+    }
+
+    @ViewBuilder
+    private var unitCommandCueView: some View {
+        if let forecast = viewModel.selectedCombatForecast {
+            VStack(alignment: .leading, spacing: 1) {
+                Label("\(forecast.attackerLabel) \(forecast.attackerPositionLabel) → \(forecast.defenderLabel) \(forecast.defenderPositionLabel)", systemImage: forecast.outcomeSymbol)
+                    .font(.caption2.weight(.bold))
+                    .foregroundStyle(Color(red: 0.91, green: 0.74, blue: 0.38))
+                    .lineLimit(2)
+                    .minimumScaleFactor(0.54)
+                if forecast.attacker.generalName != nil || forecast.defender.generalName != nil {
+                    Text("\(forecast.attackerGeneralLabel) → \(forecast.defenderGeneralLabel)")
+                        .font(.caption2.weight(.semibold))
+                        .foregroundStyle(.white.opacity(0.58))
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.56)
+                }
+                Text("\(forecast.damageLabel) · \(forecast.retaliationLabel) · \(forecast.outcomeLabel)")
+                    .font(.caption2.monospacedDigit().weight(.semibold))
+                    .foregroundStyle(.white.opacity(0.64))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.56)
+            }
+        } else {
+            Label(unitCommandCue, systemImage: unitCommandCueSymbol)
+                .font(.caption.monospacedDigit().weight(.bold))
+                .foregroundStyle(Color(red: 0.91, green: 0.74, blue: 0.38))
+                .lineLimit(2)
+                .minimumScaleFactor(0.58)
+        }
     }
 
     private var unitCommandCueSymbol: String {
@@ -374,12 +401,14 @@ struct UnitDockCommandButtonsView: View {
                     primaryButtons
                 }
                 HStack(spacing: 6) {
+                    cancelButton
                     recoveryButtons
                 }
             }
         } else {
             HStack(spacing: 6) {
                 primaryButtons
+                cancelButton
                 recoveryButtons
             }
         }
@@ -396,6 +425,7 @@ struct UnitDockCommandButtonsView: View {
                 accessibilityLabel: forecast.confirmationAccessibilityLabel,
                 action: viewModel.confirmSelectedAttack
             )
+
         } else if !viewModel.attackTargets.isEmpty {
             AttackTargetMenuButton()
         }
@@ -418,6 +448,20 @@ struct UnitDockCommandButtonsView: View {
             accessibilityLabel: "军令姿态，当前\(unit.resolvedTacticalOrder.displayName)",
             action: onShowMore
         )
+    }
+
+    @ViewBuilder
+    private var cancelButton: some View {
+        if let forecast = viewModel.selectedCombatForecast {
+            DockCommandButton(
+                title: "取消",
+                symbol: "xmark.circle",
+                tint: .gray,
+                isSecondary: true,
+                accessibilityLabel: forecast.cancelAccessibilityLabel,
+                action: viewModel.cancelSelectedAttackTarget
+            )
+        }
     }
 
     @ViewBuilder
@@ -476,6 +520,16 @@ struct AttackTargetMenuButton: View {
 
     var body: some View {
         Menu {
+            if let forecast = viewModel.selectedCombatForecast {
+                Button {
+                    viewModel.cancelSelectedAttackTarget()
+                } label: {
+                    Label("取消锁定", systemImage: "xmark.circle")
+                }
+                .accessibilityLabel(forecast.cancelAccessibilityLabel)
+                .accessibilityHint("清除目标锁定，不会结算攻击")
+            }
+
             ForEach(viewModel.attackTargets) { target in
                 let preview = viewModel.attackPreview(for: target.id)
                 Button {
@@ -483,7 +537,7 @@ struct AttackTargetMenuButton: View {
                 } label: {
                     Label {
                         VStack(alignment: .leading, spacing: 2) {
-                            Text("锁定\(target.faction.displayName)\(target.kind.displayName)")
+                            Text("锁定\(SelectedCombatForecast.identityLabel(for: target))")
                             if let preview {
                                 Text("伤害 \(preview.damage) · 反击 \(preview.retaliation)")
                             }
@@ -502,8 +556,8 @@ struct AttackTargetMenuButton: View {
             )
         }
         .buttonStyle(.plain)
-        .accessibilityLabel("选择攻击目标")
-        .accessibilityHint("打开目标列表，锁定后查看攻击预演")
+        .accessibilityLabel(viewModel.selectedCombatForecast.map { "已锁定，\($0.accessibilityLabel)" } ?? "选择攻击目标")
+        .accessibilityHint(viewModel.selectedCombatForecast == nil ? "打开目标列表，锁定后查看攻击预演" : "打开目标列表，或选择取消锁定")
     }
 }
 

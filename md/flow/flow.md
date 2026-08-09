@@ -32,13 +32,13 @@
 
 - 用户点击单位：`GameViewModel.selectTile(_:)` 选中单位，并同步驻守城市和位置。
 - 用户点击可移动格：`selectTile(_:)` 调用 `state.moveUnit(id:to:)`。
-- 用户点击敌军攻击目标：`selectTile(_:)`、地图徽标、目标菜单和抽屉列表统一调用 `focusAttackTarget(_:)`，只写入 ViewModel 锁定态并聚焦目标；命令坞确认/歼灭按钮再调用 `confirmSelectedAttack()` -> `attack(_:)` -> `state.attack(attackerID:defenderID:)`。
+- 用户点击敌军攻击目标：`selectTile(_:)`、地图徽标、目标菜单和抽屉列表统一调用 `focusAttackTarget(_:)`，只写入 ViewModel 锁定态并聚焦目标；`SelectedCombatForecast` 由同一 `state.attackPreview` 派生攻击者/防守者阵营、兵种、将领、坐标、伤害、反击、余量、修正和结果，地图锁定 HUD、命令坞、紧凑/完整读板及 VoiceOver 复用这条身份链。取消入口调用幂等的 `cancelSelectedAttackTarget()`，只清除目标锁定并将焦点恢复到仍合法的攻击者，不写入 `GameState`；命令坞确认/歼灭按钮才调用 `confirmSelectedAttack()` -> `attack(_:)` -> `state.attack(attackerID:defenderID:)`。
 - 用户点击城市：选中 `selectedCityID`，命令面板通过城市读板展示收入、库存、扩建收益、招募成本、预计部署位置和阻塞原因。
 - 用户点击空地：清除单位/城市选择，只显示地形信息。
 
 ### 战斗与预览
 
-- `state.attackPreview(attackerID:defenderID:)` 生成唯一的 `CombatPreview`；`GameViewModel.selectedCombatForecast` 包装该预览并派生伤害、反击、双方剩余生命、支援/包夹/指挥/守援修正与预计结果，锁定过程不改变 `GameState`。
+- `state.attackPreview(attackerID:defenderID:)` 生成唯一的 `CombatPreview`；`GameViewModel.selectedCombatForecast` 包装该预览并派生伤害、反击、双方剩余生命、支援/包夹/指挥/守援修正与预计结果，锁定过程不改变 `GameState`。它同时提供稳定的 `attackerIdentityLabel`、`defenderIdentityLabel`、`identityChainLabel` 和位置/将领字段；紧凑与完整 `CombatForecastReadoutView` 不重新计算数值，取消锁定不会进入 `apply` 或任何核心写命令。
 - 预览包含基础攻击、防御、地形、友军支援、包夹、将领指挥、守军支援、战术姿态、反击和剩余生命。
 - `state.attack(attackerID:defenderID:)` 必须与预览使用同一套修正逻辑。
 - `state.aiIntents(for:limit:)` 在只读规划态中为直接攻击和移动后攻击调用同一套预览逻辑，敌军意图的 `projectedDamage` 必须等于规划态 `attackPreview.damage`。

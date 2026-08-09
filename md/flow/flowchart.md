@@ -340,3 +340,23 @@ flowchart TD
     N --> H
     G --> Q["说明无法触发云端验证<br/>不得用本地测试伪装通过"]
 ```
+
+## v0.63 战斗目标锁定与取消链
+
+读图说明：目标入口只把合法防守者写入 ViewModel 锁定态；同一个 `SelectedCombatForecast` 同时供地图、命令坞、紧凑/完整读板和 VoiceOver 读取攻击者→防守者身份及预演。玩家可取消并回到攻击者焦点，只有确认才进入核心攻击结算。
+
+```mermaid
+flowchart LR
+    A["地图徽标 / 目标菜单 / 抽屉目标行"] --> B["focusAttackTarget"]
+    B --> C["selectedAttackTargetID + selectedPosition"]
+    C --> D["GameState.attackPreview"]
+    D --> E["SelectedCombatForecast<br/>攻击者/防守者/将领/坐标/伤害/反击/结果"]
+    E --> F["地图锁定 HUD"]
+    E --> G["命令坞与紧凑预演"]
+    E --> H["完整抽屉与 VoiceOver"]
+    E --> I{玩家选择}
+    I -->|取消锁定| J["cancelSelectedAttackTarget<br/>清空目标并恢复攻击者焦点"]
+    J --> A
+    I -->|确认攻击| K["confirmSelectedAttack"]
+    K --> L["GameState.attack<br/>唯一结算入口"]
+```

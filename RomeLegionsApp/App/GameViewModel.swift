@@ -2427,15 +2427,21 @@ final class GameViewModel: ObservableObject {
     }
 
     func attackTargetAccessibilityLabel(for target: ArmyUnit) -> String {
-        let targetLabel = "\(target.faction.displayName)\(target.kind.displayName)"
+        let targetLabel = SelectedCombatForecast.identityLabel(for: target)
         let locationLabel = "位置\(target.position.description)，生命\(target.health)/\(target.kind.maxHealth)"
         let lockLabel = isSelectedAttackTarget(target.id) ? "已锁定" : "锁定"
+        if let forecast = selectedCombatForecast,
+           forecast.defender.id == target.id {
+            return "已锁定，\(forecast.accessibilityLabel)，再次点击可取消锁定"
+        }
         guard let preview = attackPreview(for: target.id) else {
-            return "\(lockLabel)\(targetLabel)，\(locationLabel)"
+            let attackerLabel = selectedUnit.map { SelectedCombatForecast.identityLabel(for: $0) } ?? "当前军团"
+            return "\(lockLabel)\(targetLabel)，攻击者\(attackerLabel)，\(locationLabel)"
         }
 
         let result = preview.defeatsDefender ? "可歼灭" : (preview.attackerFalls ? "高风险" : "可攻击")
-        return "\(lockLabel)\(targetLabel)，\(locationLabel)，伤害 \(preview.damage)，反击 \(preview.retaliation)，\(result)"
+        let attackerLabel = selectedUnit.map { SelectedCombatForecast.identityLabel(for: $0) } ?? "当前军团"
+        return "\(lockLabel)攻击者\(attackerLabel)对防守者\(targetLabel)，\(locationLabel)，伤害 \(preview.damage)，反击 \(preview.retaliation)，\(result)"
     }
 
     func attackPreview(for defenderID: String) -> CombatPreview? {
@@ -3536,6 +3542,29 @@ final class GameViewModel: ObservableObject {
             bannerMessage = "已锁定\(target.faction.displayName)\(target.kind.displayName)：伤害 \(preview.damage) · 反击 \(preview.retaliation) · \(result)。"
         } else {
             bannerMessage = "已锁定\(target.faction.displayName)\(target.kind.displayName)，请确认攻击。"
+        }
+    }
+
+    /// Clears only the target lock and restores the attacker's map focus.
+    func cancelSelectedAttackTarget() {
+        guard selectedAttackTargetID != nil else { return }
+
+        let attacker = selectedUnit
+        let forecast = selectedCombatForecast
+        selectedAttackTargetID = nil
+        focusedCountermeasureID = nil
+        focusedBattleObjectiveRole = nil
+
+        if let attacker {
+            selectedPosition = attacker.position
+            if attacker.faction == state.activeFaction {
+                bannerMessage = "已取消\(forecast.map { $0.defenderLabel } ?? "攻击目标")锁定，保留\(attacker.faction.displayName)\(attacker.kind.displayName)选择。"
+            } else {
+                bannerMessage = "已取消攻击目标锁定。"
+            }
+        } else {
+            selectedPosition = selectedCity?.position
+            bannerMessage = "已取消攻击目标锁定。"
         }
     }
 
