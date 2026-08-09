@@ -386,7 +386,7 @@ struct RenderBattlePreview {
               }),
               !viewModel.enemyCommanderThreatMapOverlays.isEmpty,
               viewModel.enemyCommanderThreatOverlayPositions.isSuperset(of: enemyThreatExpectedPositions),
-              viewModel.enemyCommanderThreatMapOverlaysByPosition.values.flatMap({ $0 }).contains(where: { $0.threatID == enemyCommanderThreat.id }) else {
+              viewModel.enemyCommanderThreatOverlaysByPosition.values.flatMap({ $0 }).contains(where: { $0.threatID == enemyCommanderThreat.id }) else {
             throw PreviewRenderError.missingEnemyCommanderThreatMapOverlay
         }
         let threatLegendKinds = Set(viewModel.activeMapOverlayLegendItems.map(\.kind))

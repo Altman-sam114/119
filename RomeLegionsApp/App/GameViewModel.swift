@@ -253,8 +253,12 @@ final class GameViewModel: ObservableObject {
         }
     }
 
+    var enemyCommanderThreatOverlaysByPosition: [Position: [EnemyCommanderThreatPositionOverlay]] {
+        enemyCommanderThreatMapOverlaysByPosition
+    }
+
     var enemyCommanderThreatOverlayPositions: Set<Position> {
-        Set(enemyCommanderThreatMapOverlaysByPosition.keys)
+        Set(enemyCommanderThreatOverlaysByPosition.keys)
     }
 
     var countermeasureSummaries: [CountermeasureSummary] {

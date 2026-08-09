@@ -21,7 +21,7 @@ struct WarMapView: View {
             let enemyIntentDestinations = viewModel.enemyIntentDestinationOverlays(for: enemyIntentOverlays)
             let enemyIntentTargets = viewModel.enemyIntentTargetOverlays(for: enemyIntentOverlays)
             let enemyCommanderThreatOverlay = viewModel.primaryEnemyCommanderThreatMapOverlay
-            let enemyCommanderThreatOverlaysByPosition = viewModel.enemyCommanderThreatMapOverlaysByPosition
+            let enemyCommanderThreatOverlaysByPosition = viewModel.enemyCommanderThreatOverlaysByPosition
             let tacticalRecommendation = viewModel.selectedTacticalRecommendationSummary
             let tacticalRecommendationPathPositions = viewModel.selectedTacticalRecommendationPathPositions
             let tacticalRecommendationTargetPosition = viewModel.selectedTacticalRecommendationTargetPosition
