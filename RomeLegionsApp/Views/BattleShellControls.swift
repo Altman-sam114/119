@@ -256,7 +256,7 @@ struct SelectionCommandDockView: View {
                         .font(.caption)
                         .foregroundStyle(.white.opacity(0.70))
                         .lineLimit(1)
-                    Label(unitCommandCue, systemImage: "scope")
+                    Label(unitCommandCue, systemImage: unitCommandCueSymbol)
                         .font(.caption.monospacedDigit().weight(.bold))
                         .foregroundStyle(Color(red: 0.91, green: 0.74, blue: 0.38))
                         .lineLimit(1)
@@ -306,6 +306,9 @@ struct SelectionCommandDockView: View {
     }
 
     private var unitCommandCue: String {
+        if let forecast = viewModel.selectedCombatForecast {
+            return forecast.compactLabel
+        }
         if let situation = viewModel.selectedUnitSituationReadout {
             return situation.primaryCommandEntryLabel
         }
@@ -313,6 +316,10 @@ struct SelectionCommandDockView: View {
             return "目标 \(recommendation.targetLabel)"
         }
         return "等待军令"
+    }
+
+    private var unitCommandCueSymbol: String {
+        viewModel.selectedCombatForecast?.outcomeSymbol ?? "scope"
     }
 
     private func cityCommandCue(_ brief: SelectedCityBrief) -> String {
@@ -380,15 +387,17 @@ struct UnitDockCommandButtonsView: View {
 
     @ViewBuilder
     private var primaryButtons: some View {
-        if let target = viewModel.attackTargets.first {
+        if let forecast = viewModel.selectedCombatForecast {
             DockCommandButton(
-                title: "攻击",
-                symbol: "bolt.fill",
-                tint: .red,
+                title: forecast.confirmationTitle,
+                symbol: forecast.outcomeSymbol,
+                tint: forecast.isHighRisk ? .orange : .red,
                 isDisabled: viewModel.isCampaignOver,
-                accessibilityLabel: "攻击\(target.faction.displayName)\(target.kind.displayName)",
-                action: { viewModel.attack(target.id) }
+                accessibilityLabel: forecast.confirmationAccessibilityLabel,
+                action: viewModel.confirmSelectedAttack
             )
+        } else if !viewModel.attackTargets.isEmpty {
+            AttackTargetMenuButton()
         }
 
         if let trait = unit.resolvedGeneralTrait {
@@ -462,6 +471,67 @@ struct CityDockCommandButtonsView: View {
     }
 }
 
+struct AttackTargetMenuButton: View {
+    @EnvironmentObject private var viewModel: GameViewModel
+
+    var body: some View {
+        Menu {
+            ForEach(viewModel.attackTargets) { target in
+                let preview = viewModel.attackPreview(for: target.id)
+                Button {
+                    viewModel.focusAttackTarget(target.id)
+                } label: {
+                    Label {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("锁定\(target.faction.displayName)\(target.kind.displayName)")
+                            if let preview {
+                                Text("伤害 \(preview.damage) · 反击 \(preview.retaliation)")
+                            }
+                        }
+                    } icon: {
+                        Image(systemName: viewModel.isSelectedAttackTarget(target.id) ? "checkmark.circle.fill" : "bolt.fill")
+                    }
+                }
+                .accessibilityLabel(viewModel.attackTargetAccessibilityLabel(for: target))
+            }
+        } label: {
+            DockCommandButtonContent(
+                title: "选敌",
+                symbol: "bolt.fill",
+                tint: .red
+            )
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("选择攻击目标")
+        .accessibilityHint("打开目标列表，锁定后查看攻击预演")
+    }
+}
+
+struct DockCommandButtonContent: View {
+    var title: String
+    var symbol: String
+    var tint: Color
+    var isSecondary = false
+
+    var body: some View {
+        VStack(spacing: 3) {
+            Image(systemName: symbol)
+                .font(.subheadline.weight(.bold))
+            Text(title)
+                .font(.caption2.weight(.bold))
+                .lineLimit(1)
+        }
+        .foregroundStyle(.white)
+        .frame(width: 44, height: 44)
+        .background(isSecondary ? .black.opacity(0.20) : tint.opacity(0.30))
+        .clipShape(.rect(cornerRadius: 6))
+        .overlay {
+            RoundedRectangle(cornerRadius: 6)
+                .stroke(tint.opacity(isSecondary ? 0.42 : 0.82), lineWidth: 1)
+        }
+    }
+}
+
 struct DockCommandButton: View {
     var title: String
     var symbol: String
@@ -473,21 +543,12 @@ struct DockCommandButton: View {
 
     var body: some View {
         Button(action: action) {
-            VStack(spacing: 3) {
-                Image(systemName: symbol)
-                    .font(.subheadline.weight(.bold))
-                Text(title)
-                    .font(.caption2.weight(.bold))
-                    .lineLimit(1)
-            }
-            .foregroundStyle(.white)
-            .frame(width: 44, height: 44)
-            .background(isSecondary ? .black.opacity(0.20) : tint.opacity(0.30))
-            .clipShape(.rect(cornerRadius: 6))
-            .overlay {
-                RoundedRectangle(cornerRadius: 6)
-                    .stroke(tint.opacity(isSecondary ? 0.42 : 0.82), lineWidth: 1)
-            }
+            DockCommandButtonContent(
+                title: title,
+                symbol: symbol,
+                tint: tint,
+                isSecondary: isSecondary
+            )
         }
         .buttonStyle(.plain)
         .disabled(isDisabled)
@@ -531,6 +592,8 @@ struct TopBarView: View {
                     .frame(width: 36, height: 36)
             }
             .buttonStyle(CommandIconButtonStyle())
+            .accessibilityLabel("打开主菜单")
+            .accessibilityHint("返回模式选择和战役入口")
 
             VStack(alignment: .leading, spacing: 1) {
                 Text(topBarTitle)

@@ -1620,7 +1620,15 @@ struct RenderBattlePreview {
             position: Position(x: 4, y: 3),
             health: 64
         )
-        guard viewModel.state.unit(at: commandDockTarget.position) == nil else {
+        let commandDockSecondaryTarget = ArmyUnit(
+            id: "carthage-command-dock-secondary-target",
+            kind: .archer,
+            faction: .carthage,
+            position: Position(x: 3, y: 4),
+            health: 72
+        )
+        guard viewModel.state.unit(at: commandDockTarget.position) == nil,
+              viewModel.state.unit(at: commandDockSecondaryTarget.position) == nil else {
             throw PreviewRenderError.missingCommandDockAttackFixture
         }
         let enemyPresentation = MapOverlayPresentation(perspective: .enemyIntent)
@@ -1756,10 +1764,72 @@ struct RenderBattlePreview {
             throw PreviewRenderError.missingCoastlineStrategy
         }
         viewModel.state.units.append(commandDockTarget)
+        viewModel.state.units.append(commandDockSecondaryTarget)
         guard viewModel.attackTargets.contains(where: { $0.id == commandDockTarget.id }),
+              viewModel.attackTargets.contains(where: { $0.id == commandDockSecondaryTarget.id }),
+              Set(viewModel.attackTargets.map(\.id)) == Set([commandDockTarget.id, commandDockSecondaryTarget.id]),
               let commandSituation = viewModel.selectedUnitSituationReadout,
               !commandSituation.primaryCommandEntryLabel.isEmpty else {
             throw PreviewRenderError.missingCommandDockAttackFixture
+        }
+        let stateBeforeAttackForecast = viewModel.state
+        let unitStateBeforeAttackForecast = viewModel.state.units
+            .sorted { $0.id < $1.id }
+            .map { unit in
+                "\(unit.id)|\(unit.position.description)|\(unit.health)|\(unit.hasMoved)|\(unit.hasActed)|\(unit.generalSkillCooldownRemaining)|\(unit.tacticalOrder?.rawValue ?? \"balanced\")"
+            }
+        let cityStateBeforeAttackForecast = viewModel.state.cities
+            .sorted { $0.id < $1.id }
+            .map { city in
+                "\(city.id)|\(city.owner.rawValue)|\(city.fortification)|\(city.position.description)"
+            }
+        let resourcesBeforeAttackForecast = viewModel.state.resources
+            .sorted { $0.key.rawValue < $1.key.rawValue }
+            .map { entry in
+                let resources = entry.value
+                return "\(entry.key.rawValue)|\(resources.gold)|\(resources.grain)|\(resources.iron)|\(resources.science)|\(resources.prestige)"
+            }
+        let turnBeforeAttackForecast = viewModel.state.turn
+        let activeFactionBeforeAttackForecast = viewModel.state.activeFaction
+        viewModel.focusAttackTarget(commandDockTarget.id)
+        guard viewModel.selectedAttackTargetID == commandDockTarget.id,
+              viewModel.selectedPosition == commandDockTarget.position,
+              let selectedCombatForecast = viewModel.selectedCombatForecast,
+              selectedCombatForecast.attacker.id == "rome-legion-1",
+              selectedCombatForecast.defender.id == commandDockTarget.id,
+              let canonicalCombatPreview = try? viewModel.state.attackPreview(
+                  attackerID: "rome-legion-1",
+                  defenderID: commandDockTarget.id
+              ),
+              selectedCombatForecast.preview == canonicalCombatPreview,
+              !selectedCombatForecast.compactLabel.isEmpty,
+              !selectedCombatForecast.detailLabel.isEmpty,
+              !selectedCombatForecast.accessibilityLabel.isEmpty else {
+            throw PreviewRenderError.missingAttackForecast
+        }
+        let unitStateAfterAttackForecast = viewModel.state.units
+            .sorted { $0.id < $1.id }
+            .map { unit in
+                "\(unit.id)|\(unit.position.description)|\(unit.health)|\(unit.hasMoved)|\(unit.hasActed)|\(unit.generalSkillCooldownRemaining)|\(unit.tacticalOrder?.rawValue ?? \"balanced\")"
+            }
+        let cityStateAfterAttackForecast = viewModel.state.cities
+            .sorted { $0.id < $1.id }
+            .map { city in
+                "\(city.id)|\(city.owner.rawValue)|\(city.fortification)|\(city.position.description)"
+            }
+        let resourcesAfterAttackForecast = viewModel.state.resources
+            .sorted { $0.key.rawValue < $1.key.rawValue }
+            .map { entry in
+                let resources = entry.value
+                return "\(entry.key.rawValue)|\(resources.gold)|\(resources.grain)|\(resources.iron)|\(resources.science)|\(resources.prestige)"
+            }
+        guard unitStateBeforeAttackForecast == unitStateAfterAttackForecast,
+              cityStateBeforeAttackForecast == cityStateAfterAttackForecast,
+              resourcesBeforeAttackForecast == resourcesAfterAttackForecast,
+              stateBeforeAttackForecast == viewModel.state,
+              turnBeforeAttackForecast == viewModel.state.turn,
+              activeFactionBeforeAttackForecast == viewModel.state.activeFaction else {
+            throw PreviewRenderError.missingAttackForecast
         }
         let unitOutputPath = outputPathWithSuffix(outputPath, suffix: "unit")
         let unitBitmap = try renderBattleView(
@@ -1787,10 +1857,13 @@ struct RenderBattlePreview {
         viewModel.selectedUnitID = nil
         viewModel.selectedCityID = previewCity.id
         viewModel.selectedPosition = previewCity.position
+        viewModel.selectedAttackTargetID = nil
         viewModel.bannerMessage = "预览城市：城市经营、扩建收益和招募部署已显示。"
 
         guard viewModel.selectedUnitID == nil,
               viewModel.selectedCityID == "neapolis",
+              viewModel.selectedAttackTargetID == nil,
+              viewModel.selectedCombatForecast == nil,
               viewModel.selectedCity?.owner == .rome,
               viewModel.selectedTile?.terrain == .city,
               viewModel.commandCity?.id == previewCity.id,
@@ -2173,6 +2246,7 @@ enum PreviewRenderError: Error {
     case missingCoastlineStrategy
     case missingStrategicMapMaterialCoverage
     case missingCommandDockAttackFixture
+    case missingAttackForecast
     case missingDistinctCommandDockRender
     case missingIntentOverlay
     case missingHexIntentRoute

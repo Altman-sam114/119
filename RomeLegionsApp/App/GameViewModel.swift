@@ -8,6 +8,7 @@ final class GameViewModel: ObservableObject {
     @Published var selectedUnitID: String?
     @Published var selectedCityID: String?
     @Published var selectedPosition: Position?
+    @Published var selectedAttackTargetID: String?
     @Published var selectedTechnology: Technology?
     @Published var focusedCountermeasureID: String?
     @Published var focusedBattleObjectiveRole: BattleObjectiveMapRole?
@@ -2405,6 +2406,38 @@ final class GameViewModel: ObservableObject {
         return state.attackTargets(for: selectedUnitID)
     }
 
+    var selectedCombatForecast: SelectedCombatForecast? {
+        guard let selectedUnit,
+              selectedUnit.faction == state.activeFaction,
+              let selectedAttackTargetID,
+              let defender = attackTargets.first(where: { $0.id == selectedAttackTargetID }),
+              let preview = attackPreview(for: defender.id) else {
+            return nil
+        }
+
+        return SelectedCombatForecast(
+            attacker: selectedUnit,
+            defender: defender,
+            preview: preview
+        )
+    }
+
+    func isSelectedAttackTarget(_ defenderID: String) -> Bool {
+        selectedCombatForecast?.defender.id == defenderID
+    }
+
+    func attackTargetAccessibilityLabel(for target: ArmyUnit) -> String {
+        let targetLabel = "\(target.faction.displayName)\(target.kind.displayName)"
+        let locationLabel = "位置\(target.position.description)，生命\(target.health)/\(target.kind.maxHealth)"
+        let lockLabel = isSelectedAttackTarget(target.id) ? "已锁定" : "锁定"
+        guard let preview = attackPreview(for: target.id) else {
+            return "\(lockLabel)\(targetLabel)，\(locationLabel)"
+        }
+
+        let result = preview.defeatsDefender ? "可歼灭" : (preview.attackerFalls ? "高风险" : "可攻击")
+        return "\(lockLabel)\(targetLabel)，\(locationLabel)，伤害 \(preview.damage)，反击 \(preview.retaliation)，\(result)"
+    }
+
     func attackPreview(for defenderID: String) -> CombatPreview? {
         guard let selectedUnitID = selectedUnitID else { return nil }
         return try? state.attackPreview(attackerID: selectedUnitID, defenderID: defenderID)
@@ -3351,6 +3384,7 @@ final class GameViewModel: ObservableObject {
         selectedUnitID = nil
         selectedCityID = nil
         selectedPosition = nil
+        selectedAttackTargetID = nil
         selectedTechnology = nil
         focusedCountermeasureID = nil
         focusedBattleObjectiveRole = nil
@@ -3368,11 +3402,11 @@ final class GameViewModel: ObservableObject {
 
         if let unit = state.unit(at: position) {
             if let target = attackTargets.first(where: { $0.id == unit.id }) {
-                selectedPosition = position
-                attack(target.id)
+                focusAttackTarget(target.id)
                 return
             }
 
+            selectedAttackTargetID = nil
             selectedUnitID = unit.id
             selectedCityID = state.city(at: position)?.id
             selectedPosition = position
@@ -3385,6 +3419,7 @@ final class GameViewModel: ObservableObject {
         }
 
         if let unit = selectedUnit, reachablePositions.contains(position) {
+            selectedAttackTargetID = nil
             apply {
                 try state.moveUnit(id: unit.id, to: position)
             }
@@ -3394,6 +3429,7 @@ final class GameViewModel: ObservableObject {
         }
 
         if let city = state.city(at: position) {
+            selectedAttackTargetID = nil
             selectedCityID = city.id
             selectedUnitID = nil
             selectedPosition = position
@@ -3401,6 +3437,7 @@ final class GameViewModel: ObservableObject {
             return
         }
 
+        selectedAttackTargetID = nil
         selectedUnitID = nil
         selectedCityID = nil
         selectedPosition = position
@@ -3430,6 +3467,7 @@ final class GameViewModel: ObservableObject {
             return
         }
 
+        selectedAttackTargetID = nil
         selectedUnitID = responseUnit.id
         selectedCityID = state.city(at: responseUnit.position)?.id
         selectedPosition = responseUnit.position
@@ -3444,6 +3482,7 @@ final class GameViewModel: ObservableObject {
             return
         }
 
+        selectedAttackTargetID = nil
         selectedPosition = overlay.position
         focusedBattleObjectiveRole = role
         focusedCountermeasureID = nil
@@ -3478,9 +3517,41 @@ final class GameViewModel: ObservableObject {
         return unit?.faction == .rome ? unit : nil
     }
 
+    func focusAttackTarget(_ defenderID: String) {
+        guard let attacker = selectedUnit,
+              attacker.faction == state.activeFaction,
+              let target = attackTargets.first(where: { $0.id == defenderID }) else {
+            bannerMessage = "当前军团无法锁定该攻击目标。"
+            selectedAttackTargetID = nil
+            return
+        }
+
+        selectedAttackTargetID = target.id
+        selectedPosition = target.position
+        focusedCountermeasureID = nil
+        focusedBattleObjectiveRole = nil
+
+        if let preview = attackPreview(for: target.id) {
+            let result = preview.defeatsDefender ? "可歼灭" : (preview.attackerFalls ? "高风险" : "可执行")
+            bannerMessage = "已锁定\(target.faction.displayName)\(target.kind.displayName)：伤害 \(preview.damage) · 反击 \(preview.retaliation) · \(result)。"
+        } else {
+            bannerMessage = "已锁定\(target.faction.displayName)\(target.kind.displayName)，请确认攻击。"
+        }
+    }
+
+    func confirmSelectedAttack() {
+        guard let defenderID = selectedCombatForecast?.defender.id else {
+            bannerMessage = "请先从地图或选敌菜单锁定攻击目标。"
+            return
+        }
+
+        attack(defenderID)
+    }
+
     func attack(_ defenderID: String) {
         guard let selectedUnitID = selectedUnitID else { return }
         let defenderPosition = state.unit(withID: defenderID)?.position
+        selectedAttackTargetID = nil
 
         apply {
             try state.attack(attackerID: selectedUnitID, defenderID: defenderID)
@@ -3502,6 +3573,8 @@ final class GameViewModel: ObservableObject {
     func skipSelectedUnit() {
         guard let selectedUnitID = selectedUnitID else { return }
 
+        selectedAttackTargetID = nil
+
         apply {
             try state.skipUnit(id: selectedUnitID)
         }
@@ -3515,6 +3588,8 @@ final class GameViewModel: ObservableObject {
     func recruit(_ kind: UnitKind) {
         guard let cityID = commandCity?.id else { return }
 
+        selectedAttackTargetID = nil
+
         apply {
             try state.recruit(kind, at: cityID)
         }
@@ -3522,6 +3597,8 @@ final class GameViewModel: ObservableObject {
 
     func developCommandCity() {
         guard let city = commandCity else { return }
+
+        selectedAttackTargetID = nil
 
         apply {
             try state.developCity(id: city.id)
@@ -3531,6 +3608,8 @@ final class GameViewModel: ObservableObject {
     func trainSelectedUnit() {
         guard let selectedUnitID = selectedUnitID else { return }
 
+        selectedAttackTargetID = nil
+
         apply {
             try state.trainUnit(id: selectedUnitID)
         }
@@ -3539,6 +3618,8 @@ final class GameViewModel: ObservableObject {
     func appointGeneralToSelectedUnit() {
         guard let selectedUnitID = selectedUnitID else { return }
 
+        selectedAttackTargetID = nil
+
         apply {
             try state.appointGeneral(unitID: selectedUnitID)
         }
@@ -3546,6 +3627,8 @@ final class GameViewModel: ObservableObject {
 
     func useSelectedGeneralSkill() {
         guard let selectedUnitID = selectedUnitID else { return }
+
+        selectedAttackTargetID = nil
 
         apply {
             try state.useGeneralSkill(unitID: selectedUnitID)
@@ -3559,6 +3642,8 @@ final class GameViewModel: ObservableObject {
     func setSelectedTacticalOrder(_ order: TacticalOrder) {
         guard let selectedUnitID = selectedUnitID else { return }
 
+        selectedAttackTargetID = nil
+
         apply {
             try state.setTacticalOrder(unitID: selectedUnitID, order: order)
         }
@@ -3571,18 +3656,22 @@ final class GameViewModel: ObservableObject {
     func restSelectedUnit() {
         guard let selectedUnitID = selectedUnitID else { return }
 
+        selectedAttackTargetID = nil
+
         apply {
             try state.restUnit(id: selectedUnitID)
         }
     }
 
     func sendEnvoy(to faction: Faction) {
+        selectedAttackTargetID = nil
         apply {
             try state.sendEnvoy(to: faction)
         }
     }
 
     func research(_ technology: Technology) {
+        selectedAttackTargetID = nil
         apply {
             try state.research(technology)
         }
@@ -3607,6 +3696,7 @@ final class GameViewModel: ObservableObject {
         selectedUnitID = nil
         selectedCityID = nil
         selectedPosition = nil
+        selectedAttackTargetID = nil
         if state.campaignStatus.isGameOver {
             bannerMessage = messages.last ?? "\(campaignStatusTitle)：\(campaignStatusDetail)"
         } else {
@@ -3615,6 +3705,7 @@ final class GameViewModel: ObservableObject {
     }
 
     private func apply(_ operation: () throws -> [String]) {
+        selectedAttackTargetID = nil
         do {
             let messages = try operation()
             let fallback = state.campaignStatus.isGameOver ? "\(campaignStatusTitle)：\(campaignStatusDetail)" : "命令已执行。"

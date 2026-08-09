@@ -1,6 +1,99 @@
 import Foundation
 import SwiftUI
 
+struct SelectedCombatForecast: Identifiable {
+    var attacker: ArmyUnit
+    var defender: ArmyUnit
+    var preview: CombatPreview
+
+    var id: String {
+        "\(attacker.id)-\(defender.id)"
+    }
+
+    var attackerLabel: String {
+        "\(attacker.faction.displayName)\(attacker.kind.displayName)"
+    }
+
+    var defenderLabel: String {
+        "\(defender.faction.displayName)\(defender.kind.displayName)"
+    }
+
+    var damageLabel: String {
+        "伤害 \(preview.damage)"
+    }
+
+    var retaliationLabel: String {
+        "反击 \(preview.retaliation)"
+    }
+
+    var healthLabel: String {
+        "我方 \(preview.attackerRemainingHealth)/\(attacker.kind.maxHealth) · 敌方 \(preview.defenderRemainingHealth)/\(defender.kind.maxHealth)"
+    }
+
+    var modifierLabel: String {
+        var parts: [String] = []
+
+        if preview.supportBonus > 0 {
+            parts.append("支援+\(preview.supportBonus)")
+        }
+        if preview.flankingBonus > 0 {
+            parts.append("包夹+\(preview.flankingBonus)")
+        }
+        if preview.commandBonus > 0 {
+            parts.append("指挥+\(preview.commandBonus)")
+        }
+        if preview.defenderSupportBonus > 0 {
+            parts.append("守援-\(preview.defenderSupportBonus)")
+        }
+
+        return parts.isEmpty ? "无额外修正" : parts.joined(separator: " · ")
+    }
+
+    var outcomeLabel: String {
+        if preview.defeatsDefender {
+            return "预计歼灭"
+        }
+        if preview.attackerFalls {
+            return "预计高风险"
+        }
+        return "预计交战"
+    }
+
+    var outcomeSymbol: String {
+        if preview.defeatsDefender {
+            return "flame.fill"
+        }
+        if preview.attackerFalls {
+            return "exclamationmark.triangle.fill"
+        }
+        return "bolt.fill"
+    }
+
+    var isHighRisk: Bool {
+        preview.attackerFalls
+    }
+
+    var compactLabel: String {
+        "→\(defenderLabel) · 伤\(preview.damage) · 反\(preview.retaliation) · 我\(preview.attackerRemainingHealth) · 敌\(preview.defenderRemainingHealth)"
+    }
+
+    var confirmationTitle: String {
+        preview.defeatsDefender ? "歼灭" : "确认"
+    }
+
+    var confirmationAccessibilityLabel: String {
+        "确认攻击\(defenderLabel)，\(damageLabel)，\(retaliationLabel)，\(healthLabel)，\(outcomeLabel)"
+    }
+
+    var detailLabel: String {
+        "\(attackerLabel) → \(defenderLabel) · \(damageLabel) · \(retaliationLabel) · \(healthLabel) · \(modifierLabel)"
+    }
+
+    var accessibilityLabel: String {
+        "攻击预演：\(attackerLabel)对\(defenderLabel)，\(damageLabel)，\(retaliationLabel)，\(healthLabel)，\(modifierLabel)，\(outcomeLabel)"
+    }
+}
+
 struct LegionFormationSummary: Identifiable {
     var report: LegionFormationReport
     var unit: ArmyUnit?

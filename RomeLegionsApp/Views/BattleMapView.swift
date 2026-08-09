@@ -32,6 +32,7 @@ struct WarMapView: View {
             let reconHUD = viewModel.mapReconPerspectiveHUDReadout
             let engagementLoop = viewModel.primaryEnemyEngagementLoopReadout
             let selectedPosition = viewModel.focusedPosition
+            let selectedAttackSourceID = viewModel.selectedCombatForecast?.attacker.id
             let skillRangePositions = viewModel.selectedGeneralSkillRangePositions
             let skillTargetPositions = viewModel.selectedGeneralSkillTargetPositions
             let skillTargetUnitIDs = viewModel.selectedGeneralSkillTargetUnitIDs
@@ -122,6 +123,7 @@ struct WarMapView: View {
                             isTacticalRecommendationPath: tacticalRecommendationPathPositions.contains(tile.position),
                             isTacticalRecommendationTarget: tacticalRecommendationTargetPosition == tile.position,
                             isSelected: selectedPosition == tile.position,
+                            isAttackOrigin: unit?.id == selectedAttackSourceID,
                             isReachable: viewModel.reachablePositions.contains(tile.position),
                             isAttackTarget: attackTargets.contains { $0.position == tile.position },
                             isSkillRange: skillRangePositions.contains(tile.position),
@@ -140,20 +142,19 @@ struct WarMapView: View {
                     ForEach(attackTargets) { target in
                         let center = metrics.center(for: target.position)
                         AttackTargetButton(
-                            unit: target,
                             preview: viewModel.attackPreview(for: target.id),
-                            scale: metrics.actionScale
+                            scale: metrics.actionScale,
+                            isFocused: viewModel.isSelectedAttackTarget(target.id),
+                            accessibilityLabel: viewModel.attackTargetAccessibilityLabel(for: target),
+                            action: { viewModel.focusAttackTarget(target.id) }
                         )
                         .position(x: center.x, y: center.y - metrics.tileHeight * 0.57)
-                        .onTapGesture {
-                            viewModel.attack(target.id)
-                        }
                         .zIndex(4)
                     }
 
                     ForEach(viewModel.state.units.filter { attackTargetIDs.contains($0.id) }) { target in
                         let center = metrics.center(for: target.position)
-                        AttackTargetRing()
+                        AttackTargetRing(isFocused: viewModel.isSelectedAttackTarget(target.id))
                             .frame(width: metrics.tileWidth * 0.92, height: metrics.tileHeight * 0.92)
                             .position(center)
                             .allowsHitTesting(false)
@@ -342,43 +343,51 @@ struct MapCameraControlsView: View {
 }
 
 struct AttackTargetButton: View {
-    var unit: ArmyUnit
     var preview: CombatPreview?
     var scale: CGFloat
+    var isFocused: Bool
+    var accessibilityLabel: String
+    var action: () -> Void
 
     var body: some View {
-        VStack(spacing: 0) {
-            ZStack {
-                Circle()
-                    .fill(Color(red: 0.78, green: 0.08, blue: 0.05))
-                Circle()
-                    .stroke(.white.opacity(0.92), lineWidth: 2)
-                Image(systemName: "bolt.fill")
-                    .font(.system(size: 15 * scale, weight: .black))
-                    .foregroundStyle(.white)
-                    .shadow(color: .black.opacity(0.45), radius: 2, y: 1)
-                    .offset(y: preview == nil ? 0 : -3 * scale)
-
-                if let preview {
-                    Text(preview.defeatsDefender ? "破" : "-\(preview.damage)")
-                        .font(.system(size: 8 * scale, weight: .black, design: .rounded))
-                        .monospacedDigit()
+        Button(action: action) {
+            VStack(spacing: 0) {
+                ZStack {
+                    Circle()
+                        .fill(isFocused ? Color(red: 0.90, green: 0.60, blue: 0.08) : Color(red: 0.78, green: 0.08, blue: 0.05))
+                    Circle()
+                        .stroke(.white.opacity(0.92), lineWidth: 2)
+                    Image(systemName: isFocused ? "scope" : "bolt.fill")
+                        .font(.system(size: 15 * scale, weight: .black))
                         .foregroundStyle(.white)
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.65)
-                        .offset(y: 9 * scale)
-                }
-            }
-            .frame(width: 36 * scale, height: 36 * scale)
-            .shadow(color: .red.opacity(0.65), radius: 8, y: 2)
+                        .shadow(color: .black.opacity(0.45), radius: 2, y: 1)
+                        .offset(y: preview == nil ? 0 : -3 * scale)
 
-            TrianglePointer()
-                .fill(Color(red: 0.78, green: 0.08, blue: 0.05))
-                .frame(width: 13 * scale, height: 7 * scale)
-                .offset(y: -1)
+                    if let preview {
+                        Text(preview.defeatsDefender ? "破" : "-\(preview.damage)")
+                            .font(.system(size: 8 * scale, weight: .black, design: .rounded))
+                            .monospacedDigit()
+                            .foregroundStyle(.white)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.65)
+                            .offset(y: 9 * scale)
+                    }
+                }
+                .frame(width: 36 * scale, height: 36 * scale)
+                .shadow(color: (isFocused ? Color.yellow : Color.red).opacity(0.65), radius: 8, y: 2)
+
+                TrianglePointer()
+                    .fill(isFocused ? Color(red: 0.90, green: 0.60, blue: 0.08) : Color(red: 0.78, green: 0.08, blue: 0.05))
+                    .frame(width: 13 * scale, height: 7 * scale)
+                    .offset(y: -1)
+            }
         }
-        .accessibilityLabel("攻击\(unit.faction.displayName)\(unit.kind.displayName)")
-        .accessibilityAddTraits(.isButton)
+        .buttonStyle(.plain)
+        .frame(minWidth: 44, minHeight: 44)
+        .contentShape(Rectangle())
+        .accessibilityLabel(accessibilityLabel)
+        .accessibilityHint(isFocused ? "已锁定目标，再次选择可更新攻击预演" : "点击锁定目标并查看攻击预演")
+        .accessibilityAddTraits(isFocused ? .isSelected : AccessibilityTraits())
     }
 }
 
@@ -1173,15 +1182,21 @@ struct TacticalChipView: View {
 }
 
 struct AttackTargetRing: View {
+    var isFocused: Bool
+
     var body: some View {
         ZStack {
             Hexagon()
-                .stroke(Color.red.opacity(0.95), style: StrokeStyle(lineWidth: 3, lineCap: .round, dash: [7, 5]))
+                .stroke(
+                    isFocused ? Color.white.opacity(0.98) : Color.red.opacity(0.95),
+                    style: StrokeStyle(lineWidth: isFocused ? 3.5 : 3, lineCap: .round, dash: [7, 5])
+                )
             Hexagon()
-                .stroke(Color.yellow.opacity(0.55), lineWidth: 1)
+                .stroke(isFocused ? Color.yellow.opacity(0.92) : Color.yellow.opacity(0.55), lineWidth: isFocused ? 2 : 1)
                 .padding(4)
         }
-        .shadow(color: .red.opacity(0.55), radius: 6)
+        .shadow(color: (isFocused ? Color.white : Color.red).opacity(0.55), radius: isFocused ? 9 : 6)
+        .accessibilityHidden(true)
     }
 }
 
@@ -1387,6 +1402,7 @@ struct HexTileView: View {
     var isTacticalRecommendationPath: Bool
     var isTacticalRecommendationTarget: Bool
     var isSelected: Bool
+    var isAttackOrigin: Bool
     var isReachable: Bool
     var isAttackTarget: Bool
     var isSkillRange: Bool
@@ -1409,7 +1425,7 @@ struct HexTileView: View {
                 }
                 .overlay {
                     Hexagon()
-                        .stroke(borderColor, lineWidth: isSelected || isAttackTarget ? max(2.4, 3 * scale) : max(0.4, 0.55 * scale))
+                        .stroke(borderColor, lineWidth: isSelected || isAttackOrigin || isAttackTarget ? max(2.4, 3 * scale) : max(0.4, 0.55 * scale))
                 }
 
             TerrainGlyphView(terrain: tile.terrain, scale: scale)
@@ -1503,6 +1519,11 @@ struct HexTileView: View {
                 SelectedTileOverlay(scale: scale)
             }
 
+            if isAttackOrigin && !isSelected {
+                SelectedTileOverlay(scale: scale)
+                    .opacity(0.82)
+            }
+
             if isAttackTarget {
                 AttackTileOverlay(scale: scale)
             }
@@ -1513,10 +1534,11 @@ struct HexTileView: View {
                 CountermeasureTileOverlay(overlay: countermeasureOverlay, scale: scale)
             }
         }
-        .shadow(color: .black.opacity(isSelected ? 0.38 : 0.18), radius: isSelected ? 9 : 2, y: 2)
+        .shadow(color: .black.opacity(isSelected || isAttackOrigin ? 0.38 : 0.18), radius: isSelected || isAttackOrigin ? 9 : 2, y: 2)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(accessibilityLabel)
         .accessibilityAddTraits(.isButton)
+        .accessibilityHidden(isAttackTarget)
     }
 
     private var tileColor: Color {
@@ -1543,6 +1565,7 @@ struct HexTileView: View {
     private var borderColor: Color {
         if isAttackTarget { return .red }
         if isSelected { return .white }
+        if isAttackOrigin { return .cyan }
         if isReachable { return .yellow.opacity(0.8) }
         return .black.opacity(0.05)
     }
@@ -1569,6 +1592,9 @@ struct HexTileView: View {
         }
         if isSelected {
             parts.append("已选中")
+        }
+        if isAttackOrigin {
+            parts.append("攻击发起单位")
         }
         if isReachable {
             parts.append("可移动")

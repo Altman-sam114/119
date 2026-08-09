@@ -14,7 +14,7 @@ flowchart TD
     B -->|isShowingMenu = false| E["BattleView 根壳层<br/>ShellControls / MapView / Panels / Styles 分域<br/>薄战役带、全宽地图、横向边缘工具、目标导向命令坞"]
     D --> E
     E --> F["用户点击地图或命令<br/>选择单位/城市/地块/目标"]
-    F --> G["GameViewModel 命令方法<br/>selectTile / attack / recruit / develop / endTurn"]
+    F --> G["GameViewModel 命令方法<br/>selectTile / focusAttackTarget / confirmSelectedAttack / recruit / develop / endTurn"]
     G --> H["GameState 核心规则<br/>移动、攻击、城市预览、招募、科技、外交、AI"]
     H --> I["返回中文消息或 GameRuleError<br/>说明命令结果"]
     I --> J["GameViewModel 更新 @Published 状态<br/>banner、选择态、派生数据<br/>Map / Strategy / Selection Readouts 分域"]
@@ -48,14 +48,15 @@ flowchart TD
 flowchart TD
     A["选中罗马单位"] --> B["GameViewModel.attackTargets<br/>读取 GameState.attackTargets"]
     A --> BH["GameViewModel.reachablePositions<br/>读取选中单位真实可达格"]
-    B --> C["BattleView 显示可攻击目标徽标"]
+    B --> C["BattleView 显示可攻击目标徽标与目标菜单"]
     B --> BL
     BH --> BL
-    C --> D["GameViewModel.attackPreview(for:)"]
+    C --> D["GameViewModel.focusAttackTarget(_:)<br/>只更新锁定态和 focusedPosition"]
     D --> E["GameState.attackPreview<br/>计算伤害、反击、地形、支援、包夹、指挥、姿态"]
-    E --> F["UI 展示 CombatPreview"]
-    C --> G["玩家确认攻击"]
-    G --> H["GameState.attack<br/>使用同一套修正逻辑结算"]
+    E --> F["GameViewModel.selectedCombatForecast<br/>展示 CombatPreview、双方余量、修正和结果"]
+    C --> G["命令坞确认/歼灭按钮"]
+    G --> GC["GameViewModel.confirmSelectedAttack()"]
+    GC --> H["GameState.attack<br/>使用同一套修正逻辑结算"]
     H --> I["更新单位生命、行动标记、经验和消息"]
 
     J["敌军意图面板"] --> K["GameViewModel.enemyIntentSummaries"]

@@ -91,7 +91,7 @@ const viewModel = [
   "RomeLegionsApp/App/GameViewModelSelectionReadouts.swift",
   "RomeLegionsApp/App/GameViewModel.swift"
 ].map((path) => readFileSync(path, "utf8")).join("\n");
-for (const token of ["selectedPosition", "selectedTile", "func attackPreview", "primaryMission", "skipSelectedUnit", "--attack-demo", "restSelectedUnit", "isCampaignOver", "campaignStatusTitle"]) {
+for (const token of ["selectedPosition", "selectedTile", "selectedAttackTargetID", "selectedCombatForecast", "func attackPreview", "focusAttackTarget", "confirmSelectedAttack", "primaryMission", "skipSelectedUnit", "--attack-demo", "restSelectedUnit", "isCampaignOver", "campaignStatusTitle"]) {
   if (!viewModel.includes(token)) {
     failures.push(`Game view model does not include ${token}`);
   }
@@ -104,9 +104,16 @@ const battle = [
   "RomeLegionsApp/Views/BattlePanels.swift",
   "RomeLegionsApp/Views/BattleViewStyles.swift"
 ].map((path) => readFileSync(path, "utf8")).join("\n");
-for (const token of ["CompactCommandPanelView", "PhoneCommandDeckView", "TacticalStatusStripView", "BattlefieldFocusPanelView", "CityBadgeView", "TerrainGlyphView", "AttackTargetButton", "AttackTargetRing", "MapViewportState", "MagnificationGesture", "MapCameraControlsView", "focusViewport", "arrow.counterclockwise", "forward.end.fill", "CoastlineLayerView", "CoastlineBuilder", "isZoneCenter"]) {
+for (const token of ["CompactCommandPanelView", "PhoneCommandDeckView", "TacticalStatusStripView", "BattlefieldFocusPanelView", "CityBadgeView", "TerrainGlyphView", "AttackTargetButton", "AttackTargetRing", "AttackTargetMenuButton", "AttackTargetSelectionMenuView", "CombatForecastReadoutView", "MapViewportState", "MagnificationGesture", "MapCameraControlsView", "focusViewport", "arrow.counterclockwise", "forward.end.fill", "CoastlineLayerView", "CoastlineBuilder", "isZoneCenter"]) {
   if (!battle.includes(token)) {
     failures.push(`Battle view does not include ${token}`);
+  }
+}
+
+const renderPreview = readFileSync("Tools/RenderBattlePreview/main.swift", "utf8");
+for (const token of ["commandDockSecondaryTarget", "selectedAttackTargetID", "selectedCombatForecast", "missingAttackForecast", "stateBeforeAttackForecast"]) {
+  if (!renderPreview.includes(token)) {
+    failures.push(`RenderBattlePreview does not include ${token}`);
   }
 }
 

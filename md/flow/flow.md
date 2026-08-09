@@ -9,7 +9,7 @@
 1. `RomeLegionsApp` 创建 `GameViewModel`，并通过 `.environmentObject(viewModel)` 注入根视图。
 2. `RootView` 根据 `viewModel.isShowingMenu` 展示 `MainMenuView` 或 `BattleView`。
 3. `MainMenuView` 调用 `viewModel.start(mode:)`，创建 `GameState.newCampaign(mode:)` 并进入战斗。
-4. `GameViewModel.swift` 只保留 `@MainActor final class GameViewModel` 状态协调类及其类内实现；`GameViewModelMapReadouts.swift` 承载地图、敌情、反制、目标线、侦察视角和推进派生类型，`GameViewModelStrategyReadouts.swift` 承载控区、热区、AI 计划、敌将、战线和处境派生类型，`GameViewModelSelectionReadouts.swift` 承载军团成长、将领、军令窗口、姿态与城市派生类型。三个文件只定义 UI 友好数据结构，仍由同一个 `GameViewModel` 组装，不持有或修改核心状态。
+4. `GameViewModel.swift` 只保留 `@MainActor final class GameViewModel` 状态协调类及其类内实现；`GameViewModelMapReadouts.swift` 承载地图、敌情、反制、目标线、侦察视角和推进派生类型，`GameViewModelStrategyReadouts.swift` 承载控区、热区、AI 计划、敌将、战线和处境派生类型，`GameViewModelSelectionReadouts.swift` 承载军团成长、将领、军令窗口、姿态、城市与 `SelectedCombatForecast` 派生类型。三个文件只定义 UI 友好数据结构，仍由同一个 `GameViewModel` 组装，不持有或修改核心状态。
 5. `BattleView.swift` 只持有战斗根壳层、`BattleInterfaceMetrics` 和抽屉本地 `@State`；`BattleShellControls.swift` 负责薄顶部资源带、五类边缘工具、覆盖抽屉和选择驱动底部命令坞，`BattleMapView.swift` 负责全宽 `WarMapView`、地图 HUD、路线/格子叠层、地貌材质、城市/军团 token 和本地镜头交互，`BattlePanels.swift` 负责完整/紧凑读板和地图图例，`BattleViewStyles.swift` 负责共享按钮样式、六边形布局、`MapViewportState` 镜头数学与展示扩展。五个编译单元继续读取同一个 `GameViewModel`；`MapOverlayPresentation` 只把现有 `selectedMapReconPerspective` 映射为 route/tile/legend 的显示优先级，`MapViewportState` 只响应手势、按钮和 `focusedPosition` 变化，`MapBackdropView` 与 `TerrainTextureView` 只绘制既有地图数据，这些展示链路不改任何报告、命令、核心状态或存档。
 6. 用户点击地图或命令按钮后，`GameViewModel` 调用 `GameState` 的 mutating 方法。
 7. `GameState` 修改核心状态并返回中文消息数组。
@@ -32,13 +32,13 @@
 
 - 用户点击单位：`GameViewModel.selectTile(_:)` 选中单位，并同步驻守城市和位置。
 - 用户点击可移动格：`selectTile(_:)` 调用 `state.moveUnit(id:to:)`。
-- 用户点击敌军攻击目标：`selectTile(_:)` 或按钮调用 `attack(_:)`，再进入 `state.attack(attackerID:defenderID:)`。
+- 用户点击敌军攻击目标：`selectTile(_:)`、地图徽标、目标菜单和抽屉列表统一调用 `focusAttackTarget(_:)`，只写入 ViewModel 锁定态并聚焦目标；命令坞确认/歼灭按钮再调用 `confirmSelectedAttack()` -> `attack(_:)` -> `state.attack(attackerID:defenderID:)`。
 - 用户点击城市：选中 `selectedCityID`，命令面板通过城市读板展示收入、库存、扩建收益、招募成本、预计部署位置和阻塞原因。
 - 用户点击空地：清除单位/城市选择，只显示地形信息。
 
 ### 战斗与预览
 
-- `state.attackPreview(attackerID:defenderID:)` 生成 `CombatPreview`。
+- `state.attackPreview(attackerID:defenderID:)` 生成唯一的 `CombatPreview`；`GameViewModel.selectedCombatForecast` 包装该预览并派生伤害、反击、双方剩余生命、支援/包夹/指挥/守援修正与预计结果，锁定过程不改变 `GameState`。
 - 预览包含基础攻击、防御、地形、友军支援、包夹、将领指挥、守军支援、战术姿态、反击和剩余生命。
 - `state.attack(attackerID:defenderID:)` 必须与预览使用同一套修正逻辑。
 - `state.aiIntents(for:limit:)` 在只读规划态中为直接攻击和移动后攻击调用同一套预览逻辑，敌军意图的 `projectedDamage` 必须等于规划态 `attackPreview.damage`。
