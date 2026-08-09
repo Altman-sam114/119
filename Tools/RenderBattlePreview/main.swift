@@ -394,7 +394,7 @@ struct RenderBattlePreview {
         let counterThreatPresentation = MapOverlayPresentation(perspective: .countermeasure)
         let objectiveThreatPresentation = MapOverlayPresentation(perspective: .objective)
         let terrainThreatPresentation = MapOverlayPresentation(perspective: .terrainPressure)
-        guard threatLegendKinds.contains(.enemyCommanderThreat),
+        guard threatLegendKinds.contains(MapOverlayLegendKind.enemyCommanderThreat),
               enemyThreatPresentation.isFocusedLegend(.enemyCommanderThreat),
               enemyThreatPresentation.legendPriority(.enemyCommanderThreat) == 0,
               enemyThreatPresentation.enemyCommanderThreatOpacity > counterThreatPresentation.enemyCommanderThreatOpacity,

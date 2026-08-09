@@ -1445,7 +1445,7 @@ final class GameViewModel: ObservableObject {
 
         if !enemyCommanderThreatOverlayPositions.isEmpty {
             append(
-                .enemyCommanderThreat,
+                MapOverlayLegendKind.enemyCommanderThreat,
                 symbol: "crown.fill",
                 title: "敌将威胁",
                 detail: "徽标、范围和影响区来自敌将技能预演"
