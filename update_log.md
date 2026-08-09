@@ -21,6 +21,42 @@
 
 ## 历史记录
 
+### v0.62 / 战斗目标锁定与攻击预演
+
+日期：2026-08-09
+
+核心变更：
+
+- 地图攻击徽标、目标菜单和抽屉攻击列表先调用 `GameViewModel.focusAttackTarget(_:)` 锁定目标；命令坞确认/歼灭按钮才调用 `confirmSelectedAttack()` 进入核心结算，多目标不再隐式取第一个。
+- 新增 `SelectedCombatForecast` 与 `CombatForecastReadoutView`，复用 `GameState.attackPreview` 展示伤害、反击、双方剩余生命、支援/包夹/指挥/守援修正和预计结果；攻击者与目标分别高亮并提供 VoiceOver 标签。
+- `RenderBattlePreview` 增加相邻双目标 fixture、锁定前后完整 `GameState` 等价性断言、预演与核心 `CombatPreview` 同源断言，以及单位场景到城市场景的锁定态清理；结构门禁、README、flow、test 和提示词同步。
+
+关键文件：
+
+- `RomeLegionsApp/App/GameViewModel.swift`
+- `RomeLegionsApp/App/GameViewModelSelectionReadouts.swift`
+- `RomeLegionsApp/Views/BattleMapView.swift`
+- `RomeLegionsApp/Views/BattlePanels.swift`
+- `RomeLegionsApp/Views/BattleShellControls.swift`
+- `Tools/RenderBattlePreview/main.swift`
+- `Tools/verify_project.mjs`
+- `.github/workflows/ci-results.yml`
+- `README.md`
+- `md/flow/flow.md`
+- `md/flow/flowchart.md`
+- `md/test/test.md`
+- `md/prompt/v0（玩法推进）/v0.62（战斗目标锁定与攻击预演）.md`
+
+验证状态：
+
+- 按人工要求，本轮未运行本地测试、build、typecheck、RenderBattlePreview、`Tools/verify_project.mjs`、`git diff --check` 或脚本解析；本地只做读取、编辑、只读 diff/status、提交和推送。
+- 实现 commit `7d6c447f16b210bd000cfa6c17c0321a91cdb970` 首次云端 run `31291543106` 的静态检查、SwiftPM、Gameplay Smoke 和 Xcode build 通过，但 RenderBattlePreview 因预览 fixture 两处插值字符串过度转义失败；修复 commit `f88b4318e893972734d6e295e22291fb734860b9` 仅修正两处 `balanced` 字符串并重新推送。
+- 最新 run `31291623482`、attempt `1` 对应 `origin/main` 的 `f88b431`，artifact `RomeLegions-ci-v0.62-main-f88b431-run31291623482-attempt1`；manifest 五项 outcome 全为 `success`，JUnit 为 5 项、0 失败，Swift Testing 91 项通过，Gameplay Smoke 输出 `Gameplay smoke test passed.`，RenderBattlePreview 六张 PNG 均生成，Xcode 日志以 `** BUILD SUCCEEDED **` 结束。Agent C 已复判六图：地图、地貌、单位/城市读板、目标锁定焦点、固定 HUD、镜头工具和命令坞在横屏/竖屏/宽屏均无新增空白、裁切或不合理重叠。
+
+遗留事项：
+
+- 目标锁定目前是单次选择态，尚未加入跨回合命令队列、目标预留或批量攻击计划；真实设备上的触控手感仍需人工体验。
+
 ### v0.61 / AI 击杀优先保护与移动集火协同
 
 日期：2026-07-28
@@ -54,7 +90,6 @@
 遗留事项：
 
 - 交战记忆仍只在单次 AI 回合内生效，不是跨回合计划、目标预留、路径占位预约或多步搜索。
-- v0.62 已完成代码与文档改动，当前等待最新 `origin/main` 云端结果包；正式验收结论、run、artifact 和六图复判必须在云端完成后追加，不得用本地输出替代。
 
 ### v0.60 / AI 集火协同与交战记忆
 
