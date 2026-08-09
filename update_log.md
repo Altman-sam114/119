@@ -21,6 +21,45 @@
 
 ## 历史记录
 
+### v0.63 / 战斗目标锁定身份与取消入口
+
+日期：2026-08-09
+
+核心变更：
+
+- `SelectedCombatForecast` 新增攻击者/防守者的阵营、兵种、将领、坐标和稳定身份链字段；地图锁定 HUD、底部命令坞、紧凑/完整预演读板、目标行和 VoiceOver 共用同一预演与文案来源。
+- `GameViewModel.cancelSelectedAttackTarget()` 只清理 ViewModel 目标锁定、恢复仍合法攻击者的地图焦点并清除锁定专属焦点；命令幂等，不调用 `attack(_:)`，不修改 `GameState`、存档、资源、回合或 AI 意图。
+- 地图、命令坞、紧凑目标菜单、完整抽屉和预演读板新增可发现的“取消锁定”按钮；锁定目标使用身份 HUD、文字标签、焦点环和非颜色图标表达，窄屏命令坞将取消入口放入恢复命令行以避免横向溢出。
+- `RenderBattlePreview` 扩展相邻双目标 fixture，断言紧凑/完整字段同源、`CombatPreview` 与核心预演一致、JSON 存档编码和 AI 意图快照不变，以及取消和重复取消后的选择态清理；结构门禁、CI、README、flow、flowchart、test 和 prompt index 同步 v0.63。
+
+关键文件：
+
+- `RomeLegionsApp/App/GameViewModel.swift`
+- `RomeLegionsApp/App/GameViewModelSelectionReadouts.swift`
+- `RomeLegionsApp/Views/BattleMapView.swift`
+- `RomeLegionsApp/Views/BattlePanels.swift`
+- `RomeLegionsApp/Views/BattleShellControls.swift`
+- `RomeLegionsApp/Views/BattleViewStyles.swift`
+- `Tools/RenderBattlePreview/main.swift`
+- `Tools/verify_project.mjs`
+- `.github/workflows/ci-results.yml`
+- `README.md`
+- `md/flow/flow.md`
+- `md/flow/flowchart.md`
+- `md/test/test.md`
+- `md/prompt/README.md`
+- `md/prompt/v0（玩法推进）/v0.63（战斗目标锁定身份与取消入口）.md`
+
+验证状态：
+
+- 按 cloud-only 约束，本轮未运行本地测试、build、typecheck、RenderBattlePreview、`Tools/verify_project.mjs`、`git diff --check` 或脚本解析；本地只做读取、编辑、只读 diff/status、提交和推送。
+- 实现 commit `0640146d09bd241814da90dca94fc611be21ab9e` 已推送到 `origin/main`；最新 GitHub Actions run `31294459405`、attempt `1`、artifact `RomeLegions-ci-v0.63-main-0640146-run31294459405-attempt1` 的 manifest 与 `origin/main` 精确匹配。
+- 云端 static checks、Swift Testing、Gameplay Smoke、RenderBattlePreview、无签名 Xcode build 和总体结果全部为 `success`；JUnit 为 5 项、0 失败，Swift Testing 为 91 项，Gameplay Smoke 输出 `Gameplay smoke test passed.`，RenderBattlePreview 生成横屏/竖屏/宽屏单位与城市六张 PNG，Xcode 日志以 `** BUILD SUCCEEDED **` 结束。Agent C 已核对 manifest、JUnit、日志、失败摘要和六张预览图，确认身份 HUD、取消入口、固定 HUD、镜头工具、地图和命令坞在三种尺寸无新增空白、裁切或不合理重叠。
+
+遗留事项：
+
+- 取消锁定与 VoiceOver 语义已通过云端源码和预览门禁覆盖，但真实设备触控命中、Dynamic Type 极端字号和 VoiceOver 连续导航仍需人工体验；本轮未引入跨回合命令队列、目标预留或批量攻击计划。
+
 ### v0.62 / 战斗目标锁定与攻击预演
 
 日期：2026-08-09
