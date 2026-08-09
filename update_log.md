@@ -21,6 +21,45 @@
 
 ## 历史记录
 
+### v0.64 / 敌将技能威胁地图焦点与空间叠层
+
+日期：2026-08-09
+
+核心变更：
+
+- 将 `EnemyCommanderThreatReport` 的敌将起点、技能范围、受影响位置、目标/目的地和技能状态沿同一 summary 派生为只读 `EnemyCommanderThreatMapOverlay`，提供位置角色、威胁路线、图例和 VoiceOver 链路；不在 SwiftUI 中重算技能范围、威胁评分或反制收益。
+- `GameViewModel.focusEnemyCommanderThreat(_:)` 增加幂等敌将定位入口，清理互斥攻击/反制/目标线焦点，只改变 ViewModel 选择位置、敌路侦察上下文和 banner；聚焦、重复聚焦和无效聚焦均不写入 `GameState`、存档、资源、回合、活动阵营或 AI 意图，也不暴露本方技能/攻击执行入口。
+- 战斗地图新增敌将起点徽标、技能范围、影响区、目标/落点标记和威胁链线，所有空间层沿用 `HexMetrics` 与现有镜头变换并禁用命中测试；敌情卡与战局行新增 44pt 可访问“定位敌将”按钮，HUD signal 和图例引用同一个 threat id，四种侦察视角按优先级降权但保留聚焦上下文。
+- RenderBattlePreview、结构检查、CI、README、flow、flowchart、test 和 prompt index 同步 v0.64；补充 overlay 同源、位置重叠、路线角色、图例/HUD、有效/重复/无效聚焦和核心状态/存档/AI 快照不变断言。
+
+关键文件：
+
+- `RomeLegionsApp/App/GameViewModel.swift`
+- `RomeLegionsApp/App/GameViewModelMapReadouts.swift`
+- `RomeLegionsApp/App/GameViewModelStrategyReadouts.swift`
+- `RomeLegionsApp/Views/BattleMapView.swift`
+- `RomeLegionsApp/Views/BattlePanels.swift`
+- `RomeLegionsApp/Views/BattleShellControls.swift`
+- `Tools/RenderBattlePreview/main.swift`
+- `Tools/verify_project.mjs`
+- `.github/workflows/ci-results.yml`
+- `README.md`
+- `md/flow/flow.md`
+- `md/flow/flowchart.md`
+- `md/test/test.md`
+- `md/prompt/v0（玩法推进）/v0.64（敌将技能威胁地图焦点与空间叠层）.md`
+
+验证状态：
+
+- 按 cloud-only 约束，本轮未运行本地测试、build、typecheck、RenderBattlePreview、`Tools/verify_project.mjs`、`git diff --check` 或脚本解析；本地只做读取、编辑、只读 diff/status、Git 同步、提交和推送。
+- 实现 commit `f2c04ac61f5b304a9d7d0cd83c92d8f04b01e2d5`、结构 token 修复 commit `fda85d29cba798885c5617a5685450c1d63af53e` 和完全限定图例 token 修复 commit `2fbaf1ae3ca2f6a5da764e000c084a3ad0cb3f38` 均已推送到 `origin/main`；最终最新 run `31299715330`、attempt `1` 对应最终 SHA，artifact 为 `RomeLegions-ci-v0.64-main-2fbaf1a-run31299715330-attempt1`。
+- Agent C 已核对最新 artifact manifest 的 `branch=main`、`commitSha`、`runId`、`runAttempt` 和 `version=v0.64`；结构检查、SwiftPM/Swift Testing（91 项）、Gameplay Smoke、RenderBattlePreview、无签名 Xcode build 和总体结果全部为 `success`，JUnit 5 项、0 失败，Xcode 日志以 `BUILD SUCCEEDED` 结束，失败摘要为 `All configured CI checks passed.`。
+- Agent C 已复判三尺寸六张 PNG：横屏 `1864x860`、竖屏 `780x1688`、宽屏 `2048x1536` 的城市/单位场景均存在；敌将起点徽标、技能范围、影响/目标标记、威胁链线、既有敌路/反制/目标线/热区、地图材质、固定 HUD、镜头工具、敌情卡定位按钮和命令坞无新增空白、裁切或不合理重叠。
+
+遗留事项：
+
+- 真实设备触控命中、极端 Dynamic Type 和 VoiceOver 连续导航仍需人工体验；敌将定位仍是只读侦察，不包含自动施法、移动、攻击、目标预留或跨回合命令队列。
+
 ### v0.63 / 战斗目标锁定身份与取消入口
 
 日期：2026-08-09
