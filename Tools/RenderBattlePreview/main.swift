@@ -1776,7 +1776,7 @@ struct RenderBattlePreview {
         let unitStateBeforeAttackForecast = viewModel.state.units
             .sorted { $0.id < $1.id }
             .map { unit in
-                "\(unit.id)|\(unit.position.description)|\(unit.health)|\(unit.hasMoved)|\(unit.hasActed)|\(unit.generalSkillCooldownRemaining)|\(unit.tacticalOrder?.rawValue ?? \"balanced\")"
+                "\(unit.id)|\(unit.position.description)|\(unit.health)|\(unit.hasMoved)|\(unit.hasActed)|\(unit.generalSkillCooldownRemaining)|\(unit.tacticalOrder?.rawValue ?? "balanced")"
             }
         let cityStateBeforeAttackForecast = viewModel.state.cities
             .sorted { $0.id < $1.id }
@@ -1810,7 +1810,7 @@ struct RenderBattlePreview {
         let unitStateAfterAttackForecast = viewModel.state.units
             .sorted { $0.id < $1.id }
             .map { unit in
-                "\(unit.id)|\(unit.position.description)|\(unit.health)|\(unit.hasMoved)|\(unit.hasActed)|\(unit.generalSkillCooldownRemaining)|\(unit.tacticalOrder?.rawValue ?? \"balanced\")"
+                "\(unit.id)|\(unit.position.description)|\(unit.health)|\(unit.hasMoved)|\(unit.hasActed)|\(unit.generalSkillCooldownRemaining)|\(unit.tacticalOrder?.rawValue ?? "balanced")"
             }
         let cityStateAfterAttackForecast = viewModel.state.cities
             .sorted { $0.id < $1.id }
