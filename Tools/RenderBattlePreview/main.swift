@@ -2178,7 +2178,7 @@ struct RenderBattlePreview {
               enemyPresentation.enemyRouteOpacity == 1,
               !enemyPresentation.showsBattleObjective,
               counterPresentation.showsCountermeasure,
-              !counterPresentation.showsEnemyIntentDetails,
+              counterPresentation.showsEnemyIntentDetails,
               counterPresentation.enemyRouteOpacity <= 0.24,
               objectivePresentation.showsBattleObjective,
               objectivePresentation.tacticalRouteOpacity > enemyPresentation.tacticalRouteOpacity,
