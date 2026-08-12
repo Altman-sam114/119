@@ -21,6 +21,35 @@
 
 ## 历史记录
 
+### v0.65 / 敌将威胁聚焦同源读板
+
+日期：2026-08-12
+
+核心变更：
+
+- `GameViewModel` 新增 `activeEnemyCommanderThreatSummary` 及对应 id/地图 overlay 派生：有效焦点使用 focused threat，无焦点或失效焦点回退 primary；地图侦察 HUD、顶部敌将 chip、敌情卡、地图叠层和 accessibility 文案沿同一 active threat source 展示。
+- 保留 `primaryEnemyEngagementLoopReadout`、将领战机威胁 bridge、军令窗口等全局语义的 primary 边界；敌将定位仍只改变 ViewModel 选择态、镜头侦察上下文和 banner，不执行本方/敌方技能、移动或攻击。
+- RenderBattlePreview 增加双敌将 fixture，锁定 `primary=carthage-commander`、`secondary=carthage-commander-2`，覆盖无焦点 active=primary、聚焦 secondary、无效焦点回退 primary、重复/失效定位、primary bridge 保持、状态/存档/AI 快照不变和 fixture 清理；旧 v0.64 三单位热区基线与既有预览断言保留。
+
+关键提交：
+
+- `d0ca42240fbc9e3e21be8847936cd0f52425d899`：统一 focused enemy commander threat 的 active 同源读板。
+- `206826a9e334dd64ee1792f2f3ab3b462d52f346`：隔离双威胁预览 fixture，恢复旧热区基线。
+- `10a2fa05de308d755ea85a23d067376d907a44d7`：fixture append 后重新读取 primary threat 并补齐 primary/secondary 门禁。
+- `18a12e8ddabbf58a82ecde4031dba1d1e774990a`：拆分 active threat fixture 门禁，明确 primary、secondary、summary、overlay 和 source 失败边界。
+- `23ce93c521c4582a99ef584687506454520d3bf3`：在聚焦 secondary 前验证选中罗马将领的 primary bridge，避免把聚焦后互斥选择态清空误判为 bridge 回归。
+
+验证状态：
+
+- 按 cloud-only 约束，本轮未运行本地测试、build、typecheck、RenderBattlePreview、`Tools/verify_project.mjs`、`git diff --check` 或解析脚本；验收仅使用 `origin/main` 对应的 GitHub Actions artifact、源码/文档审阅和 PNG 视觉复判。
+- Agent C 验收的最终实现 commit 为 `23ce93c521c4582a99ef584687506454520d3bf3`；GitHub Actions run `31581224932`、attempt `1`，artifact `RomeLegions-ci-v0.65-main-23ce93c-run31581224932-attempt1`。manifest 的 `version=v0.65`、`branch=main`、`commitSha`、`runId`、`runAttempt` 与最新 `origin/main` 精确匹配。
+- manifest 中 static checks、SwiftPM tests、Gameplay Smoke、RenderBattlePreview、Xcode build 和 `testOutcome` 全部为 `success`；JUnit 为 5 项、0 失败；failure summary 为 `All configured CI checks passed.`；static log 记录项目结构检查通过，Swift log 记录 91 项测试通过，Gameplay log 记录 `Gameplay smoke test passed.`，Xcode log 以 `** BUILD SUCCEEDED **` 结束。
+- Render log 的旧热区/地图材质门禁、三尺寸输出和 active threat 断言均完成；六张 PNG 均存在：横屏 base/unit `1864x860`、竖屏 base/unit `780x1688`、宽屏 base/unit `2048x1536`。视觉复判确认无焦点与 unit 锁定场景的地图/HUD/热区/控区、镜头工具、固定顶部 HUD、命令坞和战斗叠层在三尺寸无新增空白、裁切、stale threat 身份或不合理重叠。
+
+遗留事项：
+
+- 真实设备触控命中、极端 Dynamic Type 和 VoiceOver 连续导航仍需人工体验；active threat 仍是只读侦察派生，不包含自动施法、移动、攻击、目标预留或跨回合命令队列。
+
 ### v0.64 / 敌将技能威胁地图焦点与空间叠层
 
 日期：2026-08-09
