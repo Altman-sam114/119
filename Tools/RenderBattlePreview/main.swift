@@ -14,8 +14,7 @@ struct RenderBattlePreview {
         viewModel.state.units = [
             ArmyUnit(id: "rome-legion-1", kind: .legion, faction: .rome, position: Position(x: 3, y: 3), health: 88, experience: 2, generalName: "凯撒", generalTrait: .eagleStandard),
             ArmyUnit(id: "carthage-hunter", kind: .cavalry, faction: .carthage, position: Position(x: 7, y: 2)),
-            ArmyUnit(id: "carthage-commander", kind: .legion, faction: .carthage, position: Position(x: 9, y: 6), generalName: "汉尼拔", generalTrait: .siegeEngineer),
-            ArmyUnit(id: "carthage-commander-2", kind: .legion, faction: .carthage, position: Position(x: 8, y: 6), generalName: "马戈", generalTrait: .shieldWall)
+            ArmyUnit(id: "carthage-commander", kind: .legion, faction: .carthage, position: Position(x: 9, y: 6), generalName: "汉尼拔", generalTrait: .siegeEngineer)
         ]
         for index in viewModel.state.cities.indices where viewModel.state.cities[index].owner != .rome {
             viewModel.state.cities[index].owner = .carthage
@@ -326,6 +325,18 @@ struct RenderBattlePreview {
               !enemyCommanderThreat.accessibilityLabel.isEmpty else {
             throw PreviewRenderError.missingEnemyCommanderThreatSummary
         }
+        // Keep the v0.64 three-unit fixture intact through all legacy heat and
+        // read-only assertions; this second commander exists only for v0.65.
+        viewModel.state.units.append(
+            ArmyUnit(
+                id: "carthage-commander-2",
+                kind: .legion,
+                faction: .carthage,
+                position: Position(x: 11, y: 1),
+                generalName: "马戈",
+                generalTrait: .shieldWall
+            )
+        )
         guard let activeThreatWithoutFocus = viewModel.activeEnemyCommanderThreatSummary,
               activeThreatWithoutFocus.id == enemyCommanderThreat.id,
               viewModel.activeEnemyCommanderThreatID == enemyCommanderThreat.id,
@@ -509,6 +520,7 @@ struct RenderBattlePreview {
               viewModel.bannerMessage.contains("无法定位") else {
             throw PreviewRenderError.missingEnemyCommanderThreatMapOverlay
         }
+        viewModel.state.units.removeAll { $0.id == "carthage-commander-2" }
         guard let countermeasure = viewModel.primaryCountermeasureSummary,
               !viewModel.countermeasureSummaries.isEmpty,
               viewModel.countermeasureSummaries.contains(where: { summary in
