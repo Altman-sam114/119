@@ -21,6 +21,52 @@
 
 ## 历史记录
 
+### v0.67 / 反制决策确认闭环
+
+日期：2026-08-13
+
+核心变更：
+
+- 新增纯 ViewModel 派生的 `CountermeasureCommandContextReadout`，沿 `CountermeasureReport -> CountermeasureSummary -> CountermeasureCommandPreview -> active/focused fallback` 统一提供反制 source/report/preview/overlay id、回应军团、推荐姿态、落点、目标、收益风险、步骤、阻塞和无障碍文案；不持有 `GameState`、View、闭包或复合命令。
+- `focusCountermeasure(_:)` 在有效定位时同步选择本方回应军团并切到 `.countermeasure` 地图视角；地图 active overlay、地图焦点读板、反制卡和底部命令坞共用同一 context，失效焦点明确回退 primary，不残留旧 secondary 身份。
+- 反制命令坞提供三个独立单步入口：确认推荐姿态、前往推荐落点、锁定反制目标。三个入口分别复用既有姿态、移动和 `focusAttackTarget(_:)` 攻击预演路径，不自动串联移动、攻击、技能或结束回合；选择切换、互斥焦点、核心动作、回合结束和重开会清理 stale focus。
+- `RenderBattlePreview` 增加隔离 ViewModel fixture 的真实单步运行时门禁：姿态只改变推荐姿态，移动只移动一次到落点，锁敌只进入既有攻击预演且核心状态/存档/AI intent 保持不变；目标 fixture 复用既有 command-dock 与核心 AI 合法路径生成可攻击目标。
+- 保留 v0.66 旧 12 张预览图，新增横屏、竖屏、宽屏 `focused-countermeasure` 图，总计 15 张；同步 README、flow、flowchart、test、prompt 索引、结构检查和 CI 的 v0.67 入口。
+
+关键文件：
+
+- `RomeLegionsApp/App/GameViewModel.swift`
+- `RomeLegionsApp/App/GameViewModelMapReadouts.swift`
+- `RomeLegionsApp/Views/BattleMapView.swift`
+- `RomeLegionsApp/Views/BattlePanels.swift`
+- `RomeLegionsApp/Views/BattleShellControls.swift`
+- `Tools/RenderBattlePreview/main.swift`
+- `Tools/verify_project.mjs`
+- `README.md`
+- `md/flow/flow.md`
+- `md/flow/flowchart.md`
+- `md/test/test.md`
+- `md/prompt/README.md`
+
+关键提交：
+
+- `8f7a6f3`：新增 v0.67 Agent A 提示词。
+- `3000897`：实现反制 context、地图/卡片/命令坞闭环。
+- `7f8ade0`：补齐三条单步命令的隔离运行时断言。
+- `c3c60c7`：稳定可攻击反制目标 fixture，并补齐目标锁定预演门禁。
+
+验证状态：
+
+- Agent C 验收的最终提交为 `c3c60c787566a3ff1ca06967838b839276b49354`；GitHub Actions run `31623996445`、attempt `1`、artifact `RomeLegions-ci-v0.67-main-c3c60c7-run31623996445-attempt1`，结果目录为 `/private/tmp/romelegions-c-review-31623996445/`。manifest 的 `version=v0.67`、`branch=main`、`commitSha`、`runId`、`runAttempt` 与 `origin/main` 精确匹配。
+- Static Checks、SwiftPM/Swift Testing、Gameplay Smoke、RenderBattlePreview、无签名 Xcode build、metadata、artifact upload 和最终门禁全部成功；JUnit 为 5 项、0 失败，Swift Testing 为 91 项，Gameplay Smoke 通过，Xcode 日志包含 `BUILD SUCCEEDED`，failure summary 为 `All configured CI checks passed.`。
+- v0.66 原 12 张和 v0.67 新增 3 张 `focused-countermeasure` PNG 全部存在、可读取且尺寸正确：横屏 `1864x860`、竖屏 `780x1688`、宽屏 `2048x1536`。Agent C 复判固定 HUD、地图工具、路线、回应、落点、目标和 focused context 无阻断性遮挡、裁切或 stale 身份。
+- 按 cloud-only 约束，本轮未运行本地测试、build、typecheck、RenderBattlePreview、`Tools/verify_project.mjs`、`git diff --check` 或解析脚本；本地只做读取、编辑、只读 diff/status、Git 同步、提交和推送。
+
+遗留事项：
+
+- 真实设备连续触控命中、极端 Dynamic Type 和完整 VoiceOver 导航仍需人工体验；Render 步骤约 43 分钟，接近当前作业时间边界。
+- 云端仍有非阻断的 Node.js 20、未使用变量和 AppIntents metadata 跳过警告；本轮未引入自动连招、命令队列、核心规则或存档格式变化。
+
 ### v0.66 / 敌将焦点指挥卡与地图命令上下文
 
 日期：2026-08-12
