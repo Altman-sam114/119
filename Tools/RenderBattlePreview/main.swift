@@ -2094,9 +2094,21 @@ struct RenderBattlePreview {
               viewModel.state.unit(at: commandDockSecondaryTarget.position) == nil else {
             throw PreviewRenderError.missingCommandDockAttackFixture
         }
-        let baselineContext = BattleDisplayContextReadout(
+        let enemyBaselineContext = BattleDisplayContextReadout(
             mode: .baselineRecon, sourceID: nil, title: "战场侦察", statusLabel: "监视",
             primaryLegendKinds: [.enemyRoute], secondaryLegendKinds: [], commandCueLabel: "观察战场"
+        )
+        let counterBaselineContext = BattleDisplayContextReadout(
+            mode: .baselineRecon, sourceID: nil, title: "战场侦察", statusLabel: "反制",
+            primaryLegendKinds: [.countermeasure], secondaryLegendKinds: [], commandCueLabel: "观察反制"
+        )
+        let objectiveBaselineContext = BattleDisplayContextReadout(
+            mode: .baselineRecon, sourceID: nil, title: "战场侦察", statusLabel: "目标线",
+            primaryLegendKinds: [.battleObjective], secondaryLegendKinds: [], commandCueLabel: "观察目标线"
+        )
+        let terrainBaselineContext = BattleDisplayContextReadout(
+            mode: .baselineRecon, sourceID: nil, title: "战场侦察", statusLabel: "热区",
+            primaryLegendKinds: [.threatHeat], secondaryLegendKinds: [.mapControl], commandCueLabel: "观察空间压力"
         )
         let unitContext = BattleDisplayContextReadout(
             mode: .unitExecution, sourceID: "unit", title: "军团执行", statusLabel: "平衡",
@@ -2114,10 +2126,10 @@ struct RenderBattlePreview {
             mode: .countermeasureFocus, sourceID: "counter", title: "反制聚焦", statusLabel: "定位",
             primaryLegendKinds: [.countermeasure], secondaryLegendKinds: [.enemyCommanderThreat], commandCueLabel: "回应 → 落点 → 目标"
         )
-        let enemyPresentation = MapOverlayPresentation(perspective: .enemyIntent, context: baselineContext)
-        let counterPresentation = MapOverlayPresentation(perspective: .countermeasure, context: baselineContext)
-        let objectivePresentation = MapOverlayPresentation(perspective: .objective, context: baselineContext)
-        let terrainPresentation = MapOverlayPresentation(perspective: .terrainPressure, context: baselineContext)
+        let enemyPresentation = MapOverlayPresentation(perspective: .enemyIntent, context: enemyBaselineContext)
+        let counterPresentation = MapOverlayPresentation(perspective: .countermeasure, context: counterBaselineContext)
+        let objectivePresentation = MapOverlayPresentation(perspective: .objective, context: objectiveBaselineContext)
+        let terrainPresentation = MapOverlayPresentation(perspective: .terrainPressure, context: terrainBaselineContext)
         let unitPresentation = MapOverlayPresentation(perspective: .enemyIntent, context: unitContext)
         let attackPresentation = MapOverlayPresentation(perspective: .enemyIntent, context: attackContext)
         let enemyFocusPresentation = MapOverlayPresentation(perspective: .enemyIntent, context: enemyFocusContext)
