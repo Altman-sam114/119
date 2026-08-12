@@ -2178,7 +2178,7 @@ struct RenderBattlePreview {
               !terrainPresentation.isFocusedLegend(.enemyRoute) else {
             throw PreviewRenderError.missingMapOverlayFocusStrategy
         }
-        guard unitPresentation.primaryLegendKinds == [.reachable, .attackTarget, .skillRange],
+        guard unitContext.primaryLegendKinds == [.reachable, .attackTarget, .skillRange],
               attackPresentation.enemyRouteOpacity < 0.1,
               attackPresentation.enemyCommanderThreatOpacity < 0.1,
               enemyFocusPresentation.enemyCommanderThreatOpacity > enemyFocusPresentation.enemyRouteOpacity,
