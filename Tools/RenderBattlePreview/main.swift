@@ -2594,14 +2594,22 @@ struct RenderBattlePreview {
             : max(180, min(620, logicalHeight - Double(metrics.fixedChromeHeight) - 58))
         let drawerX = logicalWidth - drawerWidth - (logicalHeight >= logicalWidth ? 10 : 8)
         let drawerY = Double(metrics.topBarHeight) + 52
-        // The plan card precedes the threat card in the existing enemy drawer;
-        // start after the header and its compact plan row so the sample targets
-        // the visible focused card rather than the drawer chrome.
+        // The focused EnemyIntentPanelView promotes the same-source threat card
+        // above the plan card. Mirror the existing drawer header, scroll padding,
+        // panel padding, title row and spacing so this samples the actual card
+        // body rather than an arbitrary drawer/background region.
+        let drawerHeaderHeight = 48.0
+        let drawerScrollPadding = 10.0
+        let panelPadding = 12.0
+        let panelTitleHeight = 20.0
+        let panelTitleSpacing = 10.0
+        let focusedCardTop = drawerY + drawerHeaderHeight + drawerScrollPadding +
+            panelPadding + panelTitleHeight + panelTitleSpacing
         let cardRegion = (
-            x: max(0, Int(drawerX + 8)),
-            y: max(0, Int(drawerY + 56 + (logicalWidth < 620 ? 50 : 64))),
+            x: max(0, Int(drawerX + drawerScrollPadding + 8)),
+            y: max(0, Int(focusedCardTop)),
             width: max(1, Int(drawerWidth - 16)),
-            height: max(1, Int(drawerHeight - 70 - (logicalWidth < 620 ? 50 : 64)))
+            height: max(1, Int(drawerHeight - (focusedCardTop - drawerY) - drawerScrollPadding))
         )
 
         var signature = (bright: 0, warm: 0, contrast: 0)
@@ -2625,11 +2633,29 @@ struct RenderBattlePreview {
                 if spread > 0.12 { signature.contrast += 1 }
             }
         }
-        let hitAreaBudgetIsSafe = drawerWidth >= 280 && drawerHeight >= 180 && 44 >= 44
+        let hitAreaBudgetIsSafe = drawerWidth >= 280 &&
+            drawerHeight >= 180 &&
+            cardRegion.width >= 44 &&
+            cardRegion.height >= 44 &&
+            drawerX >= 0 &&
+            drawerY >= Double(metrics.topBarHeight) &&
+            44 >= 44
         emitPreviewDiagnostic("Focused threat card pixels: \(signature), region=\(cardRegion), hitAreaBudget=\(hitAreaBudgetIsSafe)")
         return readout.isFocused &&
+            readout.isPrimaryFallback == false &&
+            readout.selectedPerspective == .enemyIntent &&
+            readout.threatID == readout.overlayID &&
+            !readout.commanderLabel.isEmpty &&
+            !readout.traitLabel.isEmpty &&
+            !readout.skillName.isEmpty &&
+            !readout.skillSymbol.isEmpty &&
+            !readout.title.isEmpty &&
             readout.focusStateLabel == "已定位" &&
             readout.commandAvailabilityLabel.contains("仅侦察") &&
+            !readout.targetLabel.isEmpty &&
+            !readout.routeLabel.isEmpty &&
+            !readout.spaceChainLabel.isEmpty &&
+            !readout.detailLabel.isEmpty &&
             readout.accessibilityLabel.contains("威胁身份\(readout.threatID)") &&
             hitAreaBudgetIsSafe &&
             signature.bright > 18 &&

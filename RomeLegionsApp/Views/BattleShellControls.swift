@@ -186,9 +186,14 @@ struct BattlefieldDrawerView: View {
             .background(Color(red: 0.18, green: 0.16, blue: 0.13))
 
             ScrollView {
-                LazyVStack(spacing: 10) {
+                // Keep drawer content eager so an initial focused enemy drawer
+                // materializes its first readout in ImageRenderer and on the
+                // first app frame. This is the existing drawer container, not a
+                // second drawer or a separate threat presentation path.
+                VStack(spacing: 10) {
                     drawerContent
                 }
+                .frame(maxWidth: .infinity, alignment: .topLeading)
                 .padding(10)
             }
             .scrollIndicators(.hidden)

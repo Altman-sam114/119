@@ -2895,12 +2895,23 @@ struct EnemyIntentPanelView: View {
 
     var body: some View {
         PanelView(title: "敌情", symbol: "eye.trianglebadge.exclamationmark.fill") {
+            let commanderThreatFocusReadout = viewModel.activeEnemyCommanderThreatFocusReadout
             VStack(spacing: 7) {
+                // A currently focused threat is the user's active intelligence
+                // object, so keep its same-source card at the top of the existing
+                // enemy drawer. Primary/unfocused behavior retains the plan-first
+                // order used by the rest of the enemy intelligence panel.
+                if let commanderThreatFocusReadout,
+                   commanderThreatFocusReadout.isFocused {
+                    EnemyCommanderThreatCardView(readout: commanderThreatFocusReadout)
+                }
+
                 if let plan = viewModel.primaryAIOperationalPlanSummary {
                     AIOperationalPlanCardView(summary: plan)
                 }
 
-                if let commanderThreatFocusReadout = viewModel.activeEnemyCommanderThreatFocusReadout {
+                if let commanderThreatFocusReadout,
+                   !commanderThreatFocusReadout.isFocused {
                     EnemyCommanderThreatCardView(readout: commanderThreatFocusReadout)
                 }
 
