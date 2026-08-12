@@ -30,6 +30,7 @@
 - 有效 focused id 时 readout 标记“已定位”；focused id 失效时仍保留原 focused source，但 active/readout 明确回退 primary，`isPrimaryFallback` 与“焦点失效”文案阻断 secondary 残留；无焦点时保持首要威胁语义。
 - `BattleMapView` 的 `EnemyCommanderThreatFocusMapReadoutView`、`SelectionCommandDockView` 的身份/命令状态分支和 `EnemyCommanderThreatCardView` 只消费同一个 readout。命令坞仅显示已定位/仅侦察和现有“更多情报”入口，`hasExecutableCommand == false`，不伪装 selectedUnit、不执行敌将命令。
 - `primaryEnemyEngagementLoopReadout`、`selectedCommanderOpportunityBridgeReadout`、`selectedUnitOrderWindowReadout` 继续保持全局 primary；只有地图、底部当前对象和敌情卡使用 active focus readout。选择地块、反制/目标线聚焦、攻击锁定/取消、命令、回合结束和重新开始会清理失效焦点，readout 不保留旧 secondary 身份。
+- 云端 `RenderBattlePreview` 在双敌将 fixture 的 focused 状态额外输出 `*-focused.png` 和 `*-focused-enemy.png`：前者采样地图焦点读板与底部只读命令坞，后者采样“已定位”敌情卡；这些输出不参与默认城市/单位六图像素基线。另用同一 fixture 的独立 ViewModel 副本真实调用 `skipSelectedUnit()`，以 `GameState.skipUnit` 预期副本核对仅有跳过变化，并确认命令入口清除 focused threat 与 secondary readout。
 
 ## 当前核心执行流
 
@@ -293,7 +294,7 @@ Agent X 不能跳过 Agent C artifact 验收，不能把旧 run、旧 artifact�
 - v0.58 镜头云端门禁：RenderBattlePreview 在渲染前断言默认态、缩放上下限、拖移边界、中心/边缘聚焦与复位；三尺寸六图继续复判镜头工具、固定 HUD 和地图空间层对齐。
 - 普通运行：打开 `RomeLegionsApp.xcodeproj`，选择 iPhone 或 iPad Simulator，运行 `RomeLegions` target。
 - 命令行 UI 复现：`xcrun simctl launch booted com.codex.RomeLegions --attack-demo`。
-- 预览渲染：`Tools/RenderBattlePreview/main.swift` 生成战斗页 PNG，并在渲染前断言六类地貌 profile 唯一、多层纹理与三种尺寸战区尺度策略，同时保留敌军意图六边形邻接路径、目标格、预计伤害、战役推进线 HUD、地图侦察视角/叠层呈现映射、敌情交战闭环摘要、单层地图情报坞、主动地图叠层图例、AI 作战计划摘要与时间线读板、敌方将领威胁摘要及 `EnemyCommanderThreatMapOverlay` 同源起点/范围/影响/目标/路线/焦点幂等断言、v0.66 双敌将 `EnemyCommanderThreatFocusReadout` 的无焦点/secondary/重复/无效回退/选择清理/不可执行门禁、敌情反制建议摘要、反制地图叠层、反制指令预览、命令链高亮 cue、焦点链路与聚焦、战线压力摘要、战场焦点摘要、战场目标链路、战场态势交汇链路、选中军团处境命令入口读板、选中军团军令窗口读板、战场目标线地图叠层、目标线阶段聚焦、阶段命令预览、阶段联动高亮 cue、将令技能入口链路、将领指挥链读板、将领战机威胁桥接读板、地图控制摘要、威胁热区摘要、军团编制摘要、军团成长决策摘要、军团成长优先级摘要、本方将领协同摘要和步骤读板、机动落点摘要/地图 overlay、战术建议摘要/路径/目标、选中单位将领详情、被动贡献、战功摘要、战术姿态预览和城市经营/招募读板存在；渲染后采样横向三带和青绿/蓝/灰褐材质分布，每个尺寸输出城市场景图和同尺寸 `*-unit.png` 单位场景图。
+- 预览渲染：`Tools/RenderBattlePreview/main.swift` 生成战斗页 PNG，并在渲染前断言六类地貌 profile 唯一、多层纹理与三种尺寸战区尺度策略，同时保留敌军意图六边形邻接路径、目标格、预计伤害、战役推进线 HUD、地图侦察视角/叠层呈现映射、敌情交战闭环摘要、单层地图情报坞、主动地图叠层图例、AI 作战计划摘要与时间线读板、敌方将领威胁摘要及 `EnemyCommanderThreatMapOverlay` 同源起点/范围/影响/目标/路线/焦点幂等断言、v0.66 双敌将 `EnemyCommanderThreatFocusReadout` 的无焦点/secondary/重复/无效回退/选择清理/真实 `skipSelectedUnit()` 命令清理/不可执行门禁、focused 地图/命令坞与 focused-enemy 敌情卡的三尺寸采样、敌情反制建议摘要、反制地图叠层、反制指令预览、命令链高亮 cue、焦点链路与聚焦、战线压力摘要、战场焦点摘要、战场目标链路、战场态势交汇链路、选中军团处境命令入口读板、选中军团军令窗口读板、战场目标线地图叠层、目标线阶段聚焦、阶段命令预览、阶段联动高亮 cue、将令技能入口链路、将领指挥链读板、将领战机威胁桥接读板、地图控制摘要、威胁热区摘要、军团编制摘要、军团成长决策摘要、军团成长优先级摘要、本方将领协同摘要和步骤读板、机动落点摘要/地图 overlay、战术建议摘要/路径/目标、选中单位将领详情、被动贡献、战功摘要、战术姿态预览和城市经营/招募读板存在；渲染后采样横向三带和青绿/蓝/灰褐材质分布，每个尺寸输出城市场景图、同尺寸 `*-unit.png` 单位场景图、`*-focused.png` 地图/命令坞焦点图和 `*-focused-enemy.png` 已定位敌情卡图。
 - 核心测试：Swift Testing 和 Gameplay Smoke。
 - 云端验证：push 到 `origin/main` 后由 `.github/workflows/ci-results.yml` 上传 CI 结果包。
 

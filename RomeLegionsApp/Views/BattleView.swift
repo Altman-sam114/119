@@ -32,6 +32,10 @@ struct BattleView: View {
     @EnvironmentObject private var viewModel: GameViewModel
     @State private var activeDrawer: BattleDrawerCategory?
 
+    init(initialDrawer: BattleDrawerCategory? = nil) {
+        _activeDrawer = State(initialValue: initialDrawer)
+    }
+
     var body: some View {
         GeometryReader { proxy in
             let metrics = BattleInterfaceMetrics(container: proxy.size)
@@ -94,4 +98,3 @@ struct BattleView: View {
         }
     }
 }
-

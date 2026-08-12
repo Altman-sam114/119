@@ -525,6 +525,89 @@ struct RenderBattlePreview {
               aiIntentSnapshotBeforeEnemyCommanderThreatFocus == aiIntentSnapshotAfterSecondaryEnemyCommanderThreatFocus else {
             throw PreviewRenderError.missingActiveEnemyCommanderThreatReadout
         }
+
+        // Render focused threat-only states before the legacy unit/city images are
+        // captured. These additional outputs are isolated from the default six
+        // images, so the v0.64/v0.65 pixel baselines remain unchanged.
+        let focusedOutputPath = outputPathWithSuffix(outputPath, suffix: "focused")
+        let focusedEnemyDrawerOutputPath = outputPathWithSuffix(outputPath, suffix: "focused-enemy")
+        let focusedBitmap = try renderBattleView(
+            viewModel: viewModel,
+            outputPath: focusedOutputPath,
+            width: width,
+            height: height
+        )
+        guard hasVisibleFocusedEnemyCommanderThreatPreview(
+            in: focusedBitmap,
+            logicalWidth: width,
+            logicalHeight: height,
+            readout: secondaryFocusReadout
+        ) else {
+            throw PreviewRenderError.missingFocusedEnemyCommanderThreatRender
+        }
+        let focusedEnemyDrawerBitmap = try renderBattleView(
+            viewModel: viewModel,
+            outputPath: focusedEnemyDrawerOutputPath,
+            width: width,
+            height: height,
+            initialDrawer: .enemy
+        )
+        guard hasVisibleFocusedEnemyCommanderThreatCard(
+            in: focusedEnemyDrawerBitmap,
+            logicalWidth: width,
+            logicalHeight: height,
+            readout: secondaryFocusReadout
+        ) else {
+            throw PreviewRenderError.missingFocusedEnemyCommanderThreatCardRender
+        }
+
+        // Exercise the real command path against a copy of the same deterministic
+        // double-threat state. focusEnemyCommanderThreat clears normal selection,
+        // so the fixture restores a legal Rome unit selection before calling the
+        // public skip command; apply() must then clear the enemy focus while the
+        // core state changes exactly as GameState.skipUnit predicts.
+        let commandFixtureViewModel = GameViewModel()
+        commandFixtureViewModel.isShowingMenu = false
+        commandFixtureViewModel.state = stateBeforeEnemyCommanderThreatFocus
+        commandFixtureViewModel.focusEnemyCommanderThreat(secondaryEnemyCommanderThreat.id)
+        guard commandFixtureViewModel.focusedEnemyCommanderThreatID == secondaryEnemyCommanderThreat.id,
+              commandFixtureViewModel.activeEnemyCommanderThreatFocusReadout?.threatID == secondaryEnemyCommanderThreat.id,
+              commandFixtureViewModel.activeEnemyCommanderThreatFocusReadout?.isFocused == true else {
+            throw PreviewRenderError.missingEnemyCommanderThreatCommandCleanup
+        }
+        commandFixtureViewModel.selectedUnitID = "rome-legion-1"
+        commandFixtureViewModel.selectedCityID = nil
+        commandFixtureViewModel.selectedPosition = Position(x: 3, y: 3)
+        var expectedStateAfterSkip = stateBeforeEnemyCommanderThreatFocus
+        guard (try? expectedStateAfterSkip.skipUnit(id: "rome-legion-1")) != nil else {
+            throw PreviewRenderError.missingEnemyCommanderThreatCommandCleanup
+        }
+        let commandStateArchiveBefore = try threatStateEncoder.encode(commandFixtureViewModel.state)
+        let commandAIIntentSnapshotBefore = commandFixtureViewModel.enemyIntentSummaries.map(\.intent)
+        commandFixtureViewModel.skipSelectedUnit()
+        let commandStateArchiveAfter = try threatStateEncoder.encode(commandFixtureViewModel.state)
+        let commandAIIntentSnapshotAfter = commandFixtureViewModel.enemyIntentSummaries.map(\.intent)
+        guard commandFixtureViewModel.state == expectedStateAfterSkip,
+              commandStateArchiveBefore != commandStateArchiveAfter,
+              commandAIIntentSnapshotBefore == commandAIIntentSnapshotAfter,
+              commandFixtureViewModel.state.unit(withID: "rome-legion-1")?.hasActed == true,
+              commandFixtureViewModel.focusedEnemyCommanderThreatID == nil,
+              let postCommandSummary = commandFixtureViewModel.activeEnemyCommanderThreatSummary,
+              let postCommandOverlay = commandFixtureViewModel.activeEnemyCommanderThreatMapOverlay,
+              let postCommandReadout = commandFixtureViewModel.activeEnemyCommanderThreatFocusReadout,
+              postCommandReadout.references(summary: postCommandSummary),
+              postCommandReadout.references(overlay: postCommandOverlay),
+              postCommandReadout.threatID == postCommandSummary.id,
+              postCommandReadout.overlayID == postCommandOverlay.id,
+              postCommandReadout.isFocused == false,
+              postCommandReadout.isPrimaryFallback == false,
+              postCommandReadout.hasExecutableCommand == false,
+              postCommandReadout.threatID != secondaryEnemyCommanderThreat.id,
+              !postCommandReadout.accessibilityLabel.contains(secondaryEnemyCommanderThreat.commanderLabel),
+              commandFixtureViewModel.mapReconPerspectiveHUDReadout.enemyCommanderThreatID == postCommandOverlay.id,
+              commandFixtureViewModel.mapReconPerspectiveHUDReadout.references(threat: postCommandOverlay) else {
+            throw PreviewRenderError.missingEnemyCommanderThreatCommandCleanup
+        }
         viewModel.focusedEnemyCommanderThreatID = "missing-enemy-commander-threat"
         guard let invalidFocusReadout = viewModel.activeEnemyCommanderThreatFocusReadout,
               invalidFocusReadout.threatID == enemyCommanderThreat.id,
@@ -2308,15 +2391,18 @@ struct RenderBattlePreview {
 
         print(outputPath)
         print(unitOutputPath)
+        print(focusedOutputPath)
+        print(focusedEnemyDrawerOutputPath)
     }
 
     private static func renderBattleView(
         viewModel: GameViewModel,
         outputPath: String,
         width: Double,
-        height: Double
+        height: Double,
+        initialDrawer: BattleDrawerCategory? = nil
     ) throws -> NSBitmapImageRep {
-        let content = BattleView()
+        let content = BattleView(initialDrawer: initialDrawer)
             .environmentObject(viewModel)
             .frame(width: width, height: height)
 
@@ -2413,6 +2499,142 @@ struct RenderBattlePreview {
             }
         }
         return signature
+    }
+
+    private static func hasVisibleFocusedEnemyCommanderThreatPreview(
+        in bitmap: NSBitmapImageRep,
+        logicalWidth: Double,
+        logicalHeight: Double,
+        readout: EnemyCommanderThreatFocusReadout
+    ) -> Bool {
+        let metrics = BattleInterfaceMetrics(
+            container: CGSize(width: logicalWidth, height: logicalHeight)
+        )
+        let scaleX = Double(bitmap.pixelsWide) / logicalWidth
+        let scaleY = Double(bitmap.pixelsHigh) / logicalHeight
+
+        func signature(in region: (x: Int, y: Int, width: Int, height: Int)) -> (bright: Int, warm: Int, contrast: Int) {
+            var result = (bright: 0, warm: 0, contrast: 0)
+            for logicalY in stride(from: max(0, region.y), to: min(Int(logicalHeight), region.y + region.height), by: 3) {
+                for logicalX in stride(from: max(0, region.x), to: min(Int(logicalWidth), region.x + region.width), by: 3) {
+                    let pixelX = min(max(Int(Double(logicalX) * scaleX), 0), bitmap.pixelsWide - 1)
+                    let pixelY = min(max(Int(Double(logicalY) * scaleY), 0), bitmap.pixelsHigh - 1)
+                    guard let color = bitmap.colorAt(x: pixelX, y: pixelY)?.usingColorSpace(.deviceRGB),
+                          color.alphaComponent > 0.6 else {
+                        continue
+                    }
+                    let red = color.redComponent
+                    let green = color.greenComponent
+                    let blue = color.blueComponent
+                    let brightness = (red + green + blue) / 3
+                    let spread = max(max(red, green), blue) - min(min(red, green), blue)
+                    if brightness > 0.34 { result.bright += 1 }
+                    if red > 0.18 && green > 0.12 && red > blue + 0.05 && green > blue + 0.03 {
+                        result.warm += 1
+                    }
+                    if spread > 0.12 { result.contrast += 1 }
+                }
+            }
+            return result
+        }
+
+        let mapReadoutRegion = (
+            x: 8,
+            y: Int(metrics.topBarHeight + metrics.mapInset + 48),
+            width: max(1, min(Int(logicalWidth) - 16, logicalWidth < 620 ? Int(logicalWidth) - 20 : 620)),
+            height: logicalWidth < 620 ? 88 : 72
+        )
+        let commandRegion = (
+            x: 4,
+            y: max(0, Int(logicalHeight - metrics.commandDockHeight) + 2),
+            width: max(1, Int(logicalWidth) - 8),
+            height: max(1, Int(metrics.commandDockHeight) - 4)
+        )
+        let mapSignature = signature(in: mapReadoutRegion)
+        let commandSignature = signature(in: commandRegion)
+        let minimumCommandHeight: CGFloat = metrics.isPortrait ? 102 : (metrics.isShortLandscape ? 80 : 88)
+        let minimumIdentityWidth: CGFloat = logicalWidth < 700 ? 128 : 220
+        let layoutBudgetIsSafe = metrics.commandDockHeight >= minimumCommandHeight &&
+            metrics.commandIdentityWidth >= minimumIdentityWidth &&
+            44 >= 44
+        emitPreviewDiagnostic("Focused threat preview pixels: map=\(mapSignature), command=\(commandSignature), layoutBudget=\(layoutBudgetIsSafe)")
+        return readout.isFocused &&
+            readout.hasExecutableCommand == false &&
+            readout.commandAvailabilityLabel.contains("仅侦察") &&
+            !readout.commanderLabel.isEmpty &&
+            !readout.skillName.isEmpty &&
+            !readout.targetLabel.isEmpty &&
+            !readout.routeLabel.isEmpty &&
+            readout.accessibilityLabel.contains("威胁身份\(readout.threatID)") &&
+            layoutBudgetIsSafe &&
+            mapSignature.bright > 18 &&
+            mapSignature.warm > 2 &&
+            mapSignature.contrast > 10 &&
+            commandSignature.bright > 20 &&
+            commandSignature.warm > 2 &&
+            commandSignature.contrast > 10
+    }
+
+    private static func hasVisibleFocusedEnemyCommanderThreatCard(
+        in bitmap: NSBitmapImageRep,
+        logicalWidth: Double,
+        logicalHeight: Double,
+        readout: EnemyCommanderThreatFocusReadout
+    ) -> Bool {
+        let metrics = BattleInterfaceMetrics(
+            container: CGSize(width: logicalWidth, height: logicalHeight)
+        )
+        let scaleX = Double(bitmap.pixelsWide) / logicalWidth
+        let scaleY = Double(bitmap.pixelsHigh) / logicalHeight
+        let drawerWidth = logicalHeight >= logicalWidth
+            ? max(280, logicalWidth - 20)
+            : min(380, logicalWidth * 0.42)
+        let drawerHeight = logicalHeight >= logicalWidth
+            ? min(520, logicalHeight * 0.56)
+            : max(180, min(620, logicalHeight - Double(metrics.fixedChromeHeight) - 58))
+        let drawerX = logicalWidth - drawerWidth - (logicalHeight >= logicalWidth ? 10 : 8)
+        let drawerY = Double(metrics.topBarHeight) + 52
+        // The plan card precedes the threat card in the existing enemy drawer;
+        // start after the header and its compact plan row so the sample targets
+        // the visible focused card rather than the drawer chrome.
+        let cardRegion = (
+            x: max(0, Int(drawerX + 8)),
+            y: max(0, Int(drawerY + 56 + (logicalWidth < 620 ? 50 : 64))),
+            width: max(1, Int(drawerWidth - 16)),
+            height: max(1, Int(drawerHeight - 70 - (logicalWidth < 620 ? 50 : 64)))
+        )
+
+        var signature = (bright: 0, warm: 0, contrast: 0)
+        for logicalY in stride(from: cardRegion.y, to: min(Int(logicalHeight), cardRegion.y + cardRegion.height), by: 3) {
+            for logicalX in stride(from: cardRegion.x, to: min(Int(logicalWidth), cardRegion.x + cardRegion.width), by: 3) {
+                let pixelX = min(max(Int(Double(logicalX) * scaleX), 0), bitmap.pixelsWide - 1)
+                let pixelY = min(max(Int(Double(logicalY) * scaleY), 0), bitmap.pixelsHigh - 1)
+                guard let color = bitmap.colorAt(x: pixelX, y: pixelY)?.usingColorSpace(.deviceRGB),
+                      color.alphaComponent > 0.6 else {
+                    continue
+                }
+                let red = color.redComponent
+                let green = color.greenComponent
+                let blue = color.blueComponent
+                let brightness = (red + green + blue) / 3
+                let spread = max(max(red, green), blue) - min(min(red, green), blue)
+                if brightness > 0.34 { signature.bright += 1 }
+                if red > 0.20 && green > 0.12 && red > blue + 0.06 && green > blue + 0.04 {
+                    signature.warm += 1
+                }
+                if spread > 0.12 { signature.contrast += 1 }
+            }
+        }
+        let hitAreaBudgetIsSafe = drawerWidth >= 280 && drawerHeight >= 180 && 44 >= 44
+        emitPreviewDiagnostic("Focused threat card pixels: \(signature), region=\(cardRegion), hitAreaBudget=\(hitAreaBudgetIsSafe)")
+        return readout.isFocused &&
+            readout.focusStateLabel == "已定位" &&
+            readout.commandAvailabilityLabel.contains("仅侦察") &&
+            readout.accessibilityLabel.contains("威胁身份\(readout.threatID)") &&
+            hitAreaBudgetIsSafe &&
+            signature.bright > 18 &&
+            signature.warm > 2 &&
+            signature.contrast > 8
     }
 
     private static func commandDockSignaturesDiffer(
@@ -2679,6 +2901,9 @@ enum PreviewRenderError: Error {
     case missingActiveEnemyCommanderThreatSource
     case missingActiveEnemyCommanderThreatReadout
     case missingEnemyCommanderThreatFocusReadout
+    case missingEnemyCommanderThreatCommandCleanup
+    case missingFocusedEnemyCommanderThreatRender
+    case missingFocusedEnemyCommanderThreatCardRender
     case missingCountermeasureSummary
     case missingCountermeasureOverlay
     case missingCountermeasureCommandPreview

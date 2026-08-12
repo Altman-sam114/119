@@ -187,10 +187,16 @@ jobs:
             renderPreviewPaths: [
               "ci-results/render-previews/battle-landscape-preview.png",
               "ci-results/render-previews/battle-landscape-preview-unit.png",
+              "ci-results/render-previews/battle-landscape-preview-focused.png",
+              "ci-results/render-previews/battle-landscape-preview-focused-enemy.png",
               "ci-results/render-previews/battle-portrait-preview.png",
               "ci-results/render-previews/battle-portrait-preview-unit.png",
+              "ci-results/render-previews/battle-portrait-preview-focused.png",
+              "ci-results/render-previews/battle-portrait-preview-focused-enemy.png",
               "ci-results/render-previews/battle-wide-preview.png",
-              "ci-results/render-previews/battle-wide-preview-unit.png"
+              "ci-results/render-previews/battle-wide-preview-unit.png",
+              "ci-results/render-previews/battle-wide-preview-focused.png",
+              "ci-results/render-previews/battle-wide-preview-focused-enemy.png"
             ]
           };
           fs.writeFileSync("ci-results/ci-artifact-manifest.json", JSON.stringify(manifest, null, 2) + "\n");

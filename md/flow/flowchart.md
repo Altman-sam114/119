@@ -412,4 +412,7 @@ flowchart LR
     P --> G["primaryEnemyEngagementLoopReadout<br/>全局交战/反制/桥接/军令窗口"]
     F -.->|失效不改写 focused source| R
     R -.->|不写 GameState / SaveStore / AI<br/>不执行 attack / move / skill| G
+    R --> V["RenderBattlePreview focused 三尺寸采样<br/>地图焦点读板 + 底部命令坞"]
+    C --> W["focused-enemy 三尺寸图<br/>敌情卡显示已定位"]
+    V --> X["独立副本真实 skipSelectedUnit()<br/>只发生预期跳过变化并清除 secondary"]
 ```
