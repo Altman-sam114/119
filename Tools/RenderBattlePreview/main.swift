@@ -454,11 +454,15 @@ struct RenderBattlePreview {
         threatStateEncoder.outputFormatting = [.sortedKeys]
         let stateArchiveBeforeEnemyCommanderThreatFocus = try threatStateEncoder.encode(stateBeforeEnemyCommanderThreatFocus)
         let aiIntentSnapshotBeforeEnemyCommanderThreatFocus = viewModel.enemyIntentSummaries.map(\.intent)
+        guard viewModel.selectedUnitID == "rome-legion-1",
+              let primaryCommanderBridgeBeforeSecondaryFocus = viewModel.selectedCommanderOpportunityBridgeReadout,
+              primaryCommanderBridgeBeforeSecondaryFocus.enemyCommanderThreatID == enemyCommanderThreat.id else {
+            throw PreviewRenderError.missingActiveEnemyCommanderThreatReadout
+        }
         viewModel.focusEnemyCommanderThreat(secondaryEnemyCommanderThreat.id)
         let stateArchiveAfterSecondaryEnemyCommanderThreatFocus = try threatStateEncoder.encode(viewModel.state)
         let aiIntentSnapshotAfterSecondaryEnemyCommanderThreatFocus = viewModel.enemyIntentSummaries.map(\.intent)
         let primaryEngagementLoopWhileSecondaryFocused = viewModel.primaryEnemyEngagementLoopReadout
-        let primaryCommanderBridgeWhileSecondaryFocused = viewModel.selectedCommanderOpportunityBridgeReadout
         guard let focusedSecondaryThreat = viewModel.focusedEnemyCommanderThreatSummary,
               let activeSecondaryThreat = viewModel.activeEnemyCommanderThreatSummary,
               let activeSecondaryOverlay = viewModel.activeEnemyCommanderThreatMapOverlay,
@@ -470,7 +474,7 @@ struct RenderBattlePreview {
               activeSecondaryOverlay.references(activeSecondaryThreat),
               viewModel.primaryEnemyCommanderThreatSummary?.id == enemyCommanderThreat.id,
               primaryEngagementLoopWhileSecondaryFocused?.enemyCommanderThreatID == enemyCommanderThreat.id,
-              primaryCommanderBridgeWhileSecondaryFocused?.enemyCommanderThreatID == enemyCommanderThreat.id,
+              primaryCommanderBridgeBeforeSecondaryFocus.enemyCommanderThreatID == enemyCommanderThreat.id,
               viewModel.mapReconPerspectiveHUDReadout.enemyCommanderThreatID == secondaryEnemyCommanderThreat.id,
               viewModel.mapReconPerspectiveHUDReadout.references(threat: activeSecondaryOverlay),
               viewModel.mapReconPerspectiveHUDReadout.signals.contains(where: { signal in
