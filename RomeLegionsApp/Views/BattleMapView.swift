@@ -37,15 +37,21 @@ struct WarMapView: View {
             let engagementLoop = viewModel.primaryEnemyEngagementLoopReadout
             let selectedPosition = viewModel.focusedPosition
             let selectedAttackSourceID = viewModel.selectedCombatForecast?.attacker.id
-            let skillRangePositions = viewModel.selectedGeneralSkillRangePositions
-            let skillTargetPositions = viewModel.selectedGeneralSkillTargetPositions
-            let skillTargetUnitIDs = viewModel.selectedGeneralSkillTargetUnitIDs
-            let skillTargetCityIDs = viewModel.selectedGeneralSkillTargetCityIDs
+            let displayContext = viewModel.battleDisplayContextReadout
+            let skillRangePositions = displayContext.mode == .unitExecution
+                ? viewModel.selectedGeneralSkillRangePositions : []
+            let skillTargetPositions = displayContext.mode == .unitExecution
+                ? viewModel.selectedGeneralSkillTargetPositions : []
+            let skillTargetUnitIDs = displayContext.mode == .unitExecution
+                ? viewModel.selectedGeneralSkillTargetUnitIDs : []
+            let skillTargetCityIDs = displayContext.mode == .unitExecution
+                ? viewModel.selectedGeneralSkillTargetCityIDs : []
             let threatHeatOverlaysByPosition = viewModel.threatHeatZoneOverlaysByPosition
             let mapControlSummaries = Dictionary(uniqueKeysWithValues: viewModel.mapControlSummaries.map { ($0.position, $0) })
             let mapControlOverlayPositions = viewModel.mapControlOverlayPositions
             let overlayPresentation = MapOverlayPresentation(
-                perspective: viewModel.selectedMapReconPerspective
+                perspective: viewModel.selectedMapReconPerspective,
+                context: displayContext
             )
             let interactiveViewport = viewport.applying(
                 magnification: gestureMagnification,
@@ -64,12 +70,15 @@ struct WarMapView: View {
                     CoastlineLayerView(segments: coastlineSegments, metrics: metrics)
                         .zIndex(0.5)
 
-                    EnemyIntentRouteLayerView(overlays: enemyIntentOverlays, metrics: metrics)
-                        .opacity(overlayPresentation.enemyRouteOpacity)
-                        .allowsHitTesting(false)
-                        .zIndex(1)
+                    if overlayPresentation.enemyRouteOpacity > 0 {
+                        EnemyIntentRouteLayerView(overlays: enemyIntentOverlays, metrics: metrics)
+                            .opacity(overlayPresentation.enemyRouteOpacity)
+                            .allowsHitTesting(false)
+                            .zIndex(1)
+                    }
 
-                    if let enemyCommanderThreatOverlay {
+                    if let enemyCommanderThreatOverlay,
+                       overlayPresentation.showsEnemyCommanderThreatDetails {
                         EnemyCommanderThreatRouteLayerView(
                             overlay: enemyCommanderThreatOverlay,
                             metrics: metrics
@@ -79,7 +88,8 @@ struct WarMapView: View {
                         .zIndex(2.15)
                     }
 
-                    if let tacticalRecommendation {
+                    if let tacticalRecommendation,
+                       displayContext.mode == .unitExecution {
                         TacticalRecommendationRouteLayerView(summary: tacticalRecommendation, metrics: metrics)
                             .opacity(overlayPresentation.tacticalRouteOpacity)
                             .allowsHitTesting(false)
@@ -117,8 +127,8 @@ struct WarMapView: View {
                             enemyIntentTarget: overlayPresentation.showsEnemyIntentDetails
                                 ? enemyIntentTargets[tile.position]
                                 : nil,
-                            tacticalRecommendation: tacticalRecommendation,
-                            maneuverOption: maneuverOptionOverlays[tile.position],
+                            tacticalRecommendation: displayContext.mode == .unitExecution ? tacticalRecommendation : nil,
+                            maneuverOption: displayContext.mode == .unitExecution ? maneuverOptionOverlays[tile.position] : nil,
                             battleObjectiveOverlays: overlayPresentation.showsBattleObjective
                                 ? battleObjectiveOverlays[tile.position, default: []]
                                 : [],
@@ -138,12 +148,12 @@ struct WarMapView: View {
                             enemyCommanderThreatOpacity: overlayPresentation.enemyCommanderThreatOpacity,
                             isMapControlOverlay: overlayPresentation.showsTerrainPressure &&
                                 mapControlOverlayPositions.contains(tile.position),
-                            isTacticalRecommendationPath: tacticalRecommendationPathPositions.contains(tile.position),
-                            isTacticalRecommendationTarget: tacticalRecommendationTargetPosition == tile.position,
+                            isTacticalRecommendationPath: displayContext.mode == .unitExecution && tacticalRecommendationPathPositions.contains(tile.position),
+                            isTacticalRecommendationTarget: displayContext.mode == .unitExecution && tacticalRecommendationTargetPosition == tile.position,
                             isSelected: selectedPosition == tile.position,
                             isAttackOrigin: unit?.id == selectedAttackSourceID,
-                            isReachable: viewModel.reachablePositions.contains(tile.position),
-                            isAttackTarget: attackTargets.contains { $0.position == tile.position },
+                            isReachable: displayContext.mode == .unitExecution && viewModel.reachablePositions.contains(tile.position),
+                            isAttackTarget: (displayContext.mode == .unitExecution || displayContext.mode == .attackLock) && attackTargets.contains { $0.position == tile.position },
                             isSkillRange: skillRangePositions.contains(tile.position),
                             isSkillTarget: skillTargetPositions.contains(tile.position) ||
                                 unit.map { skillTargetUnitIDs.contains($0.id) } == true ||
@@ -274,6 +284,7 @@ struct WarMapView: View {
                     }
                     .allowsHitTesting(false)
                     .zIndex(5.16)
+                    .accessibilityIdentifier(countermeasureContext.automationIdentifier)
                 }
 
                 if viewModel.selectedCombatForecast == nil,
@@ -298,8 +309,9 @@ struct WarMapView: View {
                     Spacer()
                     MapIntelligenceDockView(
                         readout: reconHUD,
-                        engagementLoop: engagementLoop,
+                        engagementLoop: displayContext.mode == .baselineRecon ? engagementLoop : nil,
                         legendItems: viewModel.activeMapOverlayLegendItems,
+                        displayContext: displayContext,
                         usesTwoRows: proxy.size.width < 620,
                         onSelect: viewModel.selectMapReconPerspective
                     )
@@ -365,12 +377,12 @@ struct CountermeasureCommandContextMapReadoutView: View {
                 .clipShape(.rect(cornerRadius: 5))
 
             VStack(alignment: .leading, spacing: 1) {
-                Text("\(context.focusStateLabel) · \(context.sourceLabel) · \(context.responseUnitLabel)")
+                Text("\(context.focusStateLabel) · \(context.responseUnitLabel)")
                     .font(.caption2.weight(.bold))
                     .foregroundStyle(.white)
                     .lineLimit(2)
                     .minimumScaleFactor(0.60)
-                Text(context.mapFocusLabel)
+                Text(context.commandCueLabel)
                     .font(.caption2.monospacedDigit().weight(.semibold))
                     .foregroundStyle(.white.opacity(0.66))
                     .lineLimit(2)
@@ -392,7 +404,8 @@ struct CountermeasureCommandContextMapReadoutView: View {
                 .stroke(context.priority.tintColor.opacity(0.54), lineWidth: 1)
         }
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel(context.accessibilityLabel)
+        .accessibilityLabel(context.userFacingAccessibilityLabel)
+        .accessibilityIdentifier(context.automationIdentifier)
     }
 }
 
@@ -905,10 +918,12 @@ struct MapIntelligenceDockView: View {
     var readout: MapReconPerspectiveHUDReadout
     var engagementLoop: EnemyEngagementLoopReadout?
     var legendItems: [MapOverlayLegendItem]
+    var displayContext: BattleDisplayContextReadout
     var usesTwoRows: Bool
     var onSelect: (MapReconPerspectiveKind) -> Void
 
     var body: some View {
+        let filteredLegendItems = legendItems.filter { displayContext.visibleLegendKinds.contains($0.kind) }
         Group {
             if usesTwoRows {
                 VStack(spacing: 5) {
@@ -923,7 +938,7 @@ struct MapIntelligenceDockView: View {
                             EnemyEngagementCompactBadgeView(readout: engagementLoop)
                         }
                         MapOverlayLegendView(
-                            items: legendItems,
+                            items: filteredLegendItems,
                             perspective: readout.selectedKind,
                             compact: true
                         )
@@ -939,7 +954,7 @@ struct MapIntelligenceDockView: View {
                         EnemyEngagementCompactBadgeView(readout: engagementLoop)
                     }
                     MapOverlayLegendView(
-                        items: legendItems,
+                        items: filteredLegendItems,
                         perspective: readout.selectedKind,
                         compact: true
                     )
@@ -956,7 +971,7 @@ struct MapIntelligenceDockView: View {
         }
         .shadow(color: .black.opacity(0.28), radius: 5, y: 2)
         .accessibilityElement(children: .contain)
-        .accessibilityLabel(readout.accessibilityLabel)
+        .accessibilityLabel("\(displayContext.title)，\(displayContext.statusLabel)，\(readout.selectorLabel)")
     }
 }
 

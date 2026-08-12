@@ -1,6 +1,6 @@
 # 项目核心流程图
 
-v0.67 读图说明：同一个反制报告先形成 preview，再同时派生 active 地图 overlay 与唯一 context；地图、卡片和命令坞共享 source。三个确认入口分别流向既有姿态、移动和攻击锁定预演，禁止自动串联；全局交战与将领桥接仍走 primary。
+v0.68 读图说明：现有选择、攻击锁定、敌将焦点和反制焦点先进入唯一 display context，再由地图 presentation 统一主/次/隐藏层级；反制仍由同一个 source 链驱动地图、卡片和命令坞，三个确认入口保持独立。全局交战与将领桥接仍走 primary。
 
 ```mermaid
 flowchart LR

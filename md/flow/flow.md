@@ -35,6 +35,13 @@
 
 ### 反制决策确认闭环（v0.67）
 
+### 战场显示上下文与地图层级（v0.68）
+
+- `GameViewModel.battleDisplayContextReadout` 以 attack lock > focused countermeasure > focused enemy commander > 本方军团执行 > baseline reconnaissance 的顺序读取既有选择、forecast、active/focused readout，输出五种纯 UI `BattleDisplayContextReadout`。它只包含 mode、source、短状态、主/次图例和命令 cue，不缓存、不持有 `GameState`、颜色或动作闭包。
+- `MapOverlayPresentation` 同时消费 display context 与地图侦察视角，统一路线、地块叠层、图例和 HUD 的优先级。focused context 隐藏非当前敌路/建议/热区，攻击锁定压低敌情路线，反制/敌将焦点分别突出当前 source；可达、攻击和技能范围只在军团执行上下文作为交互层显示。
+- `MapIntelligenceDockView` 在 focus/execute 状态只显示当前模式、短状态和 context 筛选后的图例；完整交战闭环和全量 `activeMapOverlayLegendItems` 仍由详情抽屉访问。`SelectionCommandDockView` 竖屏在现有高度内分身份/动作两区，反制姿态、落点、锁敌仍分别调用原有 ViewModel 入口。
+- `CountermeasureCommandContextReadout.sourceID`、references、source/report/preview/overlay 同源字段和 `automationIdentifier` 保留；地图、命令坞、反制卡和 VoiceOver 不渲染或朗读 raw source ID，只展示回应、落点、目标和下一步短文案。
+
 - `countermeasureSummaries -> countermeasureCommandPreviews -> activeCountermeasureCommandPreview` 以有效 focused source 优先、否则 primary fallback；`activeCountermeasureMapOverlay` 与纯派生 `CountermeasureCommandContextReadout` 从同一 preview/summary 组装 source/report/preview/overlay id、回应军团、姿态、落点、目标、路线、收益风险、步骤、阻塞和 VoiceOver 文案，不缓存、不写核心或存档。
 - 地图 active overlay、`CountermeasureCommandContextMapReadoutView`、`CountermeasureCardView` 和 `SelectionCommandDockView` 只消费同一 context。全局 `primaryCountermeasureSummary`、交战闭环、将领桥接和军令窗口继续保留 primary 语义。
 - `focusCountermeasure(_:)` 选择回应军团并切到 `.countermeasure` 视角；无效 id 保留可审计 focused source，但 active context 明确回退 primary，不输出旧 secondary 字段。

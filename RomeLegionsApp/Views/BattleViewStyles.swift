@@ -175,7 +175,7 @@ struct HexMetrics {
         let totalHeight = tileHeight * (CGFloat(mapHeight) + 0.5)
         mapSize = CGSize(width: totalWidth, height: totalHeight)
         let remainingVerticalSpace = max(0, availableHeight - totalHeight)
-        let verticalBias: CGFloat = container.height > container.width * 1.25 ? 0.16 : 0.46
+        let verticalBias: CGFloat = container.height > container.width * 1.25 ? 0.40 : 0.46
         origin = CGPoint(
             x: horizontalInset + (availableWidth - totalWidth) / 2 + tileWidth / 2,
             y: topInset + remainingVerticalSpace * verticalBias + tileHeight / 2

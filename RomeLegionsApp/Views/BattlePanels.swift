@@ -3291,7 +3291,7 @@ struct CountermeasureCommandPreviewView: View {
 
             if let context,
                context.sourceID == preview.id {
-                Text("\(context.sourceLabel) · \(context.focusStateLabel) · \(context.commandAvailabilityLabel)")
+                Text("\(context.focusStateLabel) · \(context.commandAvailabilityLabel)")
                     .font(.caption2.monospacedDigit().weight(.bold))
                     .foregroundStyle(preview.summary.priority.tintColor)
                     .lineLimit(2)
@@ -3377,7 +3377,8 @@ struct CountermeasureContextConfirmationButtonsView: View {
             )
         }
         .accessibilityElement(children: .contain)
-        .accessibilityLabel(context.accessibilityLabel)
+        .accessibilityLabel(context.userFacingAccessibilityLabel)
+        .accessibilityIdentifier(context.automationIdentifier)
     }
 
     private func confirmationButton(
@@ -3393,7 +3394,7 @@ struct CountermeasureContextConfirmationButtonsView: View {
             .frame(maxWidth: .infinity, minHeight: 44)
             .buttonStyle(SecondaryButtonStyle())
             .disabled(isDisabled)
-            .accessibilityLabel("\(accessibilityLabel)，反制身份\(context.sourceID)")
+            .accessibilityLabel(accessibilityLabel)
             .accessibilityHint(hint)
     }
 }

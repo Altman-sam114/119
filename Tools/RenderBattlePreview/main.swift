@@ -452,19 +452,27 @@ struct RenderBattlePreview {
             throw PreviewRenderError.missingEnemyCommanderThreatMapOverlay
         }
         let threatLegendKinds = Set(viewModel.activeMapOverlayLegendItems.map(\.kind))
-        let enemyThreatPresentation = MapOverlayPresentation(perspective: .enemyIntent)
-        let counterThreatPresentation = MapOverlayPresentation(perspective: .countermeasure)
-        let objectiveThreatPresentation = MapOverlayPresentation(perspective: .objective)
-        let terrainThreatPresentation = MapOverlayPresentation(perspective: .terrainPressure)
+        let threatBaselineContext = BattleDisplayContextReadout(
+            mode: .baselineRecon, sourceID: nil, title: "战场侦察", statusLabel: "敌路",
+            primaryLegendKinds: [.enemyRoute], secondaryLegendKinds: [], commandCueLabel: "观察敌路"
+        )
+        let threatFocusContext = BattleDisplayContextReadout(
+            mode: .enemyCommanderFocus, sourceID: enemyCommanderThreat.id, title: "敌将聚焦", statusLabel: "威胁",
+            primaryLegendKinds: [.enemyCommanderThreat], secondaryLegendKinds: [.enemyRoute, .enemyTarget], commandCueLabel: "敌将 → 目标"
+        )
+        let enemyThreatPresentation = MapOverlayPresentation(perspective: .enemyIntent, context: threatFocusContext)
+        let counterThreatPresentation = MapOverlayPresentation(perspective: .countermeasure, context: threatBaselineContext)
+        let objectiveThreatPresentation = MapOverlayPresentation(perspective: .objective, context: threatBaselineContext)
+        let terrainThreatPresentation = MapOverlayPresentation(perspective: .terrainPressure, context: threatBaselineContext)
         guard threatLegendKinds.contains(MapOverlayLegendKind.enemyCommanderThreat),
               enemyThreatPresentation.isFocusedLegend(.enemyCommanderThreat),
               enemyThreatPresentation.legendPriority(.enemyCommanderThreat) == 0,
               enemyThreatPresentation.enemyCommanderThreatOpacity > counterThreatPresentation.enemyCommanderThreatOpacity,
               enemyThreatPresentation.enemyCommanderThreatOpacity > objectiveThreatPresentation.enemyCommanderThreatOpacity,
               enemyThreatPresentation.enemyCommanderThreatOpacity > terrainThreatPresentation.enemyCommanderThreatOpacity,
-              counterThreatPresentation.showsEnemyCommanderThreatDetails,
-              objectiveThreatPresentation.showsEnemyCommanderThreatDetails,
-              terrainThreatPresentation.showsEnemyCommanderThreatDetails,
+              !counterThreatPresentation.showsEnemyCommanderThreatDetails,
+              !objectiveThreatPresentation.showsEnemyCommanderThreatDetails,
+              !terrainThreatPresentation.showsEnemyCommanderThreatDetails,
               counterThreatPresentation.legendPriority(.enemyCommanderThreat) <= 1,
               objectiveThreatPresentation.legendPriority(.enemyCommanderThreat) >= 1,
               terrainThreatPresentation.legendPriority(.enemyCommanderThreat) >= 1 else {
@@ -2086,10 +2094,34 @@ struct RenderBattlePreview {
               viewModel.state.unit(at: commandDockSecondaryTarget.position) == nil else {
             throw PreviewRenderError.missingCommandDockAttackFixture
         }
-        let enemyPresentation = MapOverlayPresentation(perspective: .enemyIntent)
-        let counterPresentation = MapOverlayPresentation(perspective: .countermeasure)
-        let objectivePresentation = MapOverlayPresentation(perspective: .objective)
-        let terrainPresentation = MapOverlayPresentation(perspective: .terrainPressure)
+        let baselineContext = BattleDisplayContextReadout(
+            mode: .baselineRecon, sourceID: nil, title: "战场侦察", statusLabel: "监视",
+            primaryLegendKinds: [.enemyRoute], secondaryLegendKinds: [], commandCueLabel: "观察战场"
+        )
+        let unitContext = BattleDisplayContextReadout(
+            mode: .unitExecution, sourceID: "unit", title: "军团执行", statusLabel: "平衡",
+            primaryLegendKinds: [.reachable, .attackTarget, .skillRange], secondaryLegendKinds: [.tacticalPath], commandCueLabel: "选择行动"
+        )
+        let attackContext = BattleDisplayContextReadout(
+            mode: .attackLock, sourceID: "attack", title: "攻击锁定", statusLabel: "预演",
+            primaryLegendKinds: [.attackTarget], secondaryLegendKinds: [], commandCueLabel: "攻击者 → 目标"
+        )
+        let enemyFocusContext = BattleDisplayContextReadout(
+            mode: .enemyCommanderFocus, sourceID: "enemy", title: "敌将聚焦", statusLabel: "威胁",
+            primaryLegendKinds: [.enemyCommanderThreat], secondaryLegendKinds: [.enemyRoute, .enemyTarget], commandCueLabel: "敌将 → 目标"
+        )
+        let counterFocusContext = BattleDisplayContextReadout(
+            mode: .countermeasureFocus, sourceID: "counter", title: "反制聚焦", statusLabel: "定位",
+            primaryLegendKinds: [.countermeasure], secondaryLegendKinds: [.enemyCommanderThreat], commandCueLabel: "回应 → 落点 → 目标"
+        )
+        let enemyPresentation = MapOverlayPresentation(perspective: .enemyIntent, context: baselineContext)
+        let counterPresentation = MapOverlayPresentation(perspective: .countermeasure, context: baselineContext)
+        let objectivePresentation = MapOverlayPresentation(perspective: .objective, context: baselineContext)
+        let terrainPresentation = MapOverlayPresentation(perspective: .terrainPressure, context: baselineContext)
+        let unitPresentation = MapOverlayPresentation(perspective: .enemyIntent, context: unitContext)
+        let attackPresentation = MapOverlayPresentation(perspective: .enemyIntent, context: attackContext)
+        let enemyFocusPresentation = MapOverlayPresentation(perspective: .enemyIntent, context: enemyFocusContext)
+        let counterFocusPresentation = MapOverlayPresentation(perspective: .countermeasure, context: counterFocusContext)
         let terrainProfiles = TerrainType.allCases.map(\.materialProfile)
         let shortLandscapeMetrics = HexMetrics(
             mapWidth: viewModel.state.width,
@@ -2134,7 +2166,7 @@ struct RenderBattlePreview {
               enemyPresentation.enemyRouteOpacity == 1,
               !enemyPresentation.showsBattleObjective,
               counterPresentation.showsCountermeasure,
-              counterPresentation.showsEnemyIntentDetails,
+              !counterPresentation.showsEnemyIntentDetails,
               counterPresentation.enemyRouteOpacity <= 0.24,
               objectivePresentation.showsBattleObjective,
               objectivePresentation.tacticalRouteOpacity > enemyPresentation.tacticalRouteOpacity,
@@ -2145,6 +2177,15 @@ struct RenderBattlePreview {
               terrainPresentation.isFocusedLegend(.threatHeat),
               !terrainPresentation.isFocusedLegend(.enemyRoute) else {
             throw PreviewRenderError.missingMapOverlayFocusStrategy
+        }
+        guard unitPresentation.primaryLegendKinds == [.reachable, .attackTarget, .skillRange],
+              attackPresentation.enemyRouteOpacity < 0.1,
+              attackPresentation.enemyCommanderThreatOpacity < 0.1,
+              enemyFocusPresentation.enemyCommanderThreatOpacity > enemyFocusPresentation.enemyRouteOpacity,
+              counterFocusPresentation.isFocusedLegend(.countermeasure),
+              counterFocusPresentation.legendPriority(.enemyCommanderThreat) == 1,
+              counterFocusPresentation.enemyCommanderThreatOpacity < counterFocusPresentation.enemyRouteOpacity + 0.2 else {
+            throw PreviewRenderError.missingBattleDisplayContext
         }
         guard shortInterfaceMetrics.isShortLandscape,
               shortInterfaceMetrics.topBarHeight <= 42,
@@ -2988,6 +3029,9 @@ struct RenderBattlePreview {
             !context.targetLabel.isEmpty &&
             !context.nextStepLabel.isEmpty &&
             context.accessibilityLabel.contains("不会自动执行后续步骤") &&
+            !context.userFacingAccessibilityLabel.contains(context.sourceID) &&
+            !context.mapFocusLabel.contains(context.sourceID) &&
+            context.automationIdentifier.contains(context.sourceID) &&
             dock.bright > 20 &&
             (dock.red > 2 || dock.cyan > 2 || dock.orange > 2)
     }
@@ -3317,6 +3361,11 @@ enum PreviewRenderError: Error {
     case missingMapDominantBattleShell
     case missingMapIntelligenceDock
     case missingMapOverlayFocusStrategy
+    case missingBattleDisplayContext
+    case missingMapOverlayHierarchy
+    case visibleRawSourceIdentifier
+    case missingContextualCommandDock
+    case missingMapVisualPriority
     case missingBattleCommandHierarchy
     case missingMapViewportStrategy
     case missingTerrainMaterialStrategy

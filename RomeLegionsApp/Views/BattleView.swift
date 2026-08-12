@@ -70,6 +70,7 @@ struct BattleView: View {
 
                             SelectionCommandDockView(
                                 isCompact: proxy.size.width < 700,
+                                isPortrait: metrics.isPortrait,
                                 identityWidth: metrics.commandIdentityWidth
                             ) {
                                 activeDrawer = .orders

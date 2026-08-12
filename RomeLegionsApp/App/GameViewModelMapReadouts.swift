@@ -203,7 +203,7 @@ struct EnemyCommanderThreatMapOverlay: Identifiable {
     }
 }
 
-enum MapOverlayLegendKind: String, Identifiable {
+enum MapOverlayLegendKind: String, Identifiable, Hashable {
     case enemyRoute
     case enemyTarget
     case enemyCommanderThreat
@@ -265,6 +265,48 @@ enum MapReconPerspectiveKind: String, CaseIterable, Identifiable {
         case .terrainPressure:
             return "flame.fill"
         }
+    }
+}
+
+enum BattleDisplayContextMode: String, CaseIterable, Identifiable {
+    case baselineRecon
+    case unitExecution
+    case attackLock
+    case enemyCommanderFocus
+    case countermeasureFocus
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .baselineRecon: return "战场侦察"
+        case .unitExecution: return "军团执行"
+        case .attackLock: return "攻击锁定"
+        case .enemyCommanderFocus: return "敌将聚焦"
+        case .countermeasureFocus: return "反制聚焦"
+        }
+    }
+}
+
+struct BattleDisplayContextReadout: Equatable {
+    var mode: BattleDisplayContextMode
+    var sourceID: String?
+    var title: String
+    var statusLabel: String
+    var primaryLegendKinds: Set<MapOverlayLegendKind>
+    var secondaryLegendKinds: Set<MapOverlayLegendKind>
+    var commandCueLabel: String
+
+    var isFocused: Bool {
+        mode != .baselineRecon
+    }
+
+    var visibleLegendKinds: Set<MapOverlayLegendKind> {
+        primaryLegendKinds.union(secondaryLegendKinds)
+    }
+
+    var accessibilityLabel: String {
+        "\(title)，\(statusLabel)，\(commandCueLabel)"
     }
 }
 
@@ -902,7 +944,27 @@ struct CountermeasureCommandContextReadout: Identifiable {
         return "全局首要反制"
     }
 
-    var sourceLabel: String { "反制源 \(sourceID)" }
+    /// User-facing source description. The raw sourceID remains available for
+    /// references and automation, but is never spoken or rendered as copy.
+    var sourceLabel: String { "反制链路" }
+    var automationIdentifier: String { "countermeasure-context-\(sourceID)" }
+    var mapTitleLabel: String { "反制定位 · \(responseUnitLabel)" }
+    var commandCueLabel: String { "回应\(responsePosition.description) → 落点\(destination.description) → 目标\(targetPosition.description)" }
+    var userFacingAccessibilityLabel: String {
+        [
+            "反制定位",
+            responseIdentityLabel,
+            orderLabel,
+            destinationLabel,
+            "目标\(targetLabel)，\(targetPositionLabel)",
+            commandChainLabel,
+            nextStepLabel,
+            impactLabel,
+            "风险\(riskLabel)",
+            commandAvailabilityLabel,
+            "确认姿态、前往落点、锁定目标是分开的现有入口，不会自动执行后续步骤"
+        ].joined(separator: "，")
+    }
     var responsePositionLabel: String { "当前位置 \(responsePosition.description)" }
     var destinationLabel: String { "落点 \(destination.description)" }
     var targetPositionLabel: String { "目标格 \(targetPosition.description)" }
@@ -941,11 +1003,11 @@ struct CountermeasureCommandContextReadout: Identifiable {
     }
 
     var detailLabel: String {
-        "\(sourceLabel) · \(orderLabel) · \(destinationLabel) · 目标\(targetLabel) \(targetPosition.description) · \(impactLabel) · 风险\(riskLabel)"
+        "\(orderLabel) · \(destinationLabel) · 目标\(targetLabel) \(targetPosition.description) · \(impactLabel) · 风险\(riskLabel)"
     }
 
     var mapFocusLabel: String {
-        "\(sourceLabel) · 回应\(responsePosition.description) → 落点\(destination.description) → 目标\(targetPosition.description)"
+        commandCueLabel
     }
 
     var routeStageLabel: String {
@@ -953,20 +1015,7 @@ struct CountermeasureCommandContextReadout: Identifiable {
     }
 
     var accessibilityLabel: String {
-        [
-            "反制身份\(sourceID)",
-            focusStateLabel,
-            "回应\(responseIdentityLabel)",
-            orderLabel,
-            destinationLabel,
-            "目标\(targetLabel)，\(targetPositionLabel)",
-            commandChainLabel,
-            nextStepLabel,
-            impactLabel,
-            "风险\(riskLabel)",
-            commandAvailabilityLabel,
-            "确认姿态、前往落点、锁定目标是分开的现有入口，不会自动执行后续步骤"
-        ].joined(separator: "，")
+        userFacingAccessibilityLabel
     }
 
     func references(preview: CountermeasureCommandPreview) -> Bool {

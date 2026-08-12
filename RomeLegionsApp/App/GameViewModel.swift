@@ -2663,6 +2663,85 @@ final class GameViewModel: ObservableObject {
         Set(selectedGeneralSkillPreview?.affectedCityIDs ?? [])
     }
 
+    /// Single presentation precedence shared by the map, HUD and command dock.
+    /// This reads existing selection/focus readouts only; it never changes the
+    /// core state or re-evaluates a route, forecast, or AI decision.
+    var battleDisplayContextReadout: BattleDisplayContextReadout {
+        if let forecast = selectedCombatForecast {
+            return BattleDisplayContextReadout(
+                mode: .attackLock,
+                sourceID: forecast.defender.id,
+                title: "攻击锁定",
+                statusLabel: forecast.outcomeLabel,
+                primaryLegendKinds: [.attackTarget],
+                secondaryLegendKinds: [.reachable],
+                commandCueLabel: forecast.positionChainLabel
+            )
+        }
+
+        if let focusedID = focusedCountermeasureID,
+           let context = activeCountermeasureCommandContextReadout,
+           context.isFocused,
+           context.sourceID == focusedID {
+            return BattleDisplayContextReadout(
+                mode: .countermeasureFocus,
+                sourceID: context.sourceID,
+                title: context.mapTitleLabel,
+                statusLabel: context.nextStepLabel,
+                primaryLegendKinds: [.countermeasure],
+                secondaryLegendKinds: [.enemyCommanderThreat],
+                commandCueLabel: context.commandCueLabel
+            )
+        }
+
+        if let focusedID = focusedEnemyCommanderThreatID,
+           let threat = focusedEnemyCommanderThreatSummary,
+           threat.id == focusedID {
+            return BattleDisplayContextReadout(
+                mode: .enemyCommanderFocus,
+                sourceID: threat.id,
+                title: "敌将 · \(threat.commanderLabel)",
+                statusLabel: threat.levelLabel,
+                primaryLegendKinds: [.enemyCommanderThreat],
+                secondaryLegendKinds: [.enemyRoute, .enemyTarget],
+                commandCueLabel: "\(threat.targetLabel) · \(threat.spaceChainLabel)"
+            )
+        }
+
+        if let selectedUnit, selectedUnit.faction == .rome {
+            return BattleDisplayContextReadout(
+                mode: .unitExecution,
+                sourceID: selectedUnit.id,
+                title: "\(selectedUnit.faction.displayName)\(selectedUnit.kind.displayName)",
+                statusLabel: selectedUnit.resolvedTacticalOrder.displayName,
+                primaryLegendKinds: [.reachable, .attackTarget, .skillRange],
+                secondaryLegendKinds: [.battleObjective, .tacticalPath, .maneuverOption],
+                commandCueLabel: selectedUnit.hasActed ? "行动已完成 · 查看军令" : "选择行动"
+            )
+        }
+
+        let primaryKind: MapOverlayLegendKind
+        switch selectedMapReconPerspective {
+        case .enemyIntent:
+            primaryKind = .enemyRoute
+        case .countermeasure:
+            primaryKind = .countermeasure
+        case .objective:
+            primaryKind = .battleObjective
+        case .terrainPressure:
+            primaryKind = .threatHeat
+        }
+        return BattleDisplayContextReadout(
+            mode: .baselineRecon,
+            sourceID: nil,
+            title: "战场侦察",
+            statusLabel: selectedMapReconPerspective.displayName,
+            primaryLegendKinds: [primaryKind],
+            secondaryLegendKinds: selectedMapReconPerspective == .terrainPressure ? [.mapControl] : [],
+            commandCueLabel: mapReconPerspectiveHUDReadout.statusLabel
+        )
+    }
+
     var selectedGeneralSkillTargetReadout: SelectedGeneralSkillTargetReadout? {
         guard let preview = selectedGeneralSkillPreview else { return nil }
 

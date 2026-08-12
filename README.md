@@ -113,6 +113,8 @@ swiftc -swift-version 5 -module-cache-path .build/module-cache Sources/RomeLegio
 node Tools/verify_project.mjs
 ```
 
+v0.68 起，地图、顶部 HUD、情报坞和命令坞共享纯 ViewModel 派生的五种 `BattleDisplayContextReadout` precedence：baselineRecon、unitExecution、attackLock、enemyCommanderFocus、countermeasureFocus。`MapOverlayPresentation` 统一主/次/隐藏图层，技能范围只在军团执行上下文出现；反制 source/report/preview/overlay 原始字段和 automation identifier 保留，但地图、命令坞和 VoiceOver 使用短的人类可读文案。竖屏命令坞在既有 102pt 内采用身份/动作两区，姿态、落点、锁敌仍是独立 44pt 入口。
+
 v0.58 起，云端预览还会在渲染前断言地图镜头默认态、缩放上下限、拖移边界、中心/边缘聚焦和复位策略；三尺寸六图用于复判镜头工具与固定 HUD 无重叠、地图空间层保持对齐。v0.59 起，渲染前还会断言战役地图的海岸线段非空、每段一端为水一端为陆且相邻，深海格不产出海岸段；断言失败抛出 `missingCoastlineStrategy`。
 
 v0.62 起，云端预览还会断言攻击目标锁定只改变 ViewModel 选择态、`SelectedCombatForecast.preview` 与 `state.attackPreview` 同源一致，单位场景渲染后清除锁定再进入城市场景；地图、目标菜单和抽屉攻击列表不得绕过确认命令直接结算。

@@ -32,8 +32,21 @@ enum BattleDrawerCategory: String, CaseIterable, Identifiable {
 
 struct MapOverlayPresentation {
     var perspective: MapReconPerspectiveKind
+    var context: BattleDisplayContextReadout = BattleDisplayContextReadout(
+        mode: .baselineRecon,
+        sourceID: nil,
+        title: "战场侦察",
+        statusLabel: "监视",
+        primaryLegendKinds: [],
+        secondaryLegendKinds: [],
+        commandCueLabel: "观察战场"
+    )
+
+    private var isFocusedContext: Bool { context.mode != .baselineRecon }
 
     var enemyRouteOpacity: Double {
+        if context.mode == .attackLock { return 0.03 }
+        if context.mode == .countermeasureFocus || context.mode == .enemyCommanderFocus { return 0.12 }
         switch perspective {
         case .enemyIntent: return 1
         case .countermeasure: return 0.24
@@ -46,6 +59,13 @@ struct MapOverlayPresentation {
     /// threat never loses its spatial context. The enemy route perspective gives
     /// it the strongest contrast; response and objective views keep it subdued.
     var enemyCommanderThreatOpacity: Double {
+        switch context.mode {
+        case .attackLock: return 0.03
+        case .countermeasureFocus: return 0.20
+        case .enemyCommanderFocus: return 1.0
+        case .unitExecution: return 0.08
+        case .baselineRecon: break
+        }
         switch perspective {
         case .enemyIntent: return 0.96
         case .countermeasure: return 0.38
@@ -55,6 +75,8 @@ struct MapOverlayPresentation {
     }
 
     var tacticalRouteOpacity: Double {
+        if context.mode == .attackLock { return 0.03 }
+        if isFocusedContext && context.mode != .unitExecution { return 0.08 }
         switch perspective {
         case .objective: return 0.95
         case .enemyIntent: return 0.30
@@ -64,26 +86,30 @@ struct MapOverlayPresentation {
     }
 
     var showsEnemyIntentDetails: Bool {
-        perspective == .enemyIntent || perspective == .countermeasure
+        context.mode == .baselineRecon && (perspective == .enemyIntent || perspective == .countermeasure)
     }
 
     var showsEnemyCommanderThreatDetails: Bool {
-        true
+        context.mode == .enemyCommanderFocus || context.mode == .countermeasureFocus
     }
 
     var showsBattleObjective: Bool {
-        perspective == .objective
+        context.mode == .baselineRecon && perspective == .objective ||
+            context.mode == .unitExecution && context.secondaryLegendKinds.contains(.battleObjective)
     }
 
     var showsCountermeasure: Bool {
-        perspective == .countermeasure
+        context.mode == .countermeasureFocus ||
+            context.mode == .baselineRecon && perspective == .countermeasure
     }
 
     var showsTerrainPressure: Bool {
-        perspective == .terrainPressure
+        context.mode == .baselineRecon && perspective == .terrainPressure
     }
 
     func isFocusedLegend(_ kind: MapOverlayLegendKind) -> Bool {
+        if context.primaryLegendKinds.contains(kind) { return true }
+        if context.secondaryLegendKinds.contains(kind) { return false }
         switch kind {
         case .reachable, .attackTarget, .skillRange:
             return true
@@ -101,6 +127,8 @@ struct MapOverlayPresentation {
     }
 
     func legendPriority(_ kind: MapOverlayLegendKind) -> Int {
+        if context.primaryLegendKinds.contains(kind) { return 0 }
+        if context.secondaryLegendKinds.contains(kind) { return 1 }
         if isFocusedLegend(kind) { return 0 }
         if perspective == .countermeasure && (kind == .enemyRoute || kind == .enemyTarget) {
             return 1
@@ -275,32 +303,41 @@ struct BattlefieldDrawerView: View {
 struct SelectionCommandDockView: View {
     @EnvironmentObject private var viewModel: GameViewModel
     var isCompact: Bool
+    var isPortrait: Bool
     var identityWidth: CGFloat
     var onShowMore: () -> Void
 
     var body: some View {
-        HStack(spacing: 8) {
-            selectionIdentity
-                .frame(width: identityWidth, alignment: .leading)
+        Group {
+            if isPortrait {
+                VStack(spacing: 2) {
+                    HStack(spacing: 6) {
+                        selectionIdentity
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                        moreButton
+                    }
+                    SelectionDockCommandButtonsView(isCompact: true, onShowMore: onShowMore)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
+            } else {
+                HStack(spacing: 8) {
+                    selectionIdentity
+                        .frame(width: identityWidth, alignment: .leading)
 
-            Rectangle()
-                .fill(.white.opacity(0.10))
-                .frame(width: 1)
-                .padding(.vertical, 8)
+                    Rectangle()
+                        .fill(.white.opacity(0.10))
+                        .frame(width: 1)
+                        .padding(.vertical, 8)
 
-            SelectionDockCommandButtonsView(isCompact: isCompact, onShowMore: onShowMore)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .layoutPriority(2)
+                    SelectionDockCommandButtonsView(isCompact: isCompact, onShowMore: onShowMore)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .layoutPriority(2)
 
-            Button("更多情报", systemImage: "ellipsis.circle.fill") {
-                onShowMore()
+                    moreButton
+                }
             }
-            .labelStyle(.iconOnly)
-            .font(.title3.weight(.bold))
-            .frame(width: 44, height: 44)
-            .buttonStyle(SecondaryButtonStyle())
-            .accessibilityHint("打开完整情报和军令")
         }
+        .frame(maxHeight: .infinity)
         .padding(.horizontal, 8)
         .foregroundStyle(.white)
         .background(Color(red: 0.105, green: 0.10, blue: 0.09).opacity(0.96))
@@ -309,6 +346,17 @@ struct SelectionCommandDockView: View {
                 .fill(Color(red: 0.84, green: 0.66, blue: 0.32).opacity(0.68))
                 .frame(height: 1)
         }
+    }
+
+    private var moreButton: some View {
+            Button("更多情报", systemImage: "ellipsis.circle.fill") {
+                onShowMore()
+            }
+            .labelStyle(.iconOnly)
+            .font(.title3.weight(.bold))
+            .frame(width: 44, height: 44)
+            .buttonStyle(SecondaryButtonStyle())
+            .accessibilityHint("打开完整情报和军令")
     }
 
     @ViewBuilder
@@ -501,7 +549,8 @@ struct CountermeasureCommandContextIdentityView: View {
             .fixedSize(horizontal: false, vertical: true)
         }
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel(context.accessibilityLabel)
+        .accessibilityLabel(context.userFacingAccessibilityLabel)
+        .accessibilityIdentifier(context.automationIdentifier)
     }
 }
 
@@ -516,7 +565,7 @@ struct CountermeasureCommandContextButtonsView: View {
                 symbol: context.recommendedOrder.systemImage,
                 tint: .yellow,
                 isDisabled: !context.canConfirmOrder,
-                accessibilityLabel: "\(context.orderConfirmationLabel)，反制身份\(context.sourceID)",
+                accessibilityLabel: context.orderConfirmationLabel,
                 accessibilityHint: "只确认推荐姿态，不会移动或攻击",
                 action: viewModel.confirmCountermeasureOrder
             )
@@ -525,7 +574,7 @@ struct CountermeasureCommandContextButtonsView: View {
                 symbol: "arrow.up.right.circle.fill",
                 tint: .cyan,
                 isDisabled: !context.canConfirmMovement,
-                accessibilityLabel: "\(context.movementConfirmationLabel)，反制身份\(context.sourceID)",
+                accessibilityLabel: context.movementConfirmationLabel,
                 accessibilityHint: "只移动到推荐落点，不会切换姿态或攻击",
                 action: viewModel.confirmCountermeasureMovement
             )
@@ -534,22 +583,17 @@ struct CountermeasureCommandContextButtonsView: View {
                 symbol: "scope",
                 tint: .red,
                 isDisabled: !context.canLockTarget,
-                accessibilityLabel: "\(context.targetConfirmationLabel)，反制身份\(context.sourceID)",
+                accessibilityLabel: context.targetConfirmationLabel,
                 accessibilityHint: "只锁定目标并进入攻击预演，不会结算攻击",
                 action: viewModel.lockCountermeasureTarget
             )
 
-            VStack(alignment: .leading, spacing: 2) {
-                Text(context.nextStepLabel)
-                    .font(.caption2.weight(.bold))
-                    .lineLimit(2)
-                Text("\(context.impactLabel) · 风险\(context.riskLabel)")
-                    .font(.caption2)
-                    .foregroundStyle(.white.opacity(0.58))
-                    .lineLimit(2)
-            }
-            .minimumScaleFactor(0.54)
-            .layoutPriority(1)
+            Text(context.nextStepLabel)
+                .font(.caption2.weight(.bold))
+                .foregroundStyle(.white.opacity(0.74))
+                .lineLimit(1)
+                .minimumScaleFactor(0.68)
+                .frame(maxWidth: .infinity, alignment: .leading)
         }
         .accessibilityElement(children: .contain)
         .accessibilityLabel(context.accessibilityLabel)
