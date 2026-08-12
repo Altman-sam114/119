@@ -224,6 +224,16 @@ final class GameViewModel: ObservableObject {
         return enemyCommanderThreatSummaries.first { $0.id == focusedEnemyCommanderThreatID }
     }
 
+    /// 当前地图与敌情读板使用的威胁来源：有效焦点优先，否则回到全局首要威胁。
+    /// 这是纯 ViewModel 派生值；失效焦点不会写回选择态、GameState 或存档。
+    var activeEnemyCommanderThreatSummary: EnemyCommanderThreatSummary? {
+        focusedEnemyCommanderThreatSummary ?? primaryEnemyCommanderThreatSummary
+    }
+
+    var activeEnemyCommanderThreatID: String? {
+        activeEnemyCommanderThreatSummary?.id
+    }
+
     var enemyCommanderThreatMapOverlays: [EnemyCommanderThreatMapOverlay] {
         let focusedID = focusedEnemyCommanderThreatID
         return enemyCommanderThreatSummaries.map { summary in
@@ -234,8 +244,8 @@ final class GameViewModel: ObservableObject {
         }
     }
 
-    var primaryEnemyCommanderThreatMapOverlay: EnemyCommanderThreatMapOverlay? {
-        guard let summary = focusedEnemyCommanderThreatSummary ?? primaryEnemyCommanderThreatSummary else {
+    var activeEnemyCommanderThreatMapOverlay: EnemyCommanderThreatMapOverlay? {
+        guard let summary = activeEnemyCommanderThreatSummary else {
             return nil
         }
 
@@ -243,6 +253,11 @@ final class GameViewModel: ObservableObject {
             summary: summary,
             isFocused: summary.id == focusedEnemyCommanderThreatID
         )
+    }
+
+    /// v0.64 兼容 API；其历史“primary”名称保留，但展示语义已是 active（focused ?? primary）。
+    var primaryEnemyCommanderThreatMapOverlay: EnemyCommanderThreatMapOverlay? {
+        activeEnemyCommanderThreatMapOverlay
     }
 
     var enemyCommanderThreatMapOverlaysByPosition: [Position: [EnemyCommanderThreatPositionOverlay]] {
@@ -800,7 +815,7 @@ final class GameViewModel: ObservableObject {
         let threatHeat = primaryThreatHeatZoneSummary
         let mapControl = selectedMapControlSummary ?? primaryMapControlSummary
         let convergence = primaryBattlefieldConvergenceSummary
-        let enemyCommanderThreat = focusedEnemyCommanderThreatSummary ?? primaryEnemyCommanderThreatSummary
+        let enemyCommanderThreat = activeEnemyCommanderThreatSummary
         var signals: [MapReconPerspectiveSignal] = []
 
         func append(
@@ -2813,6 +2828,8 @@ final class GameViewModel: ObservableObject {
         let skillTargetReadout = selectedGeneralSkillTargetReadout
         let guidance = selectedCommanderActionGuidance
         let synergy = selectedCommanderSynergySummary
+        // This bridge explains the global primary countermeasure opportunity;
+        // it is intentionally not the currently focused map reconnaissance threat.
         let enemyCommanderThreat = primaryEnemyCommanderThreatSummary
         let countermeasure = primaryCountermeasureSummary
         let countermeasurePreview = selectedCountermeasureCommandPreview ?? primaryCountermeasureCommandPreview
@@ -3011,6 +3028,7 @@ final class GameViewModel: ObservableObject {
         let commanderGuidance = selectedCommanderActionGuidance
         let recommendation = selectedTacticalRecommendationSummary
         let maneuver = primaryManeuverOptionSummary
+        // The order window inherits the global engagement loop, not active map focus.
         let engagementLoop = primaryEnemyEngagementLoopReadout
         let convergence = primaryBattlefieldConvergenceSummary
         let recommendedOrder = selectedTacticalOrderPreviews.first { !$0.isCurrent && $0.canSwitch } ??

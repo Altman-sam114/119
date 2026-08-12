@@ -2900,7 +2900,7 @@ struct EnemyIntentPanelView: View {
                     AIOperationalPlanCardView(summary: plan)
                 }
 
-                if let commanderThreat = viewModel.primaryEnemyCommanderThreatSummary {
+                if let commanderThreat = viewModel.activeEnemyCommanderThreatSummary {
                     EnemyCommanderThreatCardView(summary: commanderThreat)
                 }
 
@@ -2943,8 +2943,9 @@ struct EnemyCommanderThreatCardView: View {
                     .foregroundStyle(.white.opacity(0.58))
                 Text(summary.title)
                     .font(.caption.weight(.heavy))
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.70)
+                    .lineLimit(2)
+                    .minimumScaleFactor(0.62)
+                    .fixedSize(horizontal: false, vertical: true)
                 Spacer(minLength: 0)
                 Text(summary.levelLabel)
                     .font(.caption2.weight(.black))

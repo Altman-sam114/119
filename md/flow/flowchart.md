@@ -378,3 +378,19 @@ flowchart LR
     X --> Y["反制入口<br/>只读下一步，不由敌将定位自动执行"]
     F -.->|有效/重复/无效聚焦均不写核心状态| G["GameState / SaveStore / AI intent / 回合 / 资源保持不变"]
 ```
+
+## v0.65 敌将威胁 active 同源读板
+
+读图说明：`activeEnemyCommanderThreatSummary` 只存在于 `GameViewModel` 派生层；有效焦点优先，焦点失效或不存在时自动回退 primary。地图、侦察 HUD、顶部敌将 chip、敌情卡和 VoiceOver 共享 active threat id；全局首要交战闭环与反制/交战桥接继续保持 primary 语义，全量地图 overlay 不被 active 过滤。
+
+```mermaid
+flowchart LR
+    P["primaryEnemyCommanderThreatSummary<br/>全局首要威胁"] --> A["activeEnemyCommanderThreatSummary<br/>focused ?? primary<br/>纯 ViewModel 派生"]
+    F["focusedEnemyCommanderThreatID<br/>有效/失效焦点"] --> A
+    A --> U["BattleMap 顶部敌将 chip<br/>地图侦察 HUD / accessibility"]
+    A --> C["EnemyIntentPanel / EnemyCommanderThreatCard<br/>将领、技能、空间、状态同一 threat id"]
+    A --> O["activeEnemyCommanderThreatMapOverlay<br/>只切换当前身份"]
+    O --> M["地图空间层<br/>保留全量 enemyCommanderThreatOverlaysByPosition"]
+    P --> G["primaryEnemyEngagementLoopReadout<br/>全局反制/交战桥接/军令窗口保持 primary"]
+    F -.->|失效时不写回焦点，仅由 active 回退| A
+```

@@ -19,7 +19,8 @@
 ### 敌将技能威胁地图链（v0.64）
 
 - `EnemyCommanderThreatReport` 是唯一威胁来源；`GameViewModel.enemyCommanderThreatSummaries` 只把报告的将领、技能、起点、范围、受影响对象、目标/目的地和状态转成可读字段，不在视图中重算范围、评分或反制收益。
-- `primaryEnemyCommanderThreatMapOverlay`、`enemyCommanderThreatOverlaysByPosition` 和 `enemyCommanderThreatOverlayPositions` 由同一 summary/report 派生 `EnemyCommanderThreatMapOverlay`，保留起点、范围、影响、目标/目的地、角色标签、路线段、技能/影响/状态和 VoiceOver 文案；地图使用已有六边坐标与镜头变换，叠层只读且禁用命中测试。
+- `activeEnemyCommanderThreatSummary` 是 ViewModel-only 的 `focusedEnemyCommanderThreatSummary ?? primaryEnemyCommanderThreatSummary`；有效聚焦、无焦点或失效焦点分别得到聚焦威胁、首要威胁和自动回退的首要威胁，不写入 `GameState`、`SaveStore`、AI 输入或命令执行状态。
+- `activeEnemyCommanderThreatMapOverlay`、兼容的 `primaryEnemyCommanderThreatMapOverlay`、`enemyCommanderThreatOverlaysByPosition` 和 `enemyCommanderThreatOverlayPositions` 由同一 summary/report 派生 `EnemyCommanderThreatMapOverlay`，保留起点、范围、影响、目标/目的地、角色标签、路线段、技能/影响/状态和 VoiceOver 文案；地图使用已有六边坐标与镜头变换，叠层只读且禁用命中测试，全量位置集合不被 active 替换。
 - 敌情卡调用 `focusEnemyCommanderThreat(_:)` 定位同一个 threat id。有效、重复和无效聚焦只更新 `focusedEnemyCommanderThreatID`、选择位置、侦察上下文和 banner；不写 `GameState`、`SaveStore`、AI 意图、回合、资源、单位/城市或活动阵营，也不调用移动、攻击、技能或其他写状态命令。
 - 地图图例使用 `MapOverlayLegendKind.enemyCommanderThreat`，`mapReconPerspectiveHUDReadout` 通过 `enemyCommanderThreatID`/`references(threat:)` 与 overlay 同源；敌路视角突出敌将技能范围，反制、目标线和热区视角保留低权重的聚焦范围/目标及可访问标签，既有反制建议仍来自核心报告。
 
@@ -67,7 +68,7 @@
 - `GameViewModel.selectedUnitSituationReadout` 只读聚合当前选中军团对应的战线压力、覆盖选中坐标的威胁热区、选中坐标地图控区、军团编制、选中军议、首要机动落点和选中将令协同，输出压力、空间、机会、下一步、风险、signal 列表和同源 references；它只引用既有 summary，不新增评分、命令队列、地图叠层或 `GameState` 状态。
 - `BattleView` 在战场面板展示战场目标链路，并在地图上显示“1 焦点、2 将令、3 机动、4 军议”阶段标记和金色目标线；目标线卡片可定位各阶段并展示阶段命令预览，完整/紧凑军令面板会展示选中罗马单位关联的目标线阶段命令预览；地图徽标、阶段定位按钮、推荐姿态按钮、当前可攻击目标和将领技能入口会读取同一 active/selected 阶段 cue 做联动高亮；`selectedCommanderActionGuidance` 和 `selectedGeneralSkillCommandButtonDetail` 继续把选中单位将领简报、技能预览、当前将令协同与“2 将令”阶段技能 cue 串成只读技能入口提示，供将领卡状态行和完整/紧凑技能按钮共享；反制 cue 与反制按钮高亮仍优先于目标线 cue；这些 cue、叠层、定位和预览只解释当前目标线，不自动移动、攻击、发动技能或切换姿态。
 - `BattleView` 在完整/紧凑战场面板和战局面板顶部展示战场态势交汇读板，用短文案串联当前主线、回应、空间和下一步；SwiftUI 只展示 `primaryBattlefieldConvergenceSummary` 的派生字段和 signal，不重新判断优先级、热区、控区、路径、反制收益或目标线阶段。
-- `GameViewModel.primaryEnemyEngagementLoopReadout` 只读聚合敌军意图路线、首要战线压力、首要敌方将领威胁、首要反制建议、首要反制指令预览、当前选中回应军团的将领指挥链和战场态势交汇读板，输出敌路、压力、敌将、反制、回应、下一步、风险和 signal 列表；它只引用既有 summary/preview，不新增评分、命令队列、地图叠层或 `GameState` 状态。
+- `GameViewModel.primaryEnemyEngagementLoopReadout` 只读聚合敌军意图路线、首要战线压力、首要敌方将领威胁、首要反制建议、首要反制指令预览、当前选中回应军团的将领指挥链和战场态势交汇读板，明确保持全局 primary 语义；它只引用既有 summary/preview，不新增评分、命令队列、地图叠层或 `GameState` 状态。
 - `BattleView` 将敌情交战闭环的状态与风险压缩进地图单层情报坞，完整链路仍在敌情抽屉展示；它不新增命令，不自动移动、攻击、发动技能或切换姿态。
 - `GameViewModel.mapReconPerspectiveHUDReadout` 只读组合当前侦察视角下的敌军路线/闭环、反制建议/指令、战场目标线/阶段命令或热区/控区/态势交汇，输出标题、状态、细节、下一步、风险和 signal；`selectMapReconPerspective(_:)` 只改变 `selectedMapReconPerspective` 与 banner，不改变选择态、叠层、命令或 `GameState`。
 - `BattleView` 在地图底部用单层情报坞切换敌路、反制、目标线、热区/控区；`MapOverlayPresentation` 只过滤或降低非当前 route/tile/legend 的视觉权重，攻击、技能、可达、选中和当前军议命令预览始终保留。它不修改 ViewModel 叠层集合、评分、选择态或 `GameState`，也不自动执行命令。
@@ -94,7 +95,7 @@
 - `GameViewModel.aiOperationalPlanSummaries` 将核心作战计划报告转成计划 chip、敌情计划卡、战局计划行、行动时间线和无障碍文案；时间线逐步展示 `AIPlanStepReport` 的角色、军团、意图、起点、落点、目标、姿态和预计影响，`BattleView` 只展示这些 UI 派生字段，不在 SwiftUI 中重新聚合敌军目标、行动顺序或技能机会。
 - `state.enemyCommanderThreatReports(against:limit:)` 只读聚合敌方将领 trait、技能预览、AI 意图、AI 作战计划、战线压力和热区，输出敌将威胁等级、目标、技能窗口、预计伤害/恢复/削城防、理由和影响；它在敌方 forecast copy 上读取技能预览，不新增存档字段，不改变真实 AI 行为、技能释放、攻击、移动或胜负结算。
 - `GameViewModel.enemyCommanderThreatSummaries` 将核心敌将威胁报告转成敌将 chip、敌情卡、战局敌将行和无障碍文案；`EnemyCommanderThreatMapOverlay` 再从同一 summary/report 派生起点、技能范围、受影响位置/对象、目标/目的地、角色标记和威胁路线，供地图空间层使用。`BattleView` 只展示核心报告，不在 SwiftUI 中重新计算威胁分、技能目标或范围。
-- `primaryEnemyCommanderThreatMapOverlay`、`enemyCommanderThreatOverlaysByPosition` 和 `enemyCommanderThreatOverlayPositions` 与 `EnemyCommanderThreatSummary.id`/`EnemyCommanderThreatReport.id` 保持同源；`focusEnemyCommanderThreat(_:)` 只改变 ViewModel 的敌将焦点、选择位置、侦察上下文和 banner，聚焦入口不会调用 `useGeneralSkill`、`attack`、`moveUnit` 或任何核心写命令。有效、重复、无效聚焦均保持 `GameState`、存档、AI 意图和回合快照不变。
+- `activeEnemyCommanderThreatSummary` 驱动地图侦察 HUD、顶部敌将 chip、敌情卡和相关 accessibility 文案，保证 threat id、将领身份、技能、空间链路和状态同源；`primaryEnemyEngagementLoopReadout`、反制/交战桥接与军令窗口仍按全局语义使用 primary。`focusEnemyCommanderThreat(_:)` 只改变 ViewModel 的敌将焦点、选择位置、侦察上下文和 banner，聚焦入口不会调用 `useGeneralSkill`、`attack`、`moveUnit` 或任何核心写命令。有效、重复、无效聚焦均保持 `GameState`、存档、AI 意图和回合快照不变。
 - `state.countermeasureReports(for:limit:)` 和 `countermeasureReport(for:)` 只读聚合敌方将领威胁、AI 作战计划、战线压力、威胁热区、本方战术建议、机动落点和将领协同，输出打断敌将、稳住战线、补防城市、打击威胁、将令反制或机动换位建议；它不自动下令，不改变敌军意图、AI 评分、真实移动、攻击、技能或姿态结算。
 - `GameViewModel.countermeasureSummaries`、`primaryCountermeasureSummary`、`primaryCountermeasureMapOverlay`、`countermeasureRouteSegments` 和 `countermeasureOverlaysByPosition` 将核心反制建议转成反制 chip、敌情反制卡、战局反制行、收益/风险/命令、回应位置、推荐落点、威胁目标、地图引导线、1/2/3 阶段标签、焦点链路摘要和无障碍文案；`BattleView` 只展示摘要和叠层，不在 SwiftUI 中重新匹配目标、回应单位或评分。
 - `GameViewModel.countermeasureCommandPreviews`、`primaryCountermeasureCommandPreview`、`selectedCountermeasureCommandPreview` 和 `focusedCountermeasureID` 继续把反制建议转成只读指令预览，说明推荐姿态、落点是否可达、目标是否可直接攻击、命令链短标签、焦点链路摘要、目标阶段 cue 和阻塞原因；`focusCountermeasure(_:)` 只改变 ViewModel 选择态、位置、聚焦 ID 和 banner，使现有可达格、攻击目标和姿态预览自然刷新，不移动单位、不攻击、不切换姿态，也不改变 `GameState`。

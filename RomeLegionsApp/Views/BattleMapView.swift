@@ -20,7 +20,7 @@ struct WarMapView: View {
             let enemyIntentsByUnit = Dictionary(uniqueKeysWithValues: enemyIntentSummaries.map { ($0.unit.id, $0) })
             let enemyIntentDestinations = viewModel.enemyIntentDestinationOverlays(for: enemyIntentOverlays)
             let enemyIntentTargets = viewModel.enemyIntentTargetOverlays(for: enemyIntentOverlays)
-            let enemyCommanderThreatOverlay = viewModel.primaryEnemyCommanderThreatMapOverlay
+            let enemyCommanderThreatOverlay = viewModel.activeEnemyCommanderThreatMapOverlay
             let enemyCommanderThreatOverlaysByPosition = viewModel.enemyCommanderThreatOverlaysByPosition
             let tacticalRecommendation = viewModel.selectedTacticalRecommendationSummary
             let tacticalRecommendationPathPositions = viewModel.selectedTacticalRecommendationPathPositions
@@ -631,14 +631,15 @@ struct TacticalStatusStripView: View {
             )
         }
 
-        if let commanderThreat = viewModel.primaryEnemyCommanderThreatSummary {
+        if let commanderThreat = viewModel.activeEnemyCommanderThreatSummary {
             TacticalChipView(
                 symbol: commanderThreat.trait.systemImage,
                 label: "敌将",
                 value: commanderThreat.compactTitle,
                 tint: commanderThreat.level.tintColor,
                 compact: compact,
-                accessibilityLabel: commanderThreat.accessibilityLabel
+                accessibilityLabel: commanderThreat.accessibilityLabel,
+                allowsValueWrapping: true
             )
         }
 
@@ -1250,6 +1251,7 @@ struct TacticalChipView: View {
     var tint: Color
     var compact = false
     var accessibilityLabel: String? = nil
+    var allowsValueWrapping = false
 
     var body: some View {
         HStack(spacing: 5) {
@@ -1263,11 +1265,13 @@ struct TacticalChipView: View {
             }
             Text(value)
                 .font(.caption.monospacedDigit().weight(.heavy))
-                .lineLimit(1)
-                .minimumScaleFactor(0.7)
+                .lineLimit(allowsValueWrapping ? 2 : 1)
+                .minimumScaleFactor(allowsValueWrapping ? 0.62 : 0.7)
+                .multilineTextAlignment(.leading)
+                .fixedSize(horizontal: false, vertical: allowsValueWrapping)
         }
         .padding(.horizontal, 8)
-        .frame(height: 24)
+        .frame(minHeight: 24)
         .background(.white.opacity(0.08))
         .clipShape(RoundedRectangle(cornerRadius: 6))
         .accessibilityLabel(accessibilityLabel ?? "\(label)，\(value)")
