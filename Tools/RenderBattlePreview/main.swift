@@ -304,25 +304,26 @@ struct RenderBattlePreview {
               viewModel.state.activeFaction == activeFactionBeforePlanTimelineRead else {
             throw PreviewRenderError.missingAIOperationalPlanTimelineReadout
         }
-        guard let enemyCommanderThreat = viewModel.primaryEnemyCommanderThreatSummary,
+        guard let legacyEnemyCommanderThreat = viewModel.primaryEnemyCommanderThreatSummary,
               !viewModel.enemyCommanderThreatSummaries.isEmpty,
               viewModel.enemyCommanderThreatSummaries.contains(where: { $0.report.unitID == "carthage-commander" }),
               viewModel.enemyCommanderThreatSummaries.contains(where: { $0.report.intentKind == .useSkill || !$0.report.skillSummary.isEmpty }),
-              !enemyCommanderThreat.title.isEmpty,
-              !enemyCommanderThreat.compactTitle.isEmpty,
-              !enemyCommanderThreat.commanderLabel.isEmpty,
-              !enemyCommanderThreat.traitLabel.isEmpty,
-              !enemyCommanderThreat.levelLabel.isEmpty,
-              !enemyCommanderThreat.intentLabel.isEmpty,
-              !enemyCommanderThreat.originLabel.isEmpty,
-              !enemyCommanderThreat.rangeLabel.isEmpty,
-              !enemyCommanderThreat.affectedPositionLabel.isEmpty,
-              !enemyCommanderThreat.targetPositionLabel.isEmpty,
-              !enemyCommanderThreat.destinationLabel.isEmpty,
-              !enemyCommanderThreat.spaceChainLabel.isEmpty,
-              !enemyCommanderThreat.impactLabel.isEmpty,
-              !enemyCommanderThreat.statusLabel.isEmpty,
-              !enemyCommanderThreat.accessibilityLabel.isEmpty else {
+              legacyEnemyCommanderThreat.id == "carthage-commander",
+              !legacyEnemyCommanderThreat.title.isEmpty,
+              !legacyEnemyCommanderThreat.compactTitle.isEmpty,
+              !legacyEnemyCommanderThreat.commanderLabel.isEmpty,
+              !legacyEnemyCommanderThreat.traitLabel.isEmpty,
+              !legacyEnemyCommanderThreat.levelLabel.isEmpty,
+              !legacyEnemyCommanderThreat.intentLabel.isEmpty,
+              !legacyEnemyCommanderThreat.originLabel.isEmpty,
+              !legacyEnemyCommanderThreat.rangeLabel.isEmpty,
+              !legacyEnemyCommanderThreat.affectedPositionLabel.isEmpty,
+              !legacyEnemyCommanderThreat.targetPositionLabel.isEmpty,
+              !legacyEnemyCommanderThreat.destinationLabel.isEmpty,
+              !legacyEnemyCommanderThreat.spaceChainLabel.isEmpty,
+              !legacyEnemyCommanderThreat.impactLabel.isEmpty,
+              !legacyEnemyCommanderThreat.statusLabel.isEmpty,
+              !legacyEnemyCommanderThreat.accessibilityLabel.isEmpty else {
             throw PreviewRenderError.missingEnemyCommanderThreatSummary
         }
         // Keep the v0.64 three-unit fixture intact through all legacy heat and
@@ -334,9 +335,18 @@ struct RenderBattlePreview {
                 faction: .carthage,
                 position: Position(x: 11, y: 1),
                 generalName: "马戈",
-                generalTrait: .shieldWall
+                generalTrait: .shieldWall,
+                generalSkillCooldownRemaining: 3,
+                hasActed: true
             )
         )
+        guard let enemyCommanderThreat = viewModel.primaryEnemyCommanderThreatSummary,
+              enemyCommanderThreat.id == "carthage-commander",
+              !viewModel.enemyCommanderThreatSummaries.isEmpty,
+              viewModel.enemyCommanderThreatSummaries.contains(where: { $0.id == "carthage-commander" }),
+              viewModel.enemyCommanderThreatSummaries.contains(where: { $0.id != "carthage-commander" }) else {
+            throw PreviewRenderError.missingActiveEnemyCommanderThreatReadout
+        }
         guard let activeThreatWithoutFocus = viewModel.activeEnemyCommanderThreatSummary,
               activeThreatWithoutFocus.id == enemyCommanderThreat.id,
               viewModel.activeEnemyCommanderThreatID == enemyCommanderThreat.id,
@@ -521,6 +531,13 @@ struct RenderBattlePreview {
             throw PreviewRenderError.missingEnemyCommanderThreatMapOverlay
         }
         viewModel.state.units.removeAll { $0.id == "carthage-commander-2" }
+        guard viewModel.state.units.count == 3,
+              !viewModel.state.units.contains(where: { $0.id == "carthage-commander-2" }),
+              viewModel.focusedEnemyCommanderThreatID == enemyCommanderThreat.id,
+              viewModel.primaryEnemyCommanderThreatSummary?.id == "carthage-commander",
+              viewModel.activeEnemyCommanderThreatSummary?.id == "carthage-commander" else {
+            throw PreviewRenderError.missingActiveEnemyCommanderThreatReadout
+        }
         guard let countermeasure = viewModel.primaryCountermeasureSummary,
               !viewModel.countermeasureSummaries.isEmpty,
               viewModel.countermeasureSummaries.contains(where: { summary in
