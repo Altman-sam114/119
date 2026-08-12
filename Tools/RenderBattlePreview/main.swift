@@ -810,14 +810,36 @@ struct RenderBattlePreview {
         }
         viewModel.focusCountermeasure(countermeasure.id)
         guard let postCountermeasureFocusReadout = viewModel.activeEnemyCommanderThreatFocusReadout,
+              let countermeasureContext = viewModel.activeCountermeasureCommandContextReadout,
+              let activeCountermeasureOverlay = viewModel.activeCountermeasureMapOverlay,
               viewModel.selectedUnitID == countermeasure.report.responseUnitID,
               viewModel.focusedPosition == countermeasureCommandPreview.responseUnit?.position,
               viewModel.focusedCountermeasureID == countermeasure.id,
+              viewModel.selectedMapReconPerspective == .countermeasure,
               viewModel.focusedEnemyCommanderThreatID == nil,
               postCountermeasureFocusReadout.isFocused == false,
               postCountermeasureFocusReadout.isPrimaryFallback == false,
               postCountermeasureFocusReadout.threatID == enemyCommanderThreat.id,
               viewModel.selectedCountermeasureCommandPreview?.id == countermeasure.id,
+              countermeasureContext.sourceID == countermeasure.id,
+              countermeasureContext.reportID == countermeasure.report.id,
+              countermeasureContext.previewID == countermeasureCommandPreview.id,
+              countermeasureContext.overlayID == activeCountermeasureOverlay.id,
+              countermeasureContext.references(preview: countermeasureCommandPreview),
+              countermeasureContext.references(overlay: activeCountermeasureOverlay),
+              countermeasureContext.isFocused,
+              countermeasureContext.isPrimaryFallback == false,
+              countermeasureContext.responseUnitID == countermeasure.report.responseUnitID,
+              countermeasureContext.destination == countermeasure.destination,
+              countermeasureContext.targetPosition == countermeasure.targetPosition,
+              countermeasureContext.recommendedOrder == countermeasure.report.recommendedOrder,
+              !countermeasureContext.impactLabel.isEmpty,
+              !countermeasureContext.riskLabel.isEmpty,
+              !countermeasureContext.steps.isEmpty,
+              !countermeasureContext.commandAvailabilityLabel.isEmpty,
+              countermeasureContext.isReadOnlyPreview,
+              countermeasureContext.isSingleStepConfirmation,
+              countermeasureContext.accessibilityLabel.contains("确认姿态、前往落点、锁定目标"),
               viewModel.selectedTacticalOrderPreviews.contains(where: { preview in
                   preview.order == countermeasure.report.recommendedOrder
               }),
@@ -826,11 +848,41 @@ struct RenderBattlePreview {
         }
         if countermeasureCommandPreview.canAttackCurrentTarget {
             guard let targetUnit = countermeasureCommandPreview.targetUnit,
-                  let targetOverlay = viewModel.countermeasureOverlaysByPosition[countermeasureCommandPreview.targetPosition],
+                  let targetOverlay = viewModel.activeCountermeasureOverlaysByPosition[countermeasureCommandPreview.targetPosition],
                   countermeasureCommandPreview.isMapOverlayTarget(targetOverlay),
                   viewModel.attackTargets.contains(where: { countermeasureCommandPreview.isAttackTarget($0) && $0.id == targetUnit.id }) else {
                 throw PreviewRenderError.missingCountermeasureCommandPreview
             }
+        }
+        let focusedCountermeasureOutputPath = outputPathWithSuffix(outputPath, suffix: "focused-countermeasure")
+        let focusedCountermeasureBitmap = try renderBattleView(
+            viewModel: viewModel,
+            outputPath: focusedCountermeasureOutputPath,
+            width: width,
+            height: height
+        )
+        guard hasVisibleFocusedCountermeasurePreview(
+            in: focusedCountermeasureBitmap,
+            logicalWidth: width,
+            logicalHeight: height,
+            context: countermeasureContext
+        ) else {
+            throw PreviewRenderError.missingCountermeasureCommandRender
+        }
+
+        let invalidCountermeasureFocusID = "v0.67-missing-countermeasure"
+        viewModel.focusCountermeasure(invalidCountermeasureFocusID)
+        guard let fallbackCountermeasureContext = viewModel.activeCountermeasureCommandContextReadout,
+              fallbackCountermeasureContext.sourceID == countermeasure.id,
+              fallbackCountermeasureContext.focusedCountermeasureID == invalidCountermeasureFocusID,
+              fallbackCountermeasureContext.isFocused == false,
+              fallbackCountermeasureContext.isPrimaryFallback,
+              !fallbackCountermeasureContext.accessibilityLabel.contains(invalidCountermeasureFocusID) else {
+            throw PreviewRenderError.missingCountermeasureCommandSource
+        }
+        viewModel.focusCountermeasure(countermeasure.id)
+        guard viewModel.activeCountermeasureCommandContextReadout?.sourceID == countermeasure.id else {
+            throw PreviewRenderError.missingCountermeasureCommandCleanup
         }
         guard let mapControl = viewModel.primaryMapControlSummary,
               !viewModel.mapControlSummaries.isEmpty,
@@ -2394,6 +2446,7 @@ struct RenderBattlePreview {
         print(unitOutputPath)
         print(focusedOutputPath)
         print(focusedEnemyDrawerOutputPath)
+        print(focusedCountermeasureOutputPath)
     }
 
     private static func renderBattleView(
@@ -2578,6 +2631,25 @@ struct RenderBattlePreview {
             commandSignature.bright > 20 &&
             commandSignature.warm > 2 &&
             commandSignature.contrast > 10
+    }
+
+    private static func hasVisibleFocusedCountermeasurePreview(
+        in bitmap: NSBitmapImageRep,
+        logicalWidth: Double,
+        logicalHeight: Double,
+        context: CountermeasureCommandContextReadout
+    ) -> Bool {
+        let dock = commandDockSignature(in: bitmap, logicalWidth: logicalWidth, logicalHeight: logicalHeight)
+        emitPreviewDiagnostic("Focused countermeasure pixels: dock=\(dock), source=\(context.sourceID)")
+        return context.isFocused &&
+            context.selectedPerspective == .countermeasure &&
+            !context.responseUnitLabel.isEmpty &&
+            !context.destinationLabel.isEmpty &&
+            !context.targetLabel.isEmpty &&
+            !context.nextStepLabel.isEmpty &&
+            context.accessibilityLabel.contains("不会自动执行后续步骤") &&
+            dock.bright > 20 &&
+            (dock.red > 2 || dock.cyan > 2 || dock.orange > 2)
     }
 
     private static func hasVisibleFocusedEnemyCommanderThreatCard(
@@ -2938,6 +3010,11 @@ enum PreviewRenderError: Error {
     case missingCountermeasureSummary
     case missingCountermeasureOverlay
     case missingCountermeasureCommandPreview
+    case missingCountermeasureCommandContext
+    case missingCountermeasureCommandSource
+    case missingCountermeasureCommandConfirmation
+    case missingCountermeasureCommandCleanup
+    case missingCountermeasureCommandRender
     case missingMapControlSummary
     case missingCommanderBrief
     case missingLegionFormationSummary

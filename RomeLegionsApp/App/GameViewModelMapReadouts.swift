@@ -849,6 +849,141 @@ struct CountermeasureCommandPreview: Identifiable {
     }
 }
 
+struct CountermeasureCommandContextReadout: Identifiable {
+    var countermeasureID: String
+    var reportID: String
+    var previewID: String
+    var overlayID: String
+    var sourceID: String
+    var focusedCountermeasureID: String?
+    var isFocused: Bool
+    var isPrimaryFallback: Bool
+    var selectedPerspective: MapReconPerspectiveKind
+    var responseUnitID: String
+    var responseUnitLabel: String
+    var responseKindLabel: String
+    var responseCommanderLabel: String
+    var responseIdentityLabel: String
+    var responsePosition: Position
+    var recommendedOrder: TacticalOrder
+    var destination: Position
+    var targetUnitID: String?
+    var targetCityID: String?
+    var targetPosition: Position
+    var targetLabel: String
+    var kind: CountermeasureKind
+    var priority: CountermeasurePriority
+    var kindLabel: String
+    var priorityLabel: String
+    var threatLabel: String
+    var commandLabel: String
+    var impactLabel: String
+    var riskLabel: String
+    var commandChainLabel: String
+    var nextStepLabel: String
+    var steps: [CountermeasureCommandStep]
+    var blockingReasons: [String]
+    var routeSegments: [CountermeasureRouteSegment]
+    var canFocus: Bool
+    var canConfirmOrder: Bool
+    var canConfirmMovement: Bool
+    var canLockTarget: Bool
+
+    var id: String { "\(sourceID)-command-context" }
+    var isReadOnlyPreview: Bool { true }
+    var isSingleStepConfirmation: Bool { true }
+    var hasExecutableCommand: Bool {
+        canConfirmOrder || canConfirmMovement || canLockTarget
+    }
+
+    var focusStateLabel: String {
+        if isFocused { return "当前定位回应" }
+        if isPrimaryFallback { return "焦点失效 · 回退首要反制" }
+        return "全局首要反制"
+    }
+
+    var sourceLabel: String { "反制源 \(sourceID)" }
+    var responsePositionLabel: String { "当前位置 \(responsePosition.description)" }
+    var destinationLabel: String { "落点 \(destination.description)" }
+    var targetPositionLabel: String { "目标格 \(targetPosition.description)" }
+    var orderLabel: String { "建议姿态 \(recommendedOrder.displayName)" }
+    var responseDetailLabel: String {
+        "\(responseKindLabel) · \(responseCommanderLabel) · \(responsePositionLabel)"
+    }
+
+    var orderBlockingReason: String? {
+        canConfirmOrder ? nil : "姿态已就绪或当前不可切换"
+    }
+
+    var movementBlockingReason: String? {
+        canConfirmMovement ? nil : "已在落点或落点当前不可达"
+    }
+
+    var targetBlockingReason: String? {
+        canLockTarget ? nil : "目标尚未进入现有攻击窗口"
+    }
+
+    var orderConfirmationLabel: String { "确认\(recommendedOrder.displayName)姿态" }
+    var movementConfirmationLabel: String { "前往\(destination.description)" }
+    var targetConfirmationLabel: String { "锁定\(targetLabel)" }
+
+    var commandAvailabilityLabel: String {
+        let available = [
+            canConfirmOrder ? "确认姿态" : nil,
+            canConfirmMovement ? "前往落点" : nil,
+            canLockTarget ? "锁定目标" : nil
+        ].compactMap { $0 }
+        return available.isEmpty ? (blockingReasons.first ?? "当前没有可确认步骤") : available.joined(separator: " · ")
+    }
+
+    var compactLabel: String {
+        "\(focusStateLabel) · \(responseUnitLabel) · \(nextStepLabel)"
+    }
+
+    var detailLabel: String {
+        "\(sourceLabel) · \(orderLabel) · \(destinationLabel) · 目标\(targetLabel) \(targetPosition.description) · \(impactLabel) · 风险\(riskLabel)"
+    }
+
+    var mapFocusLabel: String {
+        "\(sourceLabel) · 回应\(responsePosition.description) → 落点\(destination.description) → 目标\(targetPosition.description)"
+    }
+
+    var routeStageLabel: String {
+        steps.map { "\($0.title)：\($0.detail)" }.joined(separator: " · ")
+    }
+
+    var accessibilityLabel: String {
+        [
+            "反制身份\(sourceID)",
+            focusStateLabel,
+            "回应\(responseIdentityLabel)",
+            orderLabel,
+            destinationLabel,
+            "目标\(targetLabel)，\(targetPositionLabel)",
+            commandChainLabel,
+            nextStepLabel,
+            impactLabel,
+            "风险\(riskLabel)",
+            commandAvailabilityLabel,
+            "确认姿态、前往落点、锁定目标是分开的现有入口，不会自动执行后续步骤"
+        ].joined(separator: "，")
+    }
+
+    func references(preview: CountermeasureCommandPreview) -> Bool {
+        previewID == preview.id &&
+            reportID == preview.summary.report.id &&
+            sourceID == preview.summary.id
+    }
+
+    func references(overlay: CountermeasureMapOverlay) -> Bool {
+        overlayID == overlay.id &&
+            sourceID == overlay.summary.id &&
+            responsePosition == overlay.responsePosition &&
+            destination == overlay.destination &&
+            targetPosition == overlay.targetPosition
+    }
+}
+
 struct BattleObjectiveStageCommandStep: Identifiable {
     var id: String
     var symbol: String

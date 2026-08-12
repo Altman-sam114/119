@@ -201,7 +201,11 @@ struct CompactActionsPanelView: View {
 
                 if let unit = viewModel.selectedUnit, unit.faction == .rome {
                     if let preview = viewModel.selectedCountermeasureCommandPreview {
-                        CountermeasureCommandPreviewView(preview: preview, isCompact: true)
+                        CountermeasureCommandPreviewView(
+                            preview: preview,
+                            context: viewModel.activeCountermeasureCommandContextReadout,
+                            isCompact: true
+                        )
                     }
 
                     if let preview = viewModel.selectedBattleObjectiveStageCommandPreview {
@@ -2915,12 +2919,14 @@ struct EnemyIntentPanelView: View {
                     EnemyCommanderThreatCardView(readout: commanderThreatFocusReadout)
                 }
 
-                if let countermeasure = viewModel.primaryCountermeasureSummary {
+                if let context = viewModel.activeCountermeasureCommandContextReadout,
+                   let preview = viewModel.activeCountermeasureCommandPreview {
                     CountermeasureCardView(
-                        summary: countermeasure,
-                        preview: viewModel.primaryCountermeasureCommandPreview,
+                        summary: preview.summary,
+                        preview: preview,
+                        context: context,
                         focusAction: {
-                            viewModel.focusCountermeasure(countermeasure.id)
+                            viewModel.focusCountermeasure(context.sourceID)
                         }
                     )
                 }
@@ -3028,8 +3034,10 @@ struct EnemyCommanderThreatCardView: View {
 }
 
 struct CountermeasureCardView: View {
+    @EnvironmentObject private var viewModel: GameViewModel
     var summary: CountermeasureSummary
     var preview: CountermeasureCommandPreview?
+    var context: CountermeasureCommandContextReadout?
     var focusAction: (() -> Void)?
 
     var body: some View {
@@ -3087,17 +3095,30 @@ struct CountermeasureCardView: View {
                 .minimumScaleFactor(0.70)
 
             if let preview {
-                CountermeasureCommandPreviewView(preview: preview, isCompact: true)
+                CountermeasureCommandPreviewView(
+                    preview: preview,
+                    context: context?.sourceID == preview.id ? context : nil,
+                    isCompact: true
+                )
             }
 
             if let preview,
                let focusAction {
-                Button("定位回应", systemImage: "scope") {
+                let isFocused = context?.sourceID == preview.id && context?.isFocused == true
+                Button(isFocused ? "已定位回应" : "定位回应", systemImage: isFocused ? "checkmark.circle.fill" : "scope") {
                     focusAction()
                 }
+                .frame(maxWidth: .infinity, minHeight: 44)
                 .buttonStyle(SecondaryButtonStyle())
                 .disabled(!preview.canFocus)
-                .accessibilityLabel("\(preview.buttonTitle)，\(preview.accessibilityLabel)")
+                .accessibilityLabel(isFocused ? "已定位反制身份\(preview.id)" : "\(preview.buttonTitle)，\(preview.accessibilityLabel)")
+                .accessibilityHint("只定位回应军团并切换反制视角，不会自动执行姿态、移动或攻击")
+            }
+
+            if let context,
+               context.sourceID == summary.id,
+               context.isFocused {
+                CountermeasureContextConfirmationButtonsView(context: context)
             }
         }
         .padding(8)
@@ -3230,6 +3251,7 @@ struct AttackTargetSelectionMenuView: View {
 
 struct CountermeasureCommandPreviewView: View {
     var preview: CountermeasureCommandPreview
+    var context: CountermeasureCommandContextReadout? = nil
     var isCompact: Bool = false
 
     var body: some View {
@@ -3266,6 +3288,15 @@ struct CountermeasureCommandPreviewView: View {
                 .foregroundStyle(.white.opacity(0.62))
                 .lineLimit(isCompact ? 2 : 1)
                 .minimumScaleFactor(0.68)
+
+            if let context,
+               context.sourceID == preview.id {
+                Text("\(context.sourceLabel) · \(context.focusStateLabel) · \(context.commandAvailabilityLabel)")
+                    .font(.caption2.monospacedDigit().weight(.bold))
+                    .foregroundStyle(preview.summary.priority.tintColor)
+                    .lineLimit(2)
+                    .minimumScaleFactor(0.62)
+            }
 
             HStack(spacing: 6) {
                 Label(preview.destinationLabel, systemImage: "arrow.up.right.circle.fill")
@@ -3311,6 +3342,59 @@ struct CountermeasureCommandPreviewView: View {
         .background(.black.opacity(0.18))
         .clipShape(RoundedRectangle(cornerRadius: 7))
         .accessibilityLabel(preview.accessibilityLabel)
+    }
+}
+
+struct CountermeasureContextConfirmationButtonsView: View {
+    @EnvironmentObject private var viewModel: GameViewModel
+    var context: CountermeasureCommandContextReadout
+
+    var body: some View {
+        HStack(spacing: 6) {
+            confirmationButton(
+                title: "确认姿态",
+                symbol: context.recommendedOrder.systemImage,
+                isDisabled: !context.canConfirmOrder,
+                accessibilityLabel: context.orderConfirmationLabel,
+                hint: "只确认推荐姿态，不会移动或攻击",
+                action: viewModel.confirmCountermeasureOrder
+            )
+            confirmationButton(
+                title: "前往落点",
+                symbol: "arrow.up.right.circle.fill",
+                isDisabled: !context.canConfirmMovement,
+                accessibilityLabel: context.movementConfirmationLabel,
+                hint: "只移动到推荐落点，不会切换姿态或攻击",
+                action: viewModel.confirmCountermeasureMovement
+            )
+            confirmationButton(
+                title: "锁定目标",
+                symbol: "scope",
+                isDisabled: !context.canLockTarget,
+                accessibilityLabel: context.targetConfirmationLabel,
+                hint: "只进入现有攻击预演，不会结算攻击",
+                action: viewModel.lockCountermeasureTarget
+            )
+        }
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel(context.accessibilityLabel)
+    }
+
+    private func confirmationButton(
+        title: String,
+        symbol: String,
+        isDisabled: Bool,
+        accessibilityLabel: String,
+        hint: String,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(title, systemImage: symbol, action: action)
+            .font(.caption2.weight(.bold))
+            .frame(maxWidth: .infinity, minHeight: 44)
+            .buttonStyle(SecondaryButtonStyle())
+            .disabled(isDisabled)
+            .accessibilityLabel("\(accessibilityLabel)，反制身份\(context.sourceID)")
+            .accessibilityHint(hint)
     }
 }
 
@@ -4538,7 +4622,10 @@ struct ActionsPanelView: View {
 
                 if let unit = viewModel.selectedUnit, unit.faction == .rome {
                     if let preview = viewModel.selectedCountermeasureCommandPreview {
-                        CountermeasureCommandPreviewView(preview: preview)
+                        CountermeasureCommandPreviewView(
+                            preview: preview,
+                            context: viewModel.activeCountermeasureCommandContextReadout
+                        )
                     }
 
                     if let preview = viewModel.selectedBattleObjectiveStageCommandPreview {

@@ -30,8 +30,9 @@ struct WarMapView: View {
             let battleObjectiveOverlay = viewModel.primaryBattleObjectiveMapOverlay
             let battleObjectiveOverlays = viewModel.battleObjectiveOverlaysByPosition
             let activeBattleObjectiveStageRole = viewModel.activeBattleObjectiveStageRole
-            let countermeasureOverlay = viewModel.primaryCountermeasureMapOverlay
-            let countermeasureOverlays = viewModel.countermeasureOverlaysByPosition
+            let countermeasureOverlay = viewModel.activeCountermeasureMapOverlay
+            let countermeasureOverlays = viewModel.activeCountermeasureOverlaysByPosition
+            let countermeasureContext = viewModel.activeCountermeasureCommandContextReadout
             let reconHUD = viewModel.mapReconPerspectiveHUDReadout
             let engagementLoop = viewModel.primaryEnemyEngagementLoopReadout
             let selectedPosition = viewModel.focusedPosition
@@ -259,6 +260,24 @@ struct WarMapView: View {
                 }
 
                 if viewModel.selectedCombatForecast == nil,
+                   let countermeasureContext,
+                   countermeasureContext.isFocused {
+                    VStack {
+                        HStack {
+                            CountermeasureCommandContextMapReadoutView(context: countermeasureContext)
+                                .frame(maxWidth: proxy.size.width - 20, alignment: .leading)
+                            Spacer(minLength: 0)
+                        }
+                        .padding(.horizontal, 10)
+                        .padding(.top, 56)
+                        Spacer()
+                    }
+                    .allowsHitTesting(false)
+                    .zIndex(5.16)
+                }
+
+                if viewModel.selectedCombatForecast == nil,
+                   countermeasureContext?.isFocused != true,
                    viewModel.focusedEnemyCommanderThreatID != nil,
                    let enemyCommanderThreatFocusReadout {
                     VStack {
@@ -330,6 +349,50 @@ struct WarMapView: View {
                 viewportCenter: workingCenter
             )
         }
+    }
+}
+
+struct CountermeasureCommandContextMapReadoutView: View {
+    var context: CountermeasureCommandContextReadout
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Image(systemName: context.kind.systemImage)
+                .font(.caption.weight(.black))
+                .foregroundStyle(context.priority.tintColor)
+                .frame(width: 24, height: 24)
+                .background(context.priority.tintColor.opacity(0.14))
+                .clipShape(.rect(cornerRadius: 5))
+
+            VStack(alignment: .leading, spacing: 1) {
+                Text("\(context.focusStateLabel) · \(context.sourceLabel) · \(context.responseUnitLabel)")
+                    .font(.caption2.weight(.bold))
+                    .foregroundStyle(.white)
+                    .lineLimit(2)
+                    .minimumScaleFactor(0.60)
+                Text(context.mapFocusLabel)
+                    .font(.caption2.monospacedDigit().weight(.semibold))
+                    .foregroundStyle(.white.opacity(0.66))
+                    .lineLimit(2)
+                    .minimumScaleFactor(0.58)
+                Text("\(context.nextStepLabel) · \(context.commandAvailabilityLabel)")
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(context.priority.tintColor)
+                    .lineLimit(2)
+                    .minimumScaleFactor(0.58)
+            }
+            .layoutPriority(1)
+        }
+        .padding(.horizontal, 8)
+        .padding(.vertical, 5)
+        .background(.black.opacity(0.72))
+        .clipShape(.rect(cornerRadius: 7))
+        .overlay {
+            RoundedRectangle(cornerRadius: 7)
+                .stroke(context.priority.tintColor.opacity(0.54), lineWidth: 1)
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(context.accessibilityLabel)
     }
 }
 

@@ -312,6 +312,15 @@ final class GameViewModel: ObservableObject {
         primaryCountermeasureSummary.map(countermeasureCommandPreview(for:))
     }
 
+    var focusedCountermeasureCommandPreview: CountermeasureCommandPreview? {
+        guard let focusedCountermeasureID else { return nil }
+        return countermeasureCommandPreviews.first { $0.id == focusedCountermeasureID }
+    }
+
+    var activeCountermeasureCommandPreview: CountermeasureCommandPreview? {
+        focusedCountermeasureCommandPreview ?? primaryCountermeasureCommandPreview
+    }
+
     var selectedCountermeasureCommandPreview: CountermeasureCommandPreview? {
         guard let selectedUnitID else { return nil }
         let previews = countermeasureCommandPreviews
@@ -328,6 +337,85 @@ final class GameViewModel: ObservableObject {
 
     var primaryCountermeasureMapOverlay: CountermeasureMapOverlay? {
         primaryCountermeasureSummary.map { CountermeasureMapOverlay(summary: $0) }
+    }
+
+    var activeCountermeasureMapOverlay: CountermeasureMapOverlay? {
+        activeCountermeasureCommandPreview.map { CountermeasureMapOverlay(summary: $0.summary) }
+    }
+
+    var activeCountermeasureCommandContextReadout: CountermeasureCommandContextReadout? {
+        guard let preview = activeCountermeasureCommandPreview,
+              let responseUnit = preview.responseUnit else { return nil }
+        let overlay = CountermeasureMapOverlay(summary: preview.summary)
+        let isFocused = focusedCountermeasureID == preview.id
+        let isPrimaryFallback = focusedCountermeasureID != nil && !isFocused
+        let hasCurrentResponseSelection = selectedUnitID == responseUnit.id &&
+            responseUnit.faction == .rome &&
+            responseUnit.faction == state.activeFaction &&
+            !isCampaignOver &&
+            isFocused
+        let canConfirmMovement = hasCurrentResponseSelection &&
+            preview.canMoveToDestination &&
+            responseUnit.position != preview.destination
+        let canLockTarget = hasCurrentResponseSelection &&
+            preview.canAttackCurrentTarget &&
+            preview.targetUnit != nil
+
+        return CountermeasureCommandContextReadout(
+            countermeasureID: preview.summary.id,
+            reportID: preview.summary.report.id,
+            previewID: preview.id,
+            overlayID: overlay.id,
+            sourceID: preview.summary.id,
+            focusedCountermeasureID: focusedCountermeasureID,
+            isFocused: isFocused,
+            isPrimaryFallback: isPrimaryFallback,
+            selectedPerspective: selectedMapReconPerspective,
+            responseUnitID: responseUnit.id,
+            responseUnitLabel: preview.summary.unitLabel,
+            responseKindLabel: responseUnit.kind.displayName,
+            responseCommanderLabel: responseUnit.generalName ?? "无将领",
+            responseIdentityLabel: "\(responseUnit.faction.displayName)\(responseUnit.kind.displayName) \(responseUnit.generalName ?? "无将领") \(responseUnit.position.description)",
+            responsePosition: responseUnit.position,
+            recommendedOrder: preview.recommendedOrder,
+            destination: preview.destination,
+            targetUnitID: preview.targetUnit?.id,
+            targetCityID: preview.targetCity?.id,
+            targetPosition: preview.targetPosition,
+            targetLabel: preview.targetLabel,
+            kind: preview.summary.kind,
+            priority: preview.summary.priority,
+            kindLabel: preview.summary.kindLabel,
+            priorityLabel: preview.summary.priorityLabel,
+            threatLabel: preview.summary.threatLabel,
+            commandLabel: preview.summary.commandLabel,
+            impactLabel: preview.summary.impactLabel,
+            riskLabel: preview.summary.riskLabel,
+            commandChainLabel: preview.commandChainLabel,
+            nextStepLabel: preview.nextStepLabel,
+            steps: preview.steps,
+            blockingReasons: preview.blockingReasons,
+            routeSegments: overlay.routeSegments,
+            canFocus: preview.canFocus,
+            canConfirmOrder: hasCurrentResponseSelection && preview.canSetOrder,
+            canConfirmMovement: canConfirmMovement,
+            canLockTarget: canLockTarget
+        )
+    }
+
+    var activeCountermeasureRouteSegments: [CountermeasureRouteSegment] {
+        activeCountermeasureMapOverlay?.routeSegments ?? []
+    }
+
+    var activeCountermeasureOverlaysByPosition: [Position: CountermeasurePositionOverlay] {
+        guard let overlay = activeCountermeasureMapOverlay else { return [:] }
+        return overlay.positionOverlays.reduce(into: [Position: CountermeasurePositionOverlay]()) { result, positionOverlay in
+            result[positionOverlay.position] = positionOverlay
+        }
+    }
+
+    var activeCountermeasureOverlayPositions: Set<Position> {
+        Set(activeCountermeasureOverlaysByPosition.keys)
     }
 
     var countermeasureRouteSegments: [CountermeasureRouteSegment] {
@@ -3508,6 +3596,7 @@ final class GameViewModel: ObservableObject {
     }
 
     func selectTile(_ position: Position) {
+        focusedCountermeasureID = nil
         focusedBattleObjectiveRole = nil
         focusedEnemyCommanderThreatID = nil
 
@@ -3574,6 +3663,14 @@ final class GameViewModel: ObservableObject {
         guard let preview = countermeasureCommandPreviews.first(where: { $0.id == id }),
               let responseUnit = preview.responseUnit,
               preview.canFocus else {
+            focusedCountermeasureID = id
+            selectedAttackTargetID = nil
+            focusedBattleObjectiveRole = nil
+            focusedEnemyCommanderThreatID = nil
+            selectedUnitID = nil
+            selectedCityID = nil
+            selectedPosition = nil
+            selectedMapReconPerspective = .countermeasure
             bannerMessage = "反制回应单位暂不可定位。"
             return
         }
@@ -3585,7 +3682,45 @@ final class GameViewModel: ObservableObject {
         selectedPosition = responseUnit.position
         focusedCountermeasureID = preview.id
         focusedBattleObjectiveRole = nil
+        selectedMapReconPerspective = .countermeasure
         bannerMessage = "\(preview.summary.unitLabel)反制：\(preview.nextStepLabel)。\(preview.destinationLabel)，目标\(preview.targetLabel)。"
+    }
+
+    func confirmCountermeasureOrder() {
+        guard let context = activeCountermeasureCommandContextReadout,
+              context.isFocused,
+              context.canConfirmOrder,
+              selectedUnitID == context.responseUnitID else {
+            bannerMessage = activeCountermeasureCommandContextReadout?.orderBlockingReason ?? "反制姿态暂不可确认。"
+            return
+        }
+
+        setSelectedTacticalOrder(context.recommendedOrder)
+    }
+
+    func confirmCountermeasureMovement() {
+        guard let context = activeCountermeasureCommandContextReadout,
+              context.isFocused,
+              context.canConfirmMovement,
+              selectedUnitID == context.responseUnitID else {
+            bannerMessage = activeCountermeasureCommandContextReadout?.movementBlockingReason ?? "反制落点暂不可确认。"
+            return
+        }
+
+        selectTile(context.destination)
+    }
+
+    func lockCountermeasureTarget() {
+        guard let context = activeCountermeasureCommandContextReadout,
+              context.isFocused,
+              context.canLockTarget,
+              selectedUnitID == context.responseUnitID,
+              let targetUnitID = context.targetUnitID else {
+            bannerMessage = activeCountermeasureCommandContextReadout?.targetBlockingReason ?? "反制目标暂不可锁定。"
+            return
+        }
+
+        focusAttackTarget(targetUnitID)
     }
 
     func focusPrimaryBattleObjectiveStage(_ role: BattleObjectiveMapRole) {
@@ -3852,6 +3987,8 @@ final class GameViewModel: ObservableObject {
         selectedCityID = nil
         selectedPosition = nil
         selectedAttackTargetID = nil
+        focusedCountermeasureID = nil
+        focusedBattleObjectiveRole = nil
         focusedEnemyCommanderThreatID = nil
         if state.campaignStatus.isGameOver {
             bannerMessage = messages.last ?? "\(campaignStatusTitle)：\(campaignStatusDetail)"
@@ -3862,6 +3999,8 @@ final class GameViewModel: ObservableObject {
 
     private func apply(_ operation: () throws -> [String]) {
         selectedAttackTargetID = nil
+        focusedCountermeasureID = nil
+        focusedBattleObjectiveRole = nil
         focusedEnemyCommanderThreatID = nil
         do {
             let messages = try operation()

@@ -442,6 +442,13 @@ env HOME=$PWD/.home DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer xco
 
 ## 规则
 
+### v0.67 反制决策确认云端门禁
+
+- RenderBattlePreview 必须核对 `CountermeasureCommandContextReadout` 与 active preview/overlay 的 source/report/preview/overlay id、回应军团、推荐姿态、落点、目标、步骤、收益风险和 accessibility 同源。
+- 有效/重复 focus 切到 `.countermeasure` 且不改核心状态；无效 focused id 只允许明确 primary fallback，不得残留旧 secondary 文案或坐标。
+- “确认姿态”“前往落点”“锁定目标”必须是三个独立入口；锁敌只进入既有攻击预演，不得自动攻击、施法或串联下一步。选择切换、互斥焦点、动作、回合和重开后不得保留 stale context。
+- artifact 保留 v0.66 旧 12 图并新增横屏、竖屏、宽屏 `*-focused-countermeasure.png`，总计 15 图；Agent C 只验收最新 `origin/main` SHA 对应的 v0.67 manifest、日志、JUnit、失败摘要和全部 PNG。
+
 - 每次实现前先读本文件。
 - 当前默认不得运行本地验证命令，直接通过 `main` push 触发云端重验证。
 - 测试命令必须原样记录到最终回复或 Agent B 输出。

@@ -313,7 +313,10 @@ struct SelectionCommandDockView: View {
 
     @ViewBuilder
     private var selectionIdentity: some View {
-        if let focusReadout = viewModel.activeEnemyCommanderThreatFocusReadout,
+        if let context = viewModel.activeCountermeasureCommandContextReadout,
+           context.isFocused {
+            CountermeasureCommandContextIdentityView(context: context)
+        } else if let focusReadout = viewModel.activeEnemyCommanderThreatFocusReadout,
            viewModel.focusedEnemyCommanderThreatID != nil {
             EnemyCommanderThreatFocusIdentityView(readout: focusReadout)
         } else if let unit = viewModel.selectedUnit {
@@ -436,7 +439,10 @@ struct SelectionDockCommandButtonsView: View {
 
     var body: some View {
         Group {
-            if let focusReadout = viewModel.activeEnemyCommanderThreatFocusReadout,
+            if let context = viewModel.activeCountermeasureCommandContextReadout,
+               context.isFocused {
+                CountermeasureCommandContextButtonsView(context: context)
+            } else if let focusReadout = viewModel.activeEnemyCommanderThreatFocusReadout,
                viewModel.focusedEnemyCommanderThreatID != nil {
                 EnemyCommanderThreatFocusCommandStatusView(readout: focusReadout)
             } else if let unit = viewModel.selectedUnit, unit.faction == .rome {
@@ -459,6 +465,94 @@ struct SelectionDockCommandButtonsView: View {
             }
         }
         .frame(minHeight: 52)
+    }
+}
+
+struct CountermeasureCommandContextIdentityView: View {
+    var context: CountermeasureCommandContextReadout
+
+    var body: some View {
+        HStack(spacing: 7) {
+            ZStack {
+                RoundedRectangle(cornerRadius: 6)
+                    .fill(context.priority.tintColor.opacity(0.30))
+                    .frame(width: 40, height: 40)
+                Image(systemName: context.kind.systemImage)
+                    .font(.caption.weight(.black))
+                    .foregroundStyle(context.priority.tintColor)
+            }
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text("反制 · \(context.responseUnitLabel)")
+                    .font(.caption.weight(.black))
+                    .lineLimit(2)
+                    .minimumScaleFactor(0.56)
+                Text("\(context.orderLabel) · \(context.destinationLabel)")
+                    .font(.caption2.weight(.bold))
+                    .foregroundStyle(.white.opacity(0.76))
+                    .lineLimit(2)
+                    .minimumScaleFactor(0.50)
+                Text("目标\(context.targetLabel) · 风险\(context.riskLabel)")
+                    .font(.caption2)
+                    .foregroundStyle(.white.opacity(0.60))
+                    .lineLimit(2)
+                    .minimumScaleFactor(0.48)
+            }
+            .fixedSize(horizontal: false, vertical: true)
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(context.accessibilityLabel)
+    }
+}
+
+struct CountermeasureCommandContextButtonsView: View {
+    @EnvironmentObject private var viewModel: GameViewModel
+    var context: CountermeasureCommandContextReadout
+
+    var body: some View {
+        HStack(spacing: 6) {
+            DockCommandButton(
+                title: "姿态",
+                symbol: context.recommendedOrder.systemImage,
+                tint: .yellow,
+                isDisabled: !context.canConfirmOrder,
+                accessibilityLabel: "\(context.orderConfirmationLabel)，反制身份\(context.sourceID)",
+                accessibilityHint: "只确认推荐姿态，不会移动或攻击",
+                action: viewModel.confirmCountermeasureOrder
+            )
+            DockCommandButton(
+                title: "落点",
+                symbol: "arrow.up.right.circle.fill",
+                tint: .cyan,
+                isDisabled: !context.canConfirmMovement,
+                accessibilityLabel: "\(context.movementConfirmationLabel)，反制身份\(context.sourceID)",
+                accessibilityHint: "只移动到推荐落点，不会切换姿态或攻击",
+                action: viewModel.confirmCountermeasureMovement
+            )
+            DockCommandButton(
+                title: "锁敌",
+                symbol: "scope",
+                tint: .red,
+                isDisabled: !context.canLockTarget,
+                accessibilityLabel: "\(context.targetConfirmationLabel)，反制身份\(context.sourceID)",
+                accessibilityHint: "只锁定目标并进入攻击预演，不会结算攻击",
+                action: viewModel.lockCountermeasureTarget
+            )
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(context.nextStepLabel)
+                    .font(.caption2.weight(.bold))
+                    .lineLimit(2)
+                Text("\(context.impactLabel) · 风险\(context.riskLabel)")
+                    .font(.caption2)
+                    .foregroundStyle(.white.opacity(0.58))
+                    .lineLimit(2)
+            }
+            .minimumScaleFactor(0.54)
+            .layoutPriority(1)
+        }
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel(context.accessibilityLabel)
     }
 }
 
@@ -753,6 +847,7 @@ struct DockCommandButton: View {
     var isSecondary = false
     var isDisabled = false
     var accessibilityLabel: String?
+    var accessibilityHint: String = ""
     var action: () -> Void
 
     var body: some View {
@@ -768,6 +863,7 @@ struct DockCommandButton: View {
         .disabled(isDisabled)
         .opacity(isDisabled ? 0.42 : 1)
         .accessibilityLabel(accessibilityLabel ?? title)
+        .accessibilityHint(accessibilityHint)
     }
 }
 

@@ -10,7 +10,7 @@ permissions:
   contents: read
 
 env:
-  CI_VERSION: v0.66
+  CI_VERSION: v0.67
   PROJECT_NAME: RomeLegions
   XCODE_PROJECT: RomeLegionsApp.xcodeproj
   XCODE_SCHEME: RomeLegions
@@ -189,14 +189,17 @@ jobs:
               "ci-results/render-previews/battle-landscape-preview-unit.png",
               "ci-results/render-previews/battle-landscape-preview-focused.png",
               "ci-results/render-previews/battle-landscape-preview-focused-enemy.png",
+              "ci-results/render-previews/battle-landscape-preview-focused-countermeasure.png",
               "ci-results/render-previews/battle-portrait-preview.png",
               "ci-results/render-previews/battle-portrait-preview-unit.png",
               "ci-results/render-previews/battle-portrait-preview-focused.png",
               "ci-results/render-previews/battle-portrait-preview-focused-enemy.png",
+              "ci-results/render-previews/battle-portrait-preview-focused-countermeasure.png",
               "ci-results/render-previews/battle-wide-preview.png",
               "ci-results/render-previews/battle-wide-preview-unit.png",
               "ci-results/render-previews/battle-wide-preview-focused.png",
-              "ci-results/render-previews/battle-wide-preview-focused-enemy.png"
+              "ci-results/render-previews/battle-wide-preview-focused-enemy.png",
+              "ci-results/render-previews/battle-wide-preview-focused-countermeasure.png"
             ]
           };
           fs.writeFileSync("ci-results/ci-artifact-manifest.json", JSON.stringify(manifest, null, 2) + "\n");

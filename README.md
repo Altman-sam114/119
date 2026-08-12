@@ -11,6 +11,7 @@
 - 回合制移动、攻击、反击、城市占领
 - 战斗目标锁定与攻击预演：地图徽标、目标菜单和抽屉列表先锁定目标，命令坞确认/歼灭按钮才结算；`SelectedCombatForecast` 复用核心 `CombatPreview` 展示伤害、反击、双方剩余生命、支援/包夹/指挥/守援修正和预计结果，多目标不再隐式取第一个
 - 战斗目标身份链与取消锁定：地图锁定 HUD、底部命令坞、紧凑/完整预演读板和 VoiceOver 共用 `SelectedCombatForecast` 的攻击者/防守者阵营、兵种、将领和坐标；“取消锁定”只清理 `GameViewModel` 选择态并恢复攻击者焦点，重复取消安全，不会结算攻击或修改核心状态
+- 反制决策确认闭环：`CountermeasureCommandContextReadout` 将当前反制的回应军团、推荐姿态、落点、目标、收益风险和步骤同源提供给地图、反制卡与底部命令坞；“确认姿态”“前往落点”“锁定目标”分别复用现有单步命令，锁敌只进入攻击预演，不会自动串联移动、攻击或技能
 - 战术姿态：均衡、突击、坚守、行军，影响移动、伤害和防御
 - 战斗修正：友军支援、包夹、将领指挥和守军支援会进入预览与结算
 - 城市收入、资源池、招募、科技、任务和简单 AI 回合
@@ -121,6 +122,8 @@ v0.63 起，云端预览还会断言紧凑/完整预演共用攻击者→防守�
 v0.64 起，云端预览还会断言 `EnemyCommanderThreatReport -> EnemyCommanderThreatSummary -> EnemyCommanderThreatMapOverlay` 的位置、范围、影响、目标和路线字段同源，地图图例与侦察 HUD 引用同一个 threat id；`focusEnemyCommanderThreat(_:)` 的有效、重复和无效调用只改变 ViewModel 聚焦/banner/镜头上下文，保持 `GameState`、存档编码、单位/城市/资源、回合、活动阵营和 AI 意图快照不变，并且不会暴露错误的本方攻击或技能执行入口。三尺寸六图继续复判敌将起点徽标、技能范围、影响/目标标记与既有敌路、反制、目标线、热区和固定 HUD 的层级。
 
 v0.66 起，云端预览在 v0.65 双敌将夹具上继续断言 `activeEnemyCommanderThreatFocusReadout` 的 summary/overlay 同源、focused/primary fallback 状态、无效焦点不残留 secondary，以及选择地块/反制聚焦后的清理；readout 的 `hasExecutableCommand` 固定为 `false`，地图、底部命令坞和敌情卡共享同一 threat 身份。预览还在隔离的双威胁副本上真实执行 `skipSelectedUnit()`，核对核心状态只发生预期的“跳过”变化并清除焦点；每个尺寸额外输出 `*-focused.png`（地图焦点读板/底部只读命令坞）和 `*-focused-enemy.png`（已定位敌情卡）供 Agent C 复判，默认城市/单位六图像素基线不变。`focused-enemy` 的 ImageRenderer 调用使用 `drawerUsesScrollView = false`，在现有 `BattleInterfaceMetrics` 计算的有限抽屉尺寸中复用同一敌情内容树，绕过无宿主生命周期的 ScrollView/嵌套 GeometryReader 首次测量；真实 App 默认保留可滚动抽屉。Agent B 仍只提交相关文件并由 GitHub Actions 运行最新 v0.66 结果包，Agent C 复判 manifest、日志、JUnit 和三尺寸十二图。
+
+v0.67 起，云端预览还断言 active 反制 preview、overlay 与 `CountermeasureCommandContextReadout` 的 source id、回应、落点和目标一致，无效 focused id 明确回退 primary 且不残留旧 source；每个尺寸新增 `*-focused-countermeasure.png`，与 v0.66 旧 12 图组成 15 图 artifact，复判地图同源读板、反制路线和三个独立命令入口。三个入口不会自动串联，完整测试、构建和渲染仍只在 GitHub Actions 执行。
 
 战斗页三尺寸预览图；渲染前会断言六类地貌 profile 唯一、多层纹理和三种尺寸战区尺度策略，并继续断言敌军意图 ViewModel 叠层包含移动后攻击六边形邻接路径、目标格和预计伤害文案，以及战役推进线 HUD、地图侦察视角 HUD、敌情交战闭环 HUD、主动地图叠层图例、AI 作战计划读板与时间线读板、敌方将领威胁读板、敌将技能威胁地图 overlay/焦点、敌情反制建议读板、反制落点/目标地图 overlay、反制指令聚焦与焦点链路、战线压力读板、战场焦点摘要、战场目标链路、战场态势交汇链路、选中军团处境命令入口读板、选中军团军令窗口读板、目标线地图 overlay、阶段聚焦、阶段命令预览与联动高亮 cue、将令技能入口链路、将领指挥链读板、将领战机威胁桥接读板、将领技能目标与收益读板、地图控制摘要、威胁热区摘要、选中单位的军团编制摘要、军团成长决策摘要、军团成长优先级摘要、本方将领协同摘要和步骤读板、机动落点摘要/地图 overlay、战术建议摘要/路径/目标、将领详情、被动贡献、战功摘要、战术姿态预览和城市经营/招募读板存在。渲染后还会采样地图横向三带与青绿/蓝/灰褐材质分布；每个命令会写出请求的城市场景 PNG、同尺寸 `*-unit.png` 单位场景 PNG、`*-focused.png` 地图/底部焦点场景和 `*-focused-enemy.png` 已定位敌情卡场景：
 

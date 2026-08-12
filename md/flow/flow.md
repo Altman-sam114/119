@@ -33,6 +33,13 @@
 - 云端 `RenderBattlePreview` 在双敌将 fixture 的 focused 状态额外输出 `*-focused.png` 和 `*-focused-enemy.png`：前者采样地图焦点读板与底部只读命令坞，后者采样“已定位”敌情卡；这些输出不参与默认城市/单位六图像素基线。另用同一 fixture 的独立 ViewModel 副本真实调用 `skipSelectedUnit()`，以 `GameState.skipUnit` 预期副本核对仅有跳过变化，并确认命令入口清除 focused threat 与 secondary readout。
 - `focused-enemy` 的 `ImageRenderer` 调用把 `BattleView.drawerUsesScrollView` 设为 `false`；`BattlefieldDrawerView` 在 `BattleInterfaceMetrics` 计算出的有限 `layoutSize` 中复用同一 header、`drawerContent` 和 `GameViewModel`，静态分支不经过 `ScrollView` 或嵌套 `GeometryReader`，只为无宿主截图布局提供确定的首帧内容。真实 App 默认值仍为 `true`，可滚动抽屉行为不变，固定 HUD/地图工具仍在外层坐标系。
 
+### 反制决策确认闭环（v0.67）
+
+- `countermeasureSummaries -> countermeasureCommandPreviews -> activeCountermeasureCommandPreview` 以有效 focused source 优先、否则 primary fallback；`activeCountermeasureMapOverlay` 与纯派生 `CountermeasureCommandContextReadout` 从同一 preview/summary 组装 source/report/preview/overlay id、回应军团、姿态、落点、目标、路线、收益风险、步骤、阻塞和 VoiceOver 文案，不缓存、不写核心或存档。
+- 地图 active overlay、`CountermeasureCommandContextMapReadoutView`、`CountermeasureCardView` 和 `SelectionCommandDockView` 只消费同一 context。全局 `primaryCountermeasureSummary`、交战闭环、将领桥接和军令窗口继续保留 primary 语义。
+- `focusCountermeasure(_:)` 选择回应军团并切到 `.countermeasure` 视角；无效 id 保留可审计 focused source，但 active context 明确回退 primary，不输出旧 secondary 字段。
+- `confirmCountermeasureOrder()` 只进入既有姿态路径，`confirmCountermeasureMovement()` 只进入既有合法地图移动路径，`lockCountermeasureTarget()` 只进入 `focusAttackTarget` 与攻击预演。三条入口互不串联；选择其他对象、互斥焦点、核心动作、回合结束和重开会清除旧反制 focus。
+
 ## 当前核心执行流
 
 ### 启动与模式选择

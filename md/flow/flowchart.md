@@ -1,5 +1,25 @@
 # 项目核心流程图
 
+v0.67 读图说明：同一个反制报告先形成 preview，再同时派生 active 地图 overlay 与唯一 context；地图、卡片和命令坞共享 source。三个确认入口分别流向既有姿态、移动和攻击锁定预演，禁止自动串联；全局交战与将领桥接仍走 primary。
+
+```mermaid
+flowchart LR
+    R[CountermeasureReport] --> S[CountermeasureSummary]
+    S --> P[CountermeasureCommandPreview]
+    P --> A[active focused / primary fallback]
+    A --> O[activeCountermeasureMapOverlay]
+    A --> C[CountermeasureCommandContextReadout]
+    C --> M[地图焦点读板]
+    C --> K[反制卡]
+    C --> D[底部命令坞]
+    D --> T[确认姿态: setSelectedTacticalOrder]
+    D --> V[前往落点: selectTile / moveUnit]
+    D --> L[锁定目标: focusAttackTarget / 预演]
+    T -. 不自动串联 .- V
+    V -. 不自动串联 .- L
+    S --> G[全局 primary 交战/将领桥接]
+```
+
 本文是 `md/flow/flow.md` 的可视化版本。每张图前都有中文读图说明，方便人工快速理解当前真实逻辑。
 
 ## 1. 核心数据流
