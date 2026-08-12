@@ -335,29 +335,36 @@ struct RenderBattlePreview {
                 faction: .carthage,
                 position: Position(x: 11, y: 1),
                 generalName: "马戈",
-                generalTrait: .shieldWall,
+                generalTrait: .siegeEngineer,
                 generalSkillCooldownRemaining: 3,
                 hasActed: true
             )
         )
-        guard let enemyCommanderThreat = viewModel.primaryEnemyCommanderThreatSummary,
-              enemyCommanderThreat.id == "carthage-commander",
+        guard let enemyCommanderThreat = viewModel.primaryEnemyCommanderThreatSummary else {
+            throw PreviewRenderError.missingActiveEnemyCommanderThreatPrimary
+        }
+        guard enemyCommanderThreat.id == "carthage-commander",
               !viewModel.enemyCommanderThreatSummaries.isEmpty,
-              viewModel.enemyCommanderThreatSummaries.contains(where: { $0.id == "carthage-commander" }),
-              viewModel.enemyCommanderThreatSummaries.contains(where: { $0.id != "carthage-commander" }) else {
-            throw PreviewRenderError.missingActiveEnemyCommanderThreatReadout
+              viewModel.enemyCommanderThreatSummaries.contains(where: { $0.id == "carthage-commander" }) else {
+            throw PreviewRenderError.missingActiveEnemyCommanderThreatPrimary
+        }
+        guard let secondaryEnemyCommanderThreat = viewModel.enemyCommanderThreatSummaries.first(where: {
+            $0.id != enemyCommanderThreat.id
+        }) else {
+            throw PreviewRenderError.missingActiveEnemyCommanderThreatSecondary
         }
         guard let activeThreatWithoutFocus = viewModel.activeEnemyCommanderThreatSummary,
               activeThreatWithoutFocus.id == enemyCommanderThreat.id,
-              viewModel.activeEnemyCommanderThreatID == enemyCommanderThreat.id,
-              let activeOverlayWithoutFocus = viewModel.activeEnemyCommanderThreatMapOverlay,
-              activeOverlayWithoutFocus.id == enemyCommanderThreat.id,
+              viewModel.activeEnemyCommanderThreatID == enemyCommanderThreat.id else {
+            throw PreviewRenderError.missingActiveEnemyCommanderThreatSummary
+        }
+        guard let activeOverlayWithoutFocus = viewModel.activeEnemyCommanderThreatMapOverlay else {
+            throw PreviewRenderError.missingActiveEnemyCommanderThreatOverlay
+        }
+        guard activeOverlayWithoutFocus.id == enemyCommanderThreat.id,
               activeOverlayWithoutFocus.threatID == enemyCommanderThreat.id,
-              activeOverlayWithoutFocus.references(enemyCommanderThreat),
-              let secondaryEnemyCommanderThreat = viewModel.enemyCommanderThreatSummaries.first(where: {
-                  $0.id != enemyCommanderThreat.id
-              }) else {
-            throw PreviewRenderError.missingActiveEnemyCommanderThreatReadout
+              activeOverlayWithoutFocus.references(enemyCommanderThreat) else {
+            throw PreviewRenderError.missingActiveEnemyCommanderThreatSource
         }
         var enemyThreatExpectedPositions = Set([enemyCommanderThreat.report.position, enemyCommanderThreat.targetPosition])
         enemyThreatExpectedPositions.formUnion(enemyCommanderThreat.report.rangePositions)
@@ -2535,6 +2542,11 @@ enum PreviewRenderError: Error {
     case missingAIOperationalPlanTimelineReadout
     case missingEnemyCommanderThreatSummary
     case missingEnemyCommanderThreatMapOverlay
+    case missingActiveEnemyCommanderThreatPrimary
+    case missingActiveEnemyCommanderThreatSecondary
+    case missingActiveEnemyCommanderThreatSummary
+    case missingActiveEnemyCommanderThreatOverlay
+    case missingActiveEnemyCommanderThreatSource
     case missingActiveEnemyCommanderThreatReadout
     case missingCountermeasureSummary
     case missingCountermeasureOverlay
