@@ -169,48 +169,50 @@ struct BattlefieldDrawerView: View {
     var onClose: () -> Void
 
     var body: some View {
-        VStack(spacing: 0) {
-            HStack(spacing: 10) {
-                Label(category.title, systemImage: category.symbol)
-                    .font(.headline.weight(.bold))
-                    .foregroundStyle(.white)
-                Spacer(minLength: 0)
-                Button("关闭抽屉", systemImage: "xmark") {
-                    onClose()
-                }
-                .labelStyle(.iconOnly)
-                .frame(width: 44, height: 44)
-                .buttonStyle(CommandIconButtonStyle())
-            }
-            .padding(.horizontal, 10)
-            .frame(minHeight: 48)
-            .background(Color(red: 0.18, green: 0.16, blue: 0.13))
+        GeometryReader { proxy in
+            let drawerSize = proxy.size
+            let headerHeight: CGFloat = 48
+            let bodyHeight = max(0, drawerSize.height - headerHeight)
 
-            // Give the existing drawer body an explicit finite proposal. The
-            // title row has its own intrinsic height, but an off-screen
-            // ImageRenderer can otherwise measure this ScrollView at zero
-            // height before its environment-driven PanelView content is laid
-            // out. Keeping the content eager preserves the normal scroll
-            // behavior while making the first focused enemy card measurable.
-            GeometryReader { proxy in
+            VStack(spacing: 0) {
+                HStack(spacing: 10) {
+                    Label(category.title, systemImage: category.symbol)
+                        .font(.headline.weight(.bold))
+                        .foregroundStyle(.white)
+                    Spacer(minLength: 0)
+                    Button("关闭抽屉", systemImage: "xmark") {
+                        onClose()
+                    }
+                    .labelStyle(.iconOnly)
+                    .frame(width: 44, height: 44)
+                    .buttonStyle(CommandIconButtonStyle())
+                }
+                .padding(.horizontal, 10)
+                .frame(width: drawerSize.width, height: headerHeight)
+                .background(Color(red: 0.18, green: 0.16, blue: 0.13))
+
+                // Keep the existing drawer body, but give it the exact space
+                // left after the fixed header. This makes environment-driven
+                // panel content measurable in ImageRenderer and in the first
+                // on-screen frame without creating a second drawer path.
                 ScrollView(.vertical, showsIndicators: false) {
                     VStack(spacing: 10) {
                         drawerContent
                     }
                     .frame(
-                        width: max(1, proxy.size.width - 20),
+                        width: max(1, drawerSize.width - 20),
                         alignment: .topLeading
                     )
                     .padding(10)
                     .environmentObject(viewModel)
                 }
                 .frame(
-                    width: proxy.size.width,
-                    height: proxy.size.height,
-                    alignment: .top
+                    width: drawerSize.width,
+                    height: bodyHeight,
+                    alignment: .topLeading
                 )
             }
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+            .frame(width: drawerSize.width, height: drawerSize.height, alignment: .topLeading)
         }
         .background(Color(red: 0.11, green: 0.11, blue: 0.10).opacity(0.98))
         .clipShape(.rect(cornerRadius: 8))
