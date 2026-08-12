@@ -884,7 +884,7 @@ struct RenderBattlePreview {
         guard viewModel.activeCountermeasureCommandContextReadout?.sourceID == countermeasure.id else {
             throw PreviewRenderError.missingCountermeasureCommandCleanup
         }
-        try assertCountermeasureSingleStepCommands(in: viewModel.state)
+        let countermeasureCommandFixtureState = viewModel.state
         guard let mapControl = viewModel.primaryMapControlSummary,
               !viewModel.mapControlSummaries.isEmpty,
               !viewModel.mapControlOverlayPositions.isEmpty,
@@ -2071,7 +2071,9 @@ struct RenderBattlePreview {
             kind: .legion,
             faction: .carthage,
             position: Position(x: 4, y: 3),
-            health: 64
+            health: 64,
+            generalName: "哈斯德鲁巴",
+            generalTrait: .quartermaster
         )
         let commandDockSecondaryTarget = ArmyUnit(
             id: "carthage-command-dock-secondary-target",
@@ -2225,6 +2227,10 @@ struct RenderBattlePreview {
               !commandSituation.primaryCommandEntryLabel.isEmpty else {
             throw PreviewRenderError.missingCommandDockAttackFixture
         }
+        try assertCountermeasureSingleStepCommands(
+            in: countermeasureCommandFixtureState,
+            targetPreparedState: viewModel.state
+        )
         viewModel.focusEnemyCommanderThreat(enemyCommanderThreat.id)
         viewModel.selectedUnitID = "rome-legion-1"
         viewModel.selectedCityID = nil
@@ -2450,7 +2456,10 @@ struct RenderBattlePreview {
         print(focusedCountermeasureOutputPath)
     }
 
-    private static func assertCountermeasureSingleStepCommands(in fixtureState: GameState) throws {
+    private static func assertCountermeasureSingleStepCommands(
+        in fixtureState: GameState,
+        targetPreparedState: GameState
+    ) throws {
         guard let orderFixture = focusedCountermeasureFixture(
             state: fixtureState,
             matching: { preview in
@@ -2582,13 +2591,17 @@ struct RenderBattlePreview {
 
         guard let targetFixture = attackableCountermeasureFixture(
             state: fixtureState,
-            movementPreparedState: movementAfter.state
+            movementPreparedState: movementAfter.state,
+            targetPreparedState: targetPreparedState
         ) else {
             throw PreviewRenderError.missingCountermeasureTargetRuntimeConfirmation
         }
         let targetViewModel = targetFixture.viewModel
         let targetContext = targetFixture.context
-        guard targetContext.canLockTarget,
+        guard targetFixture.preview.summary.report.targetUnitID == targetContext.targetUnitID,
+              targetContext.references(preview: targetFixture.preview),
+              targetContext.sourceID == targetFixture.preview.id,
+              targetContext.canLockTarget,
               let targetUnitID = targetContext.targetUnitID,
               let targetUnitBefore = targetViewModel.state.unit(withID: targetUnitID),
               let responseUnitBeforeTargetLock = targetViewModel.state.unit(withID: targetContext.responseUnitID),
@@ -2618,6 +2631,14 @@ struct RenderBattlePreview {
               selectedForecast.attacker.id == responseUnitBeforeTargetLock.id,
               selectedForecast.defender.id == targetUnitBefore.id,
               selectedForecast.preview == canonicalPreview,
+              selectedForecast.identityChainLabel.contains(selectedForecast.attackerIdentityLabel),
+              selectedForecast.identityChainLabel.contains(selectedForecast.defenderIdentityLabel),
+              selectedForecast.positionChainLabel.contains(selectedForecast.attackerPositionLabel),
+              selectedForecast.positionChainLabel.contains(selectedForecast.defenderPositionLabel),
+              selectedForecast.confirmationAccessibilityLabel.contains(selectedForecast.identityChainLabel),
+              selectedForecast.cancelAccessibilityLabel.contains(selectedForecast.identityChainLabel),
+              !selectedForecast.confirmationTitle.isEmpty,
+              !selectedForecast.outcomeLabel.isEmpty,
               !selectedForecast.compactLabel.isEmpty,
               !selectedForecast.detailLabel.isEmpty,
               !selectedForecast.accessibilityLabel.isEmpty,
@@ -2657,7 +2678,8 @@ struct RenderBattlePreview {
 
     private static func attackableCountermeasureFixture(
         state: GameState,
-        movementPreparedState: GameState
+        movementPreparedState: GameState,
+        targetPreparedState: GameState
     ) -> (
         viewModel: GameViewModel,
         preview: CountermeasureCommandPreview,
@@ -2674,6 +2696,15 @@ struct RenderBattlePreview {
             matching: { $0.canAttackCurrentTarget && $0.targetUnit != nil }
         ) {
             return preparedFixture
+        }
+        if let injectedFixture = focusedCountermeasureFixture(
+            state: targetPreparedState,
+            matching: { preview in
+                preview.targetUnit?.id == "carthage-command-dock-target" &&
+                    preview.canAttackCurrentTarget
+            }
+        ) {
+            return injectedFixture
         }
 
         let sourceViewModel = GameViewModel()
