@@ -22,6 +22,7 @@ struct WarMapView: View {
             let enemyIntentTargets = viewModel.enemyIntentTargetOverlays(for: enemyIntentOverlays)
             let enemyCommanderThreatOverlay = viewModel.activeEnemyCommanderThreatMapOverlay
             let enemyCommanderThreatOverlaysByPosition = viewModel.enemyCommanderThreatOverlaysByPosition
+            let enemyCommanderThreatFocusReadout = viewModel.activeEnemyCommanderThreatFocusReadout
             let tacticalRecommendation = viewModel.selectedTacticalRecommendationSummary
             let tacticalRecommendationPathPositions = viewModel.selectedTacticalRecommendationPathPositions
             let tacticalRecommendationTargetPosition = viewModel.selectedTacticalRecommendationTargetPosition
@@ -257,6 +258,23 @@ struct WarMapView: View {
                     .zIndex(5.15)
                 }
 
+                if viewModel.selectedCombatForecast == nil,
+                   viewModel.focusedEnemyCommanderThreatID != nil,
+                   let enemyCommanderThreatFocusReadout {
+                    VStack {
+                        HStack {
+                            EnemyCommanderThreatFocusMapReadoutView(readout: enemyCommanderThreatFocusReadout)
+                                .frame(maxWidth: proxy.size.width - 20, alignment: .leading)
+                            Spacer(minLength: 0)
+                        }
+                        .padding(.horizontal, 10)
+                        .padding(.top, 56)
+                        Spacer()
+                    }
+                    .allowsHitTesting(false)
+                    .zIndex(5.15)
+                }
+
                 VStack {
                     Spacer()
                     MapIntelligenceDockView(
@@ -364,6 +382,54 @@ struct AttackLockMapReadoutView: View {
         }
         .accessibilityElement(children: .contain)
         .accessibilityLabel(forecast.accessibilityLabel)
+    }
+}
+
+struct EnemyCommanderThreatFocusMapReadoutView: View {
+    var readout: EnemyCommanderThreatFocusReadout
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Image(systemName: readout.skillSymbol)
+                .font(.caption.weight(.black))
+                .foregroundStyle(readout.isFocused ? .orange : .white.opacity(0.80))
+                .frame(width: 24, height: 24)
+                .background(readout.isFocused ? .orange.opacity(0.16) : .white.opacity(0.10))
+                .clipShape(.rect(cornerRadius: 5))
+
+            VStack(alignment: .leading, spacing: 1) {
+                Text("\(readout.focusStateLabel) · 敌将\(readout.commanderLabel) · \(readout.levelLabel)")
+                    .font(.caption2.weight(.bold))
+                    .foregroundStyle(.white)
+                    .lineLimit(2)
+                    .minimumScaleFactor(0.62)
+                Text("\(readout.skillName) · 目标\(readout.targetLabel) · \(readout.routeLabel)")
+                    .font(.caption2.monospacedDigit().weight(.semibold))
+                    .foregroundStyle(.white.opacity(0.66))
+                    .lineLimit(2)
+                    .minimumScaleFactor(0.58)
+            }
+            .layoutPriority(1)
+
+            Text("仅侦察")
+                .font(.caption2.weight(.black))
+                .foregroundStyle(.white.opacity(0.82))
+                .padding(.horizontal, 5)
+                .frame(minHeight: 22)
+                .background(.black.opacity(0.28))
+                .clipShape(RoundedRectangle(cornerRadius: 5))
+        }
+        .padding(.horizontal, 8)
+        .padding(.vertical, 4)
+        .background(.black.opacity(0.72))
+        .clipShape(.rect(cornerRadius: 7))
+        .overlay {
+            RoundedRectangle(cornerRadius: 7)
+                .stroke((readout.isFocused ? Color.orange : Color.white).opacity(0.56), lineWidth: 1)
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(readout.accessibilityLabel)
+        .accessibilityHint("地图焦点只用于查看敌将威胁，不会执行敌将命令")
     }
 }
 

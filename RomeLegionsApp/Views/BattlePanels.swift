@@ -2900,8 +2900,8 @@ struct EnemyIntentPanelView: View {
                     AIOperationalPlanCardView(summary: plan)
                 }
 
-                if let commanderThreat = viewModel.activeEnemyCommanderThreatSummary {
-                    EnemyCommanderThreatCardView(summary: commanderThreat)
+                if let commanderThreatFocusReadout = viewModel.activeEnemyCommanderThreatFocusReadout {
+                    EnemyCommanderThreatCardView(readout: commanderThreatFocusReadout)
                 }
 
                 if let countermeasure = viewModel.primaryCountermeasureSummary {
@@ -2931,43 +2931,43 @@ struct EnemyIntentPanelView: View {
 
 struct EnemyCommanderThreatCardView: View {
     @EnvironmentObject private var viewModel: GameViewModel
-    var summary: EnemyCommanderThreatSummary
+    var readout: EnemyCommanderThreatFocusReadout
 
     var body: some View {
         VStack(alignment: .leading, spacing: 7) {
             HStack(spacing: 7) {
-                Image(systemName: summary.trait.systemImage)
-                    .foregroundStyle(summary.level.tintColor)
+                Image(systemName: readout.skillSymbol)
+                    .foregroundStyle(readout.isFocused ? .orange : .white.opacity(0.78))
                 Text("敌将")
                     .font(.caption2.weight(.bold))
                     .foregroundStyle(.white.opacity(0.58))
-                Text(summary.title)
+                Text(readout.title)
                     .font(.caption.weight(.heavy))
                     .lineLimit(2)
                     .minimumScaleFactor(0.62)
                     .fixedSize(horizontal: false, vertical: true)
                 Spacer(minLength: 0)
-                Text(summary.levelLabel)
+                Text(readout.levelLabel)
                     .font(.caption2.weight(.black))
                     .foregroundStyle(.black.opacity(0.78))
                     .padding(.horizontal, 6)
                     .frame(height: 20)
-                    .background(summary.level.tintColor)
+                    .background(readout.isFocused ? .orange : .white.opacity(0.36))
                     .clipShape(RoundedRectangle(cornerRadius: 5))
             }
 
-            Text(summary.impactLabel)
+            Text("\(readout.focusStateLabel) · \(readout.impactLabel) · \(readout.scoreLabel)")
                 .font(.caption2.weight(.semibold))
                 .foregroundStyle(.white.opacity(0.72))
                 .lineLimit(2)
                 .minimumScaleFactor(0.72)
 
             HStack(spacing: 6) {
-                Label("\(summary.targetLabel) · \(summary.targetPositionLabel)", systemImage: "scope")
+                Label("\(readout.targetLabel) · \(readout.targetPositionLabel)", systemImage: "scope")
                 Spacer(minLength: 0)
-                Label(summary.intentLabel, systemImage: "bolt.shield.fill")
+                Label(readout.intentLabel, systemImage: "bolt.shield.fill")
                 Spacer(minLength: 0)
-                Label(summary.statusLabel, systemImage: "timer")
+                Label(readout.statusLabel, systemImage: "timer")
             }
             .font(.caption2.weight(.semibold))
             .foregroundStyle(.white.opacity(0.66))
@@ -2975,44 +2975,44 @@ struct EnemyCommanderThreatCardView: View {
             .minimumScaleFactor(0.70)
 
             HStack(spacing: 6) {
-                Label(summary.originLabel, systemImage: "person.crop.circle")
+                Label(readout.originLabel, systemImage: "person.crop.circle")
                 Spacer(minLength: 0)
-                Label(summary.rangeLabel, systemImage: "dot.scope")
+                Label(readout.rangeLabel, systemImage: "dot.scope")
                 Spacer(minLength: 0)
-                Label(summary.affectedPositionLabel, systemImage: "exclamationmark.triangle")
+                Label(readout.affectedPositionLabel, systemImage: "exclamationmark.triangle")
             }
             .font(.caption2.weight(.semibold))
             .foregroundStyle(.white.opacity(0.60))
             .lineLimit(1)
             .minimumScaleFactor(0.62)
 
-            if summary.destinationPosition != nil {
-                Label(summary.destinationLabel, systemImage: "arrow.down.circle")
+            if readout.destinationPosition != nil {
+                Label(readout.destinationLabel, systemImage: "arrow.down.circle")
                     .font(.caption2.weight(.semibold))
                     .foregroundStyle(.white.opacity(0.60))
                     .lineLimit(1)
                     .minimumScaleFactor(0.68)
             }
 
-            Text(summary.detail)
+            Text(readout.detailLabel)
                 .font(.caption2)
                 .foregroundStyle(.white.opacity(0.54))
                 .lineLimit(2)
                 .minimumScaleFactor(0.70)
 
-            Button("定位敌将", systemImage: "scope") {
-                viewModel.focusEnemyCommanderThreat(summary.id)
+            Button(readout.isFocused ? "已定位" : "定位敌将", systemImage: readout.isFocused ? "checkmark.circle.fill" : "scope") {
+                viewModel.focusEnemyCommanderThreat(readout.threatID)
             }
             .font(.caption.weight(.bold))
             .frame(maxWidth: .infinity, minHeight: 44)
             .buttonStyle(SecondaryButtonStyle())
-            .accessibilityLabel("定位敌将\(summary.commanderLabel)，\(summary.spaceChainLabel)")
-            .accessibilityHint("只查看敌将威胁的地图空间，不会执行技能或改变战局")
+            .accessibilityLabel(readout.isFocused ? "已定位敌将\(readout.commanderLabel)" : "定位敌将\(readout.commanderLabel)，\(readout.spaceChainLabel)")
+            .accessibilityHint(readout.commandAvailabilityLabel)
         }
         .padding(8)
-        .background(summary.level.tintColor.opacity(0.11))
+        .background((readout.isFocused ? Color.orange : Color.white).opacity(0.11))
         .clipShape(RoundedRectangle(cornerRadius: 7))
-        .accessibilityLabel(summary.accessibilityLabel)
+        .accessibilityLabel(readout.accessibilityLabel)
     }
 }
 

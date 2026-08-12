@@ -474,6 +474,123 @@ struct EnemyCommanderThreatSummary: Identifiable {
     }
 }
 
+/// v0.66 当前敌将上下文的唯一只读来源。
+///
+/// 这个 readout 同时承载 active summary 和由同一 summary 构造的地图 overlay
+/// 的身份字段，供地图、底部命令坞和敌情卡共享。它不持有命令闭包，也不把敌将
+/// 转成 selectedUnit/selectedCity；`hasExecutableCommand` 永远为 false。
+struct EnemyCommanderThreatFocusReadout {
+    var threatID: String
+    var overlayID: String
+    var commanderLabel: String
+    var factionLabel: String
+    var traitLabel: String
+    var skillName: String
+    var skillSymbol: String
+    var title: String
+    var compactTitle: String
+    var levelLabel: String
+    var scoreLabel: String
+    var intentLabel: String
+    var impactLabel: String
+    var statusLabel: String
+    var targetLabel: String
+    var originPosition: Position
+    var targetPosition: Position
+    var destinationPosition: Position?
+    var rangePositions: [Position]
+    var affectedPositions: [Position]
+    var originLabel: String
+    var targetPositionLabel: String
+    var destinationLabel: String
+    var rangeLabel: String
+    var affectedLabel: String
+    var affectedPositionLabel: String
+    var spaceChainLabel: String
+    var routeLabel: String
+    var routeSegments: [EnemyCommanderThreatRouteSegment]
+    var isFocused: Bool
+    var isPrimaryFallback: Bool
+    var focusStateLabel: String
+    var selectedPerspective: MapReconPerspectiveKind
+    var compactLabel: String
+    var detailLabel: String
+    var commandAvailabilityLabel: String
+    var hasExecutableCommand: Bool
+    var accessibilityLabel: String
+
+    init(
+        summary: EnemyCommanderThreatSummary,
+        overlay: EnemyCommanderThreatMapOverlay,
+        focusedThreatID: String?,
+        selectedPerspective: MapReconPerspectiveKind
+    ) {
+        threatID = summary.id
+        overlayID = overlay.id
+        commanderLabel = summary.commanderLabel
+        factionLabel = summary.factionLabel
+        traitLabel = summary.traitLabel
+        skillName = summary.skillName
+        skillSymbol = summary.trait.systemImage
+        title = summary.title
+        compactTitle = summary.compactTitle
+        levelLabel = summary.levelLabel
+        scoreLabel = summary.scoreLabel
+        intentLabel = summary.intentLabel
+        impactLabel = summary.impactLabel
+        statusLabel = summary.statusLabel
+        targetLabel = summary.targetLabel
+        originPosition = summary.originPosition
+        targetPosition = summary.targetPosition
+        destinationPosition = summary.destinationPosition
+        rangePositions = overlay.rangePositions
+        affectedPositions = overlay.affectedPositions
+        originLabel = summary.originLabel
+        targetPositionLabel = summary.targetPositionLabel
+        destinationLabel = summary.destinationLabel
+        rangeLabel = summary.rangeLabel
+        affectedLabel = summary.affectedLabel
+        affectedPositionLabel = summary.affectedPositionLabel
+        spaceChainLabel = summary.spaceChainLabel
+        routeLabel = overlay.chainLabel
+        routeSegments = overlay.routeSegments
+        isFocused = focusedThreatID == summary.id
+        isPrimaryFallback = focusedThreatID != nil && !isFocused
+        focusStateLabel = isFocused
+            ? "已定位"
+            : (isPrimaryFallback ? "焦点失效 · 显示首要威胁" : "首要威胁")
+        self.selectedPerspective = selectedPerspective
+        compactLabel = "\(commanderLabel) · \(levelLabel) · \(skillName)"
+        detailLabel = "\(focusStateLabel) · \(skillName) · \(targetLabel) · \(spaceChainLabel)"
+        commandAvailabilityLabel = "仅侦察，不执行敌将命令"
+        hasExecutableCommand = false
+        accessibilityLabel = [
+            "\(focusStateLabel)敌将\(commanderLabel)",
+            factionLabel,
+            "特性\(traitLabel)",
+            "技能\(skillName)",
+            "威胁\(levelLabel)",
+            scoreLabel,
+            "目标\(targetLabel)",
+            originLabel,
+            rangeLabel,
+            affectedPositionLabel,
+            destinationLabel,
+            "路线\(routeLabel)",
+            commandAvailabilityLabel,
+            "威胁身份\(threatID)"
+        ].joined(separator: "，")
+    }
+
+    func references(summary: EnemyCommanderThreatSummary) -> Bool {
+        threatID == summary.id
+    }
+
+    func references(overlay: EnemyCommanderThreatMapOverlay) -> Bool {
+        overlayID == overlay.id && threatID == overlay.threatID
+    }
+}
+
 struct CountermeasureSummary: Identifiable {
     var report: CountermeasureReport
     var responseUnit: ArmyUnit?

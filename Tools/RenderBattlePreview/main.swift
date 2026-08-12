@@ -366,6 +366,27 @@ struct RenderBattlePreview {
               activeOverlayWithoutFocus.references(enemyCommanderThreat) else {
             throw PreviewRenderError.missingActiveEnemyCommanderThreatSource
         }
+        guard let noFocusReadout = viewModel.activeEnemyCommanderThreatFocusReadout,
+              noFocusReadout.references(summary: activeThreatWithoutFocus),
+              noFocusReadout.references(overlay: activeOverlayWithoutFocus),
+              noFocusReadout.threatID == enemyCommanderThreat.id,
+              noFocusReadout.overlayID == activeOverlayWithoutFocus.id,
+              noFocusReadout.originPosition == activeThreatWithoutFocus.originPosition,
+              noFocusReadout.targetPosition == activeThreatWithoutFocus.targetPosition,
+              noFocusReadout.rangePositions == activeOverlayWithoutFocus.rangePositions,
+              noFocusReadout.affectedPositions == activeOverlayWithoutFocus.affectedPositions,
+              noFocusReadout.routeLabel == activeOverlayWithoutFocus.chainLabel,
+              noFocusReadout.routeSegments.count == activeOverlayWithoutFocus.routeSegments.count,
+              !noFocusReadout.compactLabel.isEmpty,
+              !noFocusReadout.detailLabel.isEmpty,
+              !noFocusReadout.accessibilityLabel.isEmpty,
+              noFocusReadout.commandAvailabilityLabel.contains("仅侦察"),
+              noFocusReadout.hasExecutableCommand == false,
+              noFocusReadout.isFocused == false,
+              noFocusReadout.isPrimaryFallback == false,
+              noFocusReadout.focusStateLabel.contains("首要") else {
+            throw PreviewRenderError.missingEnemyCommanderThreatFocusReadout
+        }
         var enemyThreatExpectedPositions = Set([enemyCommanderThreat.report.position, enemyCommanderThreat.targetPosition])
         enemyThreatExpectedPositions.formUnion(enemyCommanderThreat.report.rangePositions)
         enemyThreatExpectedPositions.formUnion(enemyCommanderThreat.report.affectedPositions)
@@ -463,9 +484,28 @@ struct RenderBattlePreview {
         let stateArchiveAfterSecondaryEnemyCommanderThreatFocus = try threatStateEncoder.encode(viewModel.state)
         let aiIntentSnapshotAfterSecondaryEnemyCommanderThreatFocus = viewModel.enemyIntentSummaries.map(\.intent)
         let primaryEngagementLoopWhileSecondaryFocused = viewModel.primaryEnemyEngagementLoopReadout
-        guard let focusedSecondaryThreat = viewModel.focusedEnemyCommanderThreatSummary,
+        guard let secondaryFocusReadout = viewModel.activeEnemyCommanderThreatFocusReadout,
+              let focusedSecondaryThreat = viewModel.focusedEnemyCommanderThreatSummary,
               let activeSecondaryThreat = viewModel.activeEnemyCommanderThreatSummary,
               let activeSecondaryOverlay = viewModel.activeEnemyCommanderThreatMapOverlay,
+              secondaryFocusReadout.references(summary: activeSecondaryThreat),
+              secondaryFocusReadout.references(overlay: activeSecondaryOverlay),
+              secondaryFocusReadout.threatID == secondaryEnemyCommanderThreat.id,
+              secondaryFocusReadout.overlayID == secondaryEnemyCommanderThreat.id,
+              secondaryFocusReadout.isFocused,
+              secondaryFocusReadout.isPrimaryFallback == false,
+              secondaryFocusReadout.selectedPerspective == .enemyIntent,
+              secondaryFocusReadout.rangePositions == activeSecondaryOverlay.rangePositions,
+              secondaryFocusReadout.affectedPositions == activeSecondaryOverlay.affectedPositions,
+              secondaryFocusReadout.routeLabel == activeSecondaryOverlay.chainLabel,
+              !secondaryFocusReadout.compactLabel.isEmpty,
+              !secondaryFocusReadout.detailLabel.isEmpty,
+              !secondaryFocusReadout.accessibilityLabel.isEmpty,
+              secondaryFocusReadout.accessibilityLabel.contains("威胁身份\(secondaryEnemyCommanderThreat.id)"),
+              secondaryFocusReadout.commandAvailabilityLabel.contains("仅侦察"),
+              secondaryFocusReadout.hasExecutableCommand == false,
+              viewModel.selectedUnitID == nil,
+              viewModel.selectedCityID == nil,
               focusedSecondaryThreat.id == secondaryEnemyCommanderThreat.id,
               activeSecondaryThreat.id == secondaryEnemyCommanderThreat.id,
               viewModel.activeEnemyCommanderThreatID == secondaryEnemyCommanderThreat.id,
@@ -486,7 +526,16 @@ struct RenderBattlePreview {
             throw PreviewRenderError.missingActiveEnemyCommanderThreatReadout
         }
         viewModel.focusedEnemyCommanderThreatID = "missing-enemy-commander-threat"
-        guard viewModel.activeEnemyCommanderThreatSummary?.id == enemyCommanderThreat.id,
+        guard let invalidFocusReadout = viewModel.activeEnemyCommanderThreatFocusReadout,
+              invalidFocusReadout.threatID == enemyCommanderThreat.id,
+              invalidFocusReadout.overlayID == enemyCommanderThreat.id,
+              invalidFocusReadout.isFocused == false,
+              invalidFocusReadout.isPrimaryFallback,
+              invalidFocusReadout.focusStateLabel.contains("焦点失效"),
+              invalidFocusReadout.commandAvailabilityLabel.contains("仅侦察"),
+              invalidFocusReadout.hasExecutableCommand == false,
+              !invalidFocusReadout.accessibilityLabel.contains(secondaryEnemyCommanderThreat.commanderLabel),
+              viewModel.activeEnemyCommanderThreatSummary?.id == enemyCommanderThreat.id,
               viewModel.activeEnemyCommanderThreatID == enemyCommanderThreat.id,
               viewModel.activeEnemyCommanderThreatMapOverlay?.id == enemyCommanderThreat.id,
               viewModel.focusedEnemyCommanderThreatID == "missing-enemy-commander-threat" else {
@@ -495,7 +544,20 @@ struct RenderBattlePreview {
         viewModel.focusEnemyCommanderThreat(enemyCommanderThreat.id)
         let stateArchiveAfterEnemyCommanderThreatFocus = try threatStateEncoder.encode(viewModel.state)
         let aiIntentSnapshotAfterEnemyCommanderThreatFocus = viewModel.enemyIntentSummaries.map(\.intent)
-        guard let focusedEnemyCommanderThreatOverlay = viewModel.primaryEnemyCommanderThreatMapOverlay,
+        guard let focusedPrimaryReadout = viewModel.activeEnemyCommanderThreatFocusReadout,
+              let focusedEnemyCommanderThreatOverlay = viewModel.primaryEnemyCommanderThreatMapOverlay,
+              focusedPrimaryReadout.references(summary: enemyCommanderThreat),
+              focusedPrimaryReadout.references(overlay: focusedEnemyCommanderThreatOverlay),
+              focusedPrimaryReadout.threatID == enemyCommanderThreat.id,
+              focusedPrimaryReadout.overlayID == enemyCommanderThreat.id,
+              focusedPrimaryReadout.isFocused,
+              focusedPrimaryReadout.isPrimaryFallback == false,
+              focusedPrimaryReadout.selectedPerspective == .enemyIntent,
+              focusedPrimaryReadout.commandAvailabilityLabel.contains("仅侦察"),
+              focusedPrimaryReadout.hasExecutableCommand == false,
+              !focusedPrimaryReadout.compactLabel.isEmpty,
+              !focusedPrimaryReadout.detailLabel.isEmpty,
+              !focusedPrimaryReadout.accessibilityLabel.isEmpty,
               focusedEnemyCommanderThreatOverlay.id == enemyCommanderThreat.id,
               focusedEnemyCommanderThreatOverlay.isFocused,
               viewModel.focusedEnemyCommanderThreatID == enemyCommanderThreat.id,
@@ -521,9 +583,18 @@ struct RenderBattlePreview {
         }
         let focusedBanner = viewModel.bannerMessage
         let focusedPosition = viewModel.selectedPosition
+        guard let focusedReadoutBeforeRepeat = viewModel.activeEnemyCommanderThreatFocusReadout else {
+            throw PreviewRenderError.missingEnemyCommanderThreatFocusReadout
+        }
         viewModel.focusEnemyCommanderThreat(enemyCommanderThreat.id)
         let stateArchiveAfterRepeatedEnemyCommanderThreatFocus = try threatStateEncoder.encode(viewModel.state)
-        guard viewModel.focusedEnemyCommanderThreatID == enemyCommanderThreat.id,
+        guard let repeatedFocusReadout = viewModel.activeEnemyCommanderThreatFocusReadout,
+              repeatedFocusReadout.threatID == focusedReadoutBeforeRepeat.threatID,
+              repeatedFocusReadout.overlayID == focusedReadoutBeforeRepeat.overlayID,
+              repeatedFocusReadout.focusStateLabel == focusedReadoutBeforeRepeat.focusStateLabel,
+              repeatedFocusReadout.detailLabel == focusedReadoutBeforeRepeat.detailLabel,
+              repeatedFocusReadout.hasExecutableCommand == false,
+              viewModel.focusedEnemyCommanderThreatID == enemyCommanderThreat.id,
               viewModel.selectedPosition == focusedPosition,
               viewModel.bannerMessage == focusedBanner,
               viewModel.state == stateBeforeEnemyCommanderThreatFocus,
@@ -541,6 +612,16 @@ struct RenderBattlePreview {
               viewModel.bannerMessage.contains("无法定位") else {
             throw PreviewRenderError.missingEnemyCommanderThreatMapOverlay
         }
+        viewModel.selectTile(Position(x: 1, y: 1))
+        guard viewModel.focusedEnemyCommanderThreatID == nil,
+              let postSelectionReadout = viewModel.activeEnemyCommanderThreatFocusReadout,
+              postSelectionReadout.threatID == enemyCommanderThreat.id,
+              postSelectionReadout.isFocused == false,
+              postSelectionReadout.isPrimaryFallback == false,
+              !postSelectionReadout.accessibilityLabel.contains(secondaryEnemyCommanderThreat.commanderLabel) else {
+            throw PreviewRenderError.missingEnemyCommanderThreatFocusReadout
+        }
+        viewModel.focusEnemyCommanderThreat(enemyCommanderThreat.id)
         viewModel.state.units.removeAll { $0.id == "carthage-commander-2" }
         guard viewModel.state.units.count == 3,
               !viewModel.state.units.contains(where: { $0.id == "carthage-commander-2" }),
@@ -644,9 +725,14 @@ struct RenderBattlePreview {
             throw PreviewRenderError.missingCountermeasureCommandPreview
         }
         viewModel.focusCountermeasure(countermeasure.id)
-        guard viewModel.selectedUnitID == countermeasure.report.responseUnitID,
+        guard let postCountermeasureFocusReadout = viewModel.activeEnemyCommanderThreatFocusReadout,
+              viewModel.selectedUnitID == countermeasure.report.responseUnitID,
               viewModel.focusedPosition == countermeasureCommandPreview.responseUnit?.position,
               viewModel.focusedCountermeasureID == countermeasure.id,
+              viewModel.focusedEnemyCommanderThreatID == nil,
+              postCountermeasureFocusReadout.isFocused == false,
+              postCountermeasureFocusReadout.isPrimaryFallback == false,
+              postCountermeasureFocusReadout.threatID == enemyCommanderThreat.id,
               viewModel.selectedCountermeasureCommandPreview?.id == countermeasure.id,
               viewModel.selectedTacticalOrderPreviews.contains(where: { preview in
                   preview.order == countermeasure.report.recommendedOrder
@@ -2002,6 +2088,10 @@ struct RenderBattlePreview {
               !commandSituation.primaryCommandEntryLabel.isEmpty else {
             throw PreviewRenderError.missingCommandDockAttackFixture
         }
+        viewModel.focusEnemyCommanderThreat(enemyCommanderThreat.id)
+        viewModel.selectedUnitID = "rome-legion-1"
+        viewModel.selectedCityID = nil
+        viewModel.selectedPosition = Position(x: 3, y: 3)
         let stateBeforeAttackForecast = viewModel.state
         let stateEncoder = JSONEncoder()
         stateEncoder.outputFormatting = [.sortedKeys]
@@ -2027,7 +2117,11 @@ struct RenderBattlePreview {
         let turnBeforeAttackForecast = viewModel.state.turn
         let activeFactionBeforeAttackForecast = viewModel.state.activeFaction
         viewModel.focusAttackTarget(commandDockTarget.id)
-        guard viewModel.selectedAttackTargetID == commandDockTarget.id,
+        guard let attackFocusReadout = viewModel.activeEnemyCommanderThreatFocusReadout,
+              viewModel.selectedAttackTargetID == commandDockTarget.id,
+              viewModel.focusedEnemyCommanderThreatID == nil,
+              attackFocusReadout.isFocused == false,
+              attackFocusReadout.isPrimaryFallback == false,
               viewModel.selectedPosition == commandDockTarget.position,
               let selectedCombatForecast = viewModel.selectedCombatForecast,
               selectedCombatForecast.attacker.id == "rome-legion-1",
@@ -2102,11 +2196,15 @@ struct RenderBattlePreview {
         viewModel.cancelSelectedAttackTarget()
         let stateArchiveAfterCancel = try stateEncoder.encode(viewModel.state)
         let aiIntentSnapshotAfterCancel = viewModel.enemyIntentSummaries.map(\.intent)
-        guard viewModel.selectedAttackTargetID == nil,
+        guard let cancelFocusReadout = viewModel.activeEnemyCommanderThreatFocusReadout,
+              viewModel.selectedAttackTargetID == nil,
               viewModel.selectedCombatForecast == nil,
               viewModel.selectedUnitID == "rome-legion-1",
               viewModel.selectedCityID == selectedCityBeforeAttackForecast,
               viewModel.selectedPosition == Position(x: 3, y: 3),
+              viewModel.focusedEnemyCommanderThreatID == nil,
+              cancelFocusReadout.isFocused == false,
+              cancelFocusReadout.isPrimaryFallback == false,
               viewModel.focusedCountermeasureID == nil,
               viewModel.focusedBattleObjectiveRole == nil,
               viewModel.state == stateBeforeAttackForecast,
@@ -2178,6 +2276,34 @@ struct RenderBattlePreview {
             logicalHeight: height
         ) else {
             throw PreviewRenderError.missingDistinctCommandDockRender
+        }
+
+        let endTurnLifecycleViewModel = GameViewModel()
+        endTurnLifecycleViewModel.focusedEnemyCommanderThreatID = "v0.66-secondary-threat"
+        endTurnLifecycleViewModel.endTurn()
+        guard endTurnLifecycleViewModel.focusedEnemyCommanderThreatID == nil else {
+            throw PreviewRenderError.missingEnemyCommanderThreatFocusReadout
+        }
+        if let endTurnReadout = endTurnLifecycleViewModel.activeEnemyCommanderThreatFocusReadout {
+            guard endTurnReadout.isFocused == false,
+                  endTurnReadout.isPrimaryFallback == false,
+                  !endTurnReadout.accessibilityLabel.contains("v0.66-secondary-threat") else {
+                throw PreviewRenderError.missingEnemyCommanderThreatFocusReadout
+            }
+        }
+
+        let startLifecycleViewModel = GameViewModel()
+        startLifecycleViewModel.focusedEnemyCommanderThreatID = "v0.66-secondary-threat"
+        startLifecycleViewModel.start(mode: startLifecycleViewModel.selectedMode)
+        guard startLifecycleViewModel.focusedEnemyCommanderThreatID == nil else {
+            throw PreviewRenderError.missingEnemyCommanderThreatFocusReadout
+        }
+        if let startReadout = startLifecycleViewModel.activeEnemyCommanderThreatFocusReadout {
+            guard startReadout.isFocused == false,
+                  startReadout.isPrimaryFallback == false,
+                  !startReadout.accessibilityLabel.contains("v0.66-secondary-threat") else {
+                throw PreviewRenderError.missingEnemyCommanderThreatFocusReadout
+            }
         }
 
         print(outputPath)
@@ -2552,6 +2678,7 @@ enum PreviewRenderError: Error {
     case missingActiveEnemyCommanderThreatOverlay
     case missingActiveEnemyCommanderThreatSource
     case missingActiveEnemyCommanderThreatReadout
+    case missingEnemyCommanderThreatFocusReadout
     case missingCountermeasureSummary
     case missingCountermeasureOverlay
     case missingCountermeasureCommandPreview

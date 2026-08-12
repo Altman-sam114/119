@@ -255,6 +255,25 @@ final class GameViewModel: ObservableObject {
         )
     }
 
+    /// v0.66 地图、底部命令坞和敌情卡共用的当前敌将上下文。
+    ///
+    /// 这里刻意只读取一次 active overlay；overlay 携带构造它的 active summary，避免
+    /// 每个 View 各自重新触发 enemyCommanderThreatReports；不引入无失效缓存，也不
+    /// 把 readout 写入 GameState、SaveStore 或 AI。无焦点时 readout 仍可描述 primary，
+    /// 但只有存在 focusedEnemyCommanderThreatID 时才进入地图/命令坞的焦点分支。
+    var activeEnemyCommanderThreatFocusReadout: EnemyCommanderThreatFocusReadout? {
+        guard let overlay = activeEnemyCommanderThreatMapOverlay else {
+            return nil
+        }
+
+        return EnemyCommanderThreatFocusReadout(
+            summary: overlay.summary,
+            overlay: overlay,
+            focusedThreatID: focusedEnemyCommanderThreatID,
+            selectedPerspective: selectedMapReconPerspective
+        )
+    }
+
     /// v0.64 兼容 API；其历史“primary”名称保留，但展示语义已是 active（focused ?? primary）。
     var primaryEnemyCommanderThreatMapOverlay: EnemyCommanderThreatMapOverlay? {
         activeEnemyCommanderThreatMapOverlay

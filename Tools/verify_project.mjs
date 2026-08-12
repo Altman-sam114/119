@@ -35,7 +35,8 @@ const requiredFiles = [
   "md/prompt/v0（玩法推进）/v0.4（战役目标与胜负结算）.md",
   "md/prompt/v0（玩法推进）/v0.63（战斗目标锁定身份与取消入口）.md",
   "md/prompt/v0（玩法推进）/v0.64（敌将技能威胁地图焦点与空间叠层）.md",
-  "md/prompt/v0（玩法推进）/v0.65（敌将威胁聚焦同源读板）.md"
+  "md/prompt/v0（玩法推进）/v0.65（敌将威胁聚焦同源读板）.md",
+  "md/prompt/v0（玩法推进）/v0.66（敌将焦点指挥卡与地图命令上下文）.md"
 ];
 
 const failures = [];
@@ -94,7 +95,7 @@ const viewModel = [
   "RomeLegionsApp/App/GameViewModelSelectionReadouts.swift",
   "RomeLegionsApp/App/GameViewModel.swift"
 ].map((path) => readFileSync(path, "utf8")).join("\n");
-for (const token of ["selectedPosition", "selectedTile", "selectedAttackTargetID", "selectedCombatForecast", "attackerIdentityLabel", "defenderIdentityLabel", "identityChainLabel", "func attackPreview", "focusAttackTarget", "cancelSelectedAttackTarget", "confirmSelectedAttack", "primaryMission", "skipSelectedUnit", "--attack-demo", "restSelectedUnit", "isCampaignOver", "campaignStatusTitle", "EnemyCommanderThreatMapOverlay", "primaryEnemyCommanderThreatMapOverlay", "activeEnemyCommanderThreatSummary", "activeEnemyCommanderThreatID", "activeEnemyCommanderThreatMapOverlay", "enemyCommanderThreatOverlaysByPosition", "enemyCommanderThreatOverlayPositions", "focusedEnemyCommanderThreatID", "focusEnemyCommanderThreat", "enemyCommanderThreatID", "MapOverlayLegendKind.enemyCommanderThreat"]) {
+for (const token of ["selectedPosition", "selectedTile", "selectedAttackTargetID", "selectedCombatForecast", "attackerIdentityLabel", "defenderIdentityLabel", "identityChainLabel", "func attackPreview", "focusAttackTarget", "cancelSelectedAttackTarget", "confirmSelectedAttack", "primaryMission", "skipSelectedUnit", "--attack-demo", "restSelectedUnit", "isCampaignOver", "campaignStatusTitle", "EnemyCommanderThreatMapOverlay", "primaryEnemyCommanderThreatMapOverlay", "activeEnemyCommanderThreatSummary", "activeEnemyCommanderThreatID", "activeEnemyCommanderThreatMapOverlay", "activeEnemyCommanderThreatFocusReadout", "EnemyCommanderThreatFocusReadout", "hasExecutableCommand", "commandAvailabilityLabel", "isPrimaryFallback", "enemyCommanderThreatOverlaysByPosition", "enemyCommanderThreatOverlayPositions", "focusedEnemyCommanderThreatID", "focusEnemyCommanderThreat", "enemyCommanderThreatID", "MapOverlayLegendKind.enemyCommanderThreat"]) {
   if (!viewModel.includes(token)) {
     failures.push(`Game view model does not include ${token}`);
   }
@@ -107,14 +108,14 @@ const battle = [
   "RomeLegionsApp/Views/BattlePanels.swift",
   "RomeLegionsApp/Views/BattleViewStyles.swift"
 ].map((path) => readFileSync(path, "utf8")).join("\n");
-for (const token of ["CompactCommandPanelView", "PhoneCommandDeckView", "TacticalStatusStripView", "BattlefieldFocusPanelView", "CityBadgeView", "TerrainGlyphView", "AttackTargetButton", "AttackTargetRing", "AttackTargetMenuButton", "AttackTargetSelectionMenuView", "AttackLockMapReadoutView", "CombatForecastReadoutView", "cancelSelectedAttackTarget", "MapViewportState", "MagnificationGesture", "MapCameraControlsView", "focusViewport", "arrow.counterclockwise", "forward.end.fill", "CoastlineLayerView", "CoastlineBuilder", "isZoneCenter"]) {
+for (const token of ["CompactCommandPanelView", "PhoneCommandDeckView", "TacticalStatusStripView", "BattlefieldFocusPanelView", "CityBadgeView", "TerrainGlyphView", "AttackTargetButton", "AttackTargetRing", "AttackTargetMenuButton", "AttackTargetSelectionMenuView", "AttackLockMapReadoutView", "EnemyCommanderThreatFocusIdentityView", "EnemyCommanderThreatFocusCommandStatusView", "EnemyCommanderThreatFocusMapReadoutView", "EnemyCommanderThreatCardView", "CombatForecastReadoutView", "cancelSelectedAttackTarget", "MapViewportState", "MagnificationGesture", "MapCameraControlsView", "focusViewport", "arrow.counterclockwise", "forward.end.fill", "CoastlineLayerView", "CoastlineBuilder", "isZoneCenter"]) {
   if (!battle.includes(token)) {
     failures.push(`Battle view does not include ${token}`);
   }
 }
 
 const renderPreview = readFileSync("Tools/RenderBattlePreview/main.swift", "utf8");
-for (const token of ["commandDockSecondaryTarget", "selectedAttackTargetID", "selectedCombatForecast", "attackerIdentityLabel", "identityChainLabel", "cancelSelectedAttackTarget", "stateArchiveBeforeAttackForecast", "stateArchiveAfterCancel", "stateArchiveAfterRepeatedCancel", "aiIntentSnapshotBeforeAttackForecast", "missingAttackForecast", "stateBeforeAttackForecast", "EnemyCommanderThreatMapOverlay", "primaryEnemyCommanderThreatMapOverlay", "activeEnemyCommanderThreatSummary", "activeEnemyCommanderThreatID", "activeEnemyCommanderThreatMapOverlay", "enemyCommanderThreatOverlaysByPosition", "enemyCommanderThreatOverlayPositions", "focusedEnemyCommanderThreatID", "focusEnemyCommanderThreat", "missingEnemyCommanderThreatMapOverlay", "missingActiveEnemyCommanderThreatPrimary", "missingActiveEnemyCommanderThreatSecondary", "missingActiveEnemyCommanderThreatSummary", "missingActiveEnemyCommanderThreatOverlay", "missingActiveEnemyCommanderThreatSource", "missingActiveEnemyCommanderThreatReadout", "enemyCommanderThreatID", "MapOverlayLegendKind.enemyCommanderThreat"]) {
+for (const token of ["commandDockSecondaryTarget", "selectedAttackTargetID", "selectedCombatForecast", "attackerIdentityLabel", "identityChainLabel", "cancelSelectedAttackTarget", "stateArchiveBeforeAttackForecast", "stateArchiveAfterCancel", "stateArchiveAfterRepeatedCancel", "aiIntentSnapshotBeforeAttackForecast", "missingAttackForecast", "stateBeforeAttackForecast", "EnemyCommanderThreatMapOverlay", "EnemyCommanderThreatFocusReadout", "activeEnemyCommanderThreatFocusReadout", "hasExecutableCommand", "commandAvailabilityLabel", "primaryEnemyCommanderThreatMapOverlay", "activeEnemyCommanderThreatSummary", "activeEnemyCommanderThreatID", "activeEnemyCommanderThreatMapOverlay", "enemyCommanderThreatOverlaysByPosition", "enemyCommanderThreatOverlayPositions", "focusedEnemyCommanderThreatID", "focusEnemyCommanderThreat", "missingEnemyCommanderThreatMapOverlay", "missingActiveEnemyCommanderThreatPrimary", "missingActiveEnemyCommanderThreatSecondary", "missingActiveEnemyCommanderThreatSummary", "missingActiveEnemyCommanderThreatOverlay", "missingActiveEnemyCommanderThreatSource", "missingActiveEnemyCommanderThreatReadout", "missingEnemyCommanderThreatFocusReadout", "enemyCommanderThreatID", "MapOverlayLegendKind.enemyCommanderThreat"]) {
   if (!renderPreview.includes(token)) {
     failures.push(`RenderBattlePreview does not include ${token}`);
   }
@@ -161,8 +162,8 @@ for (const token of ["RomeLegions CI Results", "branches:", "main", "ci-artifact
     failures.push(`.github/workflows/ci-results.yml does not include ${token}`);
   }
 }
-if (!ciWorkflow.includes("CI_VERSION: v0.65")) {
-  failures.push(".github/workflows/ci-results.yml does not include CI_VERSION v0.65");
+if (!ciWorkflow.includes("CI_VERSION: v0.66")) {
+  failures.push(".github/workflows/ci-results.yml does not include CI_VERSION v0.66");
 }
 
 if (failures.length > 0) {

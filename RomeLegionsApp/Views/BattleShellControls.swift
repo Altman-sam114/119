@@ -266,7 +266,10 @@ struct SelectionCommandDockView: View {
 
     @ViewBuilder
     private var selectionIdentity: some View {
-        if let unit = viewModel.selectedUnit {
+        if let focusReadout = viewModel.activeEnemyCommanderThreatFocusReadout,
+           viewModel.focusedEnemyCommanderThreatID != nil {
+            EnemyCommanderThreatFocusIdentityView(readout: focusReadout)
+        } else if let unit = viewModel.selectedUnit {
             HStack(spacing: 9) {
                 UnitTokenView(unit: unit)
                 VStack(alignment: .leading, spacing: 3) {
@@ -386,7 +389,10 @@ struct SelectionDockCommandButtonsView: View {
 
     var body: some View {
         Group {
-            if let unit = viewModel.selectedUnit, unit.faction == .rome {
+            if let focusReadout = viewModel.activeEnemyCommanderThreatFocusReadout,
+               viewModel.focusedEnemyCommanderThreatID != nil {
+                EnemyCommanderThreatFocusCommandStatusView(readout: focusReadout)
+            } else if let unit = viewModel.selectedUnit, unit.faction == .rome {
                 UnitDockCommandButtonsView(
                     unit: unit,
                     isCompact: isCompact,
@@ -406,6 +412,92 @@ struct SelectionDockCommandButtonsView: View {
             }
         }
         .frame(minHeight: 52)
+    }
+}
+
+struct EnemyCommanderThreatFocusIdentityView: View {
+    var readout: EnemyCommanderThreatFocusReadout
+
+    var body: some View {
+        HStack(spacing: 7) {
+            ZStack {
+                RoundedRectangle(cornerRadius: 6)
+                    .fill(readout.isFocused ? readoutLevelTint.opacity(0.86) : .white.opacity(0.12))
+                    .frame(width: 40, height: 40)
+                Image(systemName: readout.skillSymbol)
+                    .font(.caption.weight(.black))
+                    .foregroundStyle(.white)
+            }
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text("敌将 · \(readout.commanderLabel)")
+                    .font(.caption.weight(.black))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.58)
+                Text("\(readout.focusStateLabel) · \(readout.levelLabel) · \(readout.skillName)")
+                    .font(.caption2.weight(.bold))
+                    .foregroundStyle(.white.opacity(0.78))
+                    .lineLimit(2)
+                    .minimumScaleFactor(0.54)
+                Text("\(readout.targetLabel) · \(readout.routeLabel)")
+                    .font(.caption2)
+                    .foregroundStyle(.white.opacity(0.62))
+                    .lineLimit(2)
+                    .minimumScaleFactor(0.50)
+            }
+            .fixedSize(horizontal: false, vertical: true)
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(readout.accessibilityLabel)
+    }
+
+    private var readoutLevelTint: Color {
+        switch readout.levelLabel {
+        case EnemyCommanderThreatLevel.critical.displayName:
+            return .red
+        case EnemyCommanderThreatLevel.severe.displayName:
+            return .orange
+        case EnemyCommanderThreatLevel.dangerous.displayName:
+            return .yellow
+        default:
+            return .gray
+        }
+    }
+}
+
+struct EnemyCommanderThreatFocusCommandStatusView: View {
+    var readout: EnemyCommanderThreatFocusReadout
+
+    var body: some View {
+        HStack(spacing: 7) {
+            Label(readout.focusStateLabel, systemImage: readout.isFocused ? "scope" : "eye.trianglebadge.exclamationmark.fill")
+                .font(.caption.weight(.black))
+                .foregroundStyle(readout.isFocused ? .yellow : .white.opacity(0.82))
+                .lineLimit(1)
+                .minimumScaleFactor(0.64)
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(readout.commandAvailabilityLabel)
+                    .font(.caption2.weight(.bold))
+                    .foregroundStyle(.white.opacity(0.76))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.56)
+                Text("\(readout.skillName) · 目标\(readout.targetLabel)")
+                    .font(.caption2)
+                    .foregroundStyle(.white.opacity(0.62))
+                    .lineLimit(2)
+                    .minimumScaleFactor(0.52)
+                Text(readout.routeLabel)
+                    .font(.caption2)
+                    .foregroundStyle(.white.opacity(0.54))
+                    .lineLimit(2)
+                    .minimumScaleFactor(0.50)
+            }
+            .fixedSize(horizontal: false, vertical: true)
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(readout.accessibilityLabel)
+        .accessibilityHint("使用右侧更多情报打开敌情抽屉；当前没有可执行的敌将命令")
     }
 }
 

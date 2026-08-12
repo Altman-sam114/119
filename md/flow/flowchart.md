@@ -394,3 +394,22 @@ flowchart LR
     P --> G["primaryEnemyEngagementLoopReadout<br/>全局反制/交战桥接/军令窗口保持 primary"]
     F -.->|失效时不写回焦点，仅由 active 回退| A
 ```
+
+## v0.66 敌将焦点指挥卡与地图命令上下文
+
+读图说明：v0.66 在 v0.65 active summary/overlay 之上建立一个纯 ViewModel 的当前敌将 readout。有效 focused id 让地图、底部命令坞和敌情卡共同显示 secondary；失效 focused id 保留选择源但只让 readout 显示 primary fallback，禁止 secondary 残留。全局交战/反制/桥接仍从 primary 读取，命令坞只有现有更多情报入口，不产生敌将可执行命令。
+
+```mermaid
+flowchart LR
+    P["primaryEnemyCommanderThreatSummary<br/>全局首要威胁"] --> A["activeEnemyCommanderThreatSummary<br/>focused ?? primary"]
+    F["focusedEnemyCommanderThreatID<br/>有效 / 失效 / 清理"] --> A
+    A --> R["activeEnemyCommanderThreatFocusReadout<br/>summary + 同源 overlay<br/>focused / primary fallback"]
+    R --> M["BattleMap 焦点读板<br/>姓名、等级、技能、目标、路线、仅侦察"]
+    R --> D["SelectionCommandDockView<br/>身份卡 + 只读状态<br/>hasExecutableCommand = false"]
+    R --> C["EnemyCommanderThreatCardView<br/>定位 / 已定位与同源 accessibility"]
+    D --> I["现有更多情报入口<br/>打开敌情抽屉"]
+    S["选择地块、反制/目标线聚焦、攻击/取消、命令、endTurn/start"] --> F
+    P --> G["primaryEnemyEngagementLoopReadout<br/>全局交战/反制/桥接/军令窗口"]
+    F -.->|失效不改写 focused source| R
+    R -.->|不写 GameState / SaveStore / AI<br/>不执行 attack / move / skill| G
+```
