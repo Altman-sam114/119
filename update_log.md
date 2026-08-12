@@ -21,6 +21,53 @@
 
 ## 历史记录
 
+### v0.66 / 敌将焦点指挥卡与地图命令上下文
+
+日期：2026-08-12
+
+核心变更：
+
+- 新增 `EnemyCommanderThreatFocusReadout`，把 focused threat、primary fallback、敌将身份、威胁等级、技能、目标/落点、影响范围、路线和当前侦察视角组装为同一只读 ViewModel readout；无焦点或失效焦点不残留 secondary 身份。
+- 地图焦点读板、底部命令坞和敌情卡共用同一 readout，显示“已定位”敌将的身份、威胁与路线上下文；焦点上下文明确标记为“仅侦察”，`hasExecutableCommand` 为 false，不暴露移动、攻击、跳过或将领技能执行入口。
+- `focusEnemyCommanderThreat(_:)` 及真实命令后的清理保持 ViewModel 选择态边界：RenderBattlePreview 独立双敌将 fixture 执行 `skipSelectedUnit()`，确认 `GameState.skipUnit` 的预期变化、存档和 AI 意图快照，以及 focused id、readout、地图、命令坞和敌情卡均不残留 secondary threat。
+- 预览为无宿主 `ImageRenderer` 增加同源的静态 drawer 分支，保留运行时可滚动 drawer 的内容和 `GameViewModel` 环境对象；RenderBattlePreview 生成默认、focused、focused-enemy 三组横屏/竖屏/宽屏预览，共 12 张图，覆盖窄屏换行、固定 HUD、地图工具、MapIntelligenceDock、命令坞、已定位敌情卡、44pt 命中区和 VoiceOver/source identity 门禁。
+
+关键文件：
+
+- `RomeLegionsApp/App/GameViewModel.swift`
+- `RomeLegionsApp/App/GameViewModelStrategyReadouts.swift`
+- `RomeLegionsApp/Views/BattleMapView.swift`
+- `RomeLegionsApp/Views/BattlePanels.swift`
+- `RomeLegionsApp/Views/BattleShellControls.swift`
+- `RomeLegionsApp/Views/BattleView.swift`
+- `Tools/RenderBattlePreview/main.swift`
+- `Tools/verify_project.mjs`
+- `.github/workflows/ci-results.yml`
+- `README.md`
+- `md/flow/flow.md`
+- `md/flow/flowchart.md`
+- `md/test/test.md`
+
+关键提交：
+
+- `cab5dd1b71660b464a4a27b342b96f3f1745c971`：新增 v0.66 Agent A 实现提示词。
+- `be370cbc4ff0abe0a4e209f9049f8bce5cd6a39d`：实现同源敌将焦点指挥卡、地图/命令坞/敌情卡上下文和只读边界。
+- `b76ea3b2f6db81865f1a8de3324e884673dd0177`：补充真实 `skipSelectedUnit()` fixture 和三尺寸 focused 预览门禁。
+- `fc617fae477a3db5e151ecf975d621e4ac7560bd`：保持 v0.66 focused drawer 与清理门禁的修复迭代。
+- `f087a6c`：约束敌情 drawer 内容尺寸，避免布局提议导致正文不可见。
+- `03e65fb04e47c5326a5f43c96cf93ba8c1c3ee03`：修复敌情 drawer 的 SwiftUI 布局提议。
+- `c08b01fcc3e86226fbd72395f002f8bc4ceb87f8`：为无宿主预览增加同源静态 drawer 分支并完成 12 图输出。
+
+验证状态：
+
+- Agent C 验收的最终实现 commit 为 `c08b01fcc3e86226fbd72395f002f8bc4ceb87f8`；GitHub Actions run `31604771808`、attempt `1`，artifact `RomeLegions-ci-v0.66-main-c08b01f-run31604771808-attempt1`，结果目录为 `/private/tmp/romelegions-c-review-31604771808/extracted`。manifest 的 `version=v0.66`、`branch=main`、`commitSha`、`runId`、`runAttempt` 与 `origin/main` 精确匹配。
+- manifest 中 Static Checks、SwiftPM tests、Gameplay Smoke、RenderBattlePreview、无签名 Xcode build 和总体结果全部为 `success`；JUnit 为 5 项、0 失败，Swift Testing 为 91 项，failure summary 为 `All configured CI checks passed.`。Render 已真实执行 `skipSelectedUnit()` 清理门禁，默认六图、focused 六图、focused-enemy 六图共 12 张均存在，横屏、竖屏、宽屏尺寸正确；六张 focused 图已复判地图焦点读板、只读命令坞、已定位敌情卡、窄屏换行、固定 HUD、地图工具和 MapIntelligenceDock 无新增重叠。
+- 按 cloud-only 约束，本轮未运行本地测试、build、typecheck、RenderBattlePreview、`Tools/verify_project.mjs`、`git diff --check` 或解析脚本；本地只做读取、编辑、只读 diff/status、Git 同步、提交和推送。
+
+遗留事项：
+
+- 真实设备触控命中、极端 Dynamic Type 和连续 VoiceOver 导航仍需人工体验；敌将焦点仍是只读侦察上下文，不包含自动施法、移动、攻击、目标预留或跨回合命令队列。云端仍有非阻断的 Node.js 20、未使用变量和 AppIntents 元数据警告。
+
 ### v0.65 / 敌将威胁聚焦同源读板
 
 日期：2026-08-12
