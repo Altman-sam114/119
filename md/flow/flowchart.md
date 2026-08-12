@@ -414,5 +414,7 @@ flowchart LR
     R -.->|不写 GameState / SaveStore / AI<br/>不执行 attack / move / skill| G
     R --> V["RenderBattlePreview focused 三尺寸采样<br/>地图焦点读板 + 底部命令坞"]
     C --> W["focused-enemy 三尺寸图<br/>敌情卡显示已定位"]
+    W --> L["ImageRenderer drawerUsesScrollView = false<br/>有限 layoutSize 静态 drawerContent<br/>绕开 ScrollView 首次测量"]
     V --> X["独立副本真实 skipSelectedUnit()<br/>只发生预期跳过变化并清除 secondary"]
+    L --> X
 ```

@@ -550,7 +550,8 @@ struct RenderBattlePreview {
             outputPath: focusedEnemyDrawerOutputPath,
             width: width,
             height: height,
-            initialDrawer: .enemy
+            initialDrawer: .enemy,
+            drawerUsesScrollView: false
         )
         guard hasVisibleFocusedEnemyCommanderThreatCard(
             in: focusedEnemyDrawerBitmap,
@@ -2400,9 +2401,13 @@ struct RenderBattlePreview {
         outputPath: String,
         width: Double,
         height: Double,
-        initialDrawer: BattleDrawerCategory? = nil
+        initialDrawer: BattleDrawerCategory? = nil,
+        drawerUsesScrollView: Bool = true
     ) throws -> NSBitmapImageRep {
-        let content = BattleView(initialDrawer: initialDrawer)
+        let content = BattleView(
+            initialDrawer: initialDrawer,
+            drawerUsesScrollView: drawerUsesScrollView
+        )
             .environmentObject(viewModel)
             .frame(width: width, height: height)
 

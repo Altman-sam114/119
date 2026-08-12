@@ -31,9 +31,14 @@ struct BattleInterfaceMetrics: Equatable {
 struct BattleView: View {
     @EnvironmentObject private var viewModel: GameViewModel
     @State private var activeDrawer: BattleDrawerCategory?
+    private let drawerUsesScrollView: Bool
 
-    init(initialDrawer: BattleDrawerCategory? = nil) {
+    init(
+        initialDrawer: BattleDrawerCategory? = nil,
+        drawerUsesScrollView: Bool = true
+    ) {
         _activeDrawer = State(initialValue: initialDrawer)
+        self.drawerUsesScrollView = drawerUsesScrollView
     }
 
     var body: some View {
@@ -42,6 +47,9 @@ struct BattleView: View {
             let drawerHeight = metrics.isPortrait
                 ? min(520, proxy.size.height * 0.56)
                 : max(180, min(620, proxy.size.height - metrics.fixedChromeHeight - 58))
+            let drawerWidth = metrics.isPortrait
+                ? max(280, proxy.size.width - 20)
+                : min(380, proxy.size.width * 0.42)
 
             ZStack {
                 Color(red: 0.09, green: 0.10, blue: 0.10)
@@ -81,10 +89,12 @@ struct BattleView: View {
                         if let activeDrawer {
                             BattlefieldDrawerView(
                                 category: activeDrawer,
+                                drawerUsesScrollView: drawerUsesScrollView,
+                                layoutSize: CGSize(width: drawerWidth, height: drawerHeight),
                                 onClose: { self.activeDrawer = nil }
                             )
                             .frame(
-                                width: metrics.isPortrait ? max(280, proxy.size.width - 20) : min(380, proxy.size.width * 0.42),
+                                width: drawerWidth,
                                 height: drawerHeight
                             )
                             .padding(.top, 52)

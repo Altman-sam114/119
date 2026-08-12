@@ -31,6 +31,7 @@
 - `BattleMapView` 的 `EnemyCommanderThreatFocusMapReadoutView`、`SelectionCommandDockView` 的身份/命令状态分支和 `EnemyCommanderThreatCardView` 只消费同一个 readout。命令坞仅显示已定位/仅侦察和现有“更多情报”入口，`hasExecutableCommand == false`，不伪装 selectedUnit、不执行敌将命令。
 - `primaryEnemyEngagementLoopReadout`、`selectedCommanderOpportunityBridgeReadout`、`selectedUnitOrderWindowReadout` 继续保持全局 primary；只有地图、底部当前对象和敌情卡使用 active focus readout。选择地块、反制/目标线聚焦、攻击锁定/取消、命令、回合结束和重新开始会清理失效焦点，readout 不保留旧 secondary 身份。
 - 云端 `RenderBattlePreview` 在双敌将 fixture 的 focused 状态额外输出 `*-focused.png` 和 `*-focused-enemy.png`：前者采样地图焦点读板与底部只读命令坞，后者采样“已定位”敌情卡；这些输出不参与默认城市/单位六图像素基线。另用同一 fixture 的独立 ViewModel 副本真实调用 `skipSelectedUnit()`，以 `GameState.skipUnit` 预期副本核对仅有跳过变化，并确认命令入口清除 focused threat 与 secondary readout。
+- `focused-enemy` 的 `ImageRenderer` 调用把 `BattleView.drawerUsesScrollView` 设为 `false`；`BattlefieldDrawerView` 在 `BattleInterfaceMetrics` 计算出的有限 `layoutSize` 中复用同一 header、`drawerContent` 和 `GameViewModel`，静态分支不经过 `ScrollView` 或嵌套 `GeometryReader`，只为无宿主截图布局提供确定的首帧内容。真实 App 默认值仍为 `true`，可滚动抽屉行为不变，固定 HUD/地图工具仍在外层坐标系。
 
 ## 当前核心执行流
 

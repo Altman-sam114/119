@@ -166,53 +166,22 @@ struct BattleEdgeToolsView: View {
 struct BattlefieldDrawerView: View {
     @EnvironmentObject private var viewModel: GameViewModel
     var category: BattleDrawerCategory
+    var drawerUsesScrollView: Bool = true
+    var layoutSize: CGSize
     var onClose: () -> Void
 
     var body: some View {
-        GeometryReader { proxy in
-            let drawerSize = proxy.size
-            let headerHeight: CGFloat = 48
-            let bodyHeight = max(0, drawerSize.height - headerHeight)
-
-            VStack(spacing: 0) {
-                HStack(spacing: 10) {
-                    Label(category.title, systemImage: category.symbol)
-                        .font(.headline.weight(.bold))
-                        .foregroundStyle(.white)
-                    Spacer(minLength: 0)
-                    Button("关闭抽屉", systemImage: "xmark") {
-                        onClose()
-                    }
-                    .labelStyle(.iconOnly)
-                    .frame(width: 44, height: 44)
-                    .buttonStyle(CommandIconButtonStyle())
+        Group {
+            if drawerUsesScrollView {
+                GeometryReader { proxy in
+                    drawerLayout(for: proxy.size)
                 }
-                .padding(.horizontal, 10)
-                .frame(width: drawerSize.width, height: headerHeight)
-                .background(Color(red: 0.18, green: 0.16, blue: 0.13))
-
-                // Keep the existing drawer body, but give it the exact space
-                // left after the fixed header. This makes environment-driven
-                // panel content measurable in ImageRenderer and in the first
-                // on-screen frame without creating a second drawer path.
-                ScrollView(.vertical, showsIndicators: false) {
-                    VStack(spacing: 10) {
-                        drawerContent
-                    }
-                    .frame(
-                        width: max(1, drawerSize.width - 20),
-                        alignment: .topLeading
-                    )
-                    .padding(10)
-                    .environmentObject(viewModel)
-                }
-                .frame(
-                    width: drawerSize.width,
-                    height: bodyHeight,
-                    alignment: .topLeading
-                )
+            } else {
+                // ImageRenderer has no on-screen scroll-view layout lifecycle.
+                // Use the same content in the finite size supplied by BattleView,
+                // keeping the first focused card in the display list.
+                drawerLayout(for: layoutSize)
             }
-            .frame(width: drawerSize.width, height: drawerSize.height, alignment: .topLeading)
         }
         .background(Color(red: 0.11, green: 0.11, blue: 0.10).opacity(0.98))
         .clipShape(.rect(cornerRadius: 8))
@@ -226,6 +195,63 @@ struct BattlefieldDrawerView: View {
     }
 
     @ViewBuilder
+    private func drawerLayout(for drawerSize: CGSize) -> some View {
+        let headerHeight: CGFloat = 48
+        let bodyHeight = max(0, drawerSize.height - headerHeight)
+
+        VStack(spacing: 0) {
+            drawerHeader(for: drawerSize, height: headerHeight)
+            drawerBody(for: drawerSize, height: bodyHeight)
+        }
+        .frame(width: drawerSize.width, height: drawerSize.height, alignment: .topLeading)
+    }
+
+    private func drawerHeader(for drawerSize: CGSize, height: CGFloat) -> some View {
+        HStack(spacing: 10) {
+            Label(category.title, systemImage: category.symbol)
+                .font(.headline.weight(.bold))
+                .foregroundStyle(.white)
+            Spacer(minLength: 0)
+            Button("关闭抽屉", systemImage: "xmark") {
+                onClose()
+            }
+            .labelStyle(.iconOnly)
+            .frame(width: 44, height: 44)
+            .buttonStyle(CommandIconButtonStyle())
+        }
+        .padding(.horizontal, 10)
+        .frame(width: drawerSize.width, height: height)
+        .background(Color(red: 0.18, green: 0.16, blue: 0.13))
+    }
+
+    @ViewBuilder
+    private func drawerBody(for drawerSize: CGSize, height: CGFloat) -> some View {
+        if drawerUsesScrollView {
+            ScrollView(.vertical, showsIndicators: false) {
+                drawerContentStack(for: drawerSize)
+            }
+            .frame(width: drawerSize.width, height: height, alignment: .topLeading)
+        } else {
+            // Keep this branch free of ScrollView and GeometryReader. The outer
+            // frame is finite, while clipping preserves the drawer's fixed HUD
+            // boundary when panel content is taller than the preview viewport.
+            drawerContentStack(for: drawerSize)
+                .fixedSize(horizontal: false, vertical: true)
+                .frame(width: drawerSize.width, height: height, alignment: .topLeading)
+                .clipped()
+        }
+    }
+
+    private func drawerContentStack(for drawerSize: CGSize) -> some View {
+        VStack(spacing: 10) {
+            drawerContent
+        }
+        .frame(width: max(1, drawerSize.width - 20), alignment: .topLeading)
+        .padding(10)
+        .environmentObject(viewModel)
+    }
+
+    @ViewBuilder
     private var drawerContent: some View {
         switch category {
         case .orders:
@@ -235,12 +261,7 @@ struct BattlefieldDrawerView: View {
             BattlefieldFocusPanelView()
             StrategicBalancePanelView()
         case .enemy:
-            // Keep the existing enemy panel eager inside the bounded drawer
-            // ScrollView. Its content remains scrollable, while fixed vertical
-            // sizing prevents the first environment-driven focused card from
-            // being measured as an empty view by ImageRenderer.
             EnemyIntentPanelView()
-                .fixedSize(horizontal: false, vertical: true)
         case .senate:
             TechnologyPanelView()
             DiplomacyPanelView()
