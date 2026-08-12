@@ -164,6 +164,7 @@ struct BattleEdgeToolsView: View {
 }
 
 struct BattlefieldDrawerView: View {
+    @EnvironmentObject private var viewModel: GameViewModel
     var category: BattleDrawerCategory
     var onClose: () -> Void
 
@@ -185,18 +186,31 @@ struct BattlefieldDrawerView: View {
             .frame(minHeight: 48)
             .background(Color(red: 0.18, green: 0.16, blue: 0.13))
 
-            ScrollView {
-                // Keep drawer content eager so an initial focused enemy drawer
-                // materializes its first readout in ImageRenderer and on the
-                // first app frame. This is the existing drawer container, not a
-                // second drawer or a separate threat presentation path.
-                VStack(spacing: 10) {
-                    drawerContent
+            // Give the existing drawer body an explicit finite proposal. The
+            // title row has its own intrinsic height, but an off-screen
+            // ImageRenderer can otherwise measure this ScrollView at zero
+            // height before its environment-driven PanelView content is laid
+            // out. Keeping the content eager preserves the normal scroll
+            // behavior while making the first focused enemy card measurable.
+            GeometryReader { proxy in
+                ScrollView(.vertical, showsIndicators: false) {
+                    VStack(spacing: 10) {
+                        drawerContent
+                    }
+                    .frame(
+                        width: max(1, proxy.size.width - 20),
+                        alignment: .topLeading
+                    )
+                    .padding(10)
+                    .environmentObject(viewModel)
                 }
-                .frame(maxWidth: .infinity, alignment: .topLeading)
-                .padding(10)
+                .frame(
+                    width: proxy.size.width,
+                    height: proxy.size.height,
+                    alignment: .top
+                )
             }
-            .scrollIndicators(.hidden)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         }
         .background(Color(red: 0.11, green: 0.11, blue: 0.10).opacity(0.98))
         .clipShape(.rect(cornerRadius: 8))
@@ -219,7 +233,12 @@ struct BattlefieldDrawerView: View {
             BattlefieldFocusPanelView()
             StrategicBalancePanelView()
         case .enemy:
+            // Keep the existing enemy panel eager inside the bounded drawer
+            // ScrollView. Its content remains scrollable, while fixed vertical
+            // sizing prevents the first environment-driven focused card from
+            // being measured as an empty view by ImageRenderer.
             EnemyIntentPanelView()
+                .fixedSize(horizontal: false, vertical: true)
         case .senate:
             TechnologyPanelView()
             DiplomacyPanelView()
