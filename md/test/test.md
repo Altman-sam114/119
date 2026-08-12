@@ -446,7 +446,7 @@ env HOME=$PWD/.home DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer xco
 
 - RenderBattlePreview 必须核对 `CountermeasureCommandContextReadout` 与 active preview/overlay 的 source/report/preview/overlay id、回应军团、推荐姿态、落点、目标、步骤、收益风险和 accessibility 同源。
 - 有效/重复 focus 切到 `.countermeasure` 且不改核心状态；无效 focused id 只允许明确 primary fallback，不得残留旧 secondary 文案或坐标。
-- “确认姿态”“前往落点”“锁定目标”必须是三个独立入口；锁敌只进入既有攻击预演，不得自动攻击、施法或串联下一步。选择切换、互斥焦点、动作、回合和重开后不得保留 stale context。
+- “确认姿态”“前往落点”“锁定目标”必须是三个独立入口；Render 使用同一 countermeasure fixture 的隔离 ViewModel 副本真实调用三个公开方法，以纯读快照比较 `GameState` 编码、全量单位/城市/资源、回合、战役状态和 AI intent。姿态只允许推荐姿态及既有日志变化，移动只允许回应单位落点/移动状态及既有日志变化，锁敌必须保持核心状态编码不变并生成 `selectedAttackTargetID`/`selectedCombatForecast`；失败分别抛出 `missingCountermeasureOrderRuntimeConfirmation`、`missingCountermeasureMovementRuntimeConfirmation`、`missingCountermeasureTargetRuntimeConfirmation`。锁敌只进入既有攻击预演，不得自动攻击、施法或串联下一步；命令后 context 必须重新派生或清除旧 source/坐标，选择切换、互斥焦点、动作、回合和重开后不得保留 stale context。
 - artifact 保留 v0.66 旧 12 图并新增横屏、竖屏、宽屏 `*-focused-countermeasure.png`，总计 15 图；Agent C 只验收最新 `origin/main` SHA 对应的 v0.67 manifest、日志、JUnit、失败摘要和全部 PNG。
 
 - 每次实现前先读本文件。

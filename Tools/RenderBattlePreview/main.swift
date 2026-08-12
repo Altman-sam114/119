@@ -884,6 +884,7 @@ struct RenderBattlePreview {
         guard viewModel.activeCountermeasureCommandContextReadout?.sourceID == countermeasure.id else {
             throw PreviewRenderError.missingCountermeasureCommandCleanup
         }
+        try assertCountermeasureSingleStepCommands(in: viewModel.state)
         guard let mapControl = viewModel.primaryMapControlSummary,
               !viewModel.mapControlSummaries.isEmpty,
               !viewModel.mapControlOverlayPositions.isEmpty,
@@ -2449,6 +2450,314 @@ struct RenderBattlePreview {
         print(focusedCountermeasureOutputPath)
     }
 
+    private static func assertCountermeasureSingleStepCommands(in fixtureState: GameState) throws {
+        guard let orderFixture = focusedCountermeasureFixture(
+            state: fixtureState,
+            matching: { preview in
+                preview.canSetOrder &&
+                    preview.responseUnit?.resolvedTacticalOrder != preview.recommendedOrder
+            }
+        ) else {
+            throw PreviewRenderError.missingCountermeasureOrderRuntimeConfirmation
+        }
+        let orderViewModel = orderFixture.viewModel
+        let orderContext = orderFixture.context
+        guard orderContext.canConfirmOrder,
+              let orderUnitBefore = orderViewModel.state.unit(withID: orderContext.responseUnitID),
+              orderUnitBefore.resolvedTacticalOrder != orderContext.recommendedOrder else {
+            throw PreviewRenderError.missingCountermeasureOrderRuntimeConfirmation
+        }
+        let orderBefore = try countermeasureRuntimeSnapshot(of: orderViewModel)
+        var expectedOrderState = orderBefore.state
+        guard (try? expectedOrderState.setTacticalOrder(
+            unitID: orderContext.responseUnitID,
+            order: orderContext.recommendedOrder
+        )) != nil else {
+            throw PreviewRenderError.missingCountermeasureOrderRuntimeConfirmation
+        }
+        orderViewModel.confirmCountermeasureOrder()
+        let orderAfter = try countermeasureRuntimeSnapshot(of: orderViewModel)
+        let expectedOrderArchive = try encodedState(expectedOrderState)
+        guard let orderUnitAfter = orderViewModel.state.unit(withID: orderContext.responseUnitID),
+              orderAfter.state == expectedOrderState,
+              orderAfter.archive == expectedOrderArchive,
+              orderBefore.archive != orderAfter.archive,
+              orderBefore.resources == orderAfter.resources,
+              orderBefore.cities == orderAfter.cities,
+              orderBefore.turn == orderAfter.turn,
+              orderBefore.activeFaction == orderAfter.activeFaction,
+              orderBefore.campaignStatus == orderAfter.campaignStatus,
+              orderAfter.aiIntents == countermeasureAIIntentSnapshot(in: expectedOrderState),
+              orderUnitAfter.resolvedTacticalOrder == orderContext.recommendedOrder,
+              orderUnitAfter.position == orderUnitBefore.position,
+              orderUnitAfter.health == orderUnitBefore.health,
+              orderUnitAfter.experience == orderUnitBefore.experience,
+              orderUnitAfter.generalSkillCooldownRemaining == orderUnitBefore.generalSkillCooldownRemaining,
+              orderUnitAfter.hasMoved == orderUnitBefore.hasMoved,
+              orderUnitAfter.hasActed == orderUnitBefore.hasActed,
+              orderViewModel.selectedUnitID == orderContext.responseUnitID,
+              orderViewModel.selectedAttackTargetID == nil,
+              orderViewModel.selectedCombatForecast == nil,
+              orderViewModel.focusedCountermeasureID == nil,
+              countermeasureContextIsFresh(
+                  orderViewModel.activeCountermeasureCommandContextReadout,
+                  after: orderUnitAfter,
+                  previousSourceID: orderContext.sourceID
+              ) else {
+            throw PreviewRenderError.missingCountermeasureOrderRuntimeConfirmation
+        }
+
+        guard let movementFixture = focusedCountermeasureFixture(
+            state: fixtureState,
+            matching: { preview in
+                guard let responseUnit = preview.responseUnit else { return false }
+                let destinationOwner = fixtureState.city(at: preview.destination)?.owner
+                return preview.canMoveToDestination &&
+                    responseUnit.position != preview.destination &&
+                    (destinationOwner == nil || destinationOwner == responseUnit.faction)
+            }
+        ) else {
+            throw PreviewRenderError.missingCountermeasureMovementRuntimeConfirmation
+        }
+        let movementViewModel = movementFixture.viewModel
+        let movementContext = movementFixture.context
+        guard movementContext.canConfirmMovement,
+              let movementUnitBefore = movementViewModel.state.unit(withID: movementContext.responseUnitID),
+              movementUnitBefore.position == movementContext.responsePosition,
+              movementUnitBefore.position != movementContext.destination,
+              movementViewModel.reachablePositions.contains(movementContext.destination) else {
+            throw PreviewRenderError.missingCountermeasureMovementRuntimeConfirmation
+        }
+        let movementBefore = try countermeasureRuntimeSnapshot(of: movementViewModel)
+        var expectedMovementState = movementBefore.state
+        guard (try? expectedMovementState.moveUnit(
+            id: movementContext.responseUnitID,
+            to: movementContext.destination
+        )) != nil else {
+            throw PreviewRenderError.missingCountermeasureMovementRuntimeConfirmation
+        }
+        movementViewModel.confirmCountermeasureMovement()
+        let movementAfter = try countermeasureRuntimeSnapshot(of: movementViewModel)
+        let expectedMovementArchive = try encodedState(expectedMovementState)
+        let unchangedMovementUnitsBefore = movementBefore.units.filter { $0.id != movementContext.responseUnitID }
+        let unchangedMovementUnitsAfter = movementAfter.units.filter { $0.id != movementContext.responseUnitID }
+        let responsePreviewsAfterMovement = movementViewModel.countermeasureCommandPreviews.filter {
+            $0.summary.report.responseUnitID == movementContext.responseUnitID
+        }
+        guard let movementUnitAfter = movementViewModel.state.unit(withID: movementContext.responseUnitID),
+              movementAfter.state == expectedMovementState,
+              movementAfter.archive == expectedMovementArchive,
+              movementBefore.archive != movementAfter.archive,
+              movementBefore.resources == movementAfter.resources,
+              movementBefore.cities == movementAfter.cities,
+              movementBefore.turn == movementAfter.turn,
+              movementBefore.activeFaction == movementAfter.activeFaction,
+              movementBefore.campaignStatus == movementAfter.campaignStatus,
+              movementAfter.aiIntents == countermeasureAIIntentSnapshot(in: expectedMovementState),
+              unchangedMovementUnitsBefore == unchangedMovementUnitsAfter,
+              movementUnitAfter.position == movementContext.destination,
+              movementUnitAfter.position != movementContext.responsePosition,
+              movementUnitAfter.health == movementUnitBefore.health,
+              movementUnitAfter.experience == movementUnitBefore.experience,
+              movementUnitAfter.generalSkillCooldownRemaining == movementUnitBefore.generalSkillCooldownRemaining,
+              movementUnitAfter.resolvedTacticalOrder == movementUnitBefore.resolvedTacticalOrder,
+              movementUnitAfter.hasMoved,
+              movementUnitAfter.hasActed == movementUnitBefore.hasActed,
+              movementViewModel.selectedUnitID == movementContext.responseUnitID,
+              movementViewModel.selectedPosition == movementContext.destination,
+              movementViewModel.selectedAttackTargetID == nil,
+              movementViewModel.selectedCombatForecast == nil,
+              movementViewModel.focusedCountermeasureID == nil,
+              responsePreviewsAfterMovement.allSatisfy({ preview in
+                  preview.responseUnit?.position == movementContext.destination &&
+                      preview.summary.responsePosition == movementContext.destination
+              }),
+              countermeasureContextIsFresh(
+                  movementViewModel.activeCountermeasureCommandContextReadout,
+                  after: movementUnitAfter,
+                  previousSourceID: movementContext.sourceID
+              ) else {
+            throw PreviewRenderError.missingCountermeasureMovementRuntimeConfirmation
+        }
+
+        guard let targetFixture = attackableCountermeasureFixture(
+            state: fixtureState,
+            movementPreparedState: movementAfter.state
+        ) else {
+            throw PreviewRenderError.missingCountermeasureTargetRuntimeConfirmation
+        }
+        let targetViewModel = targetFixture.viewModel
+        let targetContext = targetFixture.context
+        guard targetContext.canLockTarget,
+              let targetUnitID = targetContext.targetUnitID,
+              let targetUnitBefore = targetViewModel.state.unit(withID: targetUnitID),
+              let responseUnitBeforeTargetLock = targetViewModel.state.unit(withID: targetContext.responseUnitID),
+              targetViewModel.attackTargets.contains(where: { $0.id == targetUnitID }) else {
+            throw PreviewRenderError.missingCountermeasureTargetRuntimeConfirmation
+        }
+        let targetBefore = try countermeasureRuntimeSnapshot(of: targetViewModel)
+        targetViewModel.lockCountermeasureTarget()
+        let targetAfter = try countermeasureRuntimeSnapshot(of: targetViewModel)
+        guard let selectedForecast = targetViewModel.selectedCombatForecast,
+              let canonicalPreview = try? targetViewModel.state.attackPreview(
+                  attackerID: targetContext.responseUnitID,
+                  defenderID: targetUnitID
+              ),
+              targetAfter.state == targetBefore.state,
+              targetAfter.archive == targetBefore.archive,
+              targetAfter.units == targetBefore.units,
+              targetAfter.cities == targetBefore.cities,
+              targetAfter.resources == targetBefore.resources,
+              targetAfter.turn == targetBefore.turn,
+              targetAfter.activeFaction == targetBefore.activeFaction,
+              targetAfter.campaignStatus == targetBefore.campaignStatus,
+              targetAfter.aiIntents == targetBefore.aiIntents,
+              targetViewModel.selectedUnitID == targetContext.responseUnitID,
+              targetViewModel.selectedAttackTargetID == targetUnitID,
+              targetViewModel.selectedPosition == targetUnitBefore.position,
+              selectedForecast.attacker.id == responseUnitBeforeTargetLock.id,
+              selectedForecast.defender.id == targetUnitBefore.id,
+              selectedForecast.preview == canonicalPreview,
+              !selectedForecast.compactLabel.isEmpty,
+              !selectedForecast.detailLabel.isEmpty,
+              !selectedForecast.accessibilityLabel.isEmpty,
+              targetViewModel.attackTargetAccessibilityLabel(for: targetUnitBefore).contains("已锁定"),
+              targetViewModel.focusedCountermeasureID == nil,
+              targetViewModel.activeCountermeasureCommandContextReadout?.isFocused != true,
+              targetViewModel.bannerMessage.contains("已锁定") else {
+            throw PreviewRenderError.missingCountermeasureTargetRuntimeConfirmation
+        }
+    }
+
+    private static func focusedCountermeasureFixture(
+        state: GameState,
+        matching predicate: (CountermeasureCommandPreview) -> Bool
+    ) -> (
+        viewModel: GameViewModel,
+        preview: CountermeasureCommandPreview,
+        context: CountermeasureCommandContextReadout
+    )? {
+        let viewModel = GameViewModel()
+        viewModel.isShowingMenu = false
+        viewModel.state = state
+        guard let preview = viewModel.countermeasureCommandPreviews.first(where: predicate) else {
+            return nil
+        }
+        viewModel.focusCountermeasure(preview.id)
+        guard let context = viewModel.activeCountermeasureCommandContextReadout,
+              context.sourceID == preview.id,
+              context.responseUnitID == preview.summary.report.responseUnitID,
+              context.isFocused,
+              context.isPrimaryFallback == false,
+              viewModel.selectedUnitID == context.responseUnitID else {
+            return nil
+        }
+        return (viewModel, preview, context)
+    }
+
+    private static func attackableCountermeasureFixture(
+        state: GameState,
+        movementPreparedState: GameState
+    ) -> (
+        viewModel: GameViewModel,
+        preview: CountermeasureCommandPreview,
+        context: CountermeasureCommandContextReadout
+    )? {
+        if let directFixture = focusedCountermeasureFixture(
+            state: state,
+            matching: { $0.canAttackCurrentTarget && $0.targetUnit != nil }
+        ) {
+            return directFixture
+        }
+        if let preparedFixture = focusedCountermeasureFixture(
+            state: movementPreparedState,
+            matching: { $0.canAttackCurrentTarget && $0.targetUnit != nil }
+        ) {
+            return preparedFixture
+        }
+
+        let sourceViewModel = GameViewModel()
+        sourceViewModel.isShowingMenu = false
+        sourceViewModel.state = state
+        let movementSources = sourceViewModel.countermeasureCommandPreviews.filter { preview in
+            preview.responseUnit?.position != preview.destination &&
+                preview.canMoveToDestination
+        }
+        for source in movementSources {
+            guard let preparation = focusedCountermeasureFixture(
+                state: state,
+                matching: { $0.id == source.id }
+            ),
+            preparation.context.canConfirmMovement else {
+                continue
+            }
+            let responseUnitID = preparation.context.responseUnitID
+            let targetUnitID = preparation.context.targetUnitID
+            preparation.viewModel.confirmCountermeasureMovement()
+            guard preparation.viewModel.state.unit(withID: responseUnitID)?.position == preparation.context.destination,
+                  preparation.viewModel.focusedCountermeasureID == nil,
+                  let attackFixture = focusedCountermeasureFixture(
+                      state: preparation.viewModel.state,
+                      matching: { preview in
+                          preview.summary.report.responseUnitID == responseUnitID &&
+                              preview.targetUnit?.id == targetUnitID &&
+                              preview.canAttackCurrentTarget
+                      }
+                  ) else {
+                continue
+            }
+            return attackFixture
+        }
+        return nil
+    }
+
+    private static func countermeasureRuntimeSnapshot(
+        of viewModel: GameViewModel
+    ) throws -> CountermeasureCommandRuntimeSnapshot {
+        CountermeasureCommandRuntimeSnapshot(
+            state: viewModel.state,
+            archive: try encodedState(viewModel.state),
+            units: viewModel.state.units,
+            cities: viewModel.state.cities,
+            resources: viewModel.state.resources,
+            turn: viewModel.state.turn,
+            activeFaction: viewModel.state.activeFaction,
+            campaignStatus: viewModel.state.campaignStatus,
+            aiIntents: viewModel.enemyIntentSummaries.map(\.intent)
+        )
+    }
+
+    private static func encodedState(_ state: GameState) throws -> Data {
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.sortedKeys]
+        return try encoder.encode(state)
+    }
+
+    private static func countermeasureAIIntentSnapshot(in state: GameState) -> [AIIntent] {
+        Faction.turnOrder
+            .filter { faction in
+                faction != .rome &&
+                    state.diplomaticStatus(between: .rome, and: faction) == .war
+            }
+            .flatMap { state.aiIntents(for: $0, limit: 2) }
+    }
+
+    private static func countermeasureContextIsFresh(
+        _ context: CountermeasureCommandContextReadout?,
+        after responseUnit: ArmyUnit,
+        previousSourceID: String
+    ) -> Bool {
+        guard let context,
+              context.sourceID == previousSourceID else {
+            return true
+        }
+        return context.focusedCountermeasureID == nil &&
+            context.isFocused == false &&
+            context.responseUnitID == responseUnit.id &&
+            context.responsePosition == responseUnit.position &&
+            context.responseIdentityLabel.contains(responseUnit.position.description)
+    }
+
     private static func renderBattleView(
         viewModel: GameViewModel,
         outputPath: String,
@@ -2960,6 +3269,18 @@ struct RenderBattlePreview {
     }
 }
 
+private struct CountermeasureCommandRuntimeSnapshot {
+    var state: GameState
+    var archive: Data
+    var units: [ArmyUnit]
+    var cities: [City]
+    var resources: [Faction: EmpireResources]
+    var turn: Int
+    var activeFaction: Faction
+    var campaignStatus: CampaignStatus
+    var aiIntents: [AIIntent]
+}
+
 enum PreviewRenderError: Error {
     case renderFailed
     case missingMapDominantBattleShell
@@ -3013,6 +3334,9 @@ enum PreviewRenderError: Error {
     case missingCountermeasureCommandContext
     case missingCountermeasureCommandSource
     case missingCountermeasureCommandConfirmation
+    case missingCountermeasureOrderRuntimeConfirmation
+    case missingCountermeasureMovementRuntimeConfirmation
+    case missingCountermeasureTargetRuntimeConfirmation
     case missingCountermeasureCommandCleanup
     case missingCountermeasureCommandRender
     case missingMapControlSummary

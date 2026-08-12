@@ -39,6 +39,7 @@
 - 地图 active overlay、`CountermeasureCommandContextMapReadoutView`、`CountermeasureCardView` 和 `SelectionCommandDockView` 只消费同一 context。全局 `primaryCountermeasureSummary`、交战闭环、将领桥接和军令窗口继续保留 primary 语义。
 - `focusCountermeasure(_:)` 选择回应军团并切到 `.countermeasure` 视角；无效 id 保留可审计 focused source，但 active context 明确回退 primary，不输出旧 secondary 字段。
 - `confirmCountermeasureOrder()` 只进入既有姿态路径，`confirmCountermeasureMovement()` 只进入既有合法地图移动路径，`lockCountermeasureTarget()` 只进入 `focusAttackTarget` 与攻击预演。三条入口互不串联；选择其他对象、互斥焦点、核心动作、回合结束和重开会清除旧反制 focus。
+- 云端 `RenderBattlePreview` 从同一反制 fixture 派生三个隔离 ViewModel，分别真实调用上述公开入口；工具层纯读快照核对姿态、移动或攻击锁定各自允许的状态差异，并要求命令后 context 重新派生或清除旧 source/坐标。锁敌 fixture 若需接敌，只能先在另一副本调用真实移动确认，再从更新后的报告选择合法可攻击 source。
 
 ## 当前核心执行流
 
