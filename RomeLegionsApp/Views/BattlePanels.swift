@@ -3111,7 +3111,11 @@ struct CountermeasureCardView: View {
                 .frame(maxWidth: .infinity, minHeight: 44)
                 .buttonStyle(SecondaryButtonStyle())
                 .disabled(!preview.canFocus)
-                .accessibilityLabel(isFocused ? "已定位反制身份\(preview.id)" : "\(preview.buttonTitle)，\(preview.accessibilityLabel)")
+                .accessibilityLabel(
+                    isFocused
+                        ? "已定位回应\(preview.summary.unitLabel)，目标\(preview.targetLabel)"
+                        : "\(preview.buttonTitle)，\(preview.accessibilityLabel)"
+                )
                 .accessibilityHint("只定位回应军团并切换反制视角，不会自动执行姿态、移动或攻击")
             }
 

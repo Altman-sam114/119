@@ -47,6 +47,7 @@ struct MapOverlayPresentation {
     var enemyRouteOpacity: Double {
         if context.mode == .attackLock { return 0.03 }
         if context.mode == .countermeasureFocus || context.mode == .enemyCommanderFocus { return 0.12 }
+        if context.mode == .unitExecution { return 0.08 }
         switch perspective {
         case .enemyIntent: return 1
         case .countermeasure: return 0.24
@@ -316,9 +317,12 @@ struct SelectionCommandDockView: View {
                             .frame(maxWidth: .infinity, alignment: .leading)
                         moreButton
                     }
+                    .frame(height: 44)
                     SelectionDockCommandButtonsView(isCompact: true, onShowMore: onShowMore)
                         .frame(maxWidth: .infinity, alignment: .leading)
+                        .frame(height: 44)
                 }
+                .padding(.vertical, 4)
             } else {
                 HStack(spacing: 8) {
                     selectionIdentity
@@ -363,10 +367,10 @@ struct SelectionCommandDockView: View {
     private var selectionIdentity: some View {
         if let context = viewModel.activeCountermeasureCommandContextReadout,
            context.isFocused {
-            CountermeasureCommandContextIdentityView(context: context)
+            CountermeasureCommandContextIdentityView(context: context, isCompact: isPortrait)
         } else if let focusReadout = viewModel.activeEnemyCommanderThreatFocusReadout,
            viewModel.focusedEnemyCommanderThreatID != nil {
-            EnemyCommanderThreatFocusIdentityView(readout: focusReadout)
+            EnemyCommanderThreatFocusIdentityView(readout: focusReadout, isCompact: isPortrait)
         } else if let unit = viewModel.selectedUnit {
             HStack(spacing: 9) {
                 UnitTokenView(unit: unit)
@@ -378,14 +382,16 @@ struct SelectionCommandDockView: View {
                         .font(.caption)
                         .foregroundStyle(.white.opacity(0.70))
                         .lineLimit(1)
-                    unitCommandCueView
+                    if !isPortrait {
+                        unitCommandCueView
+                    }
                 }
             }
             .accessibilityElement(children: .combine)
         } else if let city = viewModel.selectedCity,
                   let brief = viewModel.selectedCityBrief {
             HStack(spacing: 9) {
-                CityBadgeView(city: city)
+                CityBadgeView(city: city, compact: isPortrait)
                 VStack(alignment: .leading, spacing: 3) {
                     Text(city.name)
                         .font(.subheadline.weight(.bold))
@@ -393,11 +399,13 @@ struct SelectionCommandDockView: View {
                         .font(.caption.weight(.bold))
                         .foregroundStyle(.white.opacity(0.76))
                         .lineLimit(1)
-                    Label(cityCommandCue(brief), systemImage: "flag.fill")
-                        .font(.caption)
-                        .foregroundStyle(Color(red: 0.91, green: 0.74, blue: 0.38))
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.68)
+                    if !isPortrait {
+                        Label(cityCommandCue(brief), systemImage: "flag.fill")
+                            .font(.caption)
+                            .foregroundStyle(Color(red: 0.91, green: 0.74, blue: 0.38))
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.68)
+                    }
                 }
             }
             .accessibilityLabel(brief.accessibilityLabel)
@@ -492,7 +500,7 @@ struct SelectionDockCommandButtonsView: View {
                 CountermeasureCommandContextButtonsView(context: context)
             } else if let focusReadout = viewModel.activeEnemyCommanderThreatFocusReadout,
                viewModel.focusedEnemyCommanderThreatID != nil {
-                EnemyCommanderThreatFocusCommandStatusView(readout: focusReadout)
+                EnemyCommanderThreatFocusCommandStatusView(readout: focusReadout, isCompact: isCompact)
             } else if let unit = viewModel.selectedUnit, unit.faction == .rome {
                 UnitDockCommandButtonsView(
                     unit: unit,
@@ -512,12 +520,13 @@ struct SelectionDockCommandButtonsView: View {
                 )
             }
         }
-        .frame(minHeight: 52)
+        .frame(minHeight: 44)
     }
 }
 
 struct CountermeasureCommandContextIdentityView: View {
     var context: CountermeasureCommandContextReadout
+    var isCompact = false
 
     var body: some View {
         HStack(spacing: 7) {
@@ -533,20 +542,22 @@ struct CountermeasureCommandContextIdentityView: View {
             VStack(alignment: .leading, spacing: 2) {
                 Text("反制 · \(context.responseUnitLabel)")
                     .font(.caption.weight(.black))
-                    .lineLimit(2)
-                    .minimumScaleFactor(0.56)
+                    .lineLimit(1)
+                    .minimumScaleFactor(isCompact ? 0.52 : 0.56)
                 Text("\(context.orderLabel) · \(context.destinationLabel)")
                     .font(.caption2.weight(.bold))
                     .foregroundStyle(.white.opacity(0.76))
-                    .lineLimit(2)
-                    .minimumScaleFactor(0.50)
-                Text("目标\(context.targetLabel) · 风险\(context.riskLabel)")
-                    .font(.caption2)
-                    .foregroundStyle(.white.opacity(0.60))
-                    .lineLimit(2)
-                    .minimumScaleFactor(0.48)
+                    .lineLimit(1)
+                    .minimumScaleFactor(isCompact ? 0.46 : 0.50)
+                if !isCompact {
+                    Text("目标\(context.targetLabel) · 风险\(context.riskLabel)")
+                        .font(.caption2)
+                        .foregroundStyle(.white.opacity(0.60))
+                        .lineLimit(2)
+                        .minimumScaleFactor(0.48)
+                }
             }
-            .fixedSize(horizontal: false, vertical: true)
+            .fixedSize(horizontal: false, vertical: !isCompact)
         }
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(context.userFacingAccessibilityLabel)
@@ -559,6 +570,13 @@ struct CountermeasureCommandContextButtonsView: View {
     var context: CountermeasureCommandContextReadout
 
     var body: some View {
+        commandButtons
+        .frame(height: 44)
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel(context.accessibilityLabel)
+    }
+
+    private var commandButtons: some View {
         HStack(spacing: 6) {
             DockCommandButton(
                 title: "姿态",
@@ -595,13 +613,12 @@ struct CountermeasureCommandContextButtonsView: View {
                 .minimumScaleFactor(0.68)
                 .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .accessibilityElement(children: .contain)
-        .accessibilityLabel(context.accessibilityLabel)
     }
 }
 
 struct EnemyCommanderThreatFocusIdentityView: View {
     var readout: EnemyCommanderThreatFocusReadout
+    var isCompact = false
 
     var body: some View {
         HStack(spacing: 7) {
@@ -622,15 +639,17 @@ struct EnemyCommanderThreatFocusIdentityView: View {
                 Text("\(readout.focusStateLabel) · \(readout.levelLabel) · \(readout.skillName)")
                     .font(.caption2.weight(.bold))
                     .foregroundStyle(.white.opacity(0.78))
-                    .lineLimit(2)
-                    .minimumScaleFactor(0.54)
-                Text("\(readout.targetLabel) · \(readout.routeLabel)")
-                    .font(.caption2)
-                    .foregroundStyle(.white.opacity(0.62))
-                    .lineLimit(2)
-                    .minimumScaleFactor(0.50)
+                    .lineLimit(isCompact ? 1 : 2)
+                    .minimumScaleFactor(isCompact ? 0.46 : 0.54)
+                if !isCompact {
+                    Text("\(readout.targetLabel) · \(readout.routeLabel)")
+                        .font(.caption2)
+                        .foregroundStyle(.white.opacity(0.62))
+                        .lineLimit(2)
+                        .minimumScaleFactor(0.50)
+                }
             }
-            .fixedSize(horizontal: false, vertical: true)
+            .fixedSize(horizontal: false, vertical: !isCompact)
         }
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(readout.accessibilityLabel)
@@ -652,33 +671,51 @@ struct EnemyCommanderThreatFocusIdentityView: View {
 
 struct EnemyCommanderThreatFocusCommandStatusView: View {
     var readout: EnemyCommanderThreatFocusReadout
+    var isCompact = false
 
     var body: some View {
-        HStack(spacing: 7) {
-            Label(readout.focusStateLabel, systemImage: readout.isFocused ? "scope" : "eye.trianglebadge.exclamationmark.fill")
-                .font(.caption.weight(.black))
-                .foregroundStyle(readout.isFocused ? .yellow : .white.opacity(0.82))
-                .lineLimit(1)
-                .minimumScaleFactor(0.64)
+        Group {
+            if isCompact {
+                HStack(spacing: 7) {
+                    Label(readout.focusStateLabel, systemImage: readout.isFocused ? "scope" : "eye.trianglebadge.exclamationmark.fill")
+                        .font(.caption.weight(.black))
+                        .foregroundStyle(readout.isFocused ? .yellow : .white.opacity(0.82))
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.58)
+                    Text(readout.commandAvailabilityLabel)
+                        .font(.caption2.weight(.bold))
+                        .foregroundStyle(.white.opacity(0.72))
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.52)
+                }
+            } else {
+                HStack(spacing: 7) {
+                    Label(readout.focusStateLabel, systemImage: readout.isFocused ? "scope" : "eye.trianglebadge.exclamationmark.fill")
+                        .font(.caption.weight(.black))
+                        .foregroundStyle(readout.isFocused ? .yellow : .white.opacity(0.82))
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.64)
 
-            VStack(alignment: .leading, spacing: 2) {
-                Text(readout.commandAvailabilityLabel)
-                    .font(.caption2.weight(.bold))
-                    .foregroundStyle(.white.opacity(0.76))
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.56)
-                Text("\(readout.skillName) · 目标\(readout.targetLabel)")
-                    .font(.caption2)
-                    .foregroundStyle(.white.opacity(0.62))
-                    .lineLimit(2)
-                    .minimumScaleFactor(0.52)
-                Text(readout.routeLabel)
-                    .font(.caption2)
-                    .foregroundStyle(.white.opacity(0.54))
-                    .lineLimit(2)
-                    .minimumScaleFactor(0.50)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(readout.commandAvailabilityLabel)
+                            .font(.caption2.weight(.bold))
+                            .foregroundStyle(.white.opacity(0.76))
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.56)
+                        Text("\(readout.skillName) · 目标\(readout.targetLabel)")
+                            .font(.caption2)
+                            .foregroundStyle(.white.opacity(0.62))
+                            .lineLimit(2)
+                            .minimumScaleFactor(0.52)
+                        Text(readout.routeLabel)
+                            .font(.caption2)
+                            .foregroundStyle(.white.opacity(0.54))
+                            .lineLimit(2)
+                            .minimumScaleFactor(0.50)
+                    }
+                    .fixedSize(horizontal: false, vertical: true)
+                }
             }
-            .fixedSize(horizontal: false, vertical: true)
         }
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(readout.accessibilityLabel)
@@ -694,15 +731,12 @@ struct UnitDockCommandButtonsView: View {
 
     var body: some View {
         if isCompact {
-            VStack(alignment: .leading, spacing: 6) {
-                HStack(spacing: 6) {
-                    primaryButtons
-                }
-                HStack(spacing: 6) {
-                    cancelButton
-                    recoveryButtons
-                }
+            HStack(spacing: 6) {
+                primaryButtons
+                cancelButton
+                recoveryButtons
             }
+            .frame(height: 44)
         } else {
             HStack(spacing: 6) {
                 primaryButtons

@@ -1818,7 +1818,7 @@ struct HexTileView: View {
         if isAttackTarget { return .red }
         if isSelected { return .white }
         if isAttackOrigin { return .cyan }
-        if isReachable { return .yellow.opacity(0.8) }
+        if isReachable { return .yellow.opacity(0.24) }
         return .black.opacity(0.05)
     }
 
@@ -1931,18 +1931,18 @@ struct ReachableTileOverlay: View {
     var body: some View {
         ZStack {
             Hexagon()
-                .fill(Color(red: 0.92, green: 0.76, blue: 0.28).opacity(0.17))
+                .fill(Color(red: 0.92, green: 0.76, blue: 0.28).opacity(0.07))
             Hexagon()
                 .stroke(
-                    Color(red: 0.96, green: 0.82, blue: 0.36).opacity(0.95),
-                    style: StrokeStyle(lineWidth: max(1.3, 1.9 * scale), lineCap: .round, dash: [5 * scale, 4 * scale])
+                    Color(red: 0.96, green: 0.82, blue: 0.36).opacity(0.42),
+                    style: StrokeStyle(lineWidth: max(0.8, 1.15 * scale), lineCap: .round, dash: [4 * scale, 5 * scale])
                 )
-                .padding(4 * scale)
+                .padding(6 * scale)
             Circle()
-                .fill(Color(red: 0.96, green: 0.82, blue: 0.36))
-                .frame(width: 7 * scale, height: 7 * scale)
-                .shadow(color: .black.opacity(0.35), radius: 2, y: 1)
+                .fill(Color(red: 0.96, green: 0.82, blue: 0.36).opacity(0.62))
+                .frame(width: 4 * scale, height: 4 * scale)
         }
+        .accessibilityHidden(true)
     }
 }
 

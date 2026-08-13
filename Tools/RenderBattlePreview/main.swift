@@ -2191,6 +2191,8 @@ struct RenderBattlePreview {
             throw PreviewRenderError.missingMapOverlayFocusStrategy
         }
         guard unitContext.primaryLegendKinds == [.reachable, .attackTarget, .skillRange],
+              unitPresentation.enemyRouteOpacity <= 0.08,
+              unitPresentation.tacticalRouteOpacity > unitPresentation.enemyRouteOpacity,
               attackPresentation.enemyRouteOpacity < 0.1,
               attackPresentation.enemyCommanderThreatOpacity < 0.1,
               enemyFocusPresentation.enemyCommanderThreatOpacity > enemyFocusPresentation.enemyRouteOpacity,
@@ -2379,7 +2381,12 @@ struct RenderBattlePreview {
         guard hasMapDominantBattleShell(in: unitBitmap, logicalWidth: width, logicalHeight: height) else {
             throw PreviewRenderError.missingMapDominantBattleShell
         }
-        guard hasVisibleMapIntelligenceDock(in: unitBitmap, logicalWidth: width, logicalHeight: height) else {
+        guard hasVisibleMapIntelligenceDock(
+            in: unitBitmap,
+            logicalWidth: width,
+            logicalHeight: height,
+            hasEngagementBadge: false
+        ) else {
             throw PreviewRenderError.missingMapIntelligenceDock
         }
         guard hasStrategicMapMaterialCoverage(in: unitBitmap, logicalWidth: width, logicalHeight: height) else {
@@ -2456,7 +2463,12 @@ struct RenderBattlePreview {
         guard hasMapDominantBattleShell(in: cityBitmap, logicalWidth: width, logicalHeight: height) else {
             throw PreviewRenderError.missingMapDominantBattleShell
         }
-        guard hasVisibleMapIntelligenceDock(in: cityBitmap, logicalWidth: width, logicalHeight: height) else {
+        guard hasVisibleMapIntelligenceDock(
+            in: cityBitmap,
+            logicalWidth: width,
+            logicalHeight: height,
+            hasEngagementBadge: true
+        ) else {
             throw PreviewRenderError.missingMapIntelligenceDock
         }
         guard hasStrategicMapMaterialCoverage(in: cityBitmap, logicalWidth: width, logicalHeight: height) else {
@@ -3151,7 +3163,8 @@ struct RenderBattlePreview {
     private static func hasVisibleMapIntelligenceDock(
         in bitmap: NSBitmapImageRep,
         logicalWidth: Double,
-        logicalHeight: Double
+        logicalHeight: Double,
+        hasEngagementBadge: Bool
     ) -> Bool {
         let scaleX = Double(bitmap.pixelsWide) / logicalWidth
         let scaleY = Double(bitmap.pixelsHigh) / logicalHeight
@@ -3166,7 +3179,7 @@ struct RenderBattlePreview {
             width: min(230, max(1, Int(logicalWidth) - 20)),
             height: intelligenceHeight
         )
-        let legendRegionX = logicalWidth < 620 ? 140 : 300
+        let legendRegionX = logicalWidth < 620 ? (hasEngagementBadge ? 140 : 20) : 300
         let legendRegionY = logicalWidth < 620
             ? region.y + intelligenceHeight / 2
             : region.y
