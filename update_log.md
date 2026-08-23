@@ -14,12 +14,57 @@
 
 - 项目类型：原创 SwiftUI iOS 罗马题材战棋原型。
 - 核心架构：纯 Swift `RomeLegionsCore` 负责玩法规则；`GameViewModel` 负责 UI 状态、命令与派生数据组装，地图战场、战略态势和选中对象 readout 分别由三个独立 Swift 文件承载；SwiftUI 视图负责展示和命令入口。
-- 当前玩法：六边形地图、战略地图缩放/拖移/选择聚焦/复位、地形、城市、阵营、军团、移动、攻击、战斗目标锁定与攻击预演、反击、占城、招募、科技、任务 requirement、战役目标、胜负结算、结束保护、外交、城市扩建、城市经营与招募读板、军团训练、将领任命、军团成长决策读板、军团成长优先级读板、主动技能、技能冷却、将领详情读板、将领指挥链读板、将领战机威胁桥接读板、将令技能入口链路、将领技能目标与收益读板、被动贡献、战功状态、军团编制与成长读板、选中军团处境命令入口读板、选中军团军令窗口读板、战役推进线 HUD、地图侦察视角 HUD、战术命令建议与补线路径读板、本方将领协同与战术连携读板、将领协同步骤读板、机动落点与地图风险读板、战场焦点与将领机会读板、战场目标链路、战场态势交汇链路、敌情交战闭环 HUD、目标线地图叠层、阶段聚焦、阶段命令预览与联动高亮、地图控制与威胁热区读板、主动地图叠层图例、AI 作战计划与时间线读板、敌方将领协同读板、敌方将领威胁读板、敌情反制建议读板、反制落点/目标地图叠层、反制指令聚焦、反制命令链高亮与反制焦点链路、战术姿态与姿态预览、AI 回合、AI 主攻优先执行、AI 回合内集火协同、敌军意图预判、敌军意图六边形路径/目标叠层、战线压力读板、战局态势面板。
+- 当前玩法：六边形地图、战略地图缩放/拖移/选择聚焦/复位、地形、城市、阵营、军团、移动、攻击、战斗目标锁定与攻击预演、反击、占城、招募、科技、任务 requirement、战役目标、胜负结算、结束保护、外交、城市扩建、城市经营与招募读板、军团训练、将领任命、军团成长决策读板、军团成长优先级读板、主动技能、技能冷却、将领详情读板、将领指挥链读板、将领战机威胁桥接读板、将令技能入口链路、将领技能目标与收益读板、被动贡献、战功状态、军团编制与成长读板、选中军团处境命令入口读板、选中军团军令窗口读板、战役推进线 HUD、地图侦察视角 HUD、战术命令建议与补线路径读板、本方将领协同与战术连携读板、将领协同步骤读板、机动落点与地图风险读板、战场焦点与将领机会读板、战场目标链路、战场态势交汇链路、敌情交战闭环 HUD、目标线地图叠层、阶段聚焦、阶段命令预览与联动高亮、地图控制与威胁热区读板、主动地图叠层图例、AI 作战计划与时间线读板、敌方将领协同读板、敌方将领威胁读板、敌情反制建议读板、反制落点/目标地图叠层、反制指令聚焦、反制命令链高亮与反制焦点链路、战术姿态与姿态预览、AI 回合、AI 主攻优先执行、AI 回合内集火协同、敌军意图预判、敌军意图六边形路径/目标叠层、AI 将领移动后施令、移动后技能预演/计划/威胁/地图叠层同源、战线压力读板、战局态势面板。
 - 当前测试入口：Swift Testing、Gameplay Smoke、项目结构检查、SwiftUI 类型检查、战斗页预览图渲染、无签名 Xcode 构建。
 - 当前协作系统：已建立 `AGENTS.md`、`update_log.md`、`md/prompt/`、`md/test/test.md`、`md/flow/flow.md`、`md/flow/flowchart.md`，默认按 `main` 直推、GitHub Actions 云端重验证、Agent C 下载未加密结果包复判，并具备未来由 Agent X 主控调度 Agent A/B/C 多轮循环的文档基线。
 - 当前 CI 入口：`.github/workflows/ci-results.yml`，在 `main` push 和手动触发时运行结构检查、SwiftPM 测试、Gameplay Smoke、RenderBattlePreview 和无签名 Xcode build，并上传 CI 结果包。
 
 ## 历史记录
+
+### v0.69 / AI 将领机动施令与同源预演
+
+日期：2026-08-24
+
+核心变更：
+
+- AI 将领在原地技能没有有效收益、且当前不存在直接攻击时，会从真实 `reachablePositions` 中选择稳定的合法落点，使用落点后的唯一 `GeneralSkillPreview` 生成 `.useSkill` 意图；不新增 `GameState`、`AIIntent`、Codable 字段、命令队列或跨回合缓存。
+- 预测链、作战计划、敌将威胁报告和地图 overlay 共用 capture-aware 的移动后技能投影：起点保留敌将真实位置，落点、目标、范围、影响区、恢复/削城防、冷却和阻塞原因全部来自同一个 post-move preview。
+- 真实 `performSimpleAI` 只通过 `moveUnit` 移动，检查占城后的战役状态，再从真实落点重新生成 preview 并通过 `useGeneralSkill` 结算；若移动直接结束战役，不继续施令。
+- 保留既有行动优先级：休整、原地有收益技能和直接攻击先于移动施令；立即击杀是候选层硬优先级，不依赖 magic number。冷却、无收益、无合法落点和原地技能旧行为均有独立回归覆盖。
+- v0.69 首次云端 Render 因移动施令候选在大量 AI 派生读板中重复做资格判断和 BFS 而超时；`14dc92c` 在不改变规则的前提下提前过滤无将领/已行动/冷却单位，并在每次候选集合中复用一次 `reachable`，最终 Render 从取消恢复为成功。
+
+关键文件：
+
+- `Sources/RomeLegionsCore/GameState.swift`
+- `Tests/RomeLegionsCoreTests/GameStateTests.swift`
+- `Tools/GameplaySmoke/main.swift`
+- `Tools/RenderBattlePreview/main.swift`
+- `Tools/verify_project.mjs`
+- `.github/workflows/ci-results.yml`
+- `README.md`
+- `md/flow/flow.md`
+- `md/flow/flowchart.md`
+- `md/test/test.md`
+- `md/prompt/v0（玩法推进）/v0.69（AI将领机动施令与同源预演）.md`
+
+关键提交：
+
+- `f6f581c`：新增 v0.69 Agent A 实现提示词。
+- `0228136`：实现 AI 将领移动后施令、同源计划/威胁/地图预演和云端门禁。
+- `16a4930`：为 v0.69 Render 扩大 GitHub Actions 作业时间预算。
+- `14dc92c`：提前过滤无效移动施令候选并复用可达格搜索，修复 Render 性能回归。
+
+验证状态：
+
+- Agent C 验收的最终提交为 `14dc92c9f4583f621727b104354f130dce031414`；GitHub Actions run `32649202445`、attempt `1`，artifact `RomeLegions-ci-v0.69-main-14dc92c-run32649202445-attempt1`，结果目录为 `/private/tmp/romelegions-c-review-32649202445/RomeLegions-ci-v0.69-main-14dc92c-run32649202445-attempt1/`。manifest 的 `version=v0.69`、`branch=main`、`commitSha`、`runId`、`runAttempt` 与 `origin/main` 精确匹配。
+- Static Checks、SwiftPM/Swift Testing、Gameplay Smoke、RenderBattlePreview、无签名 Xcode build、metadata、artifact upload 和最终门禁全部为 `success`；JUnit 为 5 项、0 失败，Swift Testing 为 97 项，Gameplay Smoke 通过，Xcode 日志包含 `BUILD SUCCEEDED`，failure summary 为 `All configured CI checks passed.`。
+- 15/15 PNG 全部存在且尺寸正确：横屏 `1864x860`、竖屏 `780x1688`、宽屏 `2048x1536`。三尺寸逐图复判 default、unit、地图 focused、focused-enemy、focused-countermeasure：固定 HUD、五种 display context、敌将起点/落点/范围/影响、敌路、反制路线/落点/目标、地图工具、情报坞、portrait“仅侦察”、102pt command dock 和 44pt 命令入口均可读，无新增阻断性裁切、重叠、空白或错层。
+- 按 cloud-only 约束，本轮未运行本地测试、build、typecheck、RenderBattlePreview、`Tools/verify_project.mjs`、`git diff --check` 或解析脚本；本地仅做读取、编辑、只读 diff/status、Git 同步、提交和推送，完整结论来自上述最新云端 artifact 与图像复判。
+
+遗留事项：
+
+- 真实设备连续触控命中、极端 Dynamic Type 和完整 VoiceOver 导航仍需人工体验；移动后施令仍是单回合单单位的移动加技能，不包含自动连招、命令队列或跨回合计划缓存。
+- 云端仍有非阻断的 Node.js 20 弃用、Gameplay Smoke 未使用变量和 AppIntents metadata 跳过警告；本轮最终 Render/Xcode 链路已完整通过。
 
 ### v0.68 / 地图视觉层级与上下文命令坞
 
