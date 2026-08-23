@@ -32,6 +32,7 @@ md/prompt/v0（某主题）/v0.3（某任务）.md
 
 当前最新玩法推进提示词：
 
+- `md/prompt/v0（玩法推进）/v0.69（AI将领机动施令与同源预演）.md`
 - `md/prompt/v0（玩法推进）/v0.68（地图视觉层级与上下文命令坞）.md`
 - `md/prompt/v0（玩法推进）/v0.67（反制决策确认闭环）.md`
 - `md/prompt/v0（玩法推进）/v0.66（敌将焦点指挥卡与地图命令上下文）.md`
@@ -101,7 +102,7 @@ Agent A 写提示词时必须明确：
 
 - 本轮固定使用 `main` 作为唯一上传、提交、推送和云端验证分支。
 - Agent B 开始前同步最新 `origin/main`，完成后在 `main` 上 commit 并 `git push origin main`。
-- 当前按人工要求默认不跑本地验证命令；完整结构检查、SwiftPM、Gameplay Smoke 和 Xcode build 由 GitHub Actions 重验证。
+- 当前按人工要求默认不跑本地验证命令；完整结构检查、SwiftPM、Gameplay Smoke、RenderBattlePreview 和 Xcode build 由 GitHub Actions 重验证。
 - `.github/workflows/ci-results.yml` 的结果包必须可供 Agent C 下载，且不得加密。
 - Agent C 必须用 `gh auth login` 后下载最新 run artifact 到 `/private/tmp/romelegions-c-review-<run_id>/`。
 - Agent C 必须核对 manifest 的 `branch=main`、`commitSha`、`runId`、`runAttempt` 与 `origin/main` 最新状态一致。
