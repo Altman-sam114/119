@@ -21,6 +21,56 @@
 
 ## 历史记录
 
+### v0.68 / 地图视觉层级与上下文命令坞
+
+日期：2026-08-23
+
+核心变更：
+
+- 新增纯 ViewModel 派生的 `BattleDisplayContextReadout`，以 attack lock > focused countermeasure > focused enemy commander > selected Rome unit > baseline recon 的稳定优先级区分五种战斗显示上下文；有效 source、fallback、短标题、主/次图例与命令坞 cue 共用同一入口，不新增 `GameState`、Codable 或跨回合缓存。
+- `MapOverlayPresentation` 同时消费 display context 与地图侦察视角，统一控制敌军路线、敌将威胁、战术建议、目标线、反制线、热区/控区及交互格的 primary/secondary/hidden 层级；默认地图先读地貌、道路、海岸线、城市和单位，执行/锁定/敌将/反制状态各保留一个明确主叙事。
+- 底部命令坞重构为响应式“短身份 + 当前主动作 + 按需详情”：竖屏保持 102pt 上限和两区布局，短横屏/宽屏保持原高度；普通单位六个军令、城市经营/招募、攻击取消、敌将只读和反制姿态/落点/锁敌三个独立 44pt 单步入口继续可用，完整收益、风险和路线留在既有抽屉/卡片。
+- 反制与敌将地图 HUD 使用面向玩家的短标题/空间链/状态，raw source id 只保留在同源字段和 automation identifier；竖屏敌将焦点 HUD 增加两行弹性布局和不可压缩“仅侦察”胶囊，消除右端文字被压成竖向残片的回归。
+- `RenderBattlePreview` 增加五模式 precedence、presentation 只读性、user-facing source、响应式 command dock、地图主次像素和真实状态胶囊文字列门禁；`isMapAttackOrigin` 先确认 forecast source 非空再比较单位 id，避免 `nil == nil` 把所有空地块误画为青色攻击来源双描边。
+
+关键文件：
+
+- `RomeLegionsApp/App/GameViewModel.swift`
+- `RomeLegionsApp/App/GameViewModelMapReadouts.swift`
+- `RomeLegionsApp/App/GameViewModelStrategyReadouts.swift`
+- `RomeLegionsApp/Views/BattleMapView.swift`
+- `RomeLegionsApp/Views/BattleShellControls.swift`
+- `RomeLegionsApp/Views/BattleView.swift`
+- `RomeLegionsApp/Views/BattlePanels.swift`
+- `Tools/RenderBattlePreview/main.swift`
+- `Tools/verify_project.mjs`
+- `.github/workflows/ci-results.yml`
+- `README.md`
+- `md/flow/flow.md`
+- `md/flow/flowchart.md`
+- `md/test/test.md`
+
+关键提交：
+
+- `2aee53a`：新增 v0.68 Agent A 提示词。
+- `1ebe17c`：实现五种战场显示上下文、地图视觉层级和响应式命令坞。
+- `0b0a7f9`、`1521b8b`、`44e3cb2`：修正 Render 的图例 source、侦察 fixture 与反制 context 同源门禁。
+- `0e6b505`、`16bb109`：稳定竖屏命令坞并把六个 44pt 单位军令的采样落到真实动作行。
+- `7bfe332`：修复空 source 导致全图空格攻击来源描边。
+- `289b3fa`：修复竖屏敌将焦点“仅侦察”胶囊压缩，并加入真实文字列门禁。
+
+验证状态：
+
+- Agent C 验收的最终实现提交为 `289b3fa2f23ee2f4d6fd8328d40d5a3af003c72b`；GitHub Actions run `32630728188`、attempt `1`、artifact `RomeLegions-ci-v0.68-main-289b3fa-run32630728188-attempt1`，结果目录为 `/private/tmp/romelegions-c-review-32630728188/`。manifest 的 `version=v0.68`、`branch=main`、`commitSha`、`runId`、`runAttempt` 与最新 `origin/main` 精确匹配。
+- Static Checks、SwiftPM/Swift Testing、Gameplay Smoke、RenderBattlePreview、无签名 Xcode build 和总结果全部为 `success`；JUnit 为 5 项、0 失败，Swift Testing 为 91 项，Gameplay Smoke 通过，Xcode 日志包含 `BUILD SUCCEEDED`，failure summary 为 `All configured CI checks passed.`。
+- 15/15 PNG 全部存在且尺寸正确：横屏 `1864x860`、竖屏 `780x1688`、宽屏 `2048x1536`。Agent C 逐图确认 default/enemy-focus/countermeasure-focus 普通空格无青色攻击来源双描边，`*-unit.png` 仅真实攻击者保留来源高亮，竖屏六个 44pt 单位军令完整，focused 敌将 HUD 的“仅侦察”完整可读，地图、路线、命令坞、抽屉和固定 HUD 无新增阻断性裁切或重叠；Render 日志的 portrait `compactStatusColumns=28`。
+- 按 cloud-only 约束，Agent B 未运行本地测试、build、typecheck、RenderBattlePreview、`Tools/verify_project.mjs`、`git diff --check` 或解析脚本；本地仅做读取、编辑、只读 diff/status、Git 同步、提交和推送，最终结论来自上述最新云端 artifact 与 Agent C 目视复判。
+
+遗留事项：
+
+- 真实设备连续触控命中、极端 Dynamic Type 与完整 VoiceOver 导航仍需人工体验；当前敌将焦点仍是只读侦察，未引入 AI 移动后施令、自动连招、命令队列或存档格式变化。
+- 云端仍有非阻断的 Node.js 20 弃用警告；本轮完整 run 耗时约 33 分钟，主要时间用于 15 图 RenderBattlePreview。
+
 ### v0.67 / 反制决策确认闭环
 
 日期：2026-08-13
