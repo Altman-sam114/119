@@ -8089,13 +8089,25 @@ public struct GameState: Codable, Equatable, Sendable {
     }
 
     private func bestAIGeneralSkillCandidate(for unit: ArmyUnit) -> AIGeneralSkillCandidate? {
-        guard !unit.hasMoved else {
+        // Most AI units are not eligible for a commander skill. Reject them
+        // before the reachability search because this helper is queried by
+        // several read-only planning/report chains during battle rendering.
+        guard !unit.hasMoved,
+              !unit.hasActed,
+              unit.generalName != nil,
+              unit.resolvedGeneralTrait != nil,
+              unit.generalSkillCooldownRemaining == 0 else {
             return nil
         }
 
-        return reachablePositions(for: unit)
+        let reachable = reachablePositions(for: unit)
+        return reachable
             .compactMap { destination in
-                aiGeneralSkillCandidate(for: unit, destination: destination)
+                aiGeneralSkillCandidate(
+                    for: unit,
+                    destination: destination,
+                    reachable: reachable
+                )
             }
             .sorted { left, right in
                 if left.score == right.score {
@@ -8124,12 +8136,13 @@ public struct GameState: Codable, Equatable, Sendable {
 
     private func aiGeneralSkillCandidate(
         for unit: ArmyUnit,
-        destination: Position
+        destination: Position,
+        reachable: Set<Position>
     ) -> AIGeneralSkillCandidate? {
         let isMovement = destination != unit.position
         if isMovement {
             guard !unit.hasMoved,
-                  reachablePositions(for: unit).contains(destination) else {
+                  reachable.contains(destination) else {
                 return nil
             }
         }
