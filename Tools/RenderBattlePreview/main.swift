@@ -304,6 +304,263 @@ struct RenderBattlePreview {
               viewModel.state.activeFaction == activeFactionBeforePlanTimelineRead else {
             throw PreviewRenderError.missingAIOperationalPlanTimelineReadout
         }
+
+        let moveSkillViewModel = GameViewModel()
+        moveSkillViewModel.state.tiles = moveSkillViewModel.state.tiles.map {
+            Tile(position: $0.position, terrain: .plains)
+        }
+        moveSkillViewModel.state.cities = [
+            City(
+                id: "rome",
+                name: "罗马",
+                position: Position(x: 11, y: 7),
+                owner: .rome,
+                production: EmpireResources(gold: 40, grain: 30, iron: 20, science: 10, prestige: 2),
+                fortification: 12
+            )
+        ]
+        moveSkillViewModel.state.units = [
+            ArmyUnit(id: "rome-observer", kind: .legion, faction: .rome, position: Position(x: 11, y: 6)),
+            ArmyUnit(
+                id: "carthage-quartermaster",
+                kind: .legion,
+                faction: .carthage,
+                position: Position(x: 1, y: 1),
+                generalName: "阿格里帕",
+                generalTrait: .quartermaster
+            ),
+            ArmyUnit(
+                id: "carthage-wounded",
+                kind: .cavalry,
+                faction: .carthage,
+                position: Position(x: 8, y: 2),
+                health: 30,
+                hasMoved: true,
+                hasActed: true
+            )
+        ]
+        moveSkillViewModel.state.resources[.carthage] = .zero
+        moveSkillViewModel.state.activeFaction = .rome
+        let moveSkillEncoder = JSONEncoder()
+        moveSkillEncoder.outputFormatting = [.sortedKeys]
+        let moveSkillArchiveBefore = try moveSkillEncoder.encode(moveSkillViewModel.state)
+        let moveSkillIntentSnapshotBefore = moveSkillViewModel.state.aiIntents(for: .carthage, limit: 4)
+        guard let moveSkillIntent = moveSkillIntentSnapshotBefore.first(where: {
+            $0.unitID == "carthage-quartermaster"
+        }),
+        moveSkillIntent.kind == .useSkill,
+        moveSkillIntent.tacticalOrder == .forcedMarch,
+        let moveSkillDestination = moveSkillIntent.destination,
+        moveSkillDestination != Position(x: 1, y: 1),
+        moveSkillIntent.targetUnitID == "carthage-wounded" else {
+            throw PreviewRenderError.missingAIMoveSkillPreviewChain
+        }
+
+        var moveSkillReachabilityState = moveSkillViewModel.state
+        moveSkillReachabilityState.activeFaction = .carthage
+        guard !moveSkillReachabilityState.reachablePositions(for: moveSkillIntent.unitID).contains(moveSkillDestination),
+              let moveSkillReachabilityIndex = moveSkillReachabilityState.units.firstIndex(where: {
+                  $0.id == moveSkillIntent.unitID
+              }) else {
+            throw PreviewRenderError.missingAIMoveSkillPreviewChain
+        }
+        moveSkillReachabilityState.units[moveSkillReachabilityIndex].tacticalOrder = moveSkillIntent.tacticalOrder
+        guard moveSkillReachabilityState.reachablePositions(for: moveSkillIntent.unitID).contains(moveSkillDestination) else {
+            throw PreviewRenderError.missingAIMoveSkillPreviewChain
+        }
+
+        var moveSkillPreviewState = moveSkillViewModel.state
+        moveSkillPreviewState.activeFaction = .carthage
+        guard let moveSkillCommanderIndex = moveSkillPreviewState.units.firstIndex(where: {
+            $0.id == "carthage-quartermaster"
+        }) else {
+            throw PreviewRenderError.missingAIMoveSkillPreviewChain
+        }
+        moveSkillPreviewState.units[moveSkillCommanderIndex].position = moveSkillDestination
+        moveSkillPreviewState.units[moveSkillCommanderIndex].hasMoved = true
+        moveSkillPreviewState.units[moveSkillCommanderIndex].hasActed = false
+        moveSkillPreviewState.units[moveSkillCommanderIndex].tacticalOrder = moveSkillIntent.tacticalOrder == .balanced
+            ? nil
+            : moveSkillIntent.tacticalOrder
+        let moveSkillPreview = try moveSkillPreviewState.generalSkillPreview(unitID: "carthage-quartermaster")
+        let moveSkillPlan = moveSkillViewModel.aiOperationalPlanSummaries.first(where: {
+            $0.report.kind == .commanderSkill && $0.report.sourceUnitIDs.contains("carthage-quartermaster")
+        })
+        let moveSkillStep = moveSkillPlan?.report.steps.first(where: {
+            $0.unitID == "carthage-quartermaster"
+        })
+        let moveSkillThreat = moveSkillViewModel.enemyCommanderThreatSummaries.first(where: {
+            $0.id == "carthage-quartermaster"
+        })
+        let moveSkillOverlay = moveSkillViewModel.enemyCommanderThreatMapOverlays.first(where: {
+            $0.id == "carthage-quartermaster"
+        })
+        let moveSkillRangeOverlayPositions = Set(
+            moveSkillOverlay?.positionOverlays
+                .filter { $0.role == .range }
+                .map(\.position) ?? []
+        )
+        let moveSkillAffectedOverlayPositions = Set(
+            moveSkillOverlay?.positionOverlays
+                .filter { $0.role == .affected }
+                .map(\.position) ?? []
+        )
+        guard moveSkillPreview.origin == moveSkillDestination,
+              moveSkillPreview.projectedRecoveredHealth == 22,
+              moveSkillPreview.affectedUnitIDs == ["carthage-wounded"],
+              moveSkillStep?.origin == Position(x: 1, y: 1),
+              moveSkillStep?.destination == moveSkillDestination,
+              moveSkillStep?.targetUnitID == "carthage-wounded",
+              moveSkillStep?.targetPosition == Position(x: 8, y: 2),
+              moveSkillStep?.skillSummary == moveSkillPreview.summary,
+              moveSkillThreat?.report.position == Position(x: 1, y: 1),
+              moveSkillThreat?.report.destination == moveSkillDestination,
+              moveSkillThreat?.report.targetUnitID == "carthage-wounded",
+              moveSkillThreat?.report.projectedRecovery == moveSkillPreview.projectedRecoveredHealth,
+              moveSkillThreat?.report.projectedFortificationReduction == moveSkillPreview.projectedFortificationReduction,
+              moveSkillThreat?.report.affectedUnitIDs == moveSkillPreview.affectedUnitIDs,
+              moveSkillThreat?.report.affectedCityIDs == moveSkillPreview.affectedCityIDs,
+              moveSkillThreat?.report.rangePositions == moveSkillPreview.rangePositions,
+              moveSkillThreat?.report.affectedPositions == moveSkillPreview.affectedPositions,
+              moveSkillThreat?.report.skillReady == moveSkillPreview.isExecutable,
+              moveSkillThreat?.report.skillSummary == moveSkillPreview.summary,
+              moveSkillThreat?.report.skillBlockedReason == moveSkillPreview.blockedReason,
+              moveSkillOverlay?.position == Position(x: 1, y: 1),
+              moveSkillOverlay?.destination == moveSkillDestination,
+              moveSkillOverlay?.rangePositions == moveSkillPreview.rangePositions,
+              moveSkillOverlay?.affectedPositions == moveSkillPreview.affectedPositions,
+              moveSkillRangeOverlayPositions == Set(moveSkillPreview.rangePositions),
+              moveSkillAffectedOverlayPositions == Set(moveSkillPreview.affectedPositions),
+              moveSkillOverlay?.positionOverlays.contains(where: {
+                  $0.role == .destination && $0.position == moveSkillDestination
+              }) == true,
+              moveSkillOverlay?.positionOverlays.contains(where: {
+                  $0.role == .target && $0.position == Position(x: 8, y: 2)
+              }) == true,
+              moveSkillOverlay?.routeSegments.contains(where: {
+                  $0.isTargetLeg &&
+                      $0.from == moveSkillDestination &&
+                      $0.to == Position(x: 8, y: 2)
+              }) == true,
+              try moveSkillEncoder.encode(moveSkillViewModel.state) == moveSkillArchiveBefore,
+              moveSkillViewModel.state.aiIntents(for: .carthage, limit: 4) == moveSkillIntentSnapshotBefore else {
+            throw PreviewRenderError.missingAIMoveSkillPreviewChain
+        }
+
+        var moveSkillResolution = moveSkillViewModel.state
+        moveSkillResolution.activeFaction = .carthage
+        _ = moveSkillResolution.performSimpleAI(for: .carthage)
+        guard moveSkillResolution.unit(withID: "carthage-quartermaster")?.position == moveSkillDestination,
+              moveSkillResolution.unit(withID: "carthage-quartermaster")?.hasMoved == true,
+              moveSkillResolution.unit(withID: "carthage-quartermaster")?.hasActed == true,
+              moveSkillResolution.unit(withID: "carthage-quartermaster")?.generalSkillCooldownRemaining == 2,
+              moveSkillResolution.unit(withID: "carthage-wounded")?.health == 30 + moveSkillPreview.projectedRecoveredHealth else {
+            throw PreviewRenderError.missingAIMoveSkillPreviewChain
+        }
+
+        let campaignEndSkillViewModel = GameViewModel()
+        let campaignEndLandPositions: Set<Position> = [
+            Position(x: 1, y: 1),
+            Position(x: 2, y: 1),
+            Position(x: 3, y: 1),
+            Position(x: 5, y: 1),
+            Position(x: 7, y: 7)
+        ]
+        campaignEndSkillViewModel.state.tiles = campaignEndSkillViewModel.state.tiles.map { tile in
+            Tile(
+                position: tile.position,
+                terrain: campaignEndLandPositions.contains(tile.position) ? .plains : .water
+            )
+        }
+        campaignEndSkillViewModel.state.cities = [
+            City(
+                id: "rome",
+                name: "罗马",
+                position: Position(x: 3, y: 1),
+                owner: .rome,
+                production: EmpireResources(gold: 40, grain: 30, iron: 20, science: 10, prestige: 2),
+                fortification: 12
+            )
+        ]
+        campaignEndSkillViewModel.state.units = [
+            ArmyUnit(id: "rome-observer", kind: .legion, faction: .rome, position: Position(x: 7, y: 7)),
+            ArmyUnit(
+                id: "carthage-quartermaster",
+                kind: .legion,
+                faction: .carthage,
+                position: Position(x: 1, y: 1),
+                generalName: "阿格里帕",
+                generalTrait: .quartermaster
+            ),
+            ArmyUnit(
+                id: "carthage-wounded",
+                kind: .cavalry,
+                faction: .carthage,
+                position: Position(x: 5, y: 1),
+                health: 30,
+                hasMoved: true,
+                hasActed: true
+            )
+        ]
+        campaignEndSkillViewModel.state.resources[.carthage] = .zero
+        campaignEndSkillViewModel.state.activeFaction = .rome
+        let campaignEndSkillArchiveBefore = try moveSkillEncoder.encode(campaignEndSkillViewModel.state)
+        let campaignEndSkillIntent = campaignEndSkillViewModel.state.aiIntents(for: .carthage, limit: 4)
+            .first { $0.unitID == "carthage-quartermaster" }
+        let campaignEndSkillPlan = campaignEndSkillViewModel.aiOperationalPlanSummaries.first {
+            $0.report.sourceUnitIDs.contains("carthage-quartermaster")
+        }
+        let campaignEndSkillStep = campaignEndSkillPlan?.report.steps.first {
+            $0.unitID == "carthage-quartermaster"
+        }
+        let campaignEndSkillThreat = campaignEndSkillViewModel.enemyCommanderThreatSummaries.first {
+            $0.id == "carthage-quartermaster"
+        }
+        let campaignEndSkillOverlay = campaignEndSkillViewModel.enemyCommanderThreatMapOverlays.first {
+            $0.id == "carthage-quartermaster"
+        }
+        guard campaignEndSkillIntent?.kind == .captureCity,
+              campaignEndSkillIntent?.destination == Position(x: 3, y: 1),
+              campaignEndSkillIntent?.targetCityID == "rome",
+              campaignEndSkillPlan?.report.kind == .cityCapture,
+              campaignEndSkillStep?.intentKind == .captureCity,
+              campaignEndSkillStep?.destination == Position(x: 3, y: 1),
+              campaignEndSkillThreat?.report.intentKind == .captureCity,
+              campaignEndSkillThreat?.report.destination == Position(x: 3, y: 1),
+              campaignEndSkillThreat?.report.targetCityID == "rome",
+              campaignEndSkillOverlay?.destination == Position(x: 3, y: 1),
+              campaignEndSkillOverlay?.targetPosition == Position(x: 3, y: 1),
+              campaignEndSkillOverlay?.routeSegments.contains(where: {
+                  !$0.isTargetLeg &&
+                      $0.from == Position(x: 1, y: 1) &&
+                      $0.to == Position(x: 3, y: 1)
+              }) == true,
+              campaignEndSkillOverlay?.routeSegments.contains(where: { $0.isTargetLeg }) == false,
+              try moveSkillEncoder.encode(campaignEndSkillViewModel.state) == campaignEndSkillArchiveBefore else {
+            throw PreviewRenderError.missingAIMoveSkillPreviewChain
+        }
+
+        guard let campaignEndSkillIntent,
+              let campaignEndSkillDestination = campaignEndSkillIntent.destination else {
+            throw PreviewRenderError.missingAIMoveSkillPreviewChain
+        }
+        var campaignEndSkillProjection = campaignEndSkillViewModel.state
+        campaignEndSkillProjection.activeFaction = .carthage
+        _ = try campaignEndSkillProjection.setTacticalOrder(
+            unitID: campaignEndSkillIntent.unitID,
+            order: campaignEndSkillIntent.tacticalOrder
+        )
+        _ = try campaignEndSkillProjection.moveUnit(
+            id: campaignEndSkillIntent.unitID,
+            to: campaignEndSkillDestination
+        )
+        guard campaignEndSkillProjection.city(withID: "rome")?.owner == .carthage,
+              campaignEndSkillProjection.campaignStatus.kind == .romanDefeat,
+              campaignEndSkillProjection.unit(withID: "carthage-quartermaster")?.generalSkillCooldownRemaining == 0,
+              campaignEndSkillProjection.unit(withID: "carthage-wounded")?.health == 30 else {
+            throw PreviewRenderError.missingAIMoveSkillPreviewChain
+        }
+
         guard let legacyEnemyCommanderThreat = viewModel.primaryEnemyCommanderThreatSummary,
               !viewModel.enemyCommanderThreatSummaries.isEmpty,
               viewModel.enemyCommanderThreatSummaries.contains(where: { $0.report.unitID == "carthage-commander" }),
@@ -3492,6 +3749,7 @@ enum PreviewRenderError: Error {
     case missingThreatHeatSummary
     case missingAIOperationalPlanSummary
     case missingAIOperationalPlanTimelineReadout
+    case missingAIMoveSkillPreviewChain
     case missingEnemyCommanderThreatSummary
     case missingEnemyCommanderThreatMapOverlay
     case missingActiveEnemyCommanderThreatPrimary

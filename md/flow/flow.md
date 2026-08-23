@@ -74,7 +74,7 @@
 - 预览包含基础攻击、防御、地形、友军支援、包夹、将领指挥、守军支援、战术姿态、反击和剩余生命。
 - `state.attack(attackerID:defenderID:)` 必须与预览使用同一套修正逻辑。
 - `state.aiIntents(for:limit:)` 在只读规划态中为直接攻击和移动后攻击调用同一套预览逻辑，敌军意图的 `projectedDamage` 必须等于规划态 `attackPreview.damage`。
-- `state.performSimpleAI(for:)` 在真实 AI 回合中先用当前状态下的单体 `AIIntent.threatScore` 排序尚未行动单位，高威胁主攻单位优先执行；同分按 `unitID` 稳定排序，单位内部的休整、技能、攻击、移动和移动后攻击分支保持原规则。回合内维护 `engagedTargetIDs` 交战记忆（局部变量，不进入 `GameState` 持久状态或存档）：`bestAITarget(for:favoring:)` 先按 `attackPreview` 把可立即击杀目标独立成第一候选层，再在该层内按既有战术分、+55 集火偏好和目标 ID 稳定排序，集火不能翻转击杀优先；真实执行还把同一集合传给 `bestAIDestination` 与 `aiPositionScore`，使移动落点和移动后攻击共同向已交战目标收敛。`aiIntents` 静态预测路径继续使用默认空集合，只读预测与原评分链保持不变。
+- `state.performSimpleAI(for:)` 在真实 AI 回合中先用当前状态下的单体 `AIIntent.threatScore` 排序尚未行动单位，高威胁主攻单位优先执行；同分按 `unitID` 稳定排序。单位内部继续按休整、原地有收益技能、当前直接攻击、移动决策执行，因此移动后技能不能抢占当前立即击杀，原地技能旧优先级也不变。回合内维护 `engagedTargetIDs` 交战记忆（局部变量，不进入 `GameState` 持久状态或存档）：`bestAITarget(for:favoring:)` 先按 `attackPreview` 把可立即击杀目标独立成第一候选层，再在该层内按既有战术分、+55 集火偏好和目标 ID 稳定排序；真实移动攻击仍把同一集合传给 `bestAIDestination` 与 `aiPositionScore`。当原地技能和直接攻击都不可用时，`bestAIGeneralSkillCandidate` 只读评估真实可达落点，在 forecast 副本中合成移动单位、模拟占城与战役进度，再以唯一 `GeneralSkillPreview` 判断收益；真实执行只通过 `moveUnit` 移动，战役未结束时从当前状态重新预览并调用 `useGeneralSkill`。`aiIntents` 继续在 planning forecast 上只读预测，不写入原状态。
 - `GameViewModel.enemyIntentSummaries` 把 `AIIntent`、来源单位、目标单位和目标城市转成 UI 文案；`enemyIntentMapOverlays` 再派生起点、目的地、目标格、影响文案和路线线段。
 - `state.frontlinePressureReports(against:perFactionLimit:limit:)` 只读聚合交战敌方的 `AIIntent`，按防守方单位或城市分组，输出来源单位、来源阵营、意图数量、攻击/夺城数量、预计伤害合计、最高威胁、压力分和压力等级；它不新增存档字段，不改变 `AIIntent` 或真实 AI 行为。
 - `GameViewModel.frontlinePressureSummaries` 将核心战线压力报告转成目标、来源、压力等级、预计伤害/夺城风险和无障碍文案；`BattleView` 在地图顶部战线 chip、完整战局面板和紧凑战场摘要中展示，不在 SwiftUI 中重新评分。
@@ -115,9 +115,9 @@
 - `BattleView` 在完整/紧凑将领卡内部展示将领战机威胁桥接短读板，紧凑版一行串联战机、敌将和入口，完整版两行展示机会/威胁与入口/下一步；SwiftUI 只展示 `selectedCommanderOpportunityBridgeReadout` 的派生字段，不重新计算技能目标、敌将威胁、反制评分、将令协同、目标线阶段或敌情闭环。
 - `state.mapControlReports(for:)` 与 `state.threatHeatZoneReports(for:limit:)` 只读派生每格友军/敌军影响、控制状态、威胁热度和高风险热区；它们读取地形、单位、城市、外交、敌军意图和战线压力，不新增存档字段，不改变 AI、移动、攻击、城市或胜负结算。
 - `GameViewModel.mapControlSummaries`、`threatHeatZoneSummaries` 和 overlay positions 将核心控图/热区报告转成地图叠层、顶部热区 chip、战场卡、战局行和无障碍文案；`BattleView` 只展示核心报告，不在 SwiftUI 中重新计算射程、路径或控制分。
-- `state.aiOperationalPlanReports(against:perFactionLimit:limit:)` 只读聚合敌军意图、战线压力、威胁热区和敌方将领技能机会，输出集火、夺城、将领技能、推进、固守或整备计划、协同角色、来源单位、目标、预计伤害和详情；它在敌方 forecast copy 上读取将领技能机会，不新增存档字段，不改变真实 AI 行为、AI 评分、移动、攻击、技能释放或胜负结算。
+- `state.aiOperationalPlanReports(against:perFactionLimit:limit:)` 只读聚合敌军意图、战线压力、威胁热区和敌方将领技能机会，输出集火、夺城、将领技能、推进、固守或整备计划、协同角色、来源单位、目标、预计伤害和详情；`.useSkill` step 通过 `AIIntent.destination` 复用 capture-aware 落点预演，技能摘要和目标来自该 `GeneralSkillPreview`，不再从原位置 formation 重算。它不新增存档字段，不改变真实 AI 行为、移动、攻击、技能释放或胜负结算。
 - `GameViewModel.aiOperationalPlanSummaries` 将核心作战计划报告转成计划 chip、敌情计划卡、战局计划行、行动时间线和无障碍文案；时间线逐步展示 `AIPlanStepReport` 的角色、军团、意图、起点、落点、目标、姿态和预计影响，`BattleView` 只展示这些 UI 派生字段，不在 SwiftUI 中重新聚合敌军目标、行动顺序或技能机会。
-- `state.enemyCommanderThreatReports(against:limit:)` 只读聚合敌方将领 trait、技能预览、AI 意图、AI 作战计划、战线压力和热区，输出敌将威胁等级、目标、技能窗口、预计伤害/恢复/削城防、理由和影响；它在敌方 forecast copy 上读取技能预览，不新增存档字段，不改变真实 AI 行为、技能释放、攻击、移动或胜负结算。
+- `state.enemyCommanderThreatReports(against:limit:)` 只读聚合敌方将领 trait、技能预览、AI 意图、AI 作战计划、战线压力和热区，输出敌将威胁等级、目标、技能窗口、预计伤害/恢复/削城防、理由和影响；移动施令时，敌将真实 `position` 保持起点，`destination`、技能范围、影响区、目标和预计收益全部来自意图落点的同一个 `GeneralSkillPreview`，下游地图只消费 report。它不新增存档字段，不改变真实 AI 行为、技能释放、攻击、移动或胜负结算。
 - `GameViewModel.enemyCommanderThreatSummaries` 将核心敌将威胁报告转成敌将 chip、敌情卡、战局敌将行和无障碍文案；`EnemyCommanderThreatMapOverlay` 再从同一 summary/report 派生起点、技能范围、受影响位置/对象、目标/目的地、角色标记和威胁路线，供地图空间层使用。`BattleView` 只展示核心报告，不在 SwiftUI 中重新计算威胁分、技能目标或范围。
 - `activeEnemyCommanderThreatSummary` 驱动地图侦察 HUD、顶部敌将 chip、敌情卡和相关 accessibility 文案，保证 threat id、将领身份、技能、空间链路和状态同源；`primaryEnemyEngagementLoopReadout`、反制/交战桥接与军令窗口仍按全局语义使用 primary。`focusEnemyCommanderThreat(_:)` 只改变 ViewModel 的敌将焦点、选择位置、侦察上下文和 banner，聚焦入口不会调用 `useGeneralSkill`、`attack`、`moveUnit` 或任何核心写命令。有效、重复、无效聚焦均保持 `GameState`、存档、AI 意图和回合快照不变。
 - `activeEnemyCommanderThreatFocusReadout` 是地图焦点读板、底部命令坞和 `EnemyCommanderThreatCardView` 的唯一当前对象来源；它复用 active summary/overlay，不在 SwiftUI 重算报告、评分、范围或路线。只读命令状态固定为 `commandAvailabilityLabel = 仅侦察，不执行敌将命令` 与 `hasExecutableCommand == false`；primary 全局桥接不会随 secondary 聚焦漂移。
@@ -180,7 +180,7 @@
 - AI 当前支持招募、休整、战术姿态、主动技能、移动后攻击、目标优先级评估，并按当前意图威胁分优先执行主攻单位。
 - `performSimpleAI(for:)` 在战役结束后直接返回空消息；AI 单位循环会先排序尚未行动单位，高威胁意图先执行，若移动或攻击导致胜负，也会停止后续动作。
 - `aiIntents(for:limit:)` 只预测敌军倾向，不改变状态；它在 forecast copy 上复用同一回合开始刷新 helper，攻击类意图的预计伤害来自规划态战斗预览。
-- `aiOperationalPlanReports(against:perFactionLimit:limit:)` 复用同一 forecast copy 和 AI 意图报告，再结合压力/热区报告生成敌军计划读板；将领技能计划只读调用敌方规划态技能预览，避免罗马回合读取敌方技能时误判不可用。
+- `aiOperationalPlanReports(against:perFactionLimit:limit:)` 复用同一 forecast copy 和 AI 意图报告，再结合压力/热区报告生成敌军计划读板；将领技能计划按 intent destination 调用 capture-aware 规划态技能预览，避免罗马回合读取敌方技能时误判不可用或把落点范围画回原位。
 - AI 主动技能判断和 `.useSkill` 意图复用将领技能预览并尊重冷却；攻城技能填入目标城市，治疗类技能填入主要受益友军。
 - 敌军意图地图叠层复用 `AIIntent.destination`、`targetUnitID`、`targetCityID` 和 `projectedDamage`，由 `GameViewModel` 派生六边形路径、目的地、目标和文案，不会重新评分、重新选择目标或改变真实 AI 行为。
 

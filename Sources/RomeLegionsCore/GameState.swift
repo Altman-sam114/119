@@ -2021,6 +2021,15 @@ private struct AIOperationalPlanKey: Hashable {
     var targetCityID: String?
 }
 
+private struct AIGeneralSkillCandidate {
+    var unitID: String
+    var destination: Position
+    var preview: GeneralSkillPreview
+    var targetUnitID: String?
+    var targetCityID: String?
+    var score: Int
+}
+
 private struct FrontlinePressureTarget {
     var key: FrontlinePressureTargetKey
     var faction: Faction
@@ -4479,10 +4488,34 @@ public struct GameState: Codable, Equatable, Sendable {
     ) -> EnemyCommanderThreatReport {
         let trait = unit.resolvedGeneralTrait ?? .eagleStandard
         let generalName = unit.generalName ?? trait.displayName
-        let skillPreview = generalSkillPreview(for: unit)
+        let skillPlanningUnit = intent.map {
+            aiPlanningUnit(from: unit, order: $0.tacticalOrder)
+        } ?? unit
+        let skillPreview: GeneralSkillPreview
+        let projectedTargetUnitID: String?
+        let projectedTargetCityID: String?
+        if intent?.kind == .useSkill {
+            let projection = aiGeneralSkillProjection(
+                for: skillPlanningUnit,
+                destination: intent?.destination ?? unit.position
+            )
+            skillPreview = projection.preview
+            projectedTargetUnitID = projection.state.aiSkillTargetUnit(
+                for: projection.unit,
+                preview: projection.preview
+            )?.id
+            projectedTargetCityID = projection.state.aiSkillTargetCity(
+                for: projection.unit,
+                preview: projection.preview
+            )?.id
+        } else {
+            skillPreview = generalSkillPreview(for: unit)
+            projectedTargetUnitID = nil
+            projectedTargetCityID = nil
+        }
         let formation = legionFormationReport(for: unit)
-        let targetUnitID = intent?.targetUnitID
-        let targetCityID = intent?.targetCityID ?? skillPreview.affectedCityIDs.first
+        let targetUnitID = intent?.targetUnitID ?? projectedTargetUnitID
+        let targetCityID = intent?.targetCityID ?? projectedTargetCityID ?? skillPreview.affectedCityIDs.first
         let targetPosition = enemyCommanderTargetPosition(
             intent: intent,
             targetUnitID: targetUnitID,
@@ -5290,6 +5323,10 @@ public struct GameState: Codable, Equatable, Sendable {
     ) -> AIPlanStepReport {
         let formation = legionFormationReport(for: unit)
         let destination = intent.destination ?? unit.position
+        let skillPlanningUnit = aiPlanningUnit(from: unit, order: intent.tacticalOrder)
+        let skillPreview = intent.kind == .useSkill
+            ? aiGeneralSkillProjection(for: skillPlanningUnit, destination: destination).preview
+            : nil
         let role: AIPlanCoordinationRole
         switch intent.kind {
         case .useSkill:
@@ -5316,8 +5353,14 @@ public struct GameState: Codable, Equatable, Sendable {
             formationRole: formation.role,
             formationReadiness: formation.readiness,
             generalName: formation.generalName,
-            skillSummary: intent.kind == .useSkill ? formation.skillSummary : nil,
-            detail: aiPlanStepDetail(for: intent, unit: unit, formation: formation, targetPosition: targetPosition)
+            skillSummary: intent.kind == .useSkill ? skillPreview?.summary : nil,
+            detail: aiPlanStepDetail(
+                for: intent,
+                unit: unit,
+                formation: formation,
+                targetPosition: targetPosition,
+                skillPreview: skillPreview
+            )
         )
     }
 
@@ -5325,7 +5368,8 @@ public struct GameState: Codable, Equatable, Sendable {
         for intent: AIIntent,
         unit: ArmyUnit,
         formation: LegionFormationReport,
-        targetPosition: Position
+        targetPosition: Position,
+        skillPreview: GeneralSkillPreview?
     ) -> String {
         let unitLabel = "\(unit.faction.displayName)\(unit.kind.displayName)"
         let target = battlefieldTargetName(
@@ -5341,7 +5385,7 @@ public struct GameState: Codable, Equatable, Sendable {
             return "\(unitLabel) 试图夺取 \(target)"
         case .useSkill:
             let general = formation.generalName ?? "敌方将领"
-            return "\(general) \(formation.skillSummary ?? "准备发动主动技能")"
+            return "\(general) \(skillPreview?.summary ?? "准备发动主动技能")"
         case .advance:
             return "\(unitLabel) 推进至 \(intent.destination?.description ?? targetPosition.description)"
         case .defend:
@@ -6782,6 +6826,26 @@ public struct GameState: Codable, Equatable, Sendable {
                 continue
             }
 
+            if let skillCandidate = bestAIGeneralSkillCandidate(for: orderedUnit) {
+                if let result = try? moveUnit(id: unitID, to: skillCandidate.destination) {
+                    messages.append(contentsOf: result)
+
+                    guard !campaignStatus.isGameOver else {
+                        break
+                    }
+
+                    if let movedUnit = self.unit(withID: unitID),
+                       shouldAIUseGeneralSkill(movedUnit),
+                       let skillResult = try? useGeneralSkill(unitID: unitID) {
+                        messages.append(contentsOf: skillResult)
+                        if campaignStatus.isGameOver {
+                            break
+                        }
+                    }
+                }
+                continue
+            }
+
             guard let destination = bestAIDestination(for: orderedUnit, favoring: engagedTargetIDs) else {
                 if let refreshed = self.unit(withID: unitID),
                    shouldAIRest(refreshed),
@@ -7634,12 +7698,23 @@ public struct GameState: Codable, Equatable, Sendable {
 
     private func shouldAIUseGeneralSkill(_ unit: ArmyUnit) -> Bool {
         guard !unit.hasActed,
-              let trait = unit.resolvedGeneralTrait,
+              unit.resolvedGeneralTrait != nil,
               unit.generalName != nil else {
             return false
         }
 
-        let preview = generalSkillPreview(for: unit)
+        return shouldAIUseGeneralSkill(unit, preview: generalSkillPreview(for: unit))
+    }
+
+    private func shouldAIUseGeneralSkill(
+        _ unit: ArmyUnit,
+        preview: GeneralSkillPreview
+    ) -> Bool {
+        guard !unit.hasActed,
+              unit.generalName != nil,
+              let trait = unit.resolvedGeneralTrait else {
+            return false
+        }
 
         switch trait {
         case .siegeEngineer:
@@ -7927,6 +8002,19 @@ public struct GameState: Codable, Equatable, Sendable {
             )
         }
 
+        if let skillCandidate = bestAIGeneralSkillCandidate(for: orderedUnit) {
+            return AIIntent(
+                unitID: unit.id,
+                faction: unit.faction,
+                kind: .useSkill,
+                tacticalOrder: order,
+                targetUnitID: skillCandidate.targetUnitID,
+                targetCityID: skillCandidate.targetCityID,
+                destination: skillCandidate.destination,
+                threatScore: skillCandidate.score
+            )
+        }
+
         guard let destination = bestAIDestination(for: orderedUnit) else {
             return AIIntent(
                 unitID: unit.id,
@@ -7997,6 +8085,106 @@ public struct GameState: Codable, Equatable, Sendable {
             tacticalOrder: (order ?? unit.resolvedTacticalOrder) == .balanced ? nil : (order ?? unit.resolvedTacticalOrder),
             hasMoved: hasMoved ?? unit.hasMoved,
             hasActed: hasActed ?? unit.hasActed
+        )
+    }
+
+    private func bestAIGeneralSkillCandidate(for unit: ArmyUnit) -> AIGeneralSkillCandidate? {
+        guard !unit.hasMoved else {
+            return nil
+        }
+
+        return reachablePositions(for: unit)
+            .compactMap { destination in
+                aiGeneralSkillCandidate(for: unit, destination: destination)
+            }
+            .sorted { left, right in
+                if left.score == right.score {
+                    let leftDistance = unit.position.hexDistance(to: left.destination)
+                    let rightDistance = unit.position.hexDistance(to: right.destination)
+                    if leftDistance == rightDistance {
+                        let leftTarget = left.targetUnitID ?? left.targetCityID ?? ""
+                        let rightTarget = right.targetUnitID ?? right.targetCityID ?? ""
+                        if leftTarget == rightTarget {
+                            if left.destination.y == right.destination.y {
+                                if left.destination.x == right.destination.x {
+                                    return left.unitID < right.unitID
+                                }
+                                return left.destination.x < right.destination.x
+                            }
+                            return left.destination.y < right.destination.y
+                        }
+                        return leftTarget < rightTarget
+                    }
+                    return leftDistance < rightDistance
+                }
+                return left.score > right.score
+            }
+            .first
+    }
+
+    private func aiGeneralSkillCandidate(
+        for unit: ArmyUnit,
+        destination: Position
+    ) -> AIGeneralSkillCandidate? {
+        let isMovement = destination != unit.position
+        if isMovement {
+            guard !unit.hasMoved,
+                  reachablePositions(for: unit).contains(destination) else {
+                return nil
+            }
+        }
+
+        let projection = aiGeneralSkillProjection(for: unit, destination: destination)
+        guard projection.state.shouldAIUseGeneralSkill(projection.unit, preview: projection.preview) else {
+            return nil
+        }
+
+        return AIGeneralSkillCandidate(
+            unitID: unit.id,
+            destination: destination,
+            preview: projection.preview,
+            targetUnitID: projection.state.aiSkillTargetUnit(
+                for: projection.unit,
+                preview: projection.preview
+            )?.id,
+            targetCityID: projection.state.aiSkillTargetCity(
+                for: projection.unit,
+                preview: projection.preview
+            )?.id,
+            score: projection.state.aiSkillThreatScore(
+                for: projection.unit,
+                preview: projection.preview
+            )
+        )
+    }
+
+    private func aiGeneralSkillProjection(
+        for unit: ArmyUnit,
+        destination: Position
+    ) -> (state: GameState, unit: ArmyUnit, preview: GeneralSkillPreview) {
+        let isMovement = destination != unit.position
+        var projected = self
+        let projectedUnit = projected.aiPlanningUnit(
+            from: unit,
+            position: destination,
+            hasMoved: isMovement || unit.hasMoved,
+            hasActed: false
+        )
+
+        if let index = projected.units.firstIndex(where: { $0.id == unit.id }) {
+            projected.units[index] = projectedUnit
+        }
+
+        if isMovement {
+            _ = projected.captureCityIfPossible(at: destination, by: unit.faction)
+            _ = projected.evaluateCampaignProgress()
+        }
+
+        let settledUnit = projected.unit(withID: unit.id) ?? projectedUnit
+        return (
+            state: projected,
+            unit: settledUnit,
+            preview: projected.generalSkillPreview(for: settledUnit)
         )
     }
 

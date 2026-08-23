@@ -172,6 +172,198 @@ do {
     }
     expect(advanceIntentState.unit(withID: "carthage-hunter")?.position == Position(x: 7, y: 2), "Advance intent forecast should not move the source unit")
 
+    var moveSkillState = GameState.newCampaign()
+    moveSkillState.tiles = moveSkillState.tiles.map { Tile(position: $0.position, terrain: .plains) }
+    moveSkillState.cities = [
+        City(
+            id: "rome",
+            name: "罗马",
+            position: Position(x: 11, y: 7),
+            owner: .rome,
+            production: EmpireResources(gold: 40, grain: 30, iron: 20, science: 10, prestige: 2),
+            fortification: 12
+        )
+    ]
+    moveSkillState.units = [
+        ArmyUnit(id: "rome-observer", kind: .legion, faction: .rome, position: Position(x: 11, y: 6)),
+        ArmyUnit(
+            id: "carthage-quartermaster",
+            kind: .legion,
+            faction: .carthage,
+            position: Position(x: 1, y: 1),
+            generalName: "阿格里帕",
+            generalTrait: .quartermaster
+        ),
+        ArmyUnit(
+            id: "carthage-wounded",
+            kind: .cavalry,
+            faction: .carthage,
+            position: Position(x: 8, y: 2),
+            health: 30,
+            hasMoved: true,
+            hasActed: true
+        )
+    ]
+    moveSkillState.resources[.carthage] = .zero
+    moveSkillState.activeFaction = .rome
+    let moveSkillBefore = moveSkillState
+    let moveSkillIntent = moveSkillState.aiIntents(for: .carthage, limit: 4)
+        .first { $0.unitID == "carthage-quartermaster" }
+    expect(moveSkillIntent?.kind == .useSkill, "AI intent should predict move-then-general-skill")
+    expect(moveSkillIntent?.tacticalOrder == .forcedMarch, "Move-skill fixture should require the intent tactical order")
+    expect(moveSkillIntent?.destination != Position(x: 1, y: 1), "Move-skill intent should expose a landing position")
+    expect(moveSkillIntent?.targetUnitID == "carthage-wounded", "Move-skill intent should expose the post-move beneficiary")
+    if let moveSkillIntent, let destination = moveSkillIntent.destination {
+        var moveSkillReachabilityState = moveSkillState
+        moveSkillReachabilityState.activeFaction = .carthage
+        expect(
+            !moveSkillReachabilityState.reachablePositions(for: moveSkillIntent.unitID).contains(destination),
+            "Move-skill landing should require the forecast tactical order"
+        )
+        let reachabilityCommanderIndex = moveSkillReachabilityState.units.firstIndex { $0.id == moveSkillIntent.unitID }
+        expect(reachabilityCommanderIndex != nil, "Move-skill reachability commander should exist")
+        moveSkillReachabilityState.units[reachabilityCommanderIndex!].tacticalOrder = moveSkillIntent.tacticalOrder
+        expect(
+            moveSkillReachabilityState.reachablePositions(for: moveSkillIntent.unitID).contains(destination),
+            "Move-skill landing should be reachable with the forecast tactical order"
+        )
+
+        var moveSkillPreviewState = moveSkillState
+        moveSkillPreviewState.activeFaction = .carthage
+        let commanderIndex = moveSkillPreviewState.units.firstIndex { $0.id == "carthage-quartermaster" }
+        expect(commanderIndex != nil, "Move-skill commander should exist")
+        moveSkillPreviewState.units[commanderIndex!].position = destination
+        moveSkillPreviewState.units[commanderIndex!].hasMoved = true
+        moveSkillPreviewState.units[commanderIndex!].hasActed = false
+        moveSkillPreviewState.units[commanderIndex!].tacticalOrder = moveSkillIntent.tacticalOrder == .balanced ? nil : moveSkillIntent.tacticalOrder
+        let moveSkillPreview = try moveSkillPreviewState.generalSkillPreview(unitID: "carthage-quartermaster")
+        expect(moveSkillPreview.origin == destination, "Move-skill preview should originate at the landing position")
+        expect(moveSkillPreview.projectedRecoveredHealth == 22, "Move-skill preview should expose landing recovery")
+        expect(moveSkillPreview.affectedUnitIDs == ["carthage-wounded"], "Move-skill preview should expose landing beneficiaries")
+
+        let moveSkillPlan = moveSkillState.aiOperationalPlanReports(against: .rome, perFactionLimit: 4, limit: 5)
+            .first { $0.kind == .commanderSkill && $0.sourceUnitIDs.contains("carthage-quartermaster") }
+        let moveSkillStep = moveSkillPlan?.steps.first { $0.unitID == "carthage-quartermaster" }
+        let moveSkillThreat = moveSkillState.enemyCommanderThreatReports(against: .rome, limit: 5)
+            .first { $0.unitID == "carthage-quartermaster" }
+        expect(moveSkillStep?.destination == destination, "AI plan should reuse the move-skill landing position")
+        expect(moveSkillStep?.targetUnitID == "carthage-wounded", "AI plan should reuse the move-skill target")
+        expect(moveSkillStep?.skillSummary == moveSkillPreview.summary, "AI plan should reuse the post-move skill summary")
+        expect(moveSkillThreat?.destination == destination, "Enemy commander threat should reuse the move-skill landing position")
+        expect(moveSkillThreat?.projectedRecovery == moveSkillPreview.projectedRecoveredHealth, "Enemy commander threat should reuse landing recovery")
+        expect(moveSkillThreat?.affectedUnitIDs == moveSkillPreview.affectedUnitIDs, "Enemy commander threat should reuse landing beneficiaries")
+        expect(moveSkillThreat?.rangePositions == moveSkillPreview.rangePositions, "Enemy commander threat should reuse landing range")
+        expect(moveSkillThreat?.affectedPositions == moveSkillPreview.affectedPositions, "Enemy commander threat should reuse landing impact positions")
+        expect(moveSkillState == moveSkillBefore, "Move-skill intent, plan, and threat reads should not mutate state")
+
+        var moveSkillResolution = moveSkillState
+        moveSkillResolution.activeFaction = .carthage
+        let moveSkillMessages = moveSkillResolution.performSimpleAI(for: .carthage)
+        expect(moveSkillResolution.unit(withID: "carthage-quartermaster")?.position == destination, "AI should move to the previewed skill landing position")
+        expect(moveSkillResolution.unit(withID: "carthage-quartermaster")?.generalSkillCooldownRemaining == 2, "Move-skill resolution should start cooldown")
+        expect(moveSkillResolution.unit(withID: "carthage-wounded")?.health == 30 + moveSkillPreview.projectedRecoveredHealth, "Move-skill resolution should match previewed recovery")
+        expect(moveSkillMessages.contains { $0.contains("战地补给") }, "Move-skill resolution should emit the general skill message")
+    }
+
+    var moveSkillKillState = moveSkillState
+    moveSkillKillState.units = [
+        ArmyUnit(id: "rome-kill", kind: .archer, faction: .rome, position: Position(x: 3, y: 3), health: 1),
+        ArmyUnit(
+            id: "carthage-quartermaster",
+            kind: .legion,
+            faction: .carthage,
+            position: Position(x: 4, y: 3),
+            generalName: "阿格里帕",
+            generalTrait: .quartermaster
+        ),
+        ArmyUnit(id: "carthage-wounded", kind: .cavalry, faction: .carthage, position: Position(x: 8, y: 3), health: 30, hasMoved: true, hasActed: true)
+    ]
+    var profitableMoveSkillState = moveSkillKillState
+    profitableMoveSkillState.activeFaction = .carthage
+    let profitableCommanderIndex = profitableMoveSkillState.units.firstIndex { $0.id == "carthage-quartermaster" }
+    expect(profitableCommanderIndex != nil, "Kill-priority commander should exist")
+    expect(
+        profitableMoveSkillState.reachablePositions(for: "carthage-quartermaster")
+            .contains(Position(x: 6, y: 3)),
+        "Kill-priority move-skill landing should be legally reachable"
+    )
+    profitableMoveSkillState.units[profitableCommanderIndex!].position = Position(x: 6, y: 3)
+    profitableMoveSkillState.units[profitableCommanderIndex!].hasMoved = true
+    let profitableMoveSkillPreview = try profitableMoveSkillState.generalSkillPreview(unitID: "carthage-quartermaster")
+    expect(profitableMoveSkillPreview.projectedRecoveredHealth == 22, "Kill-priority fixture should prove a profitable move-skill exists")
+    let killPriorityIntent = moveSkillKillState.aiIntents(for: .carthage, limit: 4)
+        .first { $0.unitID == "carthage-quartermaster" }
+    expect(killPriorityIntent?.kind == .attack, "Immediate kill should outrank profitable move-skill")
+    expect(killPriorityIntent?.targetUnitID == "rome-kill", "Immediate kill should preserve the lethal target")
+    moveSkillKillState.activeFaction = .carthage
+    _ = moveSkillKillState.performSimpleAI(for: .carthage)
+    expect(moveSkillKillState.unit(withID: "rome-kill") == nil, "AI should execute the immediate kill")
+    expect(moveSkillKillState.unit(withID: "carthage-wounded")?.health == 30, "Immediate kill should not execute the move-skill")
+
+    var campaignEndMoveSkillState = GameState.newCampaign()
+    let campaignEndLand: Set<Position> = [
+        Position(x: 1, y: 1), Position(x: 2, y: 1), Position(x: 3, y: 1),
+        Position(x: 5, y: 1), Position(x: 7, y: 7)
+    ]
+    campaignEndMoveSkillState.tiles = campaignEndMoveSkillState.tiles.map { tile in
+        Tile(position: tile.position, terrain: campaignEndLand.contains(tile.position) ? .plains : .water)
+    }
+    campaignEndMoveSkillState.cities = [
+        City(
+            id: "rome",
+            name: "罗马",
+            position: Position(x: 3, y: 1),
+            owner: .rome,
+            production: EmpireResources(gold: 40, grain: 30, iron: 20, science: 10, prestige: 2),
+            fortification: 12
+        )
+    ]
+    campaignEndMoveSkillState.units = [
+        ArmyUnit(id: "rome-observer", kind: .legion, faction: .rome, position: Position(x: 7, y: 7)),
+        ArmyUnit(id: "carthage-quartermaster", kind: .legion, faction: .carthage, position: Position(x: 1, y: 1), generalName: "阿格里帕", generalTrait: .quartermaster),
+        ArmyUnit(id: "carthage-wounded", kind: .cavalry, faction: .carthage, position: Position(x: 5, y: 1), health: 30, hasMoved: true, hasActed: true)
+    ]
+    campaignEndMoveSkillState.resources[.carthage] = .zero
+    campaignEndMoveSkillState.activeFaction = .rome
+    let campaignEndBefore = campaignEndMoveSkillState
+    let campaignEndIntent = campaignEndMoveSkillState.aiIntents(for: .carthage, limit: 4)
+        .first { $0.unitID == "carthage-quartermaster" }
+    let campaignEndPlan = campaignEndMoveSkillState.aiOperationalPlanReports(against: .rome, perFactionLimit: 4, limit: 5)
+        .first { $0.sourceUnitIDs.contains("carthage-quartermaster") }
+    let campaignEndStep = campaignEndPlan?.steps.first { $0.unitID == "carthage-quartermaster" }
+    let campaignEndThreat = campaignEndMoveSkillState.enemyCommanderThreatReports(against: .rome, limit: 5)
+        .first { $0.unitID == "carthage-quartermaster" }
+    expect(campaignEndIntent?.kind == .captureCity, "Campaign-ending capture should suppress move-skill intent")
+    expect(campaignEndIntent?.destination == Position(x: 3, y: 1), "Campaign-ending capture should preserve the city landing")
+    expect(campaignEndPlan?.kind == .cityCapture, "Campaign-ending plan should remain a city capture")
+    expect(campaignEndStep?.intentKind == .captureCity, "Campaign-ending plan step should not predict a trailing skill")
+    expect(campaignEndStep?.destination == Position(x: 3, y: 1), "Campaign-ending plan should reuse the capture landing")
+    expect(campaignEndThreat?.intentKind == .captureCity, "Campaign-ending threat should not predict a trailing skill")
+    expect(campaignEndThreat?.destination == Position(x: 3, y: 1), "Campaign-ending threat should reuse the capture landing")
+    expect(campaignEndThreat?.targetCityID == "rome", "Campaign-ending threat should preserve the captured city target")
+    expect(campaignEndMoveSkillState == campaignEndBefore, "Campaign-ending intent, plan, and threat reads should remain pure")
+
+    if let campaignEndIntent, let campaignEndDestination = campaignEndIntent.destination {
+        var campaignEndProjection = campaignEndMoveSkillState
+        campaignEndProjection.activeFaction = .carthage
+        _ = try campaignEndProjection.setTacticalOrder(
+            unitID: campaignEndIntent.unitID,
+            order: campaignEndIntent.tacticalOrder
+        )
+        _ = try campaignEndProjection.moveUnit(id: campaignEndIntent.unitID, to: campaignEndDestination)
+        expect(campaignEndProjection.city(withID: "rome")?.owner == .carthage, "Campaign projection should capture the final city")
+        expect(campaignEndProjection.campaignStatus.kind == .romanDefeat, "Campaign projection should evaluate defeat at the landing")
+        expect(campaignEndProjection.unit(withID: "carthage-quartermaster")?.generalSkillCooldownRemaining == 0, "Campaign projection should not start skill cooldown")
+        expect(campaignEndProjection.unit(withID: "carthage-wounded")?.health == 30, "Campaign projection should not heal after victory")
+    }
+
+    var campaignEndResolution = campaignEndMoveSkillState
+    campaignEndResolution.activeFaction = .carthage
+    _ = campaignEndResolution.performSimpleAI(for: .carthage)
+    expect(campaignEndResolution.campaignStatus.kind == .romanDefeat, "Campaign-ending capture should end the campaign")
+    expect(campaignEndResolution.unit(withID: "carthage-quartermaster")?.generalSkillCooldownRemaining == 0, "Campaign-ending capture should not execute a trailing skill")
+    expect(campaignEndResolution.unit(withID: "carthage-wounded")?.health == 30, "Campaign-ending capture should not heal after victory")
+
     var captureIntentState = GameState.newCampaign()
     captureIntentState.units = [
         ArmyUnit(id: "carthage-capturer", kind: .cavalry, faction: .carthage, position: Position(x: 6, y: 2))

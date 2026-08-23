@@ -1,6 +1,6 @@
 # 项目核心流程图
 
-v0.68 读图说明：现有选择、攻击锁定、敌将焦点和反制焦点先进入唯一 display context，再由地图 presentation 统一主/次/隐藏层级；反制仍由同一个 source 链驱动地图、卡片和命令坞，三个确认入口保持独立。全局交战与将领桥接仍走 primary。
+v0.69 读图说明：AI 继续先处理休整、原地技能和当前直接攻击；只有这些分支都不可用时才评估移动施令。落点预演模拟占城与战役结束，并把同一个 `GeneralSkillPreview` 交给意图、作战计划、敌将威胁和地图范围；真实执行移动后会重新预览。v0.68 的 display context、全局 primary 与反制单步入口保持不变。
 
 ```mermaid
 flowchart LR
@@ -54,7 +54,7 @@ flowchart TD
     B --> C["GameState.endTurn()<br/>结算收入、推进 activeFaction<br/>刷新新势力行动并递减其技能冷却"]
     C --> D{"当前 activeFaction 是罗马？"}
     D -->|是| E["清空选择态<br/>banner 显示新罗马回合"]
-    D -->|否| F["GameState.performSimpleAI(for:)<br/>AI 招募后按当前意图威胁分排序单位<br/>主攻优先执行移动、攻击、技能、休整"]
+    D -->|否| F["GameState.performSimpleAI(for:)<br/>AI 招募后按当前意图威胁分排序单位<br/>休整/原地技能/直接攻击优先，再评估移动攻击或移动施令"]
     F --> G["GameState.endTurn()<br/>AI 势力结束回合<br/>刷新下一势力并递减其冷却"]
     G --> D
     E --> H["BattleView 刷新<br/>玩家继续下令"]
@@ -86,17 +86,19 @@ flowchart TD
     M --> W["BattleView 地图折线路径、目的地叠层、目标格叠层<br/>侧栏显示来源、去向、目标和预计伤害"]
     M --> BL["GameViewModel.activeMapOverlayLegendItems<br/>汇总敌路/目标、热区、控区、军议、机动、目标线、反制、可达、攻击、技能等当前可见叠层图例"]
     L --> LF["performSimpleAI 当前状态排序<br/>读取单体 AIIntent.threatScore<br/>高威胁主攻单位先行动"]
-    LF --> LG["真实 AI 执行<br/>回合内维护 engagedTargetIDs 交战记忆<br/>目标先分可击杀层，再按战术分、集火和 ID 排序<br/>直接攻击、移动落点、移动后攻击共享同一集合"]
+    LF --> LG["真实 AI 执行<br/>回合内维护 engagedTargetIDs 交战记忆<br/>原地技能与直接攻击保持旧顺序<br/>无直接行动时评估移动攻击或移动施令"]
+    LG --> LH["bestAIGeneralSkillCandidate<br/>真实可达格 + capture-aware projected state<br/>占城结束则候选无效"]
+    LH --> LI["moveUnit -> 真实位置重新 GeneralSkillPreview<br/>useGeneralSkill 结算恢复/削城防/冷却<br/>不尾随攻击"]
     L --> AB["GameState.frontlinePressureReports<br/>按罗马单位或城市聚合多路意图<br/>来源、预计伤害、夺城风险、压力等级"]
     AB --> AC["GameViewModel.frontlinePressureSummaries<br/>目标、来源、压力标签、影响文案、无障碍说明"]
     AC --> AD["BattleView 战线 chip 与战局面板<br/>展示高压目标和防守优先级"]
     L --> AR["GameState.aiOperationalPlanReports<br/>聚合敌军意图、压力、热区和敌方将领技能机会<br/>输出集火、夺城、将领技能、推进、固守或整备计划"]
     AB --> AR
     AO --> AR
-    AU["敌方 forecast 技能预览<br/>aiOperationalPlanReports 内部只读调用 generalSkillPreview<br/>不读取玩家选中单位"] --> AR
+    AU["敌方 forecast 落点技能预览<br/>AIIntent.destination -> capture-aware GeneralSkillPreview<br/>计划 step 复用目标/摘要，不读取玩家选择"] --> AR
     AR --> AS["GameViewModel.aiOperationalPlanSummaries<br/>计划类型、协同角色、来源、目标、预计影响和无障碍文案"]
     AS --> AT["BattleView 计划 chip、敌情计划卡、战局计划行<br/>只展示核心报告，不改变 AI 决策"]
-    AR --> BO["GameState.enemyCommanderThreatReports<br/>聚合敌方将领 trait、技能预览、AI 意图、计划、压力和热区<br/>敌方 forecast 下读取技能窗口"]
+    AR --> BO["GameState.enemyCommanderThreatReports<br/>起点保留真实 position，落点/范围/影响/收益复用同一 preview<br/>地图继续只消费 threat report"]
     L --> BO
     AB --> BO
     AO --> BO

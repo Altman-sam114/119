@@ -39,6 +39,7 @@ const requiredFiles = [
   "md/prompt/v0（玩法推进）/v0.66（敌将焦点指挥卡与地图命令上下文）.md",
   "md/prompt/v0（玩法推进）/v0.67（反制决策确认闭环）.md"
   ,"md/prompt/v0（玩法推进）/v0.68（地图视觉层级与上下文命令坞）.md"
+  ,"md/prompt/v0（玩法推进）/v0.69（AI将领机动施令与同源预演）.md"
 ];
 
 const failures = [];
@@ -85,9 +86,19 @@ for (const token of [
 }
 
 const core = readFileSync("Sources/RomeLegionsCore/GameState.swift", "utf8");
-for (const token of ["moveUnit", "attack", "attackPreview", "CombatPreview", "recruit", "research", "performSimpleAI", "skipUnit", "performAIRecruitment", "bestAITarget", "hasKillableTarget", "bestAIDestination", "favoring engagedTargetIDs", "developCity", "trainUnit", "appointGeneral", "sendEnvoy", "CampaignStatus", "campaignStatus", "MissionRequirement", "campaignAlreadyEnded"]) {
+for (const token of ["moveUnit", "attack", "attackPreview", "CombatPreview", "recruit", "research", "performSimpleAI", "skipUnit", "performAIRecruitment", "bestAITarget", "hasKillableTarget", "bestAIDestination", "favoring engagedTargetIDs", "AIGeneralSkillCandidate", "bestAIGeneralSkillCandidate", "aiGeneralSkillCandidate", "aiGeneralSkillProjection", "skillCandidate.destination", "projected.evaluateCampaignProgress()", "developCity", "trainUnit", "appointGeneral", "sendEnvoy", "CampaignStatus", "campaignStatus", "MissionRequirement", "campaignAlreadyEnded"]) {
   if (!core.includes(token)) {
     failures.push(`Core game state does not include ${token}`);
+  }
+}
+for (const [label, pattern] of [
+  ["capture-aware skill projection", /private func aiGeneralSkillProjection\([\s\S]*?projected\.captureCityIfPossible\([\s\S]*?projected\.evaluateCampaignProgress\(\)/],
+  ["plan landing-preview reuse", /private func aiPlanStepReport\([\s\S]*?aiGeneralSkillProjection\(for: skillPlanningUnit, destination: destination\)\.preview/],
+  ["threat landing-preview reuse", /private func enemyCommanderThreatReport\([\s\S]*?if intent\?\.kind == \.useSkill[\s\S]*?aiGeneralSkillProjection\(/],
+  ["real move then skill re-preview", /performSimpleAI\(for faction:[\s\S]*?moveUnit\(id: unitID, to: skillCandidate\.destination\)[\s\S]*?shouldAIUseGeneralSkill\(movedUnit\)[\s\S]*?useGeneralSkill\(unitID: unitID\)/]
+]) {
+  if (!pattern.test(core)) {
+    failures.push(`Core game state does not include ${label}`);
   }
 }
 
@@ -117,9 +128,23 @@ for (const token of ["CompactCommandPanelView", "PhoneCommandDeckView", "Tactica
 }
 
 const renderPreview = readFileSync("Tools/RenderBattlePreview/main.swift", "utf8");
-for (const token of ["commandDockSecondaryTarget", "selectedAttackTargetID", "selectedCombatForecast", "attackerIdentityLabel", "identityChainLabel", "cancelSelectedAttackTarget", "stateArchiveBeforeAttackForecast", "stateArchiveAfterCancel", "stateArchiveAfterRepeatedCancel", "aiIntentSnapshotBeforeAttackForecast", "missingAttackForecast", "stateBeforeAttackForecast", "EnemyCommanderThreatMapOverlay", "EnemyCommanderThreatFocusReadout", "activeEnemyCommanderThreatFocusReadout", "hasExecutableCommand", "commandAvailabilityLabel", "mapHeadlineLabel", "mapSpatialLabel", "mapStatusLabel", "compactStatusColumns", "primaryEnemyCommanderThreatMapOverlay", "activeEnemyCommanderThreatSummary", "activeEnemyCommanderThreatID", "activeEnemyCommanderThreatMapOverlay", "enemyCommanderThreatOverlaysByPosition", "enemyCommanderThreatOverlayPositions", "focusedEnemyCommanderThreatID", "focusEnemyCommanderThreat", "missingEnemyCommanderThreatMapOverlay", "missingActiveEnemyCommanderThreatPrimary", "missingActiveEnemyCommanderThreatSecondary", "missingActiveEnemyCommanderThreatSummary", "missingActiveEnemyCommanderThreatOverlay", "missingActiveEnemyCommanderThreatSource", "missingActiveEnemyCommanderThreatReadout", "missingEnemyCommanderThreatFocusReadout", "missingEnemyCommanderThreatCommandCleanup", "missingFocusedEnemyCommanderThreatRender", "missingFocusedEnemyCommanderThreatCardRender", "focusedOutputPath", "focusedEnemyDrawerOutputPath", "hasVisibleFocusedEnemyCommanderThreatPreview", "hasVisibleFocusedEnemyCommanderThreatCard", "initialDrawer: .enemy", "enemyCommanderThreatID", "MapOverlayLegendKind.enemyCommanderThreat", "missingCountermeasureCommandContext", "missingCountermeasureCommandSource", "missingCountermeasureCommandConfirmation", "assertCountermeasureSingleStepCommands", "CountermeasureCommandRuntimeSnapshot", "confirmCountermeasureOrder()", "confirmCountermeasureMovement()", "lockCountermeasureTarget()", "missingCountermeasureOrderRuntimeConfirmation", "missingCountermeasureMovementRuntimeConfirmation", "missingCountermeasureTargetRuntimeConfirmation", "missingCountermeasureCommandCleanup", "missingCountermeasureCommandRender", "focusedCountermeasureOutputPath", "focused-countermeasure", "BattleDisplayContextReadout", "isMapAttackOrigin", "selectedAttackSourceIDBeforeForecast", "attackOriginIDsBeforeForecast", "attackOriginIDsAfterForecast", "missingBattleDisplayContext", "missingMapOverlayHierarchy", "visibleRawSourceIdentifier", "missingContextualCommandDock", "missingMapVisualPriority"]) {
+for (const token of ["commandDockSecondaryTarget", "selectedAttackTargetID", "selectedCombatForecast", "attackerIdentityLabel", "identityChainLabel", "cancelSelectedAttackTarget", "stateArchiveBeforeAttackForecast", "stateArchiveAfterCancel", "stateArchiveAfterRepeatedCancel", "aiIntentSnapshotBeforeAttackForecast", "missingAttackForecast", "stateBeforeAttackForecast", "EnemyCommanderThreatMapOverlay", "EnemyCommanderThreatFocusReadout", "activeEnemyCommanderThreatFocusReadout", "hasExecutableCommand", "commandAvailabilityLabel", "mapHeadlineLabel", "mapSpatialLabel", "mapStatusLabel", "compactStatusColumns", "primaryEnemyCommanderThreatMapOverlay", "activeEnemyCommanderThreatSummary", "activeEnemyCommanderThreatID", "activeEnemyCommanderThreatMapOverlay", "enemyCommanderThreatOverlaysByPosition", "enemyCommanderThreatOverlayPositions", "focusedEnemyCommanderThreatID", "focusEnemyCommanderThreat", "missingEnemyCommanderThreatMapOverlay", "missingActiveEnemyCommanderThreatPrimary", "missingActiveEnemyCommanderThreatSecondary", "missingActiveEnemyCommanderThreatSummary", "missingActiveEnemyCommanderThreatOverlay", "missingActiveEnemyCommanderThreatSource", "missingActiveEnemyCommanderThreatReadout", "missingEnemyCommanderThreatFocusReadout", "missingEnemyCommanderThreatCommandCleanup", "missingFocusedEnemyCommanderThreatRender", "missingFocusedEnemyCommanderThreatCardRender", "focusedOutputPath", "focusedEnemyDrawerOutputPath", "hasVisibleFocusedEnemyCommanderThreatPreview", "hasVisibleFocusedEnemyCommanderThreatCard", "initialDrawer: .enemy", "enemyCommanderThreatID", "MapOverlayLegendKind.enemyCommanderThreat", "missingAIMoveSkillPreviewChain", "moveSkillIntent", "moveSkillIntent.tacticalOrder == .forcedMarch", "moveSkillPreview", "moveSkillOverlay", "moveSkillResolution", "campaignEndSkillOverlay", "campaignEndSkillProjection", "missingCountermeasureCommandContext", "missingCountermeasureCommandSource", "missingCountermeasureCommandConfirmation", "assertCountermeasureSingleStepCommands", "CountermeasureCommandRuntimeSnapshot", "confirmCountermeasureOrder()", "confirmCountermeasureMovement()", "lockCountermeasureTarget()", "missingCountermeasureOrderRuntimeConfirmation", "missingCountermeasureMovementRuntimeConfirmation", "missingCountermeasureTargetRuntimeConfirmation", "missingCountermeasureCommandCleanup", "missingCountermeasureCommandRender", "focusedCountermeasureOutputPath", "focused-countermeasure", "BattleDisplayContextReadout", "isMapAttackOrigin", "selectedAttackSourceIDBeforeForecast", "attackOriginIDsBeforeForecast", "attackOriginIDsAfterForecast", "missingBattleDisplayContext", "missingMapOverlayHierarchy", "visibleRawSourceIdentifier", "missingContextualCommandDock", "missingMapVisualPriority"]) {
   if (!renderPreview.includes(token)) {
     failures.push(`RenderBattlePreview does not include ${token}`);
+  }
+}
+
+const gameplaySmoke = readFileSync("Tools/GameplaySmoke/main.swift", "utf8");
+for (const token of ["moveSkillIntent", "moveSkillPreview", "moveSkillPlan", "moveSkillThreat", "killPriorityIntent", "campaignEndMoveSkillState"]) {
+  if (!gameplaySmoke.includes(token)) {
+    failures.push(`Gameplay smoke does not include ${token}`);
+  }
+}
+
+const coreTests = readFileSync("Tests/RomeLegionsCoreTests/GameStateTests.swift", "utf8");
+for (const token of ["aiMoveThenGeneralSkillIntentMatchesPostMovePreviewAndResolution", "aiMoveThenGeneralSkillFeedsPlanAndThreatFromSamePreview", "aiImmediateKillOutranksProfitableMoveSkill", "aiReadyOriginalSkillKeepsExistingPriority", "aiMoveSkillRespectsCooldownAndNoDestinationFallback", "aiMoveSkillProjectionStopsAtCampaignEndingCapture"]) {
+  if (!coreTests.includes(token)) {
+    failures.push(`Core tests do not include ${token}`);
   }
 }
 
@@ -164,8 +189,31 @@ for (const token of ["RomeLegions CI Results", "branches:", "main", "ci-artifact
     failures.push(`.github/workflows/ci-results.yml does not include ${token}`);
   }
 }
-if (!ciWorkflow.includes("CI_VERSION: v0.68")) {
-  failures.push(".github/workflows/ci-results.yml does not include CI_VERSION v0.68");
+if (!ciWorkflow.includes("CI_VERSION: v0.69")) {
+  failures.push(".github/workflows/ci-results.yml does not include CI_VERSION v0.69");
+}
+const requiredRenderPreviewPaths = [
+  "ci-results/render-previews/battle-landscape-preview.png",
+  "ci-results/render-previews/battle-landscape-preview-unit.png",
+  "ci-results/render-previews/battle-landscape-preview-focused.png",
+  "ci-results/render-previews/battle-landscape-preview-focused-enemy.png",
+  "ci-results/render-previews/battle-landscape-preview-focused-countermeasure.png",
+  "ci-results/render-previews/battle-portrait-preview.png",
+  "ci-results/render-previews/battle-portrait-preview-unit.png",
+  "ci-results/render-previews/battle-portrait-preview-focused.png",
+  "ci-results/render-previews/battle-portrait-preview-focused-enemy.png",
+  "ci-results/render-previews/battle-portrait-preview-focused-countermeasure.png",
+  "ci-results/render-previews/battle-wide-preview.png",
+  "ci-results/render-previews/battle-wide-preview-unit.png",
+  "ci-results/render-previews/battle-wide-preview-focused.png",
+  "ci-results/render-previews/battle-wide-preview-focused-enemy.png",
+  "ci-results/render-previews/battle-wide-preview-focused-countermeasure.png"
+];
+const declaredRenderPreviewPaths = [...ciWorkflow.matchAll(
+  /^\s+"(ci-results\/render-previews\/battle-[^"]+\.png)"[,]?$/gm
+)].map((match) => match[1]);
+if (JSON.stringify(declaredRenderPreviewPaths) !== JSON.stringify(requiredRenderPreviewPaths)) {
+  failures.push(".github/workflows/ci-results.yml must declare exactly the 15 v0.69 render preview paths");
 }
 
 if (failures.length > 0) {

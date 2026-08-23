@@ -11,6 +11,64 @@ private func riskTestPriority(_ risk: TacticalRecommendationRisk) -> Int {
     }
 }
 
+private func makeAIMoveSkillState() -> GameState {
+    var state = GameState.newCampaign()
+    state.tiles = state.tiles.map { Tile(position: $0.position, terrain: .plains) }
+    state.cities = [
+        City(
+            id: "rome",
+            name: "罗马",
+            position: Position(x: 11, y: 7),
+            owner: .rome,
+            production: EmpireResources(gold: 40, grain: 30, iron: 20, science: 10, prestige: 2),
+            fortification: 12
+        )
+    ]
+    state.units = [
+        ArmyUnit(id: "rome-observer", kind: .legion, faction: .rome, position: Position(x: 11, y: 6)),
+        ArmyUnit(
+            id: "carthage-quartermaster",
+            kind: .legion,
+            faction: .carthage,
+            position: Position(x: 1, y: 1),
+            generalName: "阿格里帕",
+            generalTrait: .quartermaster
+        ),
+        ArmyUnit(
+            id: "carthage-wounded",
+            kind: .cavalry,
+            faction: .carthage,
+            position: Position(x: 8, y: 2),
+            health: 30,
+            hasMoved: true,
+            hasActed: true
+        )
+    ]
+    state.resources[.carthage] = .zero
+    state.activeFaction = .rome
+    return state
+}
+
+private func postMoveGeneralSkillPreview(
+    in state: GameState,
+    intent: AIIntent
+) throws -> GeneralSkillPreview? {
+    guard let destination = intent.destination else {
+        return nil
+    }
+
+    var previewState = state
+    previewState.activeFaction = intent.faction
+    guard let index = previewState.units.firstIndex(where: { $0.id == intent.unitID }) else {
+        return nil
+    }
+    previewState.units[index].position = destination
+    previewState.units[index].hasMoved = destination != state.units[index].position || state.units[index].hasMoved
+    previewState.units[index].hasActed = false
+    previewState.units[index].tacticalOrder = intent.tacticalOrder == .balanced ? nil : intent.tacticalOrder
+    return try previewState.generalSkillPreview(unitID: intent.unitID)
+}
+
 @Test func reachablePositionsRespectTerrainAndOccupation() {
     let state = GameState.newCampaign()
 
@@ -584,6 +642,319 @@ private func riskTestPriority(_ risk: TacticalRecommendationRisk) -> Int {
 
     #expect(aiState.unit(withID: "carthage-wounded")?.health == beforeHealth)
     #expect((aiState.unit(withID: "carthage-quartermaster")?.generalSkillCooldownRemaining ?? 0) > 0)
+}
+
+@Test func aiMoveThenGeneralSkillIntentMatchesPostMovePreviewAndResolution() throws {
+    let state = makeAIMoveSkillState()
+    let before = state
+    let originPreviewState = state
+    var enemyOriginPreviewState = originPreviewState
+    enemyOriginPreviewState.activeFaction = .carthage
+    let originPreview = try enemyOriginPreviewState.generalSkillPreview(unitID: "carthage-quartermaster")
+
+    let intent = try #require(
+        state.aiIntents(for: .carthage, limit: 4)
+            .first { $0.unitID == "carthage-quartermaster" }
+    )
+
+    #expect(originPreview.affectedUnitIDs.isEmpty)
+    #expect(intent.kind == .useSkill)
+    #expect(intent.tacticalOrder == .forcedMarch)
+    #expect(intent.destination != Position(x: 1, y: 1))
+    #expect(intent.targetUnitID == "carthage-wounded")
+    #expect(intent.targetCityID == nil)
+    #expect(intent.projectedDamage == nil)
+
+    let destination = try #require(intent.destination)
+    var reachabilityState = state
+    reachabilityState.activeFaction = .carthage
+    #expect(!reachabilityState.reachablePositions(for: intent.unitID).contains(destination))
+    let reachabilityIndex = try #require(
+        reachabilityState.units.firstIndex { $0.id == intent.unitID }
+    )
+    reachabilityState.units[reachabilityIndex].tacticalOrder = intent.tacticalOrder
+    #expect(reachabilityState.reachablePositions(for: intent.unitID).contains(destination))
+    let previewCandidate = try postMoveGeneralSkillPreview(in: state, intent: intent)
+    let preview = try #require(previewCandidate)
+
+    #expect(preview.origin == destination)
+    #expect(preview.isExecutable)
+    #expect(preview.blockedReason == nil)
+    #expect(preview.affectedUnitIDs.contains("carthage-wounded"))
+    #expect(preview.projectedRecoveredHealth == 22)
+    #expect(preview.rangePositions.contains(destination))
+    #expect(preview.affectedPositions.contains(Position(x: 8, y: 2)))
+    #expect(state == before)
+
+    var aiState = state
+    aiState.activeFaction = .carthage
+    let messages = aiState.performSimpleAI(for: .carthage)
+
+    #expect(aiState.unit(withID: "carthage-quartermaster")?.position == destination)
+    #expect(aiState.unit(withID: "carthage-quartermaster")?.hasMoved == true)
+    #expect(aiState.unit(withID: "carthage-quartermaster")?.hasActed == true)
+    #expect(aiState.unit(withID: "carthage-quartermaster")?.generalSkillCooldownRemaining == 2)
+    #expect(aiState.unit(withID: "carthage-wounded")?.health == 30 + preview.projectedRecoveredHealth)
+    #expect(messages.contains { $0.contains("战地补给") })
+}
+
+@Test func aiMoveThenGeneralSkillFeedsPlanAndThreatFromSamePreview() throws {
+    let state = makeAIMoveSkillState()
+    let before = state
+    let intent = try #require(
+        state.aiIntents(for: .carthage, limit: 4)
+            .first { $0.unitID == "carthage-quartermaster" }
+    )
+    let destination = try #require(intent.destination)
+    let previewCandidate = try postMoveGeneralSkillPreview(in: state, intent: intent)
+    let preview = try #require(previewCandidate)
+
+    let plan = state.aiOperationalPlanReports(against: .rome, perFactionLimit: 4, limit: 5)
+        .first { $0.kind == .commanderSkill && $0.sourceUnitIDs.contains("carthage-quartermaster") }
+    let step = plan?.steps.first { $0.unitID == "carthage-quartermaster" }
+    let threat = state.enemyCommanderThreatReports(against: .rome, limit: 5)
+        .first { $0.unitID == "carthage-quartermaster" }
+
+    #expect(step?.intentKind == .useSkill)
+    #expect(step?.tacticalOrder == .forcedMarch)
+    #expect(step?.origin == Position(x: 1, y: 1))
+    #expect(step?.destination == destination)
+    #expect(step?.targetUnitID == "carthage-wounded")
+    #expect(step?.targetPosition == Position(x: 8, y: 2))
+    #expect(step?.skillSummary == preview.summary)
+    #expect(threat?.position == Position(x: 1, y: 1))
+    #expect(threat?.destination == destination)
+    #expect(threat?.targetUnitID == "carthage-wounded")
+    #expect(threat?.targetPosition == Position(x: 8, y: 2))
+    #expect(threat?.projectedRecovery == preview.projectedRecoveredHealth)
+    #expect(threat?.projectedFortificationReduction == preview.projectedFortificationReduction)
+    #expect(threat?.affectedUnitIDs == preview.affectedUnitIDs)
+    #expect(threat?.affectedCityIDs == preview.affectedCityIDs)
+    #expect(threat?.rangePositions == preview.rangePositions)
+    #expect(threat?.affectedPositions == preview.affectedPositions)
+    #expect(threat?.skillReady == preview.isExecutable)
+    #expect(threat?.skillSummary == preview.summary)
+    #expect(threat?.skillBlockedReason == preview.blockedReason)
+    #expect(state == before)
+}
+
+@Test func aiImmediateKillOutranksProfitableMoveSkill() throws {
+    var state = makeAIMoveSkillState()
+    state.units = [
+        ArmyUnit(id: "rome-kill", kind: .archer, faction: .rome, position: Position(x: 3, y: 3), health: 1),
+        ArmyUnit(
+            id: "carthage-quartermaster",
+            kind: .legion,
+            faction: .carthage,
+            position: Position(x: 4, y: 3),
+            generalName: "阿格里帕",
+            generalTrait: .quartermaster
+        ),
+        ArmyUnit(
+            id: "carthage-wounded",
+            kind: .cavalry,
+            faction: .carthage,
+            position: Position(x: 8, y: 3),
+            health: 30,
+            hasMoved: true,
+            hasActed: true
+        )
+    ]
+    let before = state
+    var profitableMoveState = state
+    profitableMoveState.activeFaction = .carthage
+    let commanderIndex = profitableMoveState.units.firstIndex { $0.id == "carthage-quartermaster" }
+    #expect(commanderIndex != nil)
+    #expect(
+        profitableMoveState.reachablePositions(for: "carthage-quartermaster")
+            .contains(Position(x: 6, y: 3))
+    )
+    profitableMoveState.units[commanderIndex!].position = Position(x: 6, y: 3)
+    profitableMoveState.units[commanderIndex!].hasMoved = true
+    let profitablePreview = try profitableMoveState.generalSkillPreview(unitID: "carthage-quartermaster")
+    #expect(profitablePreview.isExecutable)
+    #expect(profitablePreview.projectedRecoveredHealth == 22)
+
+    let intent = state.aiIntents(for: .carthage, limit: 4)
+        .first { $0.unitID == "carthage-quartermaster" }
+
+    #expect(intent?.kind == .attack)
+    #expect(intent?.targetUnitID == "rome-kill")
+    #expect(intent?.destination == Position(x: 4, y: 3))
+    #expect(state == before)
+
+    state.activeFaction = .carthage
+    _ = state.performSimpleAI(for: .carthage)
+
+    #expect(state.unit(withID: "rome-kill") == nil)
+    #expect(state.unit(withID: "carthage-quartermaster")?.position == Position(x: 4, y: 3))
+    #expect(state.unit(withID: "carthage-quartermaster")?.hasActed == true)
+    #expect(state.unit(withID: "carthage-wounded")?.health == 30)
+}
+
+@Test func aiReadyOriginalSkillKeepsExistingPriority() throws {
+    var state = makeAIMoveSkillState()
+    state.units = [
+        ArmyUnit(id: "rome-kill", kind: .archer, faction: .rome, position: Position(x: 3, y: 3), health: 1),
+        ArmyUnit(
+            id: "carthage-quartermaster",
+            kind: .legion,
+            faction: .carthage,
+            position: Position(x: 4, y: 3),
+            generalName: "阿格里帕",
+            generalTrait: .quartermaster
+        ),
+        ArmyUnit(
+            id: "carthage-wounded",
+            kind: .cavalry,
+            faction: .carthage,
+            position: Position(x: 5, y: 3),
+            health: 30,
+            hasMoved: true,
+            hasActed: true
+        )
+    ]
+
+    let intent = state.aiIntents(for: .carthage, limit: 4)
+        .first { $0.unitID == "carthage-quartermaster" }
+
+    #expect(intent?.kind == .useSkill)
+    #expect(intent?.destination == Position(x: 4, y: 3))
+    #expect(intent?.targetUnitID == "carthage-wounded")
+
+    state.activeFaction = .carthage
+    _ = state.performSimpleAI(for: .carthage)
+
+    #expect(state.unit(withID: "rome-kill")?.health == 1)
+    #expect(state.unit(withID: "carthage-quartermaster")?.position == Position(x: 4, y: 3))
+    #expect(state.unit(withID: "carthage-quartermaster")?.generalSkillCooldownRemaining == 2)
+    #expect(state.unit(withID: "carthage-wounded")?.health == 52)
+}
+
+@Test func aiMoveSkillRespectsCooldownAndNoDestinationFallback() {
+    var cooldownState = makeAIMoveSkillState()
+    let commanderIndex = cooldownState.units.firstIndex { $0.id == "carthage-quartermaster" }
+    #expect(commanderIndex != nil)
+    cooldownState.units[commanderIndex!].generalSkillCooldownRemaining = 2
+    let cooldownBefore = cooldownState
+
+    let cooldownIntent = cooldownState.aiIntents(for: .carthage, limit: 4)
+        .first { $0.unitID == "carthage-quartermaster" }
+
+    #expect(cooldownIntent?.kind != .useSkill)
+    #expect(cooldownState == cooldownBefore)
+
+    var blockedState = makeAIMoveSkillState()
+    blockedState.tiles = blockedState.tiles.map { tile in
+        let landPositions: Set<Position> = [
+            Position(x: 1, y: 1),
+            Position(x: 8, y: 2),
+            Position(x: 11, y: 6),
+            Position(x: 11, y: 7)
+        ]
+        return Tile(position: tile.position, terrain: landPositions.contains(tile.position) ? .plains : .water)
+    }
+    let blockedBefore = blockedState
+    let blockedIntent = blockedState.aiIntents(for: .carthage, limit: 4)
+        .first { $0.unitID == "carthage-quartermaster" }
+
+    #expect(blockedIntent?.kind != .useSkill)
+    #expect(blockedIntent?.destination == Position(x: 1, y: 1))
+    #expect(blockedState == blockedBefore)
+}
+
+@Test func aiMoveSkillProjectionStopsAtCampaignEndingCapture() throws {
+    var state = GameState.newCampaign()
+    let landPositions: Set<Position> = [
+        Position(x: 1, y: 1),
+        Position(x: 2, y: 1),
+        Position(x: 3, y: 1),
+        Position(x: 5, y: 1),
+        Position(x: 7, y: 7)
+    ]
+    state.tiles = state.tiles.map { tile in
+        Tile(position: tile.position, terrain: landPositions.contains(tile.position) ? .plains : .water)
+    }
+    state.cities = [
+        City(
+            id: "rome",
+            name: "罗马",
+            position: Position(x: 3, y: 1),
+            owner: .rome,
+            production: EmpireResources(gold: 40, grain: 30, iron: 20, science: 10, prestige: 2),
+            fortification: 12
+        )
+    ]
+    state.units = [
+        ArmyUnit(id: "rome-observer", kind: .legion, faction: .rome, position: Position(x: 7, y: 7)),
+        ArmyUnit(
+            id: "carthage-quartermaster",
+            kind: .legion,
+            faction: .carthage,
+            position: Position(x: 1, y: 1),
+            generalName: "阿格里帕",
+            generalTrait: .quartermaster
+        ),
+        ArmyUnit(
+            id: "carthage-wounded",
+            kind: .cavalry,
+            faction: .carthage,
+            position: Position(x: 5, y: 1),
+            health: 30,
+            hasMoved: true,
+            hasActed: true
+        )
+    ]
+    state.resources[.carthage] = .zero
+    state.activeFaction = .rome
+    let before = state
+
+    let intent = try #require(
+        state.aiIntents(for: .carthage, limit: 4)
+            .first { $0.unitID == "carthage-quartermaster" }
+    )
+    let plan = try #require(
+        state.aiOperationalPlanReports(against: .rome, perFactionLimit: 4, limit: 5)
+            .first { $0.sourceUnitIDs.contains("carthage-quartermaster") }
+    )
+    let step = try #require(plan.steps.first { $0.unitID == "carthage-quartermaster" })
+    let threat = try #require(
+        state.enemyCommanderThreatReports(against: .rome, limit: 5)
+            .first { $0.unitID == "carthage-quartermaster" }
+    )
+
+    #expect(intent.kind == .captureCity)
+    #expect(intent.destination == Position(x: 3, y: 1))
+    #expect(intent.targetCityID == "rome")
+    #expect(plan.kind == .cityCapture)
+    #expect(step.intentKind == .captureCity)
+    #expect(step.destination == Position(x: 3, y: 1))
+    #expect(step.targetCityID == "rome")
+    #expect(threat.intentKind == .captureCity)
+    #expect(threat.destination == Position(x: 3, y: 1))
+    #expect(threat.targetCityID == "rome")
+    #expect(threat.targetPosition == Position(x: 3, y: 1))
+    #expect(state == before)
+
+    var projected = state
+    projected.activeFaction = .carthage
+    _ = try projected.setTacticalOrder(unitID: intent.unitID, order: intent.tacticalOrder)
+    _ = try projected.moveUnit(id: intent.unitID, to: Position(x: 3, y: 1))
+
+    #expect(projected.city(withID: "rome")?.owner == .carthage)
+    #expect(projected.campaignStatus.kind == .romanDefeat)
+    #expect(projected.unit(withID: "carthage-quartermaster")?.generalSkillCooldownRemaining == 0)
+    #expect(projected.unit(withID: "carthage-wounded")?.health == 30)
+
+    var resolved = state
+    resolved.activeFaction = .carthage
+    _ = resolved.performSimpleAI(for: .carthage)
+
+    #expect(resolved.city(withID: "rome")?.owner == .carthage)
+    #expect(resolved.campaignStatus.kind == .romanDefeat)
+    #expect(resolved.unit(withID: "carthage-quartermaster")?.position == Position(x: 3, y: 1))
+    #expect(resolved.unit(withID: "carthage-quartermaster")?.generalSkillCooldownRemaining == 0)
+    #expect(resolved.unit(withID: "carthage-wounded")?.health == 30)
 }
 
 @Test func warMeritStatusMapsExperienceToRankDamageAndProgress() {

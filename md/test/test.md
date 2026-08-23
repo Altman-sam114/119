@@ -198,6 +198,7 @@ Agent C 必须核对：
 - v0.59 起 RenderBattlePreview 必须断言 `CoastlineBuilder` 对战役地图产出超过 10 段海岸线、每段一端为水一端为非水且两格中心距在 `tileWidth * 0.95` 视觉相邻阈值内、被水完全包围的深海格（如 `(1,7)`）不产出海岸段；异常抛出 `missingCoastlineStrategy`。结构检查必须覆盖 `CoastlineLayerView`、`CoastlineBuilder` 与 `isZoneCenter`。Agent C 六图目视复判需确认水陆交界出现连续沙色岸线与浅色浪缘、热区/控区叠层不再出现大面积高对比虚线、热区图标只在中心格显示、默认格描边减淡后地貌与路线仍清晰，且既有材质覆盖率门禁不回退。
 - v0.60 起 Swift Testing 必须包含 `aiFocusFireConvergesOnEngagedTarget`：锁定 AI 回合内交战记忆——评分接近时第二支军团集火第一支已交战的存活目标，且已交战目标被歼灭后后续军团正常选择剩余目标；既有 `aiMovesIntoRangeThenAttacks`、`aiExecutionPrioritizesHighestThreatIntent`、`aiIntentAdvanceAttackDamageMatchesPreviewAndResolution` 等 AI 行为与意图预测测试不得修改断言迁就新行为。结构检查必须覆盖 `engagedTargetIDs`。本轮无 UI 变化，六图应与 v0.59 基线一致。
 - v0.61 起 Swift Testing 必须分别包含 `aiKillableTargetOutranksEngagedNonLethalTarget` 与 `aiMovementConvergesOnEngagedTarget`：前者锁定可立即击杀候选层不能被高价值已交战非致死目标翻转，后者锁定第二单位必须先移动时仍把回合交战记忆传入落点评分并攻击同一目标。结构检查必须覆盖 `hasKillableTarget`、`bestAIDestination` 与 `favoring engagedTargetIDs` 的真实调用链；静态 `aiIntents` 继续使用空集合，既有 AI 测试断言不得削弱。本轮无 UI 变化，六图应与 v0.60 基线一致。
+- v0.69 起 Swift Testing 必须覆盖 `aiMoveThenGeneralSkillIntentMatchesPostMovePreviewAndResolution`、`aiMoveThenGeneralSkillFeedsPlanAndThreatFromSamePreview`、`aiImmediateKillOutranksProfitableMoveSkill`、`aiReadyOriginalSkillKeepsExistingPriority`、`aiMoveSkillRespectsCooldownAndNoDestinationFallback` 与 `aiMoveSkillProjectionStopsAtCampaignEndingCapture`：锁定 AI 只在原地技能/直接攻击均不可用后评估移动施令，intent、计划、敌将报告、地图字段和真实结算共用落点 preview；原地技能旧优先级、立即击杀、冷却、无落点、占城归属和战役结束保护不得退化。结构检查必须覆盖 `AIGeneralSkillCandidate`、capture-aware projected helper 和真实移动后重新预览。
 - v0.62 起 RenderBattlePreview 必须在单位场景前用相邻敌军 fixture 调用 `focusAttackTarget`，断言 `selectedAttackTargetID`、`selectedCombatForecast` 和 `CombatPreview` 字段完整，且锁定前后单位/城市/资源/回合/阵营状态完全一致；`selectedCombatForecast.preview` 必须等于 `state.attackPreview`，否则抛出 `missingAttackForecast`。单位场景渲染后必须清除锁定再进入城市场景。结构检查必须覆盖 `selectedAttackTargetID`、`selectedCombatForecast`、`focusAttackTarget`、`confirmSelectedAttack`、`AttackTargetMenuButton`、`AttackTargetSelectionMenuView` 和 `CombatForecastReadoutView`；Agent C 六图复判需确认地图徽标只锁定不结算、目标菜单不截断、金白焦点环与命令坞预演读板无重叠。
 - v0.63 起 RenderBattlePreview 还必须断言 `attackerIdentityLabel`、`defenderIdentityLabel`、`identityChainLabel`、将领/坐标字段，以及紧凑 `compactLabel`、完整 `detailLabel` 与同一 `CombatPreview` 同源；锁定前后 `GameState`、JSON 存档编码、AI 意图快照、城市选择、回合和活动阵营不变。调用 `cancelSelectedAttackTarget()` 后必须清空 `selectedAttackTargetID`、恢复攻击者 `selectedUnitID`/位置、清理锁定专属焦点且不进入 `attack(_:)`；第二次取消仍不改变任何核心或派生快照。结构检查必须覆盖 `AttackLockMapReadoutView`、取消按钮和 v0.63 prompt；Agent C 六图复判需确认地图身份 HUD、目标焦点环、命令坞/紧凑/完整预演、取消入口和固定 HUD 在三尺寸无空白、裁切或重叠。
 - v0.64 起 RenderBattlePreview 还必须沿用 `carthage-commander` fixture 断言 `EnemyCommanderThreatReport -> EnemyCommanderThreatSummary -> EnemyCommanderThreatMapOverlay` 同源：overlay id/threatID 与 summary/report 一致，起点、技能范围、受影响位置/对象、目标/目的地、技能/影响/状态、角色标记、路线段、链路和无障碍文案完整；`enemyCommanderThreatOverlaysByPosition` 与 `enemyCommanderThreatOverlayPositions` 不丢失起点、范围、影响或目标重叠信号，空影响必须保留明确无直接影响文案。必须包含 `MapOverlayLegendKind.enemyCommanderThreat`，四种 `MapOverlayPresentation` 视角按敌路突出敌将威胁、其他视角降权但不隐藏当前聚焦范围/目标，侦察 HUD signal 通过 `enemyCommanderThreatID` 引用同一 threat id。调用 `focusEnemyCommanderThreat(_:)` 后必须设置 `focusedEnemyCommanderThreatID`、选择位置/敌将身份、侦察上下文和 banner；重复聚焦幂等；无效 id 只更新错误 banner；调用前后 `GameState`、JSON 存档编码、单位/城市/资源、回合、活动阵营和 AI 意图快照完全不变，并且不会产生可执行的本方 `useGeneralSkill`/`attack`/`moveUnit` 入口。结构检查必须覆盖 `EnemyCommanderThreatMapOverlay`、`primaryEnemyCommanderThreatMapOverlay`、按位置集合、`focusEnemyCommanderThreat`、`focusedEnemyCommanderThreatID`、`enemyCommanderThreatID`、敌将图例 kind 和 v0.64 prompt；Agent C 六图复判需确认敌将起点徽标、技能范围、影响/目标标记、威胁链线与既有敌路/反制/目标线/热区、地图材质、固定 HUD、镜头工具、敌情卡定位按钮和 VoiceOver 在横屏/竖屏/宽屏无空白、裁切、重叠或大面积遮盖。
@@ -343,7 +344,7 @@ env HOME=$PWD/.home CLANG_MODULE_CACHE_PATH=$PWD/.build/module-cache DEVELOPER_D
 
 当前基线：
 
-- `Tests/RomeLegionsCoreTests/GameStateTests.swift` 当前包含 91 个 Swift Testing 用例；通过数以 v0.61 最新 GitHub Actions artifact 为准。
+- `Tests/RomeLegionsCoreTests/GameStateTests.swift` 的已验收基线为 91 个 Swift Testing 用例；v0.69 已新增 6 个移动施令边界用例，实际发现数与通过数以 v0.69 最新 GitHub Actions artifact 为准。
 - 基线覆盖地形移动、占城、攻击、预览结算一致性、招募预览、招募部署位置、舰队港口预览、舰队港口被占阻塞、资源/港口阻塞、科技重复保护、城市扩建预览、城市扩建、训练预览与结算一致性、任命预览与候选一致性、军团成长优先级推荐只读与预览复用、训练、将领、战术姿态、支援/包夹/指挥/守军支援、主动技能预览与释放一致性、技能冷却写入/递减/阻止释放/预览只读、攻城无目标预览、AI 技能意图目标、AI 技能冷却保护、AI 作战计划读板、敌方将领技能协同计划、敌方将领威胁读板、敌情反制建议读板、本方将领协同读板、合击修正解释、协同目标位置一致性、协同冷却阻塞、不可执行技能排序降级、机动落点打击/夺城/条约过滤/风险排序/已移动只读、战功状态、军团编制与成长报告、战术命令建议报告、战场焦点报告、地图控制报告、威胁热区报告、旧 `ArmyUnit` JSON 冷却字段兼容、外交保护、回合收入、跳过单位、AI 攻击、AI 意图、AI 主攻优先执行、AI 回合内集火协同、可击杀候选分层、移动集火记忆传递、AI 移动后攻击 projectedDamage 与规划态预览一致性、直接攻击/移动后攻击/夺城意图供 UI 叠层使用的目的地和目标字段、战线压力聚合、城市夺取压力、停战势力过滤、AI 招募、任务 requirement、奖励幂等、战役胜利、战役失败、结束保护、AI 结束后停止和 Codable 兼容。
 
 ### Full
@@ -444,6 +445,11 @@ env HOME=$PWD/.home DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer xco
 
 ### v0.67 反制决策确认云端门禁
 
+- RenderBattlePreview 必须核对 `CountermeasureCommandContextReadout` 与 active preview/overlay 的 source/report/preview/overlay id、回应军团、推荐姿态、落点、目标、步骤、收益风险和 accessibility 同源。
+- 有效/重复 focus 切到 `.countermeasure` 且不改核心状态；无效 focused id 只允许明确 primary fallback，不得残留旧 secondary 文案或坐标。
+- “确认姿态”“前往落点”“锁定目标”必须是三个独立入口；Render 使用同一 countermeasure fixture 的隔离 ViewModel 副本真实调用三个公开方法，以纯读快照比较 `GameState` 编码、全量单位/城市/资源、回合、战役状态和 AI intent。姿态只允许推荐姿态及既有日志变化，移动只允许回应单位落点/移动状态及既有日志变化，锁敌必须保持核心状态编码不变并生成 `selectedAttackTargetID`/`selectedCombatForecast`；失败分别抛出 `missingCountermeasureOrderRuntimeConfirmation`、`missingCountermeasureMovementRuntimeConfirmation`、`missingCountermeasureTargetRuntimeConfirmation`。锁敌只进入既有攻击预演，不得自动攻击、施法或串联下一步；命令后 context 必须重新派生或清除旧 source/坐标，选择切换、互斥焦点、动作、回合和重开后不得保留 stale context。
+- artifact 保留 v0.66 旧 12 图并新增横屏、竖屏、宽屏 `*-focused-countermeasure.png`，总计 15 图；Agent C 只验收最新 `origin/main` SHA 对应的 v0.67 manifest、日志、JUnit、失败摘要和全部 PNG。
+
 ### v0.68 战场显示上下文与视觉层级云端门禁
 
 - Render 必须断言五种 `BattleDisplayContextReadout` precedence、`MapOverlayPresentation` 的 primary/secondary/hidden 层级，以及读取前后核心状态、AI intent 和存档编码不变；失败 token 包含 `missingBattleDisplayContext`、`missingMapOverlayHierarchy` 和 `missingMapVisualPriority`。
@@ -453,10 +459,12 @@ env HOME=$PWD/.home DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer xco
 - Render 必须保留横屏、竖屏、宽屏既有命令坞高度上限，反制姿态/落点/锁敌为独立 44pt 入口，单位、城市、敌将只读和 attack lock 分支可见；失败 token 为 `missingContextualCommandDock`。
 - 继续保留 v0.67 的全部 15 张 PNG 路径和旧门禁。当前 cloud-only，本地不得运行 test/build/typecheck/Render/verify/diff-check 或解析命令，直接由 `main` push 后 GitHub Actions 和 Agent C 最新 artifact 复判。
 
-- RenderBattlePreview 必须核对 `CountermeasureCommandContextReadout` 与 active preview/overlay 的 source/report/preview/overlay id、回应军团、推荐姿态、落点、目标、步骤、收益风险和 accessibility 同源。
-- 有效/重复 focus 切到 `.countermeasure` 且不改核心状态；无效 focused id 只允许明确 primary fallback，不得残留旧 secondary 文案或坐标。
-- “确认姿态”“前往落点”“锁定目标”必须是三个独立入口；Render 使用同一 countermeasure fixture 的隔离 ViewModel 副本真实调用三个公开方法，以纯读快照比较 `GameState` 编码、全量单位/城市/资源、回合、战役状态和 AI intent。姿态只允许推荐姿态及既有日志变化，移动只允许回应单位落点/移动状态及既有日志变化，锁敌必须保持核心状态编码不变并生成 `selectedAttackTargetID`/`selectedCombatForecast`；失败分别抛出 `missingCountermeasureOrderRuntimeConfirmation`、`missingCountermeasureMovementRuntimeConfirmation`、`missingCountermeasureTargetRuntimeConfirmation`。锁敌只进入既有攻击预演，不得自动攻击、施法或串联下一步；命令后 context 必须重新派生或清除旧 source/坐标，选择切换、互斥焦点、动作、回合和重开后不得保留 stale context。
-- artifact 保留 v0.66 旧 12 图并新增横屏、竖屏、宽屏 `*-focused-countermeasure.png`，总计 15 图；Agent C 只验收最新 `origin/main` SHA 对应的 v0.67 manifest、日志、JUnit、失败摘要和全部 PNG。
+### v0.69 AI 将领机动施令云端门禁
+
+- Gameplay Smoke 必须以隔离军需官夹具精确比较 `.useSkill` intent、post-move `GeneralSkillPreview`、AI plan step、EnemyCommanderThreatReport 的 destination、目标、摘要、预计收益、range/affected positions，并真实执行 `performSimpleAI` 核对移动、恢复、行动消耗和冷却。
+- Smoke 与 Swift Testing 必须先证明合法有收益的移动技能候选存在，再证明当前立即击杀仍被执行；还要证明占领最后一座罗马城市后 campaign 结束且不会尾随施令。
+- RenderBattlePreview 在隔离 ViewModel 中断言 report -> summary -> overlay 的起点、落点、范围、影响区、destination/target roles 和从落点到目标的 route leg 同源，读取前后存档编码与 AI intent 快照不变；失败抛出 `missingAIMoveSkillPreviewChain`。
+- CI_VERSION 为 v0.69；原有三尺寸五场景共 15 张 PNG 路径不增加、不删除、不改名。Agent C 除 manifest/JUnit/主日志/失败摘要外，仍逐图复判 v0.68 的地图层级、portrait “仅侦察”、102pt 命令坞和 44pt 入口无回归。
 
 - 每次实现前先读本文件。
 - 当前默认不得运行本地验证命令，直接通过 `main` push 触发云端重验证。
