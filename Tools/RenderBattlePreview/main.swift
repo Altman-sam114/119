@@ -2922,6 +2922,17 @@ struct RenderBattlePreview {
         let interfaceMetrics = BattleInterfaceMetrics(
             container: CGSize(width: logicalWidth, height: logicalHeight)
         )
+        if interfaceMetrics.isPortrait {
+            let actionRowHeight = 44
+            let actionRowBottomInset = 6
+            return (
+                x: 8,
+                y: max(0, Int(logicalHeight) - actionRowBottomInset - actionRowHeight),
+                width: max(1, Int(logicalWidth) - 16),
+                height: actionRowHeight
+            )
+        }
+
         let heightRatio = logicalHeight >= logicalWidth ? 0.15 : (logicalHeight < 560 ? 0.23 : 0.15)
         let commandContentStart = Int(interfaceMetrics.commandIdentityWidth + 25)
         let regionHeight = Int(logicalHeight * heightRatio)
