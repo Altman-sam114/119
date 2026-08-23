@@ -515,6 +515,9 @@ struct EnemyCommanderThreatFocusReadout {
     var selectedPerspective: MapReconPerspectiveKind
     var compactLabel: String
     var detailLabel: String
+    var mapHeadlineLabel: String
+    var mapSpatialLabel: String
+    var mapStatusLabel: String
     var commandAvailabilityLabel: String
     var hasExecutableCommand: Bool
     var accessibilityLabel: String
@@ -562,6 +565,9 @@ struct EnemyCommanderThreatFocusReadout {
         self.selectedPerspective = selectedPerspective
         compactLabel = "\(commanderLabel) · \(levelLabel) · \(skillName)"
         detailLabel = "\(focusStateLabel) · \(skillName) · \(targetLabel) · \(spaceChainLabel)"
+        mapHeadlineLabel = "\(focusStateLabel) · 敌将\(commanderLabel) · \(levelLabel)"
+        mapSpatialLabel = "\(skillName) · 目标\(targetLabel) · \(originPosition.description)→\((destinationPosition ?? targetPosition).description)"
+        mapStatusLabel = "仅侦察"
         commandAvailabilityLabel = "仅侦察，不执行敌将命令"
         hasExecutableCommand = false
         accessibilityLabel = [

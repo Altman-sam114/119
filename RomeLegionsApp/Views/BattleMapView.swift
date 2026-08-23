@@ -301,7 +301,10 @@ struct WarMapView: View {
                    let enemyCommanderThreatFocusReadout {
                     VStack {
                         HStack {
-                            EnemyCommanderThreatFocusMapReadoutView(readout: enemyCommanderThreatFocusReadout)
+                            EnemyCommanderThreatFocusMapReadoutView(
+                                readout: enemyCommanderThreatFocusReadout,
+                                isCompact: proxy.size.width < 620
+                            )
                                 .frame(maxWidth: proxy.size.width - 20, alignment: .leading)
                             Spacer(minLength: 0)
                         }
@@ -471,9 +474,10 @@ struct AttackLockMapReadoutView: View {
 
 struct EnemyCommanderThreatFocusMapReadoutView: View {
     var readout: EnemyCommanderThreatFocusReadout
+    var isCompact = false
 
     var body: some View {
-        HStack(spacing: 8) {
+        HStack(alignment: isCompact ? .top : .center, spacing: 8) {
             Image(systemName: readout.skillSymbol)
                 .font(.caption.weight(.black))
                 .foregroundStyle(readout.isFocused ? .orange : .white.opacity(0.80))
@@ -482,26 +486,31 @@ struct EnemyCommanderThreatFocusMapReadoutView: View {
                 .clipShape(.rect(cornerRadius: 5))
 
             VStack(alignment: .leading, spacing: 1) {
-                Text("\(readout.focusStateLabel) · 敌将\(readout.commanderLabel) · \(readout.levelLabel)")
-                    .font(.caption2.weight(.bold))
-                    .foregroundStyle(.white)
-                    .lineLimit(2)
-                    .minimumScaleFactor(0.62)
-                Text("\(readout.skillName) · 目标\(readout.targetLabel) · \(readout.routeLabel)")
+                HStack(spacing: 6) {
+                    Text(readout.mapHeadlineLabel)
+                        .font(.caption2.weight(.bold))
+                        .foregroundStyle(.white)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.72)
+                        .layoutPriority(1)
+
+                    if isCompact {
+                        Spacer(minLength: 0)
+                        statusBadge
+                    }
+                }
+
+                Text(isCompact ? readout.mapSpatialLabel : "\(readout.skillName) · 目标\(readout.targetLabel) · \(readout.routeLabel)")
                     .font(.caption2.monospacedDigit().weight(.semibold))
                     .foregroundStyle(.white.opacity(0.66))
-                    .lineLimit(2)
-                    .minimumScaleFactor(0.58)
+                    .lineLimit(isCompact ? 1 : 2)
+                    .minimumScaleFactor(isCompact ? 0.72 : 0.58)
             }
             .layoutPriority(1)
 
-            Text("仅侦察")
-                .font(.caption2.weight(.black))
-                .foregroundStyle(.white.opacity(0.82))
-                .padding(.horizontal, 5)
-                .frame(minHeight: 22)
-                .background(.black.opacity(0.28))
-                .clipShape(RoundedRectangle(cornerRadius: 5))
+            if !isCompact {
+                statusBadge
+            }
         }
         .padding(.horizontal, 8)
         .padding(.vertical, 4)
@@ -514,6 +523,18 @@ struct EnemyCommanderThreatFocusMapReadoutView: View {
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(readout.accessibilityLabel)
         .accessibilityHint("地图焦点只用于查看敌将威胁，不会执行敌将命令")
+    }
+
+    private var statusBadge: some View {
+        Text(readout.mapStatusLabel)
+            .font(.caption2.weight(.black))
+            .foregroundStyle(.white.opacity(0.82))
+            .padding(.horizontal, 5)
+            .frame(minWidth: 48, minHeight: 22)
+            .background(.black.opacity(0.28))
+            .clipShape(RoundedRectangle(cornerRadius: 5))
+            .fixedSize(horizontal: true, vertical: false)
+            .layoutPriority(2)
     }
 }
 

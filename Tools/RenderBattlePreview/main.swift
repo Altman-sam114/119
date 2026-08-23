@@ -3036,6 +3036,30 @@ struct RenderBattlePreview {
             return result
         }
 
+        func brightColumnCount(in region: (x: Int, y: Int, width: Int, height: Int)) -> Int {
+            var brightColumns = 0
+            for logicalX in max(0, region.x)..<min(Int(logicalWidth), region.x + region.width) {
+                var containsTextPixel = false
+                for logicalY in max(0, region.y)..<min(Int(logicalHeight), region.y + region.height) {
+                    let pixelX = min(max(Int(Double(logicalX) * scaleX), 0), bitmap.pixelsWide - 1)
+                    let pixelY = min(max(Int(Double(logicalY) * scaleY), 0), bitmap.pixelsHigh - 1)
+                    guard let color = bitmap.colorAt(x: pixelX, y: pixelY)?.usingColorSpace(.deviceRGB),
+                          color.alphaComponent > 0.6 else {
+                        continue
+                    }
+                    let brightness = (color.redComponent + color.greenComponent + color.blueComponent) / 3
+                    if brightness > 0.58 {
+                        containsTextPixel = true
+                        break
+                    }
+                }
+                if containsTextPixel {
+                    brightColumns += 1
+                }
+            }
+            return brightColumns
+        }
+
         let mapReadoutRegion = (
             x: 8,
             y: Int(metrics.topBarHeight + metrics.mapInset + 48),
@@ -3050,21 +3074,33 @@ struct RenderBattlePreview {
         )
         let mapSignature = signature(in: mapReadoutRegion)
         let commandSignature = signature(in: commandRegion)
+        let compactStatusColumns = logicalWidth < 620
+            ? brightColumnCount(in: (
+                x: max(0, Int(logicalWidth) - 74),
+                y: mapReadoutRegion.y + 8,
+                width: 58,
+                height: 24
+            ))
+            : 14
         let minimumCommandHeight: CGFloat = metrics.isPortrait ? 102 : (metrics.isShortLandscape ? 80 : 88)
         let minimumIdentityWidth: CGFloat = logicalWidth < 700 ? 128 : 220
         let layoutBudgetIsSafe = metrics.commandDockHeight >= minimumCommandHeight &&
             metrics.commandIdentityWidth >= minimumIdentityWidth &&
             44 >= 44
-        emitPreviewDiagnostic("Focused threat preview pixels: map=\(mapSignature), command=\(commandSignature), layoutBudget=\(layoutBudgetIsSafe)")
+        emitPreviewDiagnostic("Focused threat preview pixels: map=\(mapSignature), command=\(commandSignature), compactStatusColumns=\(compactStatusColumns), layoutBudget=\(layoutBudgetIsSafe)")
         return readout.isFocused &&
             readout.hasExecutableCommand == false &&
             readout.commandAvailabilityLabel.contains("仅侦察") &&
+            readout.mapStatusLabel == "仅侦察" &&
+            !readout.mapHeadlineLabel.isEmpty &&
+            !readout.mapSpatialLabel.isEmpty &&
             !readout.commanderLabel.isEmpty &&
             !readout.skillName.isEmpty &&
             !readout.targetLabel.isEmpty &&
             !readout.routeLabel.isEmpty &&
             readout.accessibilityLabel.contains("威胁身份\(readout.threatID)") &&
             layoutBudgetIsSafe &&
+            compactStatusColumns >= 14 &&
             mapSignature.bright > 18 &&
             mapSignature.warm > 2 &&
             mapSignature.contrast > 10 &&
