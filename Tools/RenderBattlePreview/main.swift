@@ -2201,6 +2201,20 @@ struct RenderBattlePreview {
               counterFocusPresentation.enemyCommanderThreatOpacity < counterFocusPresentation.enemyRouteOpacity + 0.2 else {
             throw PreviewRenderError.missingBattleDisplayContext
         }
+        let selectedAttackSourceIDBeforeForecast = viewModel.selectedCombatForecast?.attacker.id
+        let attackOriginIDsBeforeForecast = viewModel.state.tiles.compactMap { tile -> String? in
+            let unitID = viewModel.state.unit(at: tile.position)?.id
+            return isMapAttackOrigin(
+                unitID: unitID,
+                sourceID: selectedAttackSourceIDBeforeForecast
+            ) ? unitID : nil
+        }
+        guard selectedAttackSourceIDBeforeForecast == nil,
+              !isMapAttackOrigin(unitID: nil, sourceID: nil),
+              !isMapAttackOrigin(unitID: "rome-legion-1", sourceID: nil),
+              attackOriginIDsBeforeForecast.isEmpty else {
+            throw PreviewRenderError.missingMapVisualPriority
+        }
         guard shortInterfaceMetrics.isShortLandscape,
               shortInterfaceMetrics.topBarHeight <= 42,
               shortInterfaceMetrics.commandDockHeight <= 80,
@@ -2370,6 +2384,16 @@ struct RenderBattlePreview {
               turnBeforeAttackForecast == viewModel.state.turn,
               activeFactionBeforeAttackForecast == viewModel.state.activeFaction else {
             throw PreviewRenderError.missingAttackForecast
+        }
+        let attackOriginIDsAfterForecast = viewModel.state.tiles.compactMap { tile -> String? in
+            let unitID = viewModel.state.unit(at: tile.position)?.id
+            return isMapAttackOrigin(
+                unitID: unitID,
+                sourceID: viewModel.selectedCombatForecast?.attacker.id
+            ) ? unitID : nil
+        }
+        guard attackOriginIDsAfterForecast == [selectedCombatForecast.attacker.id] else {
+            throw PreviewRenderError.missingMapVisualPriority
         }
         let unitOutputPath = outputPathWithSuffix(outputPath, suffix: "unit")
         let unitBitmap = try renderBattleView(

@@ -1,5 +1,10 @@
 import SwiftUI
 
+func isMapAttackOrigin(unitID: String?, sourceID: String?) -> Bool {
+    guard let sourceID else { return false }
+    return unitID == sourceID
+}
+
 struct WarMapView: View {
     @EnvironmentObject private var viewModel: GameViewModel
     @State private var viewport = MapViewportState()
@@ -151,7 +156,10 @@ struct WarMapView: View {
                             isTacticalRecommendationPath: displayContext.mode == .unitExecution && tacticalRecommendationPathPositions.contains(tile.position),
                             isTacticalRecommendationTarget: displayContext.mode == .unitExecution && tacticalRecommendationTargetPosition == tile.position,
                             isSelected: selectedPosition == tile.position,
-                            isAttackOrigin: unit?.id == selectedAttackSourceID,
+                            isAttackOrigin: isMapAttackOrigin(
+                                unitID: unit?.id,
+                                sourceID: selectedAttackSourceID
+                            ),
                             isReachable: displayContext.mode == .unitExecution && viewModel.reachablePositions.contains(tile.position),
                             isAttackTarget: (displayContext.mode == .unitExecution || displayContext.mode == .attackLock) && attackTargets.contains { $0.position == tile.position },
                             isSkillRange: skillRangePositions.contains(tile.position),

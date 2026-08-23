@@ -447,6 +447,7 @@ env HOME=$PWD/.home DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer xco
 ### v0.68 战场显示上下文与视觉层级云端门禁
 
 - Render 必须断言五种 `BattleDisplayContextReadout` precedence、`MapOverlayPresentation` 的 primary/secondary/hidden 层级，以及读取前后核心状态、AI intent 和存档编码不变；失败 token 包含 `missingBattleDisplayContext`、`missingMapOverlayHierarchy` 和 `missingMapVisualPriority`。
+- `isMapAttackOrigin` 必须先确认 attack source 非空再比较单位 ID；无 `selectedCombatForecast` 时地图攻击来源数必须为 0，锁定目标后必须恰好为 1 且等于 forecast attacker。三尺寸 default、enemy-focus、countermeasure-focus 普通空格不得出现青色攻击来源双描边，`*-unit.png` 只允许真实攻击者保留青色来源；回归抛出 `missingMapVisualPriority`。
 - Render 必须断言反制 raw source/report/preview/overlay 字段与 automation identifier 仍同源，但 user-facing map/dock/accessibility 文案不包含完整 source ID；失败 token 为 `visibleRawSourceIdentifier`。
 - Render 必须保留横屏、竖屏、宽屏既有命令坞高度上限，反制姿态/落点/锁敌为独立 44pt 入口，单位、城市、敌将只读和 attack lock 分支可见；失败 token 为 `missingContextualCommandDock`。
 - 继续保留 v0.67 的全部 15 张 PNG 路径和旧门禁。当前 cloud-only，本地不得运行 test/build/typecheck/Render/verify/diff-check 或解析命令，直接由 `main` push 后 GitHub Actions 和 Agent C 最新 artifact 复判。
