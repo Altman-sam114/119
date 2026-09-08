@@ -1,6 +1,6 @@
 # 项目核心流程图
 
-v0.69 读图说明：AI 继续先处理休整、原地技能和当前直接攻击；只有这些分支都不可用时才评估移动施令。落点预演模拟占城与战役结束，并把同一个 `GeneralSkillPreview` 交给意图、作战计划、敌将威胁和地图范围；真实执行移动后会重新预览。v0.68 的 display context、全局 primary 与反制单步入口保持不变。
+读图说明：反制上下文只消费既有报告；active/focused 回退与全局 primary 分开，姿态、移动和锁敌仍是三个独立单步入口。AI 候选不会让这些入口自动串联。
 
 ```mermaid
 flowchart LR
@@ -21,6 +21,36 @@ flowchart LR
 ```
 
 本文是 `md/flow/flow.md` 的可视化版本。每张图前都有中文读图说明，方便人工快速理解当前真实逻辑。
+
+## v0.70 AI 姿态与行动同源选择
+
+读图说明：预测和真实执行进入同一个私有选择器，但前者使用明确刷新过的只读 forecast 与空集火记忆，后者使用当前状态和本回合 engaged 集合。先以行动 tier 剪枝，再按击杀、生存、收益及稳定顺序比较姿态+行动；移动可达格按预算局部复用，真实结算仍走公开命令并重验终局和尾随动作。
+
+```mermaid
+flowchart TD
+    F["aiPlanningForecast<br/>明确刷新下一行动回合"] --> I["aiIntent<br/>favoring: 空集合"]
+    E["performSimpleAI<br/>当前状态 + 本回合 engagedTargetIDs"] --> C["bestAITacticalAction<br/>私有 AITacticalActionCandidate"]
+    I --> C
+    C --> L["合法姿态<br/>已移动仅当前姿态；已行动/终局拒绝"]
+    L --> T["硬 tier：休整 → 原地技能 → 直接攻击<br/>命中即返回，不展开移动搜索"]
+    T -->|无直接行动| R["reachableByBudget<br/>每个真实移动预算一次 BFS"]
+    R --> S["bestAIGeneralSkillCandidate<br/>资格剪枝；每落点技能投影一次<br/>按各姿态合法可达格筛选"]
+    S -->|无有收益移动技能| M["bestAIDestination<br/>每落点 map 一次<br/>共享 AIAttackEvaluation / aiPositionScore"]
+    R --> P["aiActionProjection<br/>模拟占城与终局，保留行动/冷却"]
+    P --> S
+    P --> M
+    T --> K["preferredAICandidate / aiTacticalActionPrecedes<br/>tier → 击杀 → 生存 → 收益 → 稳定同分顺序"]
+    S --> K
+    M --> K
+    M -->|无落点| H["hold 固守 fallback"]
+    H --> K
+    K --> O["所选 AIIntent<br/>姿态/落点/目标/同源预计伤害"]
+    O --> X["真实 setTacticalOrder<br/>失败停止该单位"]
+    X --> Y["restUnit / useGeneralSkill / attack / moveUnit<br/>移动后检查终局并重验指定尾随动作"]
+    O --> A["aiTacticalActionExplanation<br/>按已选姿态/落点/目标重建预览<br/>不重选目标、不回调选择器"]
+    A --> D["aiPlanStepDetail / enemyCommanderThreatReport<br/>预览支撑击杀、反击风险与落点理由"]
+    D --> U["ViewModel summary / map overlay<br/>保持真实起点与意图落点、待命技能单独说明"]
+```
 
 ## 1. 核心数据流
 
@@ -87,7 +117,8 @@ flowchart TD
     M --> BL["GameViewModel.activeMapOverlayLegendItems<br/>汇总敌路/目标、热区、控区、军议、机动、目标线、反制、可达、攻击、技能等当前可见叠层图例"]
     L --> LF["performSimpleAI 当前状态排序<br/>读取单体 AIIntent.threatScore<br/>高威胁主攻单位先行动"]
     LF --> LG["真实 AI 执行<br/>回合内维护 engagedTargetIDs 交战记忆<br/>原地技能与直接攻击保持旧顺序<br/>无直接行动时评估移动攻击或移动施令"]
-    LG --> LH["bestAIGeneralSkillCandidate<br/>真实可达格 + capture-aware projected state<br/>占城结束则候选无效"]
+    LG --> LC["bestAITacticalAction<br/>姿态与行动同源；硬 tier 与击杀/生存层<br/>按预算复用可达格"]
+    LC --> LH["bestAIGeneralSkillCandidate<br/>复用局部可达格 + capture-aware projected state<br/>占城结束则技能候选无效"]
     LH --> LI["moveUnit -> 真实位置重新 GeneralSkillPreview<br/>useGeneralSkill 结算恢复/削城防/冷却<br/>不尾随攻击"]
     L --> AB["GameState.frontlinePressureReports<br/>按罗马单位或城市聚合多路意图<br/>来源、预计伤害、夺城风险、压力等级"]
     AB --> AC["GameViewModel.frontlinePressureSummaries<br/>目标、来源、压力标签、影响文案、无障碍说明"]

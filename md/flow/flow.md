@@ -74,7 +74,7 @@
 - 预览包含基础攻击、防御、地形、友军支援、包夹、将领指挥、守军支援、战术姿态、反击和剩余生命。
 - `state.attack(attackerID:defenderID:)` 必须与预览使用同一套修正逻辑。
 - `state.aiIntents(for:limit:)` 在只读规划态中为直接攻击和移动后攻击调用同一套预览逻辑，敌军意图的 `projectedDamage` 必须等于规划态 `attackPreview.damage`。
-- `state.performSimpleAI(for:)` 在真实 AI 回合中先用当前状态下的单体 `AIIntent.threatScore` 排序尚未行动单位，高威胁主攻单位优先执行；同分按 `unitID` 稳定排序。单位内部继续按休整、原地有收益技能、当前直接攻击、移动决策执行，因此移动后技能不能抢占当前立即击杀，原地技能旧优先级也不变。回合内维护 `engagedTargetIDs` 交战记忆（局部变量，不进入 `GameState` 持久状态或存档）：`bestAITarget(for:favoring:)` 先按 `attackPreview` 把可立即击杀目标独立成第一候选层，再在该层内按既有战术分、+55 集火偏好和目标 ID 稳定排序；真实移动攻击仍把同一集合传给 `bestAIDestination` 与 `aiPositionScore`。当原地技能和直接攻击都不可用时，`bestAIGeneralSkillCandidate` 只读评估真实可达落点，在 forecast 副本中合成移动单位、模拟占城与战役进度，再以唯一 `GeneralSkillPreview` 判断收益；真实执行只通过 `moveUnit` 移动，战役未结束时从当前状态重新预览并调用 `useGeneralSkill`。`aiIntents` 继续在 planning forecast 上只读预测，不写入原状态。
+- `state.performSimpleAI(for:)` 在真实 AI 回合中先按当前单体 `AIIntent.threatScore` 降序、`unitID` 同分顺序执行尚未行动单位，再为每个单位从实时状态调用 `bestAITacticalAction(for:favoring:)`。该入口同时选择姿态、目标和落点，并贯穿回合局部 `engagedTargetIDs`；`bestAITarget` 与 `bestAIDestination` 消费同源 `AIAttackEvaluation`，`aiPositionScore` 复用其中带集火偏好的已算分数。硬行动 tier、击杀/生存层与局部搜索复用详见下方“AI 姿态与行动同源候选”。真实动作仍只经公开命令结算，`aiIntents` 在 planning forecast 上只读预测，不写原状态。
 - `GameViewModel.enemyIntentSummaries` 把 `AIIntent`、来源单位、目标单位和目标城市转成 UI 文案；`enemyIntentMapOverlays` 再派生起点、目的地、目标格、影响文案和路线线段。
 - `state.frontlinePressureReports(against:perFactionLimit:limit:)` 只读聚合交战敌方的 `AIIntent`，按防守方单位或城市分组，输出来源单位、来源阵营、意图数量、攻击/夺城数量、预计伤害合计、最高威胁、压力分和压力等级；它不新增存档字段，不改变 `AIIntent` 或真实 AI 行为。
 - `GameViewModel.frontlinePressureSummaries` 将核心战线压力报告转成目标、来源、压力等级、预计伤害/夺城风险和无障碍文案；`BattleView` 在地图顶部战线 chip、完整战局面板和紧凑战场摘要中展示，不在 SwiftUI 中重新评分。
@@ -183,6 +183,19 @@
 - `aiOperationalPlanReports(against:perFactionLimit:limit:)` 复用同一 forecast copy 和 AI 意图报告，再结合压力/热区报告生成敌军计划读板；将领技能计划按 intent destination 调用 capture-aware 规划态技能预览，避免罗马回合读取敌方技能时误判不可用或把落点范围画回原位。
 - AI 主动技能判断和 `.useSkill` 意图复用将领技能预览并尊重冷却；攻城技能填入目标城市，治疗类技能填入主要受益友军。
 - 敌军意图地图叠层复用 `AIIntent.destination`、`targetUnitID`、`targetCityID` 和 `projectedDamage`，由 `GameViewModel` 派生六边形路径、目的地、目标和文案，不会重新评分、重新选择目标或改变真实 AI 行为。
+
+### AI 姿态与行动同源候选（v0.70）
+
+- `AITacticalActionTier`、`AITacticalActionCandidate`、`AIAttackEvaluation` 均为核心私有纯值，不进入 `GameState`、Codable 或存档。`bestAITacticalAction(for:favoring:)` 是唯一姿态+行动选择入口；`aiIntent(for:)` 直接取其 intent，静态预测显式传空集火集合，真实 `performSimpleAI` 每单位行动前从当前状态传入同回合 `engagedTargetIDs`。真实后续单位受前序结算影响，不能把空记忆静态预测当作整轮集火执行承诺。
+- 选择器拒绝终局、错误活动阵营、中立与已行动单位；`unit.hasMoved` 为 true 时只评估当前 `resolvedTacticalOrder`，否则枚举四姿态。`aiPlanningUnit` 继承真实移动/行动状态，下一回合刷新只发生在明确的 `aiPlanningForecast` 入口，不在通用候选内重置冷却或行动。
+- 行动 tier 按 `rest → originalSkill → directAttack → moveSkill → movement → hold` 固定。前三层一旦获选立即返回，不展开移动搜索；原地技能仍优先于直接击杀，移动技能不能抢占任何当前直接攻击。普通移动内也把可达击杀独立成第一层，不能被非击杀集火或城市分越过。
+- `aiAttackEvaluations` 在每个姿态/落点上下文中为每个目标计算一次 `aiCombatPreview`，把同一个 `CombatPreview` 交给 `aiAttackScore`、候选的 `projectedDamage` 和反击风险排序；不同姿态的战斗修正不错误共享。`aiTacticalActionPrecedes` 的稳定顺序为 tier、击杀、避免攻击者阵亡、收益分、较低反击、较短移动、保留当前姿态、固定姿态序（均衡/突击/坚守/行军）、目标 ID、落点 y/x、unitID。击杀/非击杀层不能被生存或 +55 集火偏好翻转。
+- `AITacticalRiskWeight` 集中命名反击与暴露权重，`aiRetaliationWeight` 按已损生命比例增加反击代价；`aiNonAttackSafetyScore` 读取有效防御、地形与邻敌射程暴露。暴露仅是局部排序提示，不是另一套伤害预言或多回合搜索。
+- 单次选择调用的 `reachableByBudget` 按真实 `effectiveMovement` 复用 `reachablePositions`：均衡/突击同预算共享，坚守/行军不同预算分别搜索；可达格保留地形成本、占用和移动预算约束，攻击、技能目标及占城继续由既有外交规则过滤，条约不是新增路径障碍。`bestAIGeneralSkillCandidate` 不再自行 BFS，先过滤无将领/无特性/冷却/行动状态；现有技能效果不随姿态改变，因此合并可达格后每落点只生成一次技能候选，再按各姿态真实可达集合筛选。普通移动的 `bestAIDestination` 先 map 每格一次，`aiPositionScore` 与尾随目标选择复用同一攻击 evaluation，比较器只读存好的数值。
+- `aiActionProjection` 在局部副本放置移动后的单位并调用 `captureCityIfPossible`、`evaluateCampaignProgress`，同时保留 hasActed 和冷却；`aiGeneralSkillProjection` 复用该投影后读取唯一技能 preview。普通移动的攻击候选同样使用占城后的状态，终局落点不产生尾随攻击。
+- 真实执行先以 `candidate.intent.tacticalOrder` 调用 `setTacticalOrder`；失败就停止该单位分支，当前姿态相同则由公开命令幂等接受。`candidate.tier` 分派到既有休整、技能、攻击或移动命令；移动后检查终局并重新读取实际单位，只重验候选指定的尾随技能/攻击。技能重新读取唯一 preview，攻击保持候选 target ID；失效时安全停止，不重置行动、不串接另一计划。
+- `aiPlanStepDetail` 与私有 `enemyCommanderThreatReport` 共用 `aiTacticalActionExplanation` 单向解释已选 intent；该 helper 只按指定姿态、落点、target ID 经 `aiActionProjection` 重建一次 `attackPreview`，不重选最佳目标或回调全量意图/计划。突击击杀、坚守反击风险、行军合法落点理由必须来自对应事实；技能说明复用调用方已取得的 capture-aware preview。敌将真实 position 保留起点，非技能 intent 的技能 fallback 明确标注“待命技能”，不能混作本次行动收益。
+- 全局 primary、focused/active fallback、攻击锁定和反制三条独立单步命令不受该候选影响；ViewModel/SwiftUI 仍只消费报告，不持有 AI 候选或复制排序规则。
 
 ### 存档链路
 

@@ -124,7 +124,7 @@ on:
 artifact 命名规则：
 
 ```text
-RomeLegions-ci-v0.56-main-<short_sha>-run<run_id>-attempt<run_attempt>
+RomeLegions-ci-v0.70-main-<short_sha>-run<run_id>-attempt<run_attempt>
 ```
 
 `ci-artifact-manifest.json` 必须至少包含：
@@ -344,7 +344,7 @@ env HOME=$PWD/.home CLANG_MODULE_CACHE_PATH=$PWD/.build/module-cache DEVELOPER_D
 
 当前基线：
 
-- `Tests/RomeLegionsCoreTests/GameStateTests.swift` 的已验收基线为 91 个 Swift Testing 用例；v0.69 已新增 6 个移动施令边界用例，实际发现数与通过数以 v0.69 最新 GitHub Actions artifact 为准。
+- `Tests/RomeLegionsCoreTests/GameStateTests.swift` 的历史已验收基线为 v0.69 的 97 个 Swift Testing 用例（最终文档提交 `cc9271063e413c44170c3099d227dbaf9dbf76e0`，run `32651500926`，attempt `1`）；不是 v0.70 通过证据。v0.70 提示词要求至少新增 5 个独立用例、理论下限 102；当前实现实际新增 10 个独立用例，预期总数 107，实际发现数、执行数与通过数待最新 GitHub Actions 日志及 Agent C 复判确认。
 - 基线覆盖地形移动、占城、攻击、预览结算一致性、招募预览、招募部署位置、舰队港口预览、舰队港口被占阻塞、资源/港口阻塞、科技重复保护、城市扩建预览、城市扩建、训练预览与结算一致性、任命预览与候选一致性、军团成长优先级推荐只读与预览复用、训练、将领、战术姿态、支援/包夹/指挥/守军支援、主动技能预览与释放一致性、技能冷却写入/递减/阻止释放/预览只读、攻城无目标预览、AI 技能意图目标、AI 技能冷却保护、AI 作战计划读板、敌方将领技能协同计划、敌方将领威胁读板、敌情反制建议读板、本方将领协同读板、合击修正解释、协同目标位置一致性、协同冷却阻塞、不可执行技能排序降级、机动落点打击/夺城/条约过滤/风险排序/已移动只读、战功状态、军团编制与成长报告、战术命令建议报告、战场焦点报告、地图控制报告、威胁热区报告、旧 `ArmyUnit` JSON 冷却字段兼容、外交保护、回合收入、跳过单位、AI 攻击、AI 意图、AI 主攻优先执行、AI 回合内集火协同、可击杀候选分层、移动集火记忆传递、AI 移动后攻击 projectedDamage 与规划态预览一致性、直接攻击/移动后攻击/夺城意图供 UI 叠层使用的目的地和目标字段、战线压力聚合、城市夺取压力、停战势力过滤、AI 招募、任务 requirement、奖励幂等、战役胜利、战役失败、结束保护、AI 结束后停止和 Codable 兼容。
 
 ### Full
@@ -464,7 +464,19 @@ env HOME=$PWD/.home DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer xco
 - Gameplay Smoke 必须以隔离军需官夹具精确比较 `.useSkill` intent、post-move `GeneralSkillPreview`、AI plan step、EnemyCommanderThreatReport 的 destination、目标、摘要、预计收益、range/affected positions，并真实执行 `performSimpleAI` 核对移动、恢复、行动消耗和冷却。
 - Smoke 与 Swift Testing 必须先证明合法有收益的移动技能候选存在，再证明当前立即击杀仍被执行；还要证明占领最后一座罗马城市后 campaign 结束且不会尾随施令。
 - RenderBattlePreview 在隔离 ViewModel 中断言 report -> summary -> overlay 的起点、落点、范围、影响区、destination/target roles 和从落点到目标的 route leg 同源，读取前后存档编码与 AI intent 快照不变；失败抛出 `missingAIMoveSkillPreviewChain`。
-- CI_VERSION 为 v0.69；原有三尺寸五场景共 15 张 PNG 路径不增加、不删除、不改名。Agent C 除 manifest/JUnit/主日志/失败摘要外，仍逐图复判 v0.68 的地图层级、portrait “仅侦察”、102pt 命令坞和 44pt 入口无回归。
+- v0.69 建立的三尺寸五场景共 15 张 PNG 路径不增加、不删除、不改名。Agent C 除 manifest/JUnit/主日志/失败摘要外，仍逐图复判 v0.68 的地图层级、portrait “仅侦察”、102pt 命令坞和 44pt 入口无回归。
+
+### v0.70 AI 战术姿态同源预演云端门禁
+
+- 当前源码新增十项独立 `@Test`，由结构门禁检查真实声明和断言：`aiTacticalAssaultJointKillMatchesPreviewAndResolution`、`aiTacticalDefensiveSurvivalMatchesReportsAndResolution`、`aiTacticalForcedMarchUsesOnlyLegalLanding`、`aiTacticalDirectKillKeepsMovementSkillBelowAttackTier`、`aiTacticalRestKeepsPriorityOverSkillAndAttack`、`aiTacticalMovedUnitCannotAdoptBetterIllegalOrder`、`aiTacticalActedUnitNeverRefreshesDuringExecution`、`aiTacticalReportsRemainStableAcrossTiesAndStorageOrder`、`aiTacticalMovementKillOutranksEngagedNonLethalTarget`、`aiTacticalTerminalAndWrongFactionStayInert`。这是源码变更清单，不是云端已发现或已通过数量。
+- Swift Testing 至少新增五项独立场景：突击与目标联合击杀、非击杀层坚守生存、行军独有合法落点、直接攻击不被移动技能越级、真实已移动/已行动合法性；另核对同源报告与只读稳定、等分稳定排序、集火与移动击杀层，以及 v0.69 技能/冷却/占城终局回归。夹具必须证明竞争候选确实存在，不用会刷新下一回合的 forecast 代替真实行动状态检查。
+- 行动 tier 固定为休整 → 原地有收益技能 → 当前直接攻击 → 移动决策 → 无落点固守；移动内部有收益技能优先于普通移动。攻击同 tier 先区分击杀/非击杀，再比较生存与预览反击风险及收益；集火偏好不能提升非击杀越过击杀层，普通移动落点也必须保留可达击杀硬层。
+- Gameplay Smoke 用隔离的突击、坚守、行军夹具比较 intent/plan/threat，并真实执行 `performSimpleAI` 核对姿态、位置、目标、伤害/反击和行动标记；原有移动施令、立即击杀及终局占城门禁保留。
+- Render 的 `verifyAITacticalActionPreviewChain()` 在截图 ViewModel 创建前运行三姿态独立数据夹具，核对所选 intent → plan detail → enemy threat → map overlay 的攻击目标/伤害、行军落点、预览支撑的击杀/反击理由；失败抛出 `missingAITacticalActionPreviewChain`。技能范围/影响/收益/冷却继续由 v0.69 `missingAIMoveSkillPreviewChain` 隔离链覆盖；重复读取保持核心编码与意图不变，数据夹具不污染实际截图选择态。不增加 PNG 或新 UI 场景。
+- 结构门禁必须锁住预测与执行共用的私有姿态+行动候选、局部可达搜索复用、同一预览评分与报告按 intent 单向解释的真实调用链；helper 收敛可等价更新旧 token，但不能保留死函数凑门禁。结构存在性检查不代替上述行为测试。
+- 当前 `CI_VERSION: v0.70`；保留 75 分钟作业预算、Static/SwiftPM/Smoke/Render/Xcode 五项检查、manifest/失败摘要和精确 15 PNG 清单。Agent C 核对最新 `origin/main` SHA/run/attempt/artifact，JUnit 五项与 Swift Testing 实际数量分开记录，并比较 Render/AI 阶段耗时；不得用继续加时或跳过门禁掩盖重复 BFS。
+- 本轮仍为待云端验收：本地未运行测试、构建、typecheck、Render、verify、diff-check 或解析脚本；97 项是历史基线，新用例不得提前写成已通过。
+- 性能历史参考为 run `32651500926` attempt `1`：作业 36m15s、SwiftPM 58s、Smoke 12s、Render 34m04s、Xcode 45s。其旧 artifact 已过期且本机无缓存；只用于耗时比较，不作为本轮可下载证据，v0.70 必须使用新结果包。
 
 - 每次实现前先读本文件。
 - 当前默认不得运行本地验证命令，直接通过 `main` push 触发云端重验证。

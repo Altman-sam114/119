@@ -2030,6 +2030,35 @@ private struct AIGeneralSkillCandidate {
     var score: Int
 }
 
+private enum AITacticalActionTier: Int {
+    case rest, originalSkill, directAttack, moveSkill, movement, hold
+}
+
+// Ephemeral decision values: never stored in GameState or encoded in a save.
+private struct AITacticalActionCandidate {
+    var tier: AITacticalActionTier
+    var intent: AIIntent
+    var origin: Position
+    var combatPreview: CombatPreview?
+    var skillPreview: GeneralSkillPreview?
+    var score: Int
+}
+
+private struct AIAttackEvaluation {
+    var defender: ArmyUnit
+    var preview: CombatPreview
+    var score: Int
+}
+
+private enum AITacticalRiskWeight {
+    // Attack value uses four points per inflicted HP. Losing one HP costs
+    // four points at full strength, increasing continuously as health falls.
+    static let retaliation = 4
+    static let missingHealthRetaliation = 24
+    // Range exposure is only a positional tie/value hint, not future damage.
+    static let exposure = 6
+}
+
 private struct FrontlinePressureTarget {
     var key: FrontlinePressureTargetKey
     var faction: Faction
@@ -4571,15 +4600,20 @@ public struct GameState: Codable, Equatable, Sendable {
             cityID: targetCityID,
             fallback: targetPosition.description
         )
-        let impact = enemyCommanderThreatImpact(
+        let actionImpact = enemyCommanderThreatImpact(
             intent: intent,
             skillPreview: skillPreview,
             targetName: targetName
         )
+        let tacticalExplanation = intent.map {
+            aiTacticalActionExplanation(for: $0, unit: unit, skillPreview: skillPreview)
+        }
+        let impact = [actionImpact, tacticalExplanation].compactMap { $0 }.joined(separator: " · ")
         var reasons = [
             trait.passiveDetail,
-            skillPreview.summary
+            intent?.kind == .useSkill ? skillPreview.summary : "待命技能：\(skillPreview.summary)"
         ]
+        if let tacticalExplanation { reasons.append(tacticalExplanation) }
         if let intent {
             reasons.append("\(intent.kind.displayName) · 威胁 \(intent.threatScore)")
         }
@@ -4723,11 +4757,11 @@ public struct GameState: Codable, Equatable, Sendable {
             return "\(targetName) 预计伤害 \(damage)"
         }
 
-        if skillPreview.projectedFortificationReduction > 0 {
+        if intent?.kind == .useSkill, skillPreview.projectedFortificationReduction > 0 {
             return "\(targetName) 城防 -\(skillPreview.projectedFortificationReduction)"
         }
 
-        if skillPreview.projectedRecoveredHealth > 0 {
+        if intent?.kind == .useSkill, skillPreview.projectedRecoveredHealth > 0 {
             return "敌军恢复 \(skillPreview.projectedRecoveredHealth)"
         }
 
@@ -4735,7 +4769,7 @@ public struct GameState: Codable, Equatable, Sendable {
             return "\(intent.kind.displayName) \(targetName)"
         }
 
-        return skillPreview.summary
+        return "待命技能：\(skillPreview.summary)"
     }
 
     private func countermeasureResponseCandidates(for faction: Faction) -> [CountermeasureResponseCandidate] {
@@ -5378,21 +5412,58 @@ public struct GameState: Codable, Equatable, Sendable {
             fallback: targetPosition.description
         )
 
+        let actionDetail: String
         switch intent.kind {
         case .attack, .advanceAttack:
-            return "\(unitLabel) 指向 \(target) · 预计伤害 \(intent.projectedDamage ?? 0)"
+            actionDetail = "\(unitLabel) 指向 \(target) · 预计伤害 \(intent.projectedDamage ?? 0)"
         case .captureCity:
-            return "\(unitLabel) 试图夺取 \(target)"
+            actionDetail = "\(unitLabel) 试图夺取 \(target)"
         case .useSkill:
             let general = formation.generalName ?? "敌方将领"
-            return "\(general) \(skillPreview?.summary ?? "准备发动主动技能")"
+            actionDetail = "\(general) \(skillPreview?.summary ?? "准备发动主动技能")"
         case .advance:
-            return "\(unitLabel) 推进至 \(intent.destination?.description ?? targetPosition.description)"
+            actionDetail = "\(unitLabel) 推进至 \(intent.destination?.description ?? targetPosition.description)"
         case .defend:
-            return "\(unitLabel) 固守 \(target)"
+            actionDetail = "\(unitLabel) 固守 \(target)"
         case .regroup:
-            return "\(unitLabel) 整备恢复战力"
+            actionDetail = "\(unitLabel) 整备恢复战力"
         }
+        return actionDetail + " · " + aiTacticalActionExplanation(for: intent, unit: unit, skillPreview: skillPreview)
+    }
+
+    private func aiTacticalActionExplanation(
+        for intent: AIIntent,
+        unit: ArmyUnit,
+        skillPreview: GeneralSkillPreview? = nil
+    ) -> String {
+        let destination = intent.destination ?? unit.position
+        let planningUnit = aiPlanningUnit(from: unit, order: intent.tacticalOrder)
+        let movement = destination != unit.position
+        let orderDetail = intent.tacticalOrder == .forcedMarch && movement
+            ? "行军获得合法落点 \(destination.description)"
+            : "\(intent.tacticalOrder.displayName)姿态"
+
+        if intent.kind == .attack || intent.kind == .advanceAttack,
+           let targetID = intent.targetUnitID {
+            // Explain the specified action only. Never call the selector,
+            // aiIntents, bestAITarget or a plan/threat report from this helper.
+            let projection = aiActionProjection(for: planningUnit, destination: destination)
+            if !projection.state.campaignStatus.isGameOver,
+               let preview = try? projection.state.attackPreview(attackerID: unit.id, defenderID: targetID) {
+                let risk = "预计伤害 \(preview.damage) · 预计反击 \(preview.retaliation) · 攻击后余 \(preview.attackerRemainingHealth) 生命"
+                if intent.tacticalOrder == .assault, preview.defeatsDefender {
+                    return "突击形成击杀 · \(risk)"
+                }
+                if intent.tacticalOrder == .defensive, !preview.attackerFalls {
+                    return "坚守控制反击风险 · \(risk)"
+                }
+                return "\(orderDetail) · \(risk)" + (preview.attackerFalls ? " · 反击存在阵亡风险" : "")
+            }
+        }
+        if intent.kind == .useSkill {
+            return "\(orderDetail) · \(skillPreview?.summary ?? "按已选落点施令")"
+        }
+        return "\(orderDetail) · 有效防御 \(effectiveDefense(for: planningUnit))"
     }
 
     private func aiOperationalPressure(
@@ -6786,12 +6857,18 @@ public struct GameState: Codable, Equatable, Sendable {
                 break
             }
 
-            guard let actingUnit = unit(withID: unitID), !actingUnit.hasActed else {
+            guard let actingUnit = unit(withID: unitID),
+                  let candidate = bestAITacticalAction(for: actingUnit, favoring: engagedTargetIDs) else {
                 continue
             }
 
-            if let orderMessages = try? setTacticalOrder(unitID: unitID, order: preferredAITacticalOrder(for: actingUnit)) {
+            // A failed order change invalidates this candidate. In particular,
+            // an already moved unit may only keep its current legal order.
+            do {
+                let orderMessages = try setTacticalOrder(unitID: unitID, order: candidate.intent.tacticalOrder)
                 messages.append(contentsOf: orderMessages)
+            } catch {
+                continue
             }
 
             guard !campaignStatus.isGameOver else {
@@ -6802,74 +6879,57 @@ public struct GameState: Codable, Equatable, Sendable {
                 continue
             }
 
-            if shouldAIRest(orderedUnit),
-               let result = try? restUnit(id: unitID) {
-                messages.append(contentsOf: result)
-                continue
-            }
-
-            if shouldAIUseGeneralSkill(orderedUnit),
-               let result = try? useGeneralSkill(unitID: unitID) {
-                messages.append(contentsOf: result)
-                if campaignStatus.isGameOver {
-                    break
-                }
-                continue
-            }
-
-            if let target = bestAITarget(for: orderedUnit, favoring: engagedTargetIDs) {
-                engagedTargetIDs.insert(target.id)
-                messages.append(contentsOf: performAIAttack(attackerID: unitID, defenderID: target.id))
-                if campaignStatus.isGameOver {
-                    break
-                }
-                continue
-            }
-
-            if let skillCandidate = bestAIGeneralSkillCandidate(for: orderedUnit) {
-                if let result = try? moveUnit(id: unitID, to: skillCandidate.destination) {
+            switch candidate.tier {
+            case .rest:
+                if shouldAIRest(orderedUnit), let result = try? restUnit(id: unitID) {
                     messages.append(contentsOf: result)
+                }
+            case .originalSkill:
+                if shouldAIUseGeneralSkill(orderedUnit), let result = try? useGeneralSkill(unitID: unitID) {
+                    messages.append(contentsOf: result)
+                }
+            case .directAttack:
+                if let targetID = candidate.intent.targetUnitID,
+                   (try? attackPreview(attackerID: unitID, defenderID: targetID)) != nil,
+                   let result = try? attack(attackerID: unitID, defenderID: targetID) {
+                    engagedTargetIDs.insert(targetID)
+                    messages.append(contentsOf: result)
+                }
+            case .moveSkill, .movement:
+                guard let destination = candidate.intent.destination,
+                      let result = try? moveUnit(id: unitID, to: destination) else {
+                    continue
+                }
+                messages.append(contentsOf: result)
 
-                    guard !campaignStatus.isGameOver else {
-                        break
-                    }
+                guard !campaignStatus.isGameOver,
+                      let movedUnit = self.unit(withID: unitID), !movedUnit.hasActed else {
+                    continue
+                }
 
-                    if let movedUnit = self.unit(withID: unitID),
-                       shouldAIUseGeneralSkill(movedUnit),
+                // Revalidate only the selected tail action against the settled
+                // board. Failure stops this branch; it never chains a new plan.
+                if candidate.tier == .moveSkill {
+                    let preview = generalSkillPreview(for: movedUnit)
+                    if shouldAIUseGeneralSkill(movedUnit, preview: preview),
                        let skillResult = try? useGeneralSkill(unitID: unitID) {
                         messages.append(contentsOf: skillResult)
-                        if campaignStatus.isGameOver {
-                            break
-                        }
                     }
+                } else if candidate.intent.kind == .advanceAttack,
+                          let targetID = candidate.intent.targetUnitID,
+                          (try? attackPreview(attackerID: unitID, defenderID: targetID)) != nil,
+                          let attackResult = try? attack(attackerID: unitID, defenderID: targetID) {
+                    engagedTargetIDs.insert(targetID)
+                    messages.append(contentsOf: attackResult)
                 }
-                continue
-            }
-
-            guard let destination = bestAIDestination(for: orderedUnit, favoring: engagedTargetIDs) else {
-                if let refreshed = self.unit(withID: unitID),
-                   shouldAIRest(refreshed),
-                   let result = try? restUnit(id: unitID) {
+            case .hold:
+                if shouldAIRest(orderedUnit), let result = try? restUnit(id: unitID) {
                     messages.append(contentsOf: result)
                 }
-                continue
             }
 
-            if let result = try? moveUnit(id: unitID, to: destination) {
-                messages.append(contentsOf: result)
-
-                guard !campaignStatus.isGameOver else {
-                    break
-                }
-
-                if let movedUnit = self.unit(withID: unitID),
-                   let target = bestAITarget(for: movedUnit, favoring: engagedTargetIDs) {
-                    engagedTargetIDs.insert(target.id)
-                    messages.append(contentsOf: performAIAttack(attackerID: unitID, defenderID: target.id))
-                    if campaignStatus.isGameOver {
-                        break
-                    }
-                }
+            if campaignStatus.isGameOver {
+                break
             }
         }
 
@@ -7738,100 +7798,213 @@ public struct GameState: Codable, Equatable, Sendable {
         }
     }
 
-    private func preferredAITacticalOrder(for unit: ArmyUnit) -> TacticalOrder {
-        let nearbyEnemyDistance = units
-            .filter { enemy in
-                enemy.faction != unit.faction &&
-                    enemy.faction != .neutral &&
-                    diplomaticStatus(between: unit.faction, and: enemy.faction) == .war
+    private func bestAITacticalAction(
+        for unit: ArmyUnit,
+        favoring engagedTargetIDs: Set<String> = []
+    ) -> AITacticalActionCandidate? {
+        guard !campaignStatus.isGameOver, unit.faction == activeFaction,
+              unit.faction != .neutral, !unit.hasActed else {
+            return nil
+        }
+
+        let orders = unit.hasMoved ? [unit.resolvedTacticalOrder] : TacticalOrder.allCases
+        let orderedUnits = orders.map { aiPlanningUnit(from: unit, order: $0) }
+        let enemies = units.filter {
+            $0.faction != unit.faction && $0.faction != .neutral &&
+                diplomaticStatus(between: unit.faction, and: $0.faction) == .war
+        }
+
+        // Hard action tiers: no movement search can outrank a ready original
+        // skill, and that skill deliberately still outranks a direct kill.
+        if shouldAIRest(unit) {
+            return preferredAICandidate(orderedUnits.map { ordered in
+                AITacticalActionCandidate(
+                    tier: .rest,
+                    intent: AIIntent(unitID: unit.id, faction: unit.faction, kind: .regroup,
+                                     tacticalOrder: ordered.resolvedTacticalOrder, destination: unit.position,
+                                     threatScore: max(35, 100 - unit.health)),
+                    origin: unit.position, combatPreview: nil, skillPreview: nil,
+                    score: aiNonAttackSafetyScore(for: ordered, enemies: enemies)
+                )
+            }, currentOrder: unit.resolvedTacticalOrder)
+        }
+
+        if unit.generalName != nil, unit.resolvedGeneralTrait != nil,
+           unit.generalSkillCooldownRemaining == 0 {
+            let preview = generalSkillPreview(for: unit)
+            if shouldAIUseGeneralSkill(unit, preview: preview) {
+                let targetUnitID = aiSkillTargetUnit(for: unit, preview: preview)?.id
+                let targetCityID = aiSkillTargetCity(for: unit, preview: preview)?.id
+                let score = aiSkillThreatScore(for: unit, preview: preview)
+                return preferredAICandidate(orderedUnits.map { ordered in
+                    AITacticalActionCandidate(
+                        tier: .originalSkill,
+                        intent: AIIntent(unitID: unit.id, faction: unit.faction, kind: .useSkill,
+                                         tacticalOrder: ordered.resolvedTacticalOrder,
+                                         targetUnitID: targetUnitID, targetCityID: targetCityID,
+                                         destination: unit.position, threatScore: score),
+                        origin: unit.position, combatPreview: nil, skillPreview: preview,
+                        score: score + aiNonAttackSafetyScore(for: ordered, enemies: enemies)
+                    )
+                }, currentOrder: unit.resolvedTacticalOrder)
             }
-            .map { unit.position.hexDistance(to: $0.position) }
-            .min()
-
-        if unit.healthRatio <= 0.34 {
-            return .defensive
         }
 
-        if let target = bestAITarget(for: unit) {
-            let assaultUnit = ArmyUnit(
-                id: unit.id,
-                kind: unit.kind,
-                faction: unit.faction,
-                position: unit.position,
-                health: unit.health,
-                experience: unit.experience,
-                generalName: unit.generalName,
-                generalTrait: unit.generalTrait,
-                generalSkillCooldownRemaining: unit.generalSkillCooldownRemaining,
-                tacticalOrder: .assault,
-                hasMoved: unit.hasMoved,
-                hasActed: unit.hasActed
-            )
-
-            if (aiCombatPreview(attacker: assaultUnit, defender: target)?.damage ?? 0) >= target.health {
-                return .assault
-            }
-
-            if unit.healthRatio <= 0.58 {
-                return .defensive
-            }
-
-            return .assault
+        let directTargets = attackTargets(for: unit)
+        let directAttacks = orderedUnits.compactMap {
+            bestAITarget(for: $0, origin: unit.position, favoring: engagedTargetIDs, targets: directTargets)
+        }
+        if let direct = preferredAICandidate(directAttacks, currentOrder: unit.resolvedTacticalOrder) {
+            return direct
         }
 
-        if let nearbyEnemyDistance, nearbyEnemyDistance <= 2, unit.healthRatio <= 0.62 {
-            return .defensive
-        }
-
-        let objectives = aiObjectivePositions(for: unit.faction)
-        let nearestObjectiveDistance = objectives.map { unit.position.hexDistance(to: $0) }.min() ?? 0
-        if nearestObjectiveDistance > effectiveMovement(for: unit) + unit.kind.range,
-           nearbyEnemyDistance.map({ $0 > 2 }) ?? true {
-            return .forcedMarch
-        }
-
-        if let city = city(at: unit.position),
-           city.owner == unit.faction,
-           nearbyEnemyDistance.map({ $0 <= 3 }) ?? false {
-            return .defensive
-        }
-
-        return .balanced
-    }
-
-    private mutating func performAIAttack(attackerID: String, defenderID: String) -> [String] {
-        (try? attack(attackerID: attackerID, defenderID: defenderID)) ?? []
-    }
-
-    private func bestAITarget(for unit: ArmyUnit, favoring engagedTargetIDs: Set<String> = []) -> ArmyUnit? {
-        let candidates = attackTargets(for: unit).compactMap { defender -> (unit: ArmyUnit, isKillable: Bool, score: Int)? in
-            guard let preview = aiCombatPreview(attacker: unit, defender: defender) else {
-                return nil
-            }
-
-            return (
-                unit: defender,
-                isKillable: preview.damage >= defender.health,
-                score: aiAttackScore(attacker: unit, defender: defender, engagedTargetIDs: engagedTargetIDs)
-            )
-        }
-        let hasKillableTarget = candidates.contains { $0.isKillable }
-
-        return candidates
-            .filter { !hasKillableTarget || $0.isKillable }
-            .sorted { left, right in
-                if left.score == right.score {
-                    return left.unit.id < right.unit.id
+        if !unit.hasMoved {
+            // At most one path search per distinct movement budget. Balanced
+            // and assault share a set; defensive/march keep real terrain costs.
+            var reachableByBudget: [Int: Set<Position>] = [:]
+            for ordered in orderedUnits {
+                let budget = effectiveMovement(for: ordered)
+                if reachableByBudget[budget] == nil {
+                    reachableByBudget[budget] = reachablePositions(for: ordered)
                 }
-                return left.score > right.score
             }
-            .first?.unit
+            if let skill = bestAIGeneralSkillCandidate(
+                for: unit, orderedUnits: orderedUnits,
+                reachableByBudget: reachableByBudget, enemies: enemies
+            ) {
+                return skill
+            }
+
+            let objectives = aiObjectivePositions(for: unit.faction)
+            let moves = orderedUnits.compactMap { ordered in
+                bestAIDestination(
+                    for: ordered, origin: unit.position,
+                    reachable: reachableByBudget[effectiveMovement(for: ordered)] ?? [],
+                    objectives: objectives, enemies: enemies, favoring: engagedTargetIDs
+                )
+            }
+            if let move = preferredAICandidate(moves, currentOrder: unit.resolvedTacticalOrder) {
+                return move
+            }
+        }
+
+        return preferredAICandidate(orderedUnits.map { ordered in
+            AITacticalActionCandidate(
+                tier: .hold,
+                intent: AIIntent(unitID: unit.id, faction: unit.faction, kind: .defend,
+                                 tacticalOrder: ordered.resolvedTacticalOrder,
+                                 targetCityID: city(at: unit.position)?.id, destination: unit.position,
+                                 threatScore: aiDefensiveThreatScore(for: ordered)),
+                origin: unit.position, combatPreview: nil, skillPreview: nil,
+                score: aiNonAttackSafetyScore(for: ordered, enemies: enemies)
+            )
+        }, currentOrder: unit.resolvedTacticalOrder)
     }
 
-    private func aiAttackScore(attacker: ArmyUnit, defender: ArmyUnit, engagedTargetIDs: Set<String> = []) -> Int {
-        guard let preview = aiCombatPreview(attacker: attacker, defender: defender) else {
-            return Int.min / 4
+    private func preferredAICandidate(
+        _ candidates: [AITacticalActionCandidate],
+        currentOrder: TacticalOrder
+    ) -> AITacticalActionCandidate? {
+        candidates.min { aiTacticalActionPrecedes($0, $1, currentOrder: currentOrder) }
+    }
+
+    private func aiTacticalActionPrecedes(
+        _ left: AITacticalActionCandidate,
+        _ right: AITacticalActionCandidate,
+        currentOrder: TacticalOrder
+    ) -> Bool {
+        if left.tier != right.tier { return left.tier.rawValue < right.tier.rawValue }
+        // A strict kill layer, including ordinary movement destinations. No
+        // amount of focus-fire/city/survival value can promote a non-kill.
+        let leftKills = left.combatPreview?.defeatsDefender == true
+        let rightKills = right.combatPreview?.defeatsDefender == true
+        if leftKills != rightKills { return leftKills }
+        let leftFalls = left.combatPreview?.attackerFalls == true
+        let rightFalls = right.combatPreview?.attackerFalls == true
+        if leftFalls != rightFalls { return !leftFalls }
+        if left.score != right.score { return left.score > right.score }
+        let leftRetaliation = left.combatPreview?.retaliation ?? 0
+        let rightRetaliation = right.combatPreview?.retaliation ?? 0
+        if leftRetaliation != rightRetaliation { return leftRetaliation < rightRetaliation }
+        let leftDestination = left.intent.destination ?? left.origin
+        let rightDestination = right.intent.destination ?? right.origin
+        let leftDistance = left.origin.hexDistance(to: leftDestination)
+        let rightDistance = right.origin.hexDistance(to: rightDestination)
+        if leftDistance != rightDistance { return leftDistance < rightDistance }
+        let leftKeepsOrder = left.intent.tacticalOrder == currentOrder
+        let rightKeepsOrder = right.intent.tacticalOrder == currentOrder
+        if leftKeepsOrder != rightKeepsOrder { return leftKeepsOrder }
+        let orderRank: [TacticalOrder: Int] = [.balanced: 0, .assault: 1, .defensive: 2, .forcedMarch: 3]
+        let leftOrderRank = orderRank[left.intent.tacticalOrder] ?? 0
+        let rightOrderRank = orderRank[right.intent.tacticalOrder] ?? 0
+        if leftOrderRank != rightOrderRank { return leftOrderRank < rightOrderRank }
+        let leftTarget = left.intent.targetUnitID ?? left.intent.targetCityID ?? ""
+        let rightTarget = right.intent.targetUnitID ?? right.intent.targetCityID ?? ""
+        if leftTarget != rightTarget { return leftTarget < rightTarget }
+        if leftDestination.y != rightDestination.y { return leftDestination.y < rightDestination.y }
+        if leftDestination.x != rightDestination.x { return leftDestination.x < rightDestination.x }
+        return left.intent.unitID < right.intent.unitID
+    }
+
+    private func aiRetaliationWeight(for unit: ArmyUnit) -> Int {
+        AITacticalRiskWeight.retaliation +
+            max(0, unit.kind.maxHealth - unit.health) * AITacticalRiskWeight.missingHealthRetaliation / unit.kind.maxHealth
+    }
+
+    private func aiNonAttackSafetyScore(for unit: ArmyUnit, enemies: [ArmyUnit]) -> Int {
+        let exposure = enemies.reduce(0) { count, enemy in
+            count + (unit.position.hexDistance(to: enemy.position) <= enemy.kind.range ? 1 : 0)
         }
+        return effectiveDefense(for: unit) + defenseBonus(at: unit.position, faction: unit.faction) -
+            exposure * AITacticalRiskWeight.exposure
+    }
+
+    private func aiAttackEvaluations(
+        for unit: ArmyUnit,
+        targets: [ArmyUnit],
+        favoring engagedTargetIDs: Set<String>
+    ) -> [AIAttackEvaluation] {
+        targets.compactMap { defender in
+            guard let preview = aiCombatPreview(attacker: unit, defender: defender) else { return nil }
+            return AIAttackEvaluation(
+                defender: defender, preview: preview,
+                score: aiAttackScore(attacker: unit, defender: defender, preview: preview,
+                                     engagedTargetIDs: engagedTargetIDs)
+            )
+        }
+    }
+
+    private func bestAITarget(
+        for unit: ArmyUnit,
+        origin: Position,
+        favoring engagedTargetIDs: Set<String>,
+        targets: [ArmyUnit],
+        evaluations: [AIAttackEvaluation]? = nil
+    ) -> AITacticalActionCandidate? {
+        let attacks = evaluations ?? aiAttackEvaluations(for: unit, targets: targets, favoring: engagedTargetIDs)
+        let hasKillableTarget = attacks.contains { $0.preview.defeatsDefender }
+        let isMovement = origin != unit.position
+        let candidates = attacks.filter { !hasKillableTarget || $0.preview.defeatsDefender }.map { attack in
+            AITacticalActionCandidate(
+                tier: isMovement ? .movement : .directAttack,
+                intent: AIIntent(unitID: unit.id, faction: unit.faction,
+                                 kind: isMovement ? .advanceAttack : .attack,
+                                 tacticalOrder: unit.resolvedTacticalOrder, targetUnitID: attack.defender.id,
+                                 destination: unit.position, projectedDamage: attack.preview.damage,
+                                 threatScore: (isMovement ? 420 : 500) + attack.score),
+                origin: origin, combatPreview: attack.preview, skillPreview: nil,
+                score: attack.score - attack.preview.retaliation * aiRetaliationWeight(for: unit)
+            )
+        }
+        return preferredAICandidate(candidates, currentOrder: unit.resolvedTacticalOrder)
+    }
+
+    private func aiAttackScore(
+        attacker: ArmyUnit,
+        defender: ArmyUnit,
+        preview: CombatPreview,
+        engagedTargetIDs: Set<String> = []
+    ) -> Int {
 
         let damage = preview.damage
         var score = damage * 4 - defender.health
@@ -7908,34 +8081,21 @@ public struct GameState: Codable, Equatable, Sendable {
     private func aiPositionScore(
         _ position: Position,
         for unit: ArmyUnit,
-        favoring engagedTargetIDs: Set<String> = []
+        attacks: [AIAttackEvaluation],
+        objectives: [Position],
+        enemies: [ArmyUnit]
     ) -> Int {
-        let objectives = aiObjectivePositions(for: unit.faction)
         let closestObjectiveDistance = objectives.map { position.hexDistance(to: $0) }.min() ?? 0
         var score = -closestObjectiveDistance * 18
 
-        for enemy in units where enemy.faction != unit.faction && diplomaticStatus(between: unit.faction, and: enemy.faction) == .war {
+        for enemy in enemies {
             let distance = position.hexDistance(to: enemy.position)
             if distance <= unit.kind.range {
-                let movedAttacker = ArmyUnit(
-                    id: unit.id,
-                    kind: unit.kind,
-                    faction: unit.faction,
-                    position: position,
-                    health: unit.health,
-                    experience: unit.experience,
-                    generalName: unit.generalName,
-                    generalTrait: unit.generalTrait,
-                    generalSkillCooldownRemaining: unit.generalSkillCooldownRemaining,
-                    tacticalOrder: unit.tacticalOrder,
-                    hasMoved: true,
-                    hasActed: unit.hasActed
-                )
-                score += aiAttackScore(
-                    attacker: movedAttacker,
-                    defender: enemy,
-                    engagedTargetIDs: engagedTargetIDs
-                ) + 140
+                // Reuse the same target preview/value used to choose the tail
+                // attack. No combat calculation is performed by a comparator.
+                if let attack = attacks.first(where: { $0.defender.id == enemy.id }) {
+                    score += attack.score + 140
+                }
             } else {
                 score += max(0, 7 - distance) * 8
             }
@@ -7945,7 +8105,7 @@ public struct GameState: Codable, Equatable, Sendable {
             }
         }
 
-        if let city = city(at: position), city.owner != unit.faction {
+        if let city = capturableCity(at: position, by: unit.faction) {
             score += city.owner == .neutral ? 70 : 115
         }
 
@@ -7960,109 +8120,7 @@ public struct GameState: Codable, Equatable, Sendable {
     }
 
     private func aiIntent(for unit: ArmyUnit) -> AIIntent? {
-        let order = preferredAITacticalOrder(for: unit)
-        let orderedUnit = aiPlanningUnit(from: unit, order: order)
-
-        if shouldAIRest(orderedUnit) {
-            return AIIntent(
-                unitID: unit.id,
-                faction: unit.faction,
-                kind: .regroup,
-                tacticalOrder: order,
-                destination: unit.position,
-                threatScore: max(35, 100 - unit.health)
-            )
-        }
-
-        if shouldAIUseGeneralSkill(orderedUnit) {
-            let preview = generalSkillPreview(for: orderedUnit)
-            return AIIntent(
-                unitID: unit.id,
-                faction: unit.faction,
-                kind: .useSkill,
-                tacticalOrder: order,
-                targetUnitID: aiSkillTargetUnit(for: orderedUnit, preview: preview)?.id,
-                targetCityID: aiSkillTargetCity(for: orderedUnit, preview: preview)?.id,
-                destination: unit.position,
-                threatScore: aiSkillThreatScore(for: orderedUnit, preview: preview)
-            )
-        }
-
-        if let target = bestAITarget(for: orderedUnit) {
-            let preview = aiCombatPreview(attacker: orderedUnit, defender: target)
-            return AIIntent(
-                unitID: unit.id,
-                faction: unit.faction,
-                kind: .attack,
-                tacticalOrder: order,
-                targetUnitID: target.id,
-                destination: unit.position,
-                projectedDamage: preview?.damage,
-                threatScore: 500 + aiAttackScore(attacker: orderedUnit, defender: target)
-            )
-        }
-
-        if let skillCandidate = bestAIGeneralSkillCandidate(for: orderedUnit) {
-            return AIIntent(
-                unitID: unit.id,
-                faction: unit.faction,
-                kind: .useSkill,
-                tacticalOrder: order,
-                targetUnitID: skillCandidate.targetUnitID,
-                targetCityID: skillCandidate.targetCityID,
-                destination: skillCandidate.destination,
-                threatScore: skillCandidate.score
-            )
-        }
-
-        guard let destination = bestAIDestination(for: orderedUnit) else {
-            return AIIntent(
-                unitID: unit.id,
-                faction: unit.faction,
-                kind: .defend,
-                tacticalOrder: order,
-                targetCityID: city(at: unit.position)?.id,
-                destination: unit.position,
-                threatScore: aiDefensiveThreatScore(for: orderedUnit)
-            )
-        }
-
-        let movedUnit = aiPlanningUnit(from: orderedUnit, position: destination, hasMoved: true)
-        if let target = bestAITarget(for: movedUnit) {
-            let preview = aiCombatPreview(attacker: movedUnit, defender: target)
-            return AIIntent(
-                unitID: unit.id,
-                faction: unit.faction,
-                kind: .advanceAttack,
-                tacticalOrder: order,
-                targetUnitID: target.id,
-                destination: destination,
-                projectedDamage: preview?.damage,
-                threatScore: 420 + aiAttackScore(attacker: movedUnit, defender: target)
-            )
-        }
-
-        if let city = capturableCity(at: destination, by: orderedUnit.faction) {
-            return AIIntent(
-                unitID: unit.id,
-                faction: unit.faction,
-                kind: .captureCity,
-                tacticalOrder: order,
-                targetCityID: city.id,
-                destination: destination,
-                threatScore: 360 + city.production.gold + city.production.prestige * 20 + city.fortification
-            )
-        }
-
-        return AIIntent(
-            unitID: unit.id,
-            faction: unit.faction,
-            kind: order == .defensive ? .defend : .advance,
-            tacticalOrder: order,
-            targetCityID: nearestAICityObjective(from: destination, for: unit.faction)?.id,
-            destination: destination,
-            threatScore: 140 + aiPositionScore(destination, for: orderedUnit)
-        )
+        bestAITacticalAction(for: unit, favoring: [])?.intent
     }
 
     private func aiPlanningUnit(
@@ -8088,10 +8146,14 @@ public struct GameState: Codable, Equatable, Sendable {
         )
     }
 
-    private func bestAIGeneralSkillCandidate(for unit: ArmyUnit) -> AIGeneralSkillCandidate? {
-        // Most AI units are not eligible for a commander skill. Reject them
-        // before the reachability search because this helper is queried by
-        // several read-only planning/report chains during battle rendering.
+    private func bestAIGeneralSkillCandidate(
+        for unit: ArmyUnit,
+        orderedUnits: [ArmyUnit],
+        reachableByBudget: [Int: Set<Position>],
+        enemies: [ArmyUnit]
+    ) -> AITacticalActionCandidate? {
+        // This helper owns no BFS. Ineligible commanders never project a skill;
+        // movement reachability belongs to the one tactical selection call.
         guard !unit.hasMoved,
               !unit.hasActed,
               unit.generalName != nil,
@@ -8100,38 +8162,31 @@ public struct GameState: Codable, Equatable, Sendable {
             return nil
         }
 
-        let reachable = reachablePositions(for: unit)
-        return reachable
-            .compactMap { destination in
-                aiGeneralSkillCandidate(
-                    for: unit,
-                    destination: destination,
-                    reachable: reachable
-                )
+        let reachable = reachableByBudget.values.reduce(into: Set<Position>()) { $0.formUnion($1) }
+        // Existing skills have no tactical-order effect. Project each landing
+        // once, including city capture/terminal state, then consider only the
+        // orders whose actual movement budget reaches that landing.
+        let skillCandidates = reachable.compactMap {
+            aiGeneralSkillCandidate(for: unit, destination: $0, reachable: reachable)
+        }
+        var candidates: [AITacticalActionCandidate] = []
+        for ordered in orderedUnits {
+            let legalDestinations = reachableByBudget[effectiveMovement(for: ordered)] ?? []
+            for skillCandidate in skillCandidates where legalDestinations.contains(skillCandidate.destination) {
+                let movedUnit = aiPlanningUnit(from: ordered, position: skillCandidate.destination, hasMoved: true)
+                candidates.append(AITacticalActionCandidate(
+                    tier: .moveSkill,
+                    intent: AIIntent(unitID: unit.id, faction: unit.faction, kind: .useSkill,
+                                     tacticalOrder: ordered.resolvedTacticalOrder,
+                                     targetUnitID: skillCandidate.targetUnitID,
+                                     targetCityID: skillCandidate.targetCityID,
+                                     destination: skillCandidate.destination, threatScore: skillCandidate.score),
+                    origin: unit.position, combatPreview: nil, skillPreview: skillCandidate.preview,
+                    score: skillCandidate.score + aiNonAttackSafetyScore(for: movedUnit, enemies: enemies)
+                ))
             }
-            .sorted { left, right in
-                if left.score == right.score {
-                    let leftDistance = unit.position.hexDistance(to: left.destination)
-                    let rightDistance = unit.position.hexDistance(to: right.destination)
-                    if leftDistance == rightDistance {
-                        let leftTarget = left.targetUnitID ?? left.targetCityID ?? ""
-                        let rightTarget = right.targetUnitID ?? right.targetCityID ?? ""
-                        if leftTarget == rightTarget {
-                            if left.destination.y == right.destination.y {
-                                if left.destination.x == right.destination.x {
-                                    return left.unitID < right.unitID
-                                }
-                                return left.destination.x < right.destination.x
-                            }
-                            return left.destination.y < right.destination.y
-                        }
-                        return leftTarget < rightTarget
-                    }
-                    return leftDistance < rightDistance
-                }
-                return left.score > right.score
-            }
-            .first
+        }
+        return preferredAICandidate(candidates, currentOrder: unit.resolvedTacticalOrder)
     }
 
     private func aiGeneralSkillCandidate(
@@ -8175,13 +8230,20 @@ public struct GameState: Codable, Equatable, Sendable {
         for unit: ArmyUnit,
         destination: Position
     ) -> (state: GameState, unit: ArmyUnit, preview: GeneralSkillPreview) {
+        let projection = aiActionProjection(for: unit, destination: destination)
+        return (projection.state, projection.unit, projection.state.generalSkillPreview(for: projection.unit))
+    }
+
+    private func aiActionProjection(
+        for unit: ArmyUnit,
+        destination: Position
+    ) -> (state: GameState, unit: ArmyUnit) {
         let isMovement = destination != unit.position
         var projected = self
         let projectedUnit = projected.aiPlanningUnit(
             from: unit,
             position: destination,
-            hasMoved: isMovement || unit.hasMoved,
-            hasActed: false
+            hasMoved: isMovement || unit.hasMoved
         )
 
         if let index = projected.units.firstIndex(where: { $0.id == unit.id }) {
@@ -8194,11 +8256,7 @@ public struct GameState: Codable, Equatable, Sendable {
         }
 
         let settledUnit = projected.unit(withID: unit.id) ?? projectedUnit
-        return (
-            state: projected,
-            unit: settledUnit,
-            preview: projected.generalSkillPreview(for: settledUnit)
-        )
+        return (state: projected, unit: settledUnit)
     }
 
     private func aiSkillThreatScore(for unit: ArmyUnit, preview: GeneralSkillPreview) -> Int {
@@ -8299,25 +8357,55 @@ public struct GameState: Codable, Equatable, Sendable {
 
     private func bestAIDestination(
         for unit: ArmyUnit,
+        origin: Position,
+        reachable: Set<Position>,
+        objectives: [Position],
+        enemies: [ArmyUnit],
         favoring engagedTargetIDs: Set<String> = []
-    ) -> Position? {
-        let reachable = reachablePositions(for: unit)
-        guard !reachable.isEmpty else {
+    ) -> AITacticalActionCandidate? {
+        guard !unit.hasMoved, !unit.hasActed, !reachable.isEmpty else {
             return nil
         }
 
-        let ranked = reachable.sorted { left, right in
-            let leftScore = aiPositionScore(left, for: unit, favoring: engagedTargetIDs)
-            let rightScore = aiPositionScore(right, for: unit, favoring: engagedTargetIDs)
-            if leftScore == rightScore {
-                if left.y == right.y {
-                    return left.x < right.x
-                }
-                return left.y < right.y
+        // Map once, select by stored values. Both target choice and position
+        // value consume these attack evaluations, including engagedTargetIDs.
+        let candidates = reachable.map { destination in
+            let projection = aiActionProjection(for: unit, destination: destination)
+            let movedUnit = projection.unit
+            let targets = projection.state.campaignStatus.isGameOver
+                ? [] : projection.state.attackTargets(for: movedUnit)
+            let attacks = projection.state.aiAttackEvaluations(
+                for: movedUnit, targets: targets, favoring: engagedTargetIDs
+            )
+            let positionScore = aiPositionScore(
+                destination, for: unit, attacks: attacks, objectives: objectives, enemies: enemies
+            )
+
+            if var attack = projection.state.bestAITarget(
+                for: movedUnit, origin: origin, favoring: engagedTargetIDs,
+                targets: targets, evaluations: attacks
+            ) {
+                attack.score = positionScore - (attack.combatPreview?.retaliation ?? 0) * aiRetaliationWeight(for: movedUnit)
+                return attack
             }
-            return leftScore > rightScore
+
+            let capturedCity = capturableCity(at: destination, by: unit.faction)
+            let kind: AIIntentKind = capturedCity != nil ? .captureCity :
+                (unit.resolvedTacticalOrder == .defensive ? .defend : .advance)
+            let threatScore = capturedCity.map {
+                360 + $0.production.gold + $0.production.prestige * 20 + $0.fortification
+            } ?? (140 + positionScore)
+            return AITacticalActionCandidate(
+                tier: .movement,
+                intent: AIIntent(unitID: unit.id, faction: unit.faction, kind: kind,
+                                 tacticalOrder: unit.resolvedTacticalOrder,
+                                 targetCityID: capturedCity?.id ?? nearestAICityObjective(from: destination, for: unit.faction)?.id,
+                                 destination: destination, threatScore: threatScore),
+                origin: origin, combatPreview: nil, skillPreview: nil,
+                score: positionScore + projection.state.aiNonAttackSafetyScore(for: movedUnit, enemies: enemies)
+            )
         }
 
-        return ranked.first
+        return preferredAICandidate(candidates, currentOrder: unit.resolvedTacticalOrder)
     }
 }

@@ -69,6 +69,46 @@ private func postMoveGeneralSkillPreview(
     return try previewState.generalSkillPreview(unitID: intent.unitID)
 }
 
+private func makeAITacticalState(units: [ArmyUnit]) -> GameState {
+    var state = GameState.newCampaign()
+    state.tiles = state.tiles.map { Tile(position: $0.position, terrain: .plains) }
+    state.cities = [
+        City(id: "rome", name: "罗马", position: Position(x: 11, y: 7),
+             owner: .rome, production: .zero, fortification: 0)
+    ]
+    state.units = units
+    state.missions = []
+    state.resources[.carthage] = .zero
+    state.activeFaction = .rome
+    return state
+}
+
+private func makeAITacticalDuelState(commanderHealth: Int, targetKind: UnitKind, targetHealth: Int) -> GameState {
+    makeAITacticalState(units: [
+        ArmyUnit(id: "tactical-commander", kind: .legion, faction: .carthage,
+                 position: Position(x: 4, y: 3), health: commanderHealth,
+                 generalName: "战术将领", generalTrait: .siegeEngineer, generalSkillCooldownRemaining: 3),
+        ArmyUnit(id: "rome-target", kind: targetKind, faction: .rome,
+                 position: Position(x: 3, y: 3), health: targetHealth)
+    ])
+}
+
+private func aiTacticalCombatPreview(
+    in state: GameState,
+    order: TacticalOrder,
+    destination: Position? = nil,
+    unitID: String = "tactical-commander",
+    targetID: String = "rome-target"
+) throws -> CombatPreview {
+    var projection = state
+    projection.activeFaction = .carthage
+    _ = try projection.setTacticalOrder(unitID: unitID, order: order)
+    if let destination, destination != projection.unit(withID: unitID)?.position {
+        _ = try projection.moveUnit(id: unitID, to: destination)
+    }
+    return try projection.attackPreview(attackerID: unitID, defenderID: targetID)
+}
+
 @Test func reachablePositionsRespectTerrainAndOccupation() {
     let state = GameState.newCampaign()
 
@@ -957,6 +997,316 @@ private func postMoveGeneralSkillPreview(
     #expect(resolved.unit(withID: "carthage-wounded")?.health == 30)
 }
 
+@Test func aiTacticalAssaultJointKillMatchesPreviewAndResolution() throws {
+    var state = makeAITacticalDuelState(commanderHealth: 50, targetKind: .archer, targetHealth: 30)
+    state.units.append(ArmyUnit(id: "gaul-decoy", kind: .legion, faction: .gaul,
+                               position: Position(x: 4, y: 2), experience: 20,
+                               generalName: "高价值守将", generalTrait: .shieldWall))
+    let before = state
+    for order in TacticalOrder.allCases {
+        let targetPreview = try aiTacticalCombatPreview(in: state, order: order)
+        let decoyPreview = try aiTacticalCombatPreview(in: state, order: order, targetID: "gaul-decoy")
+        #expect(targetPreview.defeatsDefender == (order == .assault))
+        #expect(!decoyPreview.defeatsDefender)
+    }
+
+    let intent = try #require(state.aiIntents(for: .carthage, limit: 4).first)
+    let preview = try aiTacticalCombatPreview(in: state, order: intent.tacticalOrder)
+    #expect(intent.kind == .attack)
+    #expect(intent.tacticalOrder == .assault)
+    #expect(intent.targetUnitID == "rome-target")
+    #expect(intent.destination == Position(x: 4, y: 3))
+    #expect(intent.projectedDamage == preview.damage)
+    #expect(preview.defeatsDefender && preview.retaliation == 0)
+    #expect(state == before)
+
+    var resolved = state
+    resolved.activeFaction = .carthage
+    _ = resolved.performSimpleAI(for: .carthage)
+    #expect(resolved.unit(withID: "rome-target") == nil)
+    #expect(resolved.unit(withID: "gaul-decoy") == before.unit(withID: "gaul-decoy"))
+    #expect(resolved.unit(withID: intent.unitID)?.resolvedTacticalOrder == .assault)
+    #expect(resolved.unit(withID: intent.unitID)?.health == preview.attackerRemainingHealth)
+    #expect(resolved.unit(withID: intent.unitID)?.hasActed == true)
+    #expect(resolved.unit(withID: intent.unitID)?.generalSkillCooldownRemaining == 3)
+}
+
+@Test func aiTacticalDefensiveSurvivalMatchesReportsAndResolution() throws {
+    let state = makeAITacticalDuelState(commanderHealth: 9, targetKind: .cavalry, targetHealth: 88)
+    let before = state
+    for order in TacticalOrder.allCases {
+        let preview = try aiTacticalCombatPreview(in: state, order: order)
+        #expect(!preview.defeatsDefender)
+        #expect(preview.attackerFalls == (order != .defensive))
+    }
+    let preview = try aiTacticalCombatPreview(in: state, order: .defensive)
+    #expect(preview.retaliation == 8)
+    #expect(preview.attackerRemainingHealth == 1)
+    let intent = try #require(state.aiIntents(for: .carthage, limit: 4).first)
+    let step = try #require(state.aiOperationalPlanReports(against: .rome, limit: 5)
+        .flatMap(\.steps).first { $0.unitID == intent.unitID })
+    let threat = try state.enemyCommanderThreatReport(unitID: intent.unitID)
+    #expect(intent.kind == .attack)
+    #expect(intent.tacticalOrder == .defensive)
+    #expect(intent.projectedDamage == preview.damage)
+    #expect(step.tacticalOrder == intent.tacticalOrder)
+    #expect(step.targetUnitID == intent.targetUnitID && step.destination == intent.destination)
+    #expect(step.projectedDamage == preview.damage && threat.projectedDamage == preview.damage)
+    #expect(step.detail.contains("坚守控制反击风险"))
+    #expect(step.detail.contains("预计反击 \(preview.retaliation)"))
+    #expect(threat.reasons.contains { $0.contains("坚守控制反击风险") && $0.contains("预计反击 \(preview.retaliation)") })
+    #expect(threat.impact.contains("攻击后余 \(preview.attackerRemainingHealth) 生命"))
+    #expect(state == before)
+
+    var resolved = state
+    resolved.activeFaction = .carthage
+    _ = resolved.performSimpleAI(for: .carthage)
+    #expect(resolved.unit(withID: intent.unitID)?.resolvedTacticalOrder == .defensive)
+    #expect(resolved.unit(withID: intent.unitID)?.health == preview.attackerRemainingHealth)
+    #expect(resolved.unit(withID: "rome-target")?.health == preview.defenderRemainingHealth)
+    #expect(resolved.unit(withID: intent.unitID)?.hasActed == true)
+}
+
+@Test func aiTacticalForcedMarchUsesOnlyLegalLanding() throws {
+    var state = makeAITacticalState(units: [
+        ArmyUnit(id: "tactical-commander", kind: .legion, faction: .carthage,
+                 position: Position(x: 1, y: 1), generalName: "行军将领",
+                 generalTrait: .siegeEngineer, generalSkillCooldownRemaining: 3),
+        ArmyUnit(id: "rome-target", kind: .legion, faction: .rome,
+                 position: Position(x: 7, y: 1), health: 12)
+    ])
+    state.tiles = state.tiles.map { tile in
+        let land = (tile.position.y == 1 && (1...7).contains(tile.position.x)) || tile.position == Position(x: 11, y: 7)
+        return Tile(position: tile.position, terrain: land ? .plains : .water)
+    }
+    let destination = Position(x: 6, y: 1)
+    let before = state
+    for order in TacticalOrder.allCases {
+        var reachability = state
+        reachability.activeFaction = .carthage
+        _ = try reachability.setTacticalOrder(unitID: "tactical-commander", order: order)
+        let reachable = reachability.reachablePositions(for: "tactical-commander")
+        #expect(reachable.contains(destination) == (order == .forcedMarch))
+        #expect(!reachable.contains(Position(x: 7, y: 1)))
+        #expect(!reachable.contains(Position(x: 2, y: 2)))
+        #expect(reachability.attackTargets(for: "tactical-commander").isEmpty)
+    }
+    let intent = try #require(state.aiIntents(for: .carthage, limit: 4).first)
+    let preview = try aiTacticalCombatPreview(in: state, order: intent.tacticalOrder, destination: destination)
+    let step = try #require(state.aiOperationalPlanReports(against: .rome, limit: 5)
+        .flatMap(\.steps).first { $0.unitID == intent.unitID })
+    let threat = try state.enemyCommanderThreatReport(unitID: intent.unitID)
+    #expect(intent.kind == .advanceAttack && intent.tacticalOrder == .forcedMarch)
+    #expect(intent.destination == destination && intent.targetUnitID == "rome-target")
+    #expect(intent.projectedDamage == preview.damage && preview.defeatsDefender)
+    #expect(step.detail.contains("行军获得合法落点 \(destination.description)"))
+    #expect(threat.reasons.contains { $0.contains("行军获得合法落点 \(destination.description)") })
+    #expect(threat.position == Position(x: 1, y: 1) && threat.destination == destination)
+    #expect(state == before)
+
+    var resolved = state
+    resolved.activeFaction = .carthage
+    _ = resolved.performSimpleAI(for: .carthage)
+    #expect(resolved.unit(withID: intent.unitID)?.position == destination)
+    #expect(resolved.unit(withID: intent.unitID)?.resolvedTacticalOrder == .forcedMarch)
+    #expect(resolved.unit(withID: intent.unitID)?.hasMoved == true)
+    #expect(resolved.unit(withID: intent.unitID)?.hasActed == true)
+    #expect(resolved.unit(withID: "rome-target") == nil)
+
+    // A treaty-protected occupant closes the only corridor. Neither an extra
+    // march budget nor positional value may turn it into a traversable tile.
+    var blocked = state
+    blocked.units.append(ArmyUnit(id: "gaul-blocker", kind: .legion, faction: .gaul, position: Position(x: 2, y: 1)))
+    blocked.diplomaticRelations = [DiplomaticRelation(first: .carthage, second: .gaul, status: .truce)]
+    blocked.activeFaction = .carthage
+    let targetBefore = blocked.unit(withID: "rome-target")
+    let blockerBefore = blocked.unit(withID: "gaul-blocker")
+    _ = blocked.performSimpleAI(for: .carthage)
+    #expect(blocked.unit(withID: intent.unitID)?.position == Position(x: 1, y: 1))
+    #expect(blocked.unit(withID: "rome-target") == targetBefore)
+    #expect(blocked.unit(withID: "gaul-blocker") == blockerBefore)
+}
+
+@Test func aiTacticalDirectKillKeepsMovementSkillBelowAttackTier() throws {
+    var state = makeAIMoveSkillState()
+    state.missions = []
+    state.units = [
+        ArmyUnit(id: "rome-target", kind: .archer, faction: .rome, position: Position(x: 3, y: 3), health: 30),
+        ArmyUnit(id: "tactical-commander", kind: .legion, faction: .carthage,
+                 position: Position(x: 4, y: 3), generalName: "军需官", generalTrait: .quartermaster),
+        ArmyUnit(id: "carthage-wounded", kind: .cavalry, faction: .carthage,
+                 position: Position(x: 8, y: 3), health: 30, hasMoved: true, hasActed: true)
+    ]
+    let before = state
+    var skillProjection = state
+    skillProjection.activeFaction = .carthage
+    #expect(try skillProjection.generalSkillPreview(unitID: "tactical-commander").affectedUnitIDs.isEmpty)
+    _ = try skillProjection.moveUnit(id: "tactical-commander", to: Position(x: 6, y: 3))
+    let skillPreview = try skillProjection.generalSkillPreview(unitID: "tactical-commander")
+    #expect(skillPreview.isExecutable && skillPreview.projectedRecoveredHealth == 22)
+    #expect(try aiTacticalCombatPreview(in: state, order: .assault).defeatsDefender)
+    let intent = try #require(state.aiIntents(for: .carthage, limit: 4).first { $0.unitID == "tactical-commander" })
+    #expect(intent.kind == .attack && intent.tacticalOrder == .assault)
+    #expect(intent.targetUnitID == "rome-target" && intent.destination == Position(x: 4, y: 3))
+    #expect(state == before)
+
+    state.activeFaction = .carthage
+    _ = state.performSimpleAI(for: .carthage)
+    #expect(state.unit(withID: "rome-target") == nil)
+    #expect(state.unit(withID: "carthage-wounded")?.health == 30)
+    #expect(state.unit(withID: "tactical-commander")?.position == Position(x: 4, y: 3))
+    #expect(state.unit(withID: "tactical-commander")?.generalSkillCooldownRemaining == 0)
+}
+
+@Test func aiTacticalRestKeepsPriorityOverSkillAndAttack() throws {
+    var state = makeAITacticalState(units: [
+        ArmyUnit(id: "tactical-commander", kind: .legion, faction: .carthage,
+                 position: Position(x: 4, y: 3), health: 18, generalName: "军需官", generalTrait: .quartermaster),
+        ArmyUnit(id: "carthage-wounded", kind: .cavalry, faction: .carthage,
+                 position: Position(x: 5, y: 3), health: 30, hasMoved: true, hasActed: true),
+        ArmyUnit(id: "rome-target", kind: .archer, faction: .rome, position: Position(x: 3, y: 3), health: 1)
+    ])
+    state.cities.append(City(id: "supply", name: "补给城", position: Position(x: 4, y: 3),
+                             owner: .carthage, production: .zero, fortification: 0))
+    state.resources[.carthage] = EmpireResources(gold: 0, grain: 18, iron: 0, science: 0, prestige: 0)
+    var projection = state
+    projection.activeFaction = .carthage
+    let skillPreview = try projection.generalSkillPreview(unitID: "tactical-commander")
+    #expect(skillPreview.isExecutable && skillPreview.projectedRecoveredHealth > 0)
+    #expect(try projection.attackPreview(attackerID: "tactical-commander", defenderID: "rome-target").defeatsDefender)
+    let before = state
+    let intent = try #require(state.aiIntents(for: .carthage, limit: 4).first { $0.unitID == "tactical-commander" })
+    #expect(intent.kind == .regroup)
+    #expect(state == before)
+
+    state.activeFaction = .carthage
+    _ = state.performSimpleAI(for: .carthage)
+    #expect((state.unit(withID: "tactical-commander")?.health ?? 0) > 18)
+    #expect(state.unit(withID: "tactical-commander")?.hasActed == true)
+    #expect(state.unit(withID: "tactical-commander")?.generalSkillCooldownRemaining == 0)
+    #expect(state.resources[.carthage]?.grain == 0)
+    #expect(state.unit(withID: "rome-target") == before.unit(withID: "rome-target"))
+    #expect(state.unit(withID: "carthage-wounded") == before.unit(withID: "carthage-wounded"))
+}
+
+@Test func aiTacticalMovedUnitCannotAdoptBetterIllegalOrder() throws {
+    var state = makeAITacticalDuelState(commanderHealth: 100, targetKind: .archer, targetHealth: 30)
+    let freshAssaultPreview = try aiTacticalCombatPreview(in: state, order: .assault)
+    #expect(freshAssaultPreview.defeatsDefender)
+    let index = try #require(state.units.firstIndex { $0.id == "tactical-commander" })
+    state.units[index].hasMoved = true
+    state.activeFaction = .carthage
+    let preview = try state.attackPreview(attackerID: "tactical-commander", defenderID: "rome-target")
+    #expect(!preview.defeatsDefender)
+    #expect(throws: GameRuleError.unitAlreadyMoved) {
+        try state.setTacticalOrder(unitID: "tactical-commander", order: .assault)
+    }
+    // Do not use aiIntents here: that public API forecasts a fresh next turn.
+    _ = state.performSimpleAI(for: .carthage)
+    #expect(state.unit(withID: "tactical-commander")?.resolvedTacticalOrder == .balanced)
+    #expect(state.unit(withID: "tactical-commander")?.position == Position(x: 4, y: 3))
+    #expect(state.unit(withID: "tactical-commander")?.health == preview.attackerRemainingHealth)
+    #expect(state.unit(withID: "tactical-commander")?.hasActed == true)
+    #expect(state.unit(withID: "tactical-commander")?.generalSkillCooldownRemaining == 3)
+    #expect(state.unit(withID: "rome-target")?.health == preview.defenderRemainingHealth)
+}
+
+@Test func aiTacticalActedUnitNeverRefreshesDuringExecution() throws {
+    var state = makeAITacticalDuelState(commanderHealth: 9, targetKind: .cavalry, targetHealth: 88)
+    let index = try #require(state.units.firstIndex { $0.id == "tactical-commander" })
+    state.units[index].hasActed = true
+    state.units[index].hasMoved = false
+    state.units[index].tacticalOrder = .forcedMarch
+    state.activeFaction = .carthage
+    let before = state
+    _ = state.performSimpleAI(for: .carthage)
+    #expect(state.units == before.units)
+    #expect(state.cities == before.cities && state.resources == before.resources)
+    #expect(state.missions == before.missions && state.turn == before.turn)
+    #expect(state.activeFaction == before.activeFaction)
+    #expect(state.unit(withID: "tactical-commander")?.generalSkillCooldownRemaining == 3)
+}
+
+@Test func aiTacticalReportsRemainStableAcrossTiesAndStorageOrder() throws {
+    var state = makeAITacticalDuelState(commanderHealth: 50, targetKind: .archer, targetHealth: 30)
+    state.units.append(ArmyUnit(id: "rome-tied", kind: .archer, faction: .rome,
+                               position: Position(x: 5, y: 3), health: 30))
+    let before = state
+    let encoder = JSONEncoder()
+    encoder.outputFormatting = [.sortedKeys]
+    let encodedBefore = try encoder.encode(state)
+    let leftPreview = try aiTacticalCombatPreview(in: state, order: .assault)
+    let rightPreview = try aiTacticalCombatPreview(in: state, order: .assault, targetID: "rome-tied")
+    #expect(leftPreview.damage == rightPreview.damage && leftPreview.retaliation == rightPreview.retaliation)
+    let intents = state.aiIntents(for: .carthage, limit: 4)
+    let plans = state.aiOperationalPlanReports(against: .rome, limit: 5)
+    let threats = state.enemyCommanderThreatReports(against: .rome, limit: 5)
+    let intent = try #require(intents.first)
+    let step = try #require(plans.flatMap(\.steps).first { $0.unitID == intent.unitID })
+    let threat = try #require(threats.first { $0.unitID == intent.unitID })
+    #expect(intent.tacticalOrder == .assault && intent.targetUnitID == "rome-target")
+    #expect(step.targetUnitID == intent.targetUnitID && threat.targetUnitID == intent.targetUnitID)
+    #expect(step.destination == intent.destination && threat.destination == intent.destination)
+    #expect(step.projectedDamage == leftPreview.damage && threat.projectedDamage == leftPreview.damage)
+    #expect(step.detail.contains("突击形成击杀"))
+    #expect(threat.reasons.contains { $0.contains("突击形成击杀") })
+    #expect(state.aiIntents(for: .carthage, limit: 4) == intents)
+    #expect(state.aiOperationalPlanReports(against: .rome, limit: 5) == plans)
+    #expect(state.enemyCommanderThreatReports(against: .rome, limit: 5) == threats)
+    #expect(try encoder.encode(state) == encodedBefore)
+    #expect(state == before)
+
+    var reordered = state
+    reordered.units.reverse()
+    reordered.tiles.reverse()
+    #expect(reordered.aiIntents(for: .carthage, limit: 4) == intents)
+    #expect(reordered.aiOperationalPlanReports(against: .rome, limit: 5) == plans)
+    #expect(reordered.enemyCommanderThreatReports(against: .rome, limit: 5) == threats)
+}
+
+@Test func aiTacticalMovementKillOutranksEngagedNonLethalTarget() throws {
+    var state = makeAITacticalState(units: [
+        ArmyUnit(id: "rome-anvil", kind: .legion, faction: .rome, position: Position(x: 2, y: 1),
+                 experience: 20, generalName: "守城将", generalTrait: .shieldWall, tacticalOrder: .defensive),
+        ArmyUnit(id: "gaul-kill", kind: .archer, faction: .gaul, position: Position(x: 8, y: 1), health: 1),
+        ArmyUnit(id: "carthage-alpha", kind: .legion, faction: .carthage, position: Position(x: 2, y: 0), experience: 10),
+        ArmyUnit(id: "carthage-bravo", kind: .cavalry, faction: .carthage, position: Position(x: 5, y: 1))
+    ])
+    state.cities.append(City(id: "anvil-city", name: "坚城", position: Position(x: 2, y: 1), owner: .rome,
+                             production: EmpireResources(gold: 100, grain: 0, iron: 0, science: 0, prestige: 0), fortification: 20))
+    let before = state
+    let alphaPreview = try aiTacticalCombatPreview(in: state, order: .assault,
+                                                 unitID: "carthage-alpha", targetID: "rome-anvil")
+    #expect(!alphaPreview.defeatsDefender)
+    let intents = state.aiIntents(for: .carthage, limit: 4)
+    #expect(intents.first?.unitID == "carthage-alpha")
+    #expect(intents.first { $0.unitID == "carthage-bravo" }?.kind == .advanceAttack)
+    #expect(intents.first { $0.unitID == "carthage-bravo" }?.targetUnitID == "gaul-kill")
+    #expect(state == before)
+    state.activeFaction = .carthage
+    #expect(state.attackTargets(for: "carthage-bravo").isEmpty)
+    _ = state.performSimpleAI(for: .carthage)
+    #expect(state.unit(withID: "carthage-alpha")?.hasActed == true)
+    #expect(state.unit(withID: "carthage-bravo")?.hasActed == true)
+    #expect(state.unit(withID: "carthage-bravo")?.position != Position(x: 5, y: 1))
+    #expect(state.unit(withID: "rome-anvil")?.health == UnitKind.legion.maxHealth - alphaPreview.damage)
+    #expect(state.unit(withID: "gaul-kill") == nil)
+}
+
+@Test func aiTacticalTerminalAndWrongFactionStayInert() {
+    var state = makeAITacticalDuelState(commanderHealth: 100, targetKind: .archer, targetHealth: 30)
+    let before = state
+    #expect(state.performSimpleAI(for: .carthage).isEmpty)
+    #expect(state == before)
+    state.cities[0].owner = .carthage
+    state.activeFaction = .carthage
+    let ended = state
+    #expect(state.campaignStatus.isGameOver)
+    #expect(state.aiIntents(for: .carthage, limit: 4).isEmpty)
+    #expect(state.performSimpleAI(for: .carthage).isEmpty)
+    #expect(state == ended)
+}
+
 @Test func warMeritStatusMapsExperienceToRankDamageAndProgress() {
     let state = GameState.newCampaign()
     let unit = ArmyUnit(id: "veteran", kind: .legion, faction: .rome, position: Position(x: 1, y: 1), experience: 5)
@@ -1360,6 +1710,13 @@ private func postMoveGeneralSkillPreview(
     for index in state.cities.indices where state.cities[index].id != "massilia" {
         state.cities[index].owner = .carthage
     }
+    // Keep this neutral-city forecast in a live campaign. With no Roman city
+    // the fixture is already terminal, and v0.70 must not invent an action.
+    if let romeIndex = state.cities.firstIndex(where: { $0.id == "rome" }) {
+        state.cities[romeIndex].owner = .rome
+        state.cities[romeIndex].position = Position(x: 11, y: 7)
+    }
+    #expect(!state.campaignStatus.isGameOver)
     let before = state
 
     let intents = state.aiIntents(for: .carthage, limit: 1)

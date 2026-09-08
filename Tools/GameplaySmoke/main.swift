@@ -5,7 +5,138 @@ func expect(_ condition: @autoclosure () -> Bool, _ message: String) {
     }
 }
 
+// Isolated v0.70 fixtures: one acting enemy, no recruitment/rest budget,
+// no ready skill, no city combat modifiers, and no other enemy first strike.
+func aiTacticalActionSmokeFixture(order: TacticalOrder) -> GameState {
+    var state = GameState.newCampaign()
+    state.tiles = state.tiles.map { Tile(position: $0.position, terrain: .plains) }
+    state.cities = [
+        City(id: "rome", name: "罗马", position: Position(x: 11, y: 7),
+             owner: .rome, production: .zero, fortification: 0)
+    ]
+    state.resources[.carthage] = .zero
+    state.researchedTechnologies[.carthage] = []
+    state.researchedTechnologies[.rome] = []
+    state.activeFaction = .rome
+    let origin = order == .forcedMarch ? Position(x: 1, y: 1) : Position(x: 3, y: 3)
+    state.units = [
+        ArmyUnit(id: "tactical-commander", kind: .legion, faction: .carthage,
+                 position: origin, health: order == .defensive ? 10 : 100,
+                 generalName: "战术夹具将领", generalTrait: .siegeEngineer,
+                 generalSkillCooldownRemaining: 3),
+        ArmyUnit(id: "tactical-target", kind: order == .defensive ? .cavalry : .legion,
+                 faction: .rome,
+                 position: order == .forcedMarch ? Position(x: 7, y: 1) : Position(x: 4, y: 3),
+                 health: order == .assault ? 25 : (order == .defensive ? 88 : 12))
+    ]
+    if order == .assault {
+        state.units.append(ArmyUnit(id: "tactical-decoy", kind: .archer, faction: .rome,
+                                   position: Position(x: 2, y: 3), health: 72, experience: 10,
+                                   generalName: "高价值非致死目标", generalTrait: .siegeEngineer))
+    }
+    if order == .forcedMarch {
+        state.tiles = state.tiles.map { tile in
+            let isCorridor = tile.position.y == 1 && (1...7).contains(tile.position.x)
+            let isRomanCity = tile.position == Position(x: 11, y: 7)
+            return Tile(position: tile.position, terrain: isCorridor || isRomanCity ? .plains : .water)
+        }
+    }
+    return state
+}
+
+func verifyAITacticalActionSmoke(order: TacticalOrder) throws {
+    let state = aiTacticalActionSmokeFixture(order: order)
+    let before = state
+    let commanderID = "tactical-commander"
+    let targetID = "tactical-target"
+    let intents = state.aiIntents(for: .carthage, limit: 4)
+    guard let intent = intents.first(where: { $0.unitID == commanderID }),
+          let origin = state.unit(withID: commanderID)?.position,
+          let destination = intent.destination else {
+        expect(false, "AI tactical action smoke requires a selected intent and landing")
+        return
+    }
+    expect(intents.count == 1, "Tactical fixture should isolate a single acting enemy")
+    expect(intent.tacticalOrder == order, "AI tactical candidate should select the proven posture")
+    expect(intent.targetUnitID == targetID, "AI tactical candidate should select the proven target")
+    expect(intent.kind == (order == .forcedMarch ? .advanceAttack : .attack), "Tactical fixture should preserve attack tier")
+
+    var projection = state
+    projection.activeFaction = .carthage
+    let blockedSkillPreview = try projection.generalSkillPreview(unitID: commanderID)
+    expect(!blockedSkillPreview.isExecutable, "Tactical fixture must exclude skills")
+    if order == .forcedMarch {
+        expect(projection.attackTargets(for: commanderID).isEmpty, "March fixture must exclude direct attacks")
+        expect(destination == Position(x: 6, y: 1), "March should select the corridor's only attack landing")
+        for alternative in [TacticalOrder.balanced, .assault, .defensive] {
+            var alternativeState = projection
+            _ = try alternativeState.setTacticalOrder(unitID: commanderID, order: alternative)
+            expect(!alternativeState.reachablePositions(for: commanderID).contains(destination), "Only march budget should reach the attack landing")
+        }
+    } else {
+        expect(destination == origin, "Direct tactical attack must not move before attacking")
+        var previews: [TacticalOrder: CombatPreview] = [:]
+        for alternative in TacticalOrder.allCases {
+            var alternativeState = projection
+            _ = try alternativeState.setTacticalOrder(unitID: commanderID, order: alternative)
+            previews[alternative] = try alternativeState.attackPreview(attackerID: commanderID, defenderID: targetID)
+            if order == .assault {
+                let decoyPreview = try alternativeState.attackPreview(attackerID: commanderID, defenderID: "tactical-decoy")
+                expect(!decoyPreview.defeatsDefender, "High-value competing target must remain nonlethal in every posture")
+            }
+        }
+        if order == .assault {
+            expect(previews[.assault]?.defeatsDefender == true, "Assault fixture must prove a kill")
+            expect([TacticalOrder.balanced, .defensive, .forcedMarch].allSatisfy { previews[$0]?.defeatsDefender == false }, "Only assault may kill the chosen target")
+        } else {
+            expect(previews.values.allSatisfy { !$0.defeatsDefender }, "Survival fixture must exclude every kill candidate")
+            expect(previews[.assault]?.attackerFalls == true, "Assault counterattack must kill the survival fixture attacker")
+            expect(previews[.defensive]?.attackerFalls == false, "Defensive counterattack must preserve the attacker")
+            expect((previews[.defensive]?.retaliation ?? 0) < (previews[.assault]?.retaliation ?? 0), "Defensive survival must come from reduced previewed retaliation")
+        }
+    }
+    _ = try projection.setTacticalOrder(unitID: commanderID, order: intent.tacticalOrder)
+    if destination != origin {
+        expect(projection.reachablePositions(for: commanderID).contains(destination), "Chosen march landing must be truly reachable")
+        expect(projection.reachablePositions(for: commanderID).allSatisfy { projection.tile(at: $0)?.terrain == .plains && projection.unit(at: $0) == nil }, "March must not cross water or enter occupied tiles")
+        _ = try projection.moveUnit(id: commanderID, to: destination)
+    }
+    let preview = try projection.attackPreview(attackerID: commanderID, defenderID: targetID)
+    expect(intent.projectedDamage == preview.damage, "Tactical intent damage must reuse the chosen combat preview")
+    let plans = state.aiOperationalPlanReports(against: .rome, perFactionLimit: 4, limit: 5)
+    let step = plans.flatMap { $0.steps }.first { $0.unitID == commanderID }
+    let threats = state.enemyCommanderThreatReports(against: .rome, limit: 5)
+    let threat = threats.first { $0.unitID == commanderID }
+    expect(step?.intentKind == intent.kind && step?.tacticalOrder == intent.tacticalOrder, "Plan must reuse tactical kind and posture")
+    expect(step?.origin == origin && step?.destination == destination && step?.targetUnitID == targetID, "Plan must reuse tactical origin, landing and target")
+    expect(step?.projectedDamage == preview.damage && threat?.projectedDamage == preview.damage, "Plan and threat damage must equal the unique preview")
+    expect(threat?.intentKind == intent.kind && threat?.position == origin && threat?.destination == destination && threat?.targetUnitID == targetID, "Enemy commander threat must reuse the tactical action")
+    expect(step?.targetPosition == state.unit(withID: targetID)?.position && threat?.targetPosition == step?.targetPosition, "Plan and threat must point to the actual target tile")
+    expect(state.aiIntents(for: .carthage, limit: 4) == intents, "Tactical intent reads must be deterministic")
+    expect(state.aiOperationalPlanReports(against: .rome, perFactionLimit: 4, limit: 5) == plans, "Tactical plan reads must be deterministic")
+    expect(state.enemyCommanderThreatReports(against: .rome, limit: 5) == threats && state == before, "Tactical threat reads must be deterministic and pure")
+
+    var resolution = state
+    resolution.activeFaction = .carthage
+    _ = resolution.performSimpleAI(for: .carthage)
+    expect(resolution.unit(withID: commanderID)?.resolvedTacticalOrder == intent.tacticalOrder, "Real AI must execute the previewed posture")
+    expect(resolution.unit(withID: commanderID)?.position == destination, "Real AI must execute the previewed landing")
+    expect(resolution.unit(withID: commanderID)?.health == preview.attackerRemainingHealth, "Real AI retaliation must equal the chosen preview")
+    expect(resolution.unit(withID: commanderID)?.hasActed == true && resolution.unit(withID: commanderID)?.hasMoved == true, "Real AI attack must consume both action flags")
+    expect(resolution.unit(withID: commanderID)?.generalSkillCooldownRemaining == 3, "Real tactical attack must not refresh or consume skill cooldown")
+    if preview.defeatsDefender {
+        expect(resolution.unit(withID: targetID) == nil && preview.retaliation == 0, "Previewed kill must remove only the target without retaliation")
+    } else {
+        expect(resolution.unit(withID: targetID)?.health == preview.defenderRemainingHealth, "Real AI target health must equal previewed damage")
+    }
+    expect(resolution.unit(withID: "tactical-decoy") == state.unit(withID: "tactical-decoy"), "AI must leave the competing nonlethal target untouched")
+}
+
 do {
+    try verifyAITacticalActionSmoke(order: .assault)
+    try verifyAITacticalActionSmoke(order: .defensive)
+    try verifyAITacticalActionSmoke(order: .forcedMarch)
+
     var movementState = GameState.newCampaign()
     let moveMessages = try movementState.moveUnit(id: "rome-legion-1", to: Position(x: 5, y: 2))
     expect(movementState.city(withID: "massilia")?.owner == .rome, "Rome should capture Massilia")
@@ -371,6 +502,12 @@ do {
     for index in captureIntentState.cities.indices where captureIntentState.cities[index].id != "massilia" {
         captureIntentState.cities[index].owner = .carthage
     }
+    // Keep the neutral-city forecast in a live campaign, matching Swift Testing.
+    if let romeIndex = captureIntentState.cities.firstIndex(where: { $0.id == "rome" }) {
+        captureIntentState.cities[romeIndex].owner = .rome
+        captureIntentState.cities[romeIndex].position = Position(x: 11, y: 7)
+    }
+    expect(!captureIntentState.campaignStatus.isGameOver, "City capture fixture must start in an ongoing campaign")
     let captureBefore = captureIntentState
     let captureIntent = captureIntentState.aiIntents(for: .carthage, limit: 1).first
     expect(captureIntent?.kind == .captureCity, "Enemy intent should predict city capture")

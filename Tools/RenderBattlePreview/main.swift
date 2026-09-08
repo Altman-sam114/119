@@ -9,6 +9,8 @@ struct RenderBattlePreview {
         let outputPath = arguments.first ?? "DerivedData/battle-landscape-preview.png"
         let width = arguments.dropFirst().first.flatMap(Double.init) ?? 932
         let height = arguments.dropFirst(2).first.flatMap(Double.init) ?? 430
+        // Data-only fixtures never touch the five screenshot contexts below.
+        try verifyAITacticalActionPreviewChain()
         let viewModel = GameViewModel()
         viewModel.isShowingMenu = false
         viewModel.state.units = [
@@ -3692,6 +3694,204 @@ struct RenderBattlePreview {
             palette.contrast > 90
     }
 
+    private static func aiTacticalActionPreviewFixture(order: TacticalOrder) -> GameState {
+        var state = GameState.newCampaign()
+        state.tiles = state.tiles.map { Tile(position: $0.position, terrain: .plains) }
+        state.cities = [
+            City(id: "rome", name: "罗马", position: Position(x: 11, y: 7),
+                 owner: .rome, production: .zero, fortification: 0)
+        ]
+        state.resources[.carthage] = .zero
+        state.researchedTechnologies[.carthage] = []
+        state.researchedTechnologies[.rome] = []
+        state.activeFaction = .rome
+        state.units = [
+            ArmyUnit(id: "tactical-commander", kind: .legion, faction: .carthage,
+                     position: order == .forcedMarch ? Position(x: 1, y: 1) : Position(x: 3, y: 3),
+                     health: order == .defensive ? 10 : 100,
+                     generalName: "战术夹具将领", generalTrait: .siegeEngineer,
+                     generalSkillCooldownRemaining: 3),
+            ArmyUnit(id: "tactical-target", kind: order == .defensive ? .cavalry : .legion,
+                     faction: .rome,
+                     position: order == .forcedMarch ? Position(x: 7, y: 1) : Position(x: 4, y: 3),
+                     health: order == .assault ? 25 : (order == .defensive ? 88 : 12))
+        ]
+        if order == .assault {
+            state.units.append(ArmyUnit(id: "tactical-decoy", kind: .archer, faction: .rome,
+                                       position: Position(x: 2, y: 3), health: 72, experience: 10,
+                                       generalName: "高价值非致死目标", generalTrait: .siegeEngineer))
+        }
+        if order == .forcedMarch {
+            state.tiles = state.tiles.map { tile in
+                let isCorridor = tile.position.y == 1 && (1...7).contains(tile.position.x)
+                let isRomanCity = tile.position == Position(x: 11, y: 7)
+                return Tile(position: tile.position, terrain: isCorridor || isRomanCity ? .plains : .water)
+            }
+        }
+        return state
+    }
+
+    private static func verifyAITacticalActionPreviewChain() throws {
+        for order in [TacticalOrder.assault, .defensive, .forcedMarch] {
+            emitPreviewDiagnostic("AI tactical action preview chain: \(order.rawValue)")
+            let model = GameViewModel()
+            model.state = aiTacticalActionPreviewFixture(order: order)
+            let before = model.state
+            let selectedUnitBefore = model.selectedUnitID
+            let selectedPositionBefore = model.selectedPosition
+            let encoder = JSONEncoder()
+            encoder.outputFormatting = [.sortedKeys]
+            let archiveBefore = try encoder.encode(before)
+            let intents = model.state.aiIntents(for: .carthage, limit: 4)
+            guard intents.count == 1,
+                  let intent = intents.first,
+                  intent.unitID == "tactical-commander",
+                  intent.tacticalOrder == order,
+                  intent.targetUnitID == "tactical-target",
+                  intent.kind == (order == .forcedMarch ? .advanceAttack : .attack),
+                  let source = model.state.unit(withID: intent.unitID),
+                  let target = model.state.unit(withID: "tactical-target"),
+                  let destination = intent.destination else {
+                throw PreviewRenderError.missingAITacticalActionPreviewChain
+            }
+            var projection = model.state
+            projection.activeFaction = .carthage
+            let blockedSkill = try projection.generalSkillPreview(unitID: source.id)
+            guard !blockedSkill.isExecutable, blockedSkill.cooldownRemaining == 3 else {
+                throw PreviewRenderError.missingAITacticalActionPreviewChain
+            }
+            if order == .forcedMarch {
+                guard destination == Position(x: 6, y: 1),
+                      projection.attackTargets(for: source.id).isEmpty else {
+                    throw PreviewRenderError.missingAITacticalActionPreviewChain
+                }
+                for alternative in [TacticalOrder.balanced, .assault, .defensive] {
+                    var alternativeState = projection
+                    _ = try alternativeState.setTacticalOrder(unitID: source.id, order: alternative)
+                    guard !alternativeState.reachablePositions(for: source.id).contains(destination) else {
+                        throw PreviewRenderError.missingAITacticalActionPreviewChain
+                    }
+                }
+            } else {
+                guard destination == source.position else {
+                    throw PreviewRenderError.missingAITacticalActionPreviewChain
+                }
+                var previews: [TacticalOrder: CombatPreview] = [:]
+                for alternative in TacticalOrder.allCases {
+                    var alternativeState = projection
+                    _ = try alternativeState.setTacticalOrder(unitID: source.id, order: alternative)
+                    previews[alternative] = try alternativeState.attackPreview(attackerID: source.id, defenderID: target.id)
+                    if order == .assault {
+                        let decoy = try alternativeState.attackPreview(attackerID: source.id, defenderID: "tactical-decoy")
+                        guard !decoy.defeatsDefender else {
+                            throw PreviewRenderError.missingAITacticalActionPreviewChain
+                        }
+                    }
+                }
+                if order == .assault {
+                    guard previews[.assault]?.defeatsDefender == true,
+                          [TacticalOrder.balanced, .defensive, .forcedMarch].allSatisfy({ previews[$0]?.defeatsDefender == false }) else {
+                        throw PreviewRenderError.missingAITacticalActionPreviewChain
+                    }
+                } else {
+                    guard previews.values.allSatisfy({ !$0.defeatsDefender }),
+                          previews[.assault]?.attackerFalls == true,
+                          previews[.defensive]?.attackerFalls == false,
+                          let defensive = previews[.defensive], let assault = previews[.assault],
+                          defensive.retaliation < assault.retaliation else {
+                        throw PreviewRenderError.missingAITacticalActionPreviewChain
+                    }
+                }
+            }
+            _ = try projection.setTacticalOrder(unitID: source.id, order: order)
+            if destination != source.position {
+                let reachable = projection.reachablePositions(for: source.id)
+                guard reachable.contains(destination),
+                      reachable.allSatisfy({ projection.tile(at: $0)?.terrain == .plains && projection.unit(at: $0) == nil }) else {
+                    throw PreviewRenderError.missingAITacticalActionPreviewChain
+                }
+                _ = try projection.moveUnit(id: source.id, to: destination)
+            }
+            let preview = try projection.attackPreview(attackerID: source.id, defenderID: target.id)
+            let plans = model.aiOperationalPlanSummaries.map(\.report)
+            let threats = model.enemyCommanderThreatSummaries.map(\.report)
+            guard let step = plans.flatMap({ $0.steps }).first(where: { $0.unitID == source.id }),
+                  let threat = threats.first(where: { $0.unitID == source.id }),
+                  let intentOverlay = model.enemyIntentMapOverlays.first(where: { $0.unitID == source.id }),
+                  let threatOverlay = model.enemyCommanderThreatMapOverlays.first(where: { $0.id == source.id }),
+                  intent.projectedDamage == preview.damage,
+                  step.intentKind == intent.kind, step.tacticalOrder == order,
+                  step.origin == source.position, step.destination == destination,
+                  step.targetUnitID == target.id, step.targetPosition == target.position,
+                  step.projectedDamage == preview.damage,
+                  threat.intentKind == intent.kind, threat.position == source.position,
+                  threat.destination == destination, threat.targetUnitID == target.id,
+                  threat.targetPosition == target.position, threat.projectedDamage == preview.damage,
+                  !threat.skillReady,
+                  intentOverlay.summary.intent == intent,
+                  intentOverlay.originPosition == source.position,
+                  intentOverlay.destinationPosition == destination,
+                  intentOverlay.targetPosition == target.position,
+                  intentOverlay.impactLabel == "预计伤害\(preview.damage)",
+                  threatOverlay.summary.report == threat,
+                  threatOverlay.id == source.id,
+                  threatOverlay.impactLabel == threat.impact,
+                  threatOverlay.position == source.position,
+                  threatOverlay.destination == destination,
+                  threatOverlay.targetPosition == target.position,
+                  threatOverlay.positionOverlays.contains(where: { $0.role == .target && $0.position == target.position }),
+                  threatOverlay.routeSegments.contains(where: { $0.isTargetLeg && $0.from == destination && $0.to == target.position }) else {
+                throw PreviewRenderError.missingAITacticalActionPreviewChain
+            }
+            // Reasons need posture plus a preview-backed fact, not merely nonempty prose.
+            let threatExplanation = ([threat.detail, threat.impact] + threat.reasons).joined(separator: " · ")
+            guard step.detail.contains(order.displayName),
+                  step.detail.contains("\(preview.damage)"),
+                  threatExplanation.contains(order.displayName),
+                  threatExplanation.contains("\(preview.damage)") else {
+                throw PreviewRenderError.missingAITacticalActionPreviewChain
+            }
+            switch order {
+            case .assault:
+                guard preview.defeatsDefender, preview.retaliation == 0,
+                      step.detail.contains("击杀"), threatExplanation.contains("击杀") else {
+                    throw PreviewRenderError.missingAITacticalActionPreviewChain
+                }
+            case .defensive:
+                guard !preview.attackerFalls, preview.retaliation > 0,
+                      step.detail.contains("反击"), step.detail.contains("\(preview.retaliation)"),
+                      threatExplanation.contains("反击"), threatExplanation.contains("\(preview.retaliation)") else {
+                    throw PreviewRenderError.missingAITacticalActionPreviewChain
+                }
+            case .forcedMarch:
+                let movementSegments = intentOverlay.routeSegments.filter { !$0.isTargetLeg }
+                guard step.detail.contains(destination.description),
+                      threatExplanation.contains(destination.description),
+                      movementSegments.count == 5,
+                      movementSegments.first?.from == source.position,
+                      movementSegments.last?.to == destination,
+                      movementSegments.allSatisfy({ $0.from.hexDistance(to: $0.to) == 1 && before.tile(at: $0.to)?.terrain == .plains }),
+                      zip(movementSegments, movementSegments.dropFirst()).allSatisfy({ $0.0.to == $0.1.from }),
+                      threatOverlay.routeSegments.contains(where: { !$0.isTargetLeg && $0.from == source.position && $0.to == destination }) else {
+                    throw PreviewRenderError.missingAITacticalActionPreviewChain
+                }
+            case .balanced:
+                throw PreviewRenderError.missingAITacticalActionPreviewChain
+            }
+            guard model.state.aiIntents(for: .carthage, limit: 4) == intents,
+                  model.aiOperationalPlanSummaries.map(\.report) == plans,
+                  model.enemyCommanderThreatSummaries.map(\.report) == threats,
+                  model.enemyIntentMapOverlays.first(where: { $0.unitID == source.id })?.summary.intent == intent,
+                  model.enemyCommanderThreatMapOverlays.first(where: { $0.id == source.id })?.summary.report == threat,
+                  model.selectedUnitID == selectedUnitBefore,
+                  model.selectedPosition == selectedPositionBefore,
+                  model.state == before,
+                  try encoder.encode(model.state) == archiveBefore else {
+                throw PreviewRenderError.missingAITacticalActionPreviewChain
+            }
+        }
+    }
+
     private static func emitPreviewDiagnostic(_ message: String) {
         FileHandle.standardError.write(Data("\(message)\n".utf8))
     }
@@ -3750,6 +3950,7 @@ enum PreviewRenderError: Error {
     case missingAIOperationalPlanSummary
     case missingAIOperationalPlanTimelineReadout
     case missingAIMoveSkillPreviewChain
+    case missingAITacticalActionPreviewChain
     case missingEnemyCommanderThreatSummary
     case missingEnemyCommanderThreatMapOverlay
     case missingActiveEnemyCommanderThreatPrimary

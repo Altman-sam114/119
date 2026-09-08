@@ -40,6 +40,7 @@ const requiredFiles = [
   "md/prompt/v0（玩法推进）/v0.67（反制决策确认闭环）.md"
   ,"md/prompt/v0（玩法推进）/v0.68（地图视觉层级与上下文命令坞）.md"
   ,"md/prompt/v0（玩法推进）/v0.69（AI将领机动施令与同源预演）.md"
+  ,"md/prompt/v0（玩法推进）/v0.70（AI战术姿态同源预演与计划威胁桥接）.md"
 ];
 
 const failures = [];
@@ -92,13 +93,69 @@ for (const token of ["moveUnit", "attack", "attackPreview", "CombatPreview", "re
   }
 }
 for (const [label, pattern] of [
-  ["capture-aware skill projection", /private func aiGeneralSkillProjection\([\s\S]*?projected\.captureCityIfPossible\([\s\S]*?projected\.evaluateCampaignProgress\(\)/],
+  ["capture-aware skill projection", /private func aiGeneralSkillProjection\([\s\S]*?aiActionProjection\(for: unit, destination: destination\)[\s\S]*?projection\.state\.generalSkillPreview\(for: projection\.unit\)/],
+  ["capture-aware shared action projection", /private func aiActionProjection\([\s\S]*?projected\.captureCityIfPossible\([\s\S]*?projected\.evaluateCampaignProgress\(\)/],
   ["plan landing-preview reuse", /private func aiPlanStepReport\([\s\S]*?aiGeneralSkillProjection\(for: skillPlanningUnit, destination: destination\)\.preview/],
   ["threat landing-preview reuse", /private func enemyCommanderThreatReport\([\s\S]*?if intent\?\.kind == \.useSkill[\s\S]*?aiGeneralSkillProjection\(/],
-  ["real move then skill re-preview", /performSimpleAI\(for faction:[\s\S]*?moveUnit\(id: unitID, to: skillCandidate\.destination\)[\s\S]*?shouldAIUseGeneralSkill\(movedUnit\)[\s\S]*?useGeneralSkill\(unitID: unitID\)/]
+  ["real move then skill re-preview", /performSimpleAI\(for faction:[\s\S]*?case \.moveSkill, \.movement:[\s\S]*?candidate\.intent\.destination[\s\S]*?moveUnit\(id: unitID, to: destination\)[\s\S]*?guard !campaignStatus\.isGameOver[\s\S]*?candidate\.tier == \.moveSkill[\s\S]*?generalSkillPreview\(for: movedUnit\)[\s\S]*?shouldAIUseGeneralSkill\(movedUnit, preview: preview\)[\s\S]*?useGeneralSkill\(unitID: unitID\)/]
 ]) {
   if (!pattern.test(core)) {
     failures.push(`Core game state does not include ${label}`);
+  }
+}
+
+// Scope data-flow assertions to actual function bodies so an unrelated helper
+// or a later declaration cannot satisfy a missing caller edge.
+function coreFunction(name) {
+  return core.match(new RegExp(`^    (?:public|private) (?:mutating )?func ${name}\\([\\s\\S]*?^    \\}`, "m"))?.[0] ?? "";
+}
+for (const [name, tokens] of [
+  ["aiIntent", ["bestAITacticalAction(for: unit, favoring: [])?.intent"]],
+  ["performSimpleAI", ["bestAITacticalAction(for: actingUnit, favoring: engagedTargetIDs)", "order: candidate.intent.tacticalOrder", "switch candidate.tier", "candidate.intent.targetUnitID", "engagedTargetIDs.insert(targetID)"]],
+  ["bestAITacticalAction", [
+    "unit.faction == activeFaction", "!unit.hasActed",
+    "unit.hasMoved ? [unit.resolvedTacticalOrder] : TacticalOrder.allCases",
+    "if shouldAIRest(unit)", "shouldAIUseGeneralSkill(unit, preview: preview)",
+    "bestAITarget(for: $0, origin: unit.position, favoring: engagedTargetIDs, targets: directTargets)",
+    "if reachableByBudget[budget] == nil", "reachableByBudget[budget] = reachablePositions(for: ordered)",
+    "reachableByBudget: reachableByBudget, enemies: enemies", "objectives: objectives, enemies: enemies, favoring: engagedTargetIDs"
+  ]],
+  ["aiAttackEvaluations", ["aiCombatPreview(attacker: unit, defender: defender)", "defender: defender, preview: preview", "engagedTargetIDs: engagedTargetIDs"]],
+  ["bestAITarget", ["hasKillableTarget", "!hasKillableTarget || $0.preview.defeatsDefender", "projectedDamage: attack.preview.damage", "combatPreview: attack.preview", "attack.preview.retaliation * aiRetaliationWeight(for: unit)"]],
+  ["bestAIDestination", ["let candidates = reachable.map", "aiActionProjection(for: unit, destination: destination)", "projection.state.campaignStatus.isGameOver", "for: movedUnit, targets: targets, favoring: engagedTargetIDs", "attacks: attacks, objectives: objectives, enemies: enemies", "targets: targets, evaluations: attacks", "preferredAICandidate(candidates, currentOrder: unit.resolvedTacticalOrder)"]],
+  ["bestAIGeneralSkillCandidate", ["unit.generalSkillCooldownRemaining == 0", "reachableByBudget.values.reduce", "aiGeneralSkillCandidate(for: unit, destination: $0, reachable: reachable)", "legalDestinations.contains(skillCandidate.destination)", "skillPreview: skillCandidate.preview"]],
+  ["aiPlanningUnit", ["hasMoved: hasMoved ?? unit.hasMoved", "hasActed: hasActed ?? unit.hasActed"]],
+  ["aiActionProjection", ["hasMoved: isMovement || unit.hasMoved", "projected.captureCityIfPossible", "projected.evaluateCampaignProgress()"]],
+  ["aiPlanStepDetail", ["aiTacticalActionExplanation(for: intent, unit: unit, skillPreview: skillPreview)"]],
+  ["enemyCommanderThreatReport", ["aiTacticalActionExplanation(for: $0, unit: unit, skillPreview: skillPreview)", "reasons.append(tacticalExplanation)", "待命技能："]],
+  ["aiTacticalActionExplanation", ["aiPlanningUnit(from: unit, order: intent.tacticalOrder)", "let targetID = intent.targetUnitID", "aiActionProjection(for: planningUnit, destination: destination)", "projection.state.attackPreview(attackerID: unit.id, defenderID: targetID)", "preview.defeatsDefender", "!preview.attackerFalls", "preview.retaliation", "skillPreview?.summary"]]
+]) {
+  const body = coreFunction(name);
+  for (const token of tokens) {
+    if (!body.includes(token)) failures.push(`Core ${name} data flow does not include ${token}`);
+  }
+}
+for (const name of ["bestAIDestination", "bestAIGeneralSkillCandidate", "aiPositionScore", "aiTacticalActionPrecedes", "aiAttackScore"]) {
+  const body = coreFunction(name);
+  if (/reachablePositions\(|aiIntents\(|aiOperationalPlanReports\(/.test(body) ||
+      (["aiPositionScore", "aiTacticalActionPrecedes", "aiAttackScore"].includes(name) && /aiCombatPreview\(|attackPreview\(/.test(body))) {
+    failures.push(`Core ${name} must reuse local reachability/previews without reentering search or reports`);
+  }
+}
+if (core.includes("preferredAITacticalOrder") || /hasActed:\s*false/.test(coreFunction("aiActionProjection"))) {
+  failures.push("Core must not retain the old posture selector or revive spent actions in projection");
+}
+const tacticalRanking = coreFunction("aiTacticalActionPrecedes");
+if (!/left\.tier\.rawValue < right\.tier\.rawValue[\s\S]*?if leftKills != rightKills[\s\S]*?if leftFalls != rightFalls[\s\S]*?if left\.score != right\.score/.test(tacticalRanking)) {
+  failures.push("Tactical ranking must compare hard tier, kill, survival, then score in that order");
+}
+if (!/private enum AITacticalActionTier: Int\s*\{\s*case rest, originalSkill, directAttack, moveSkill, movement, hold\s*\}/.test(core) ||
+    !/private struct AITacticalActionCandidate\s*\{[\s\S]*?var combatPreview: CombatPreview\?[\s\S]*?var skillPreview: GeneralSkillPreview\?/.test(core)) {
+  failures.push("Core must preserve the private tactical candidate previews and hard action-tier order");
+}
+for (const name of ["aiPlanStepReport", "aiPlanStepDetail", "enemyCommanderThreatReport", "aiTacticalActionExplanation"]) {
+  if (/bestAITacticalAction\(|bestAITarget\(|aiIntents\(|aiIntentReports\(|aiOperationalPlanReports\(|enemyCommanderThreatReports\(/.test(coreFunction(name))) {
+    failures.push(`Core ${name} must explain the selected intent without reentering decision/report selection`);
   }
 }
 
@@ -135,13 +192,84 @@ for (const token of ["commandDockSecondaryTarget", "selectedAttackTargetID", "se
 }
 
 const gameplaySmoke = readFileSync("Tools/GameplaySmoke/main.swift", "utf8");
+if (!/try verifyAITacticalActionPreviewChain\(\)[\s\S]*?let viewModel = GameViewModel\(\)/.test(renderPreview)) {
+  failures.push("RenderBattlePreview must run isolated tactical data checks before creating screenshot state");
+}
+const tacticalRender = renderPreview.match(/^    private static func verifyAITacticalActionPreviewChain\([\s\S]*?^    \}/m)?.[0] ?? "";
+for (const token of [
+  "[TacticalOrder.assault, .defensive, .forcedMarch]",
+  "missingAITacticalActionPreviewChain",
+  "intent.projectedDamage == preview.damage",
+  "step.projectedDamage == preview.damage",
+  "threat.projectedDamage == preview.damage",
+  "intentOverlay.summary.intent == intent",
+  "threatOverlay.summary.report == threat",
+  'step.detail.contains("击杀")',
+  'step.detail.contains("反击")',
+  "step.detail.contains(destination.description)",
+  "movementSegments.count == 5",
+  "movementSegments.first?.from == source.position",
+  "movementSegments.last?.to == destination",
+  "$0.from.hexDistance(to: $0.to) == 1",
+  "zip(movementSegments, movementSegments.dropFirst()).allSatisfy({ $0.0.to == $0.1.from })",
+  "threatOverlay.routeSegments.contains(where: { !$0.isTargetLeg && $0.from == source.position && $0.to == destination })",
+  "model.state == before",
+  "try encoder.encode(model.state) == archiveBefore"
+]) {
+  if (!tacticalRender.includes(token)) {
+    failures.push(`RenderBattlePreview tactical intent/plan/threat/map chain does not include ${token}`);
+  }
+}
 for (const token of ["moveSkillIntent", "moveSkillPreview", "moveSkillPlan", "moveSkillThreat", "killPriorityIntent", "campaignEndMoveSkillState"]) {
   if (!gameplaySmoke.includes(token)) {
     failures.push(`Gameplay smoke does not include ${token}`);
   }
 }
+for (const order of ["assault", "defensive", "forcedMarch"]) {
+  if (!gameplaySmoke.includes(`try verifyAITacticalActionSmoke(order: .${order})`)) {
+    failures.push(`Gameplay smoke must invoke the isolated ${order} tactical action fixture`);
+  }
+}
+const tacticalSmoke = gameplaySmoke.match(/^func verifyAITacticalActionSmoke\([\s\S]*?^\}/m)?.[0] ?? "";
+for (const token of [
+  "previews[.assault]?.defeatsDefender == true",
+  "previews.values.allSatisfy { !$0.defeatsDefender }",
+  "previews[.assault]?.attackerFalls == true",
+  "previews[.defensive]?.attackerFalls == false",
+  "!alternativeState.reachablePositions(for: commanderID).contains(destination)",
+  "intent.projectedDamage == preview.damage",
+  "step?.projectedDamage == preview.damage && threat?.projectedDamage == preview.damage",
+  "state.enemyCommanderThreatReports(against: .rome, limit: 5) == threats && state == before",
+  "resolution.performSimpleAI(for: .carthage)",
+  "resolution.unit(withID: commanderID)?.health == preview.attackerRemainingHealth",
+  "resolution.unit(withID: targetID)?.health == preview.defenderRemainingHealth"
+]) {
+  if (!tacticalSmoke.includes(token)) {
+    failures.push(`Gameplay smoke tactical action chain does not include ${token}`);
+  }
+}
 
 const coreTests = readFileSync("Tests/RomeLegionsCoreTests/GameStateTests.swift", "utf8");
+const requiredTacticalTests = [
+  "aiTacticalAssaultJointKillMatchesPreviewAndResolution",
+  "aiTacticalDefensiveSurvivalMatchesReportsAndResolution",
+  "aiTacticalForcedMarchUsesOnlyLegalLanding",
+  "aiTacticalDirectKillKeepsMovementSkillBelowAttackTier",
+  "aiTacticalRestKeepsPriorityOverSkillAndAttack",
+  "aiTacticalMovedUnitCannotAdoptBetterIllegalOrder",
+  "aiTacticalActedUnitNeverRefreshesDuringExecution",
+  "aiTacticalReportsRemainStableAcrossTiesAndStorageOrder",
+  "aiTacticalMovementKillOutranksEngagedNonLethalTarget",
+  "aiTacticalTerminalAndWrongFactionStayInert"
+];
+for (const name of requiredTacticalTests) {
+  // Require an independent test declaration and expectations, not a helper,
+  // comment, or disabled test annotation containing the same name.
+  const testBody = coreTests.match(new RegExp(`^@Test func ${name}\\(\\)(?: throws)? \\{[\\s\\S]*?^\\}`, "m"))?.[0] ?? "";
+  if (!testBody.includes("#expect(")) {
+    failures.push(`Core tests must declare and assert the independent v0.70 test ${name}`);
+  }
+}
 for (const token of ["aiMoveThenGeneralSkillIntentMatchesPostMovePreviewAndResolution", "aiMoveThenGeneralSkillFeedsPlanAndThreatFromSamePreview", "aiImmediateKillOutranksProfitableMoveSkill", "aiReadyOriginalSkillKeepsExistingPriority", "aiMoveSkillRespectsCooldownAndNoDestinationFallback", "aiMoveSkillProjectionStopsAtCampaignEndingCapture"]) {
   if (!coreTests.includes(token)) {
     failures.push(`Core tests do not include ${token}`);
@@ -189,8 +317,36 @@ for (const token of ["RomeLegions CI Results", "branches:", "main", "ci-artifact
     failures.push(`.github/workflows/ci-results.yml does not include ${token}`);
   }
 }
-if (!ciWorkflow.includes("CI_VERSION: v0.69")) {
-  failures.push(".github/workflows/ci-results.yml does not include CI_VERSION v0.69");
+if (!ciWorkflow.includes("CI_VERSION: v0.70")) {
+  failures.push(".github/workflows/ci-results.yml does not include CI_VERSION v0.70");
+}
+if (!/^\s+timeout-minutes: 75\s*$/m.test(ciWorkflow)) {
+  failures.push(".github/workflows/ci-results.yml must preserve the 75-minute job budget");
+}
+const requiredCIChecks = [
+  '["static-checks", outcomes.staticChecksOutcome, "ci-results/static-checks.log"]',
+  '["swift-tests", outcomes.swiftTestsOutcome, "ci-results/swift-test.log"]',
+  '["gameplay-smoke", outcomes.gameplaySmokeOutcome, "ci-results/gameplay-smoke.log"]',
+  '["render-battle-preview", outcomes.renderPreviewOutcome, "ci-results/render-battle-preview.log"]',
+  '["xcode-build", outcomes.buildOutcome, "ci-results/xcodebuild.log"]'
+];
+const declaredCIChecks = ciWorkflow.match(/const checks = \[([\s\S]*?)\n\s*\];/)?.[1]
+  .split("\n").map((line) => line.trim().replace(/,$/, "")).filter(Boolean) ?? [];
+if (JSON.stringify(declaredCIChecks) !== JSON.stringify(requiredCIChecks)) {
+  failures.push("CI JUnit metadata must preserve exactly the five configured checks and their outcome/log mappings");
+}
+for (const [stepID, outcomeVariable] of [
+  ["static_checks", "STATIC_OUTCOME"],
+  ["swift_tests", "SWIFT_TESTS_OUTCOME"],
+  ["gameplay_smoke", "GAMEPLAY_SMOKE_OUTCOME"],
+  ["render_preview", "RENDER_PREVIEW_OUTCOME"],
+  ["xcode_build", "XCODE_BUILD_OUTCOME"]
+]) {
+  if (!ciWorkflow.includes(`id: ${stepID}`) ||
+      !ciWorkflow.includes(`${outcomeVariable}: \${{ steps.${stepID}.outcome }}`) ||
+      !ciWorkflow.includes(`[ "$${outcomeVariable}" != "success" ]`)) {
+    failures.push(`CI must run ${stepID}, propagate its actual outcome and fail on non-success`);
+  }
 }
 const requiredRenderPreviewPaths = [
   "ci-results/render-previews/battle-landscape-preview.png",
@@ -213,7 +369,7 @@ const declaredRenderPreviewPaths = [...ciWorkflow.matchAll(
   /^\s+"(ci-results\/render-previews\/battle-[^"]+\.png)"[,]?$/gm
 )].map((match) => match[1]);
 if (JSON.stringify(declaredRenderPreviewPaths) !== JSON.stringify(requiredRenderPreviewPaths)) {
-  failures.push(".github/workflows/ci-results.yml must declare exactly the 15 v0.69 render preview paths");
+  failures.push(".github/workflows/ci-results.yml must preserve exactly the 15 render preview paths in v0.70");
 }
 
 if (failures.length > 0) {
