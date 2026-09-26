@@ -3914,6 +3914,15 @@ struct GeneralTraitCardView: View {
                     .clipShape(RoundedRectangle(cornerRadius: 5))
             }
 
+            HStack(spacing: 5) {
+                GeneralCardSignal(symbol: "person.fill", text: "特性", tint: BattlePalette.brassBright)
+                GeneralCardSignal(symbol: "flag.2.crossed.fill", text: "指挥", tint: BattlePalette.signal)
+                if warMeritStatus != nil {
+                    GeneralCardSignal(symbol: "rosette", text: "战功", tint: Color(red: 0.98, green: 0.82, blue: 0.36))
+                }
+                Spacer(minLength: 0)
+            }
+
             Text(trait.passiveDetail)
                 .font(.caption2.weight(.semibold))
                 .foregroundStyle(.white.opacity(0.66))
@@ -3998,6 +4007,25 @@ struct GeneralTraitCardView: View {
             RoundedRectangle(cornerRadius: 7)
                 .stroke(BattlePalette.brass.opacity(0.34), lineWidth: 1)
         }
+    }
+}
+
+private struct GeneralCardSignal: View {
+    var symbol: String
+    var text: String
+    var tint: Color
+
+    var body: some View {
+        Label(text, systemImage: symbol)
+            .font(.system(size: 9, weight: .black))
+            .foregroundStyle(tint)
+            .padding(.horizontal, 6)
+            .padding(.vertical, 3)
+            .background(tint.opacity(0.10))
+            .clipShape(Capsule())
+            .overlay {
+                Capsule().stroke(tint.opacity(0.24), lineWidth: 0.7)
+            }
     }
 }
 

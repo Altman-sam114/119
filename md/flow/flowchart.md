@@ -22,6 +22,21 @@ flowchart LR
 
 本文是 `md/flow/flow.md` 的可视化版本。每张图前都有中文读图说明，方便人工快速理解当前真实逻辑。
 
+## v0.73 战区坐标比例与将领卡信息层级
+
+读图说明：坐标刻度和比例尺跟随地图镜头，只提供战略参照；将领卡信号分组只消费已有派生读板，两条链路都不触碰核心规则。
+
+```mermaid
+flowchart LR
+    H[HexMetrics + 地图容器] --> C[MapCartographyGridView\n经纬 / 内框 / 罗盘 / 坐标刻度]
+    H --> S[MapScaleBarView\n1格比例 / 方位]
+    C --> M[WarMapView 地图空间]
+    S --> M
+    R[GeneralTrait + Brief + WarMerit] --> G[GeneralTraitCardView]
+    G --> T[GeneralCardSignal\n特性 / 指挥 / 战功]
+    T --> P[将领读板与既有命令入口]
+```
+
 ## v0.71 青铜军令台表现层
 
 读图说明：`BattlePalette` 只负责展示 token，不接触规则；多个 SwiftUI 壳层共享同一组颜色和层级，命令仍沿原 ViewModel 入口流向核心状态。

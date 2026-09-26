@@ -21,6 +21,33 @@
 
 ## 历史记录
 
+### v0.73 / 战区坐标比例与将领卡信息层级
+
+日期：2026-09-26
+
+核心变更：
+
+- `MapCartographyGridView` 增加低对比边缘坐标刻度；`MapScaleBarView` 提供“1格 · 战区比例”和方位参照，跟随 `HexMetrics` 镜头、不参与命中测试，也不写入核心状态。
+- `GeneralTraitCardView` 增加“特性 / 指挥 / 战功”青铜军令台信号分组，继续消费原有将领特性、技能预览、战功和目标派生数据。
+- 未修改 `GameState`、AI、命令入口、15 张预览路径或用户保护文件。
+
+关键文件：
+
+- `RomeLegionsApp/Views/BattleMapView.swift`
+- `RomeLegionsApp/Views/BattlePanels.swift`
+- `.github/workflows/ci-results.yml`
+- `README.md`
+- `md/flow/flow.md`
+- `md/flow/flowchart.md`
+- `md/test/test.md`
+- `md/prompt/README.md`
+- `md/prompt/v0（玩法推进）/v0.73（战区坐标比例与将领卡信息层级）.md`
+
+验证状态：
+
+- 本地未运行测试、构建、RenderBattlePreview、结构检查、解析脚本或 `git diff --check`，符合当前云端-only 约束。
+- 已读取最新云端 run `36237056910`（commit `a8e6468`）：Static、SwiftPM、Gameplay Smoke、RenderBattlePreview、Xcode build 全部成功；v0.73 需以本轮 push 后最新 run/artifact 重新验收。
+
 ### v0.69 / AI 将领机动施令与同源预演
 
 日期：2026-08-24

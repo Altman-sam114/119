@@ -249,6 +249,18 @@ struct WarMapView: View {
                 .zIndex(5.05)
 
                 VStack {
+                    Spacer()
+                    HStack {
+                        MapScaleBarView(metrics: metrics)
+                        Spacer(minLength: 0)
+                    }
+                    .padding(.leading, 12)
+                    .padding(.bottom, 82)
+                }
+                .allowsHitTesting(false)
+                .zIndex(4.9)
+
+                VStack {
                     HStack {
                         BattlefieldStatusRibbonView()
                             .frame(
@@ -1653,8 +1665,69 @@ struct MapCartographyGridView: View {
                 with: .color(BattlePalette.brass.opacity(0.16)),
                 lineWidth: 0.8
             )
+
+            // Coordinate ticks make the battlefield feel like a campaign map
+            // while remaining subordinate to units and tactical overlays.
+            for index in 0...6 {
+                let progress = CGFloat(index) / 6
+                let x = frame.minX + frame.width * progress
+                context.fill(
+                    Path(CGRect(x: x - 0.5, y: frame.minY - 3, width: 1, height: 4)),
+                    with: .color(BattlePalette.brass.opacity(0.24))
+                )
+                context.draw(
+                    Text("\(index + 1)")
+                        .font(.system(size: 8, weight: .bold, design: .monospaced))
+                        .foregroundColor(BattlePalette.brass.opacity(0.38)),
+                    at: CGPoint(x: x, y: frame.minY - 8)
+                )
+            }
+            for index in 0...4 {
+                let progress = CGFloat(index) / 4
+                let y = frame.minY + frame.height * progress
+                context.fill(
+                    Path(CGRect(x: frame.minX - 3, y: y - 0.5, width: 4, height: 1)),
+                    with: .color(BattlePalette.brass.opacity(0.24))
+                )
+                context.draw(
+                    Text("\(index + 1)")
+                        .font(.system(size: 8, weight: .bold, design: .monospaced))
+                        .foregroundColor(BattlePalette.brass.opacity(0.38)),
+                    at: CGPoint(x: frame.minX - 8, y: y)
+                )
+            }
         }
         .allowsHitTesting(false)
+        .accessibilityHidden(true)
+    }
+}
+
+struct MapScaleBarView: View {
+    var metrics: HexMetrics
+
+    var body: some View {
+        HStack(spacing: 6) {
+            VStack(alignment: .leading, spacing: 2) {
+                HStack(spacing: 0) {
+                    Rectangle().fill(BattlePalette.brassBright).frame(width: max(20, metrics.tileWidth * 0.52), height: 2)
+                    Rectangle().fill(BattlePalette.ivory.opacity(0.78)).frame(width: max(20, metrics.tileWidth * 0.52), height: 2)
+                }
+                Text("1格 · 战区比例")
+                    .font(.system(size: 8, weight: .bold, design: .monospaced))
+                    .foregroundStyle(BattlePalette.ivory.opacity(0.70))
+            }
+            Image(systemName: "location.north.fill")
+                .font(.system(size: 10, weight: .black))
+                .foregroundStyle(BattlePalette.brassBright)
+        }
+        .padding(.horizontal, 7)
+        .padding(.vertical, 5)
+        .background(.black.opacity(0.52))
+        .clipShape(RoundedRectangle(cornerRadius: 5))
+        .overlay {
+            RoundedRectangle(cornerRadius: 5)
+                .stroke(BattlePalette.brass.opacity(0.24), lineWidth: 1)
+        }
         .accessibilityHidden(true)
     }
 }

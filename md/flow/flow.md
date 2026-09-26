@@ -4,6 +4,11 @@
 
 本文只记录当前真实链路，不写历史叙事。
 
+## v0.73 战区坐标比例与将领卡信息层级
+
+- `MapCartographyGridView` 继续复用 `HexMetrics` 的地图空间，并绘制低对比经纬曲线、内框、罗盘、边缘坐标刻度；`MapScaleBarView` 在地图空间底部提供一格比例和方位参照。两者均为只读表现层、禁用命中测试，跟随镜头缩放/拖移，不进入 `GameState`、存档或 AI。
+- `GeneralTraitCardView` 在既有将领派生数据上增加“特性 / 指挥 / 战功”信号分组，`GeneralCardSignal` 只负责视觉 token；技能、战功、目标和命令入口仍来自原有 `GameViewModel` readout。
+
 ## 当前核心数据流
 
 ### v0.71 战斗页青铜军令台表现层

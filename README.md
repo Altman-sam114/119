@@ -67,6 +67,7 @@
 - HUD 信号胶囊 UI 重构：地图侦察视角、敌情交战闭环和战役推进线读板共享同一 SwiftUI 信号胶囊组件，减少地图 HUD 重复样式，不改变信号数据来源或核心规则
 - v0.71 青铜军令台 UI 重构：`BattlePalette` 统一顶栏、底部命令坞、抽屉、边缘工具和地图情报坞的青铜/象牙/深色层级，加入按压态与双层边框，保持现有 ViewModel、命令入口、布局尺寸和可访问性语义；最新云端结果待本轮 push 后确认
 - v0.72 战略地图制图层与将领信息牌：地图在既有原创底图上加入低对比制图网格、内框和罗盘参照，六边格补充内缘高光；紧凑/完整将领卡复用青铜军令台 token 显示特性、军阶、技能和战功，规则与命令入口不变；最新云端结果待本轮 push 后确认
+- v0.73 战区坐标比例与将领卡信息层级：地图制图层增加边缘坐标刻度、战区比例尺和方位参照，继续跟随镜头且不参与命中；完整将领卡增加“特性 / 指挥 / 战功”信号分组，强化大征服者式军令牌阅读顺序，不新增规则、AI 或命令；最新云端结果待本轮 push 后确认
 - Codex 后续协作规范：`AGENTS.md`、`update_log.md`、`md/test/test.md`、`md/flow/flow.md`、`md/flow/flowchart.md` 和 `md/prompt/` 组成长期多 Agent 迭代文档系统，支持未来用 `agentx:` 主控调度 A/B/C 多轮循环
 - GitHub Actions 云端验证：`.github/workflows/ci-results.yml` 在 `main` push 时生成未加密 CI 结果包
 - 核心规则测试：`Tests/RomeLegionsCoreTests/GameStateTests.swift`
