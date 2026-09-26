@@ -2845,7 +2845,8 @@ struct RenderBattlePreview {
                     orderFixture = focusedCountermeasureFixture(
                         state: variantState,
                         matching: { preview in
-                            preview.id == candidate.id && orderPredicate(preview)
+                            preview.summary.report.responseUnitID == responseUnitID &&
+                                orderPredicate(preview)
                         }
                     )
                     if orderFixture != nil {
