@@ -2808,13 +2808,42 @@ struct RenderBattlePreview {
         in fixtureState: GameState,
         targetPreparedState: GameState
     ) throws {
-        guard let orderFixture = focusedCountermeasureFixture(
+        let orderPredicate: (CountermeasureCommandPreview) -> Bool = { preview in
+            preview.canSetOrder &&
+                preview.responseUnit?.resolvedTacticalOrder != preview.recommendedOrder
+        }
+        var orderFixture = focusedCountermeasureFixture(
             state: fixtureState,
-            matching: { preview in
-                preview.canSetOrder &&
-                    preview.responseUnit?.resolvedTacticalOrder != preview.recommendedOrder
+            matching: orderPredicate
+        )
+
+        // The primary fixture can legitimately begin with the recommended
+        // posture already selected. Build a data-only runtime fixture with the
+        // same response unit and countermeasure report, changing only its
+        // current posture so the single-step confirmation path has a real
+        // transition to verify. This keeps the production state untouched and
+        // avoids weakening the runtime assertion when AI scoring changes.
+        if orderFixture == nil {
+            let sourceViewModel = GameViewModel()
+            sourceViewModel.isShowingMenu = false
+            sourceViewModel.state = fixtureState
+            if let candidate = sourceViewModel.countermeasureCommandPreviews.first(where: { $0.canFocus }),
+               let responseUnitID = candidate.responseUnit?.id,
+               let alternativeOrder = TacticalOrder.allCases.first(where: { $0 != candidate.recommendedOrder }) {
+                var variantState = fixtureState
+                if let index = variantState.units.firstIndex(where: { $0.id == responseUnitID }) {
+                    variantState.units[index].tacticalOrder = alternativeOrder
+                    orderFixture = focusedCountermeasureFixture(
+                        state: variantState,
+                        matching: { preview in
+                            preview.id == candidate.id && orderPredicate(preview)
+                        }
+                    )
+                }
             }
-        ) else {
+        }
+
+        guard let orderFixture else {
             throw PreviewRenderError.missingCountermeasureOrderRuntimeConfirmation
         }
         let orderViewModel = orderFixture.viewModel

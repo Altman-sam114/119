@@ -6,6 +6,12 @@
 
 ## 当前核心数据流
 
+### v0.71 战斗页青铜军令台表现层
+
+- `BattlePalette` 位于 `BattleViewStyles.swift`，只集中定义战斗页的画布、面板、青铜强调、象牙正文、危险和信号颜色；它不持有 `GameState` 或 ViewModel，也不参与任何评分和命令判断。
+- `BattleView`、`BattleShellControls` 和 `BattleMapView` 复用同一组 token：顶栏与命令坞采用深色渐变和双层分隔线，抽屉与边缘工具采用青铜边框和选中态，地图情报坞采用 raised panel 渐变；原有布局 metrics、44pt 入口、抽屉内容、地图叠层和 accessibility label 保持不变。
+- v0.70 云端遗留的反制姿态 Render 门禁通过隔离姿态副本验证，结构门禁的同名函数匹配器按实际实现体检查。两者只修复验证工具，不改变生产核心规则。
+
 1. `RomeLegionsApp` 创建 `GameViewModel`，并通过 `.environmentObject(viewModel)` 注入根视图。
 2. `RootView` 根据 `viewModel.isShowingMenu` 展示 `MainMenuView` 或 `BattleView`。
 3. `MainMenuView` 调用 `viewModel.start(mode:)`，创建 `GameState.newCampaign(mode:)` 并进入战斗。

@@ -22,6 +22,26 @@ flowchart LR
 
 本文是 `md/flow/flow.md` 的可视化版本。每张图前都有中文读图说明，方便人工快速理解当前真实逻辑。
 
+## v0.71 青铜军令台表现层
+
+读图说明：`BattlePalette` 只负责展示 token，不接触规则；多个 SwiftUI 壳层共享同一组颜色和层级，命令仍沿原 ViewModel 入口流向核心状态。
+
+```mermaid
+flowchart LR
+    P[BattlePalette<br/>画布/面板/青铜/象牙/信号] --> T[TopBarView]
+    P --> D[SelectionCommandDockView]
+    P --> W[BattlefieldDrawerView]
+    P --> E[BattleEdgeToolsView]
+    P --> M[MapIntelligenceDockView]
+    T --> V[GameViewModel 只读资源/战役状态]
+    D --> V
+    W --> V
+    E --> L[SwiftUI 本地抽屉开关]
+    M --> V
+    D --> C[既有单步命令入口]
+    C --> G[GameState 核心规则]
+```
+
 ## v0.70 AI 姿态与行动同源选择
 
 读图说明：预测和真实执行进入同一个私有选择器，但前者使用明确刷新过的只读 forecast 与空集火记忆，后者使用当前状态和本回合 engaged 集合。先以行动 tier 剪枝，再按击杀、生存、收益及稳定顺序比较姿态+行动；移动可达格按预算局部复用，真实结算仍走公开命令并重验终局和尾随动作。

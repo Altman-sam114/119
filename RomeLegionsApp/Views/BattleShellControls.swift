@@ -165,13 +165,13 @@ struct BattleEdgeToolsView: View {
                 }
                 .labelStyle(.iconOnly)
                 .font(.caption.weight(.black))
-                .foregroundStyle(activeDrawer == category ? .black : .white)
+                .foregroundStyle(activeDrawer == category ? .black : BattlePalette.ivory)
                 .frame(width: visualSize, height: visualSize)
-                .background(activeDrawer == category ? Color(red: 0.91, green: 0.74, blue: 0.38) : .black.opacity(0.62))
+                .background(activeDrawer == category ? BattlePalette.brassBright : .black.opacity(0.62))
                 .clipShape(.rect(cornerRadius: 6))
                 .overlay {
                     RoundedRectangle(cornerRadius: 6)
-                        .stroke(activeDrawer == category ? .white.opacity(0.86) : .white.opacity(0.16), lineWidth: activeDrawer == category ? 1.5 : 1)
+                        .stroke(activeDrawer == category ? BattlePalette.ivory.opacity(0.86) : BattlePalette.brass.opacity(0.24), lineWidth: activeDrawer == category ? 1.5 : 1)
                 }
                 .overlay(alignment: .bottomTrailing) {
                     if activeDrawer == category {
@@ -187,7 +187,7 @@ struct BattleEdgeToolsView: View {
             }
         }
         .padding(2)
-        .background(.black.opacity(0.16))
+        .background(BattlePalette.panel.opacity(0.82))
         .clipShape(.rect(cornerRadius: 7))
     }
 }
@@ -212,13 +212,13 @@ struct BattlefieldDrawerView: View {
                 drawerLayout(for: layoutSize)
             }
         }
-        .background(Color(red: 0.11, green: 0.11, blue: 0.10).opacity(0.98))
+        .background(BattlePalette.panel.opacity(0.98))
         .clipShape(.rect(cornerRadius: 8))
         .overlay {
             RoundedRectangle(cornerRadius: 8)
-                .stroke(Color(red: 0.84, green: 0.66, blue: 0.32).opacity(0.42), lineWidth: 1)
+                .stroke(BattlePalette.brass.opacity(0.48), lineWidth: 1)
         }
-        .shadow(color: .black.opacity(0.48), radius: 16, x: -4, y: 6)
+        .shadow(color: .black.opacity(0.58), radius: 18, x: -4, y: 6)
         .accessibilityElement(children: .contain)
         .accessibilityLabel("\(category.title)战场抽屉")
     }
@@ -239,7 +239,7 @@ struct BattlefieldDrawerView: View {
         HStack(spacing: 10) {
             Label(category.title, systemImage: category.symbol)
                 .font(.headline.weight(.bold))
-                .foregroundStyle(.white)
+                .foregroundStyle(BattlePalette.ivory)
             Spacer(minLength: 0)
             Button("关闭抽屉", systemImage: "xmark") {
                 onClose()
@@ -250,7 +250,13 @@ struct BattlefieldDrawerView: View {
         }
         .padding(.horizontal, 10)
         .frame(width: drawerSize.width, height: height)
-        .background(Color(red: 0.18, green: 0.16, blue: 0.13))
+        .background {
+            LinearGradient(
+                colors: [BattlePalette.panelRaised, BattlePalette.panel],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+        }
     }
 
     @ViewBuilder
@@ -343,12 +349,23 @@ struct SelectionCommandDockView: View {
         }
         .frame(maxHeight: .infinity)
         .padding(.horizontal, 8)
-        .foregroundStyle(.white)
-        .background(Color(red: 0.105, green: 0.10, blue: 0.09).opacity(0.96))
+        .foregroundStyle(BattlePalette.ivory)
+        .background {
+            LinearGradient(
+                colors: [BattlePalette.panelRaised.opacity(0.98), BattlePalette.panel.opacity(0.98)],
+                startPoint: .top,
+                endPoint: .bottom
+            )
+        }
         .overlay(alignment: .top) {
-            Rectangle()
-                .fill(Color(red: 0.84, green: 0.66, blue: 0.32).opacity(0.68))
-                .frame(height: 1)
+            VStack(spacing: 0) {
+                Rectangle()
+                    .fill(BattlePalette.brass.opacity(0.82))
+                    .frame(height: 1)
+                Rectangle()
+                    .fill(.black.opacity(0.34))
+                    .frame(height: 1)
+            }
         }
     }
 
@@ -1026,11 +1043,22 @@ struct TopBarView: View {
         }
         .padding(.horizontal, 7)
         .frame(height: height)
-        .background(Color(red: 0.14, green: 0.13, blue: 0.11))
+        .background {
+            LinearGradient(
+                colors: [BattlePalette.panelRaised, BattlePalette.panel],
+                startPoint: .top,
+                endPoint: .bottom
+            )
+        }
         .overlay(alignment: .bottom) {
-            Rectangle()
-                .fill(.white.opacity(0.08))
-                .frame(height: 1)
+            VStack(spacing: 0) {
+                Rectangle()
+                    .fill(.white.opacity(0.08))
+                    .frame(height: 1)
+                Rectangle()
+                    .fill(BattlePalette.brass.opacity(0.30))
+                    .frame(height: 1)
+            }
         }
     }
 

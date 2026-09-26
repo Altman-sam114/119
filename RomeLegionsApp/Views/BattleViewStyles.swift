@@ -1,5 +1,21 @@
 import SwiftUI
 
+/// Shared Roman command-deck palette. Keeping chrome colors in one place makes
+/// the map, drawers and order dock feel like one instrument panel while the
+/// ViewModel remains the only source of game state.
+enum BattlePalette {
+    static let canvas = Color(red: 0.055, green: 0.062, blue: 0.064)
+    static let panel = Color(red: 0.105, green: 0.098, blue: 0.086)
+    static let panelRaised = Color(red: 0.155, green: 0.135, blue: 0.105)
+    static let brass = Color(red: 0.84, green: 0.66, blue: 0.32)
+    static let brassBright = Color(red: 0.96, green: 0.78, blue: 0.40)
+    static let brassDim = Color(red: 0.52, green: 0.38, blue: 0.18)
+    static let ivory = Color(red: 0.96, green: 0.93, blue: 0.84)
+    static let muted = Color(red: 0.68, green: 0.66, blue: 0.60)
+    static let danger = Color(red: 0.78, green: 0.16, blue: 0.12)
+    static let signal = Color(red: 0.24, green: 0.76, blue: 0.72)
+}
+
 struct CommandButtonLabel: View {
     var symbol: String
     var text: String
@@ -33,9 +49,13 @@ struct CommandButtonLabel: View {
 struct CommandIconButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .foregroundStyle(.white)
-            .background(configuration.isPressed ? .white.opacity(0.18) : .white.opacity(0.10))
+            .foregroundStyle(configuration.isPressed ? BattlePalette.brassBright : BattlePalette.ivory)
+            .background(configuration.isPressed ? BattlePalette.brass.opacity(0.22) : .white.opacity(0.08))
             .clipShape(RoundedRectangle(cornerRadius: 8))
+            .overlay {
+                RoundedRectangle(cornerRadius: 8)
+                    .stroke(BattlePalette.brass.opacity(configuration.isPressed ? 0.74 : 0.22), lineWidth: 1)
+            }
     }
 }
 
@@ -51,12 +71,12 @@ struct PrimaryButtonStyle: ButtonStyle {
 struct SecondaryButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .foregroundStyle(.white)
-            .background(configuration.isPressed ? .white.opacity(0.18) : .black.opacity(0.22))
+            .foregroundStyle(configuration.isPressed ? BattlePalette.ivory : .white.opacity(0.86))
+            .background(configuration.isPressed ? BattlePalette.brass.opacity(0.20) : .black.opacity(0.22))
             .clipShape(RoundedRectangle(cornerRadius: 8))
             .overlay {
                 RoundedRectangle(cornerRadius: 8)
-                    .stroke(.white.opacity(0.08), lineWidth: 1)
+                    .stroke(BattlePalette.brass.opacity(configuration.isPressed ? 0.58 : 0.18), lineWidth: 1)
             }
     }
 }

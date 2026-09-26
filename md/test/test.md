@@ -23,6 +23,12 @@ env HOME=$PWD/.home CLANG_MODULE_CACHE_PATH=$PWD/.build/module-cache DEVELOPER_D
 
 ## 默认验证策略
 
+### v0.71 当前轮次
+
+- v0.70 最新云端 run `34176961101` 的 Swift Testing、Gameplay Smoke 和 Xcode build 成功，但 Static Checks 因同名函数数据流匹配误报失败，Render 因反制姿态 fixture 没有产生可切换姿态而失败；本轮修复后必须以新 `main` SHA 对应的最新 run/artifact 重验，不能沿用旧结果。
+- v0.71 新增 `BattlePalette` 只读表现层 token 和三尺寸 UI 采样复判；不新增玩法测试，不改变 15 张预览路径、五种 display context、反制三条单步入口和 44pt 命中区。
+- Agent X 单人执行本轮实现（用户明确禁止子智能体），但仍保留 main push、GitHub Actions、manifest/JUnit/log/PNG 和最新 artifact 复判链路。
+
 - 当前按人工最新要求从 v0.15 起使用云端-only 验证：本地不得运行测试、build、typecheck、RenderBattlePreview、`node Tools/verify_project.mjs`、`git diff --check`、YAML/JSON/Plist 解析或脚本语法检查。
 - 本地允许读取文件、编辑、只读 `rg` / `sed` / `git diff` / `git status`、git 同步、提交和推送。
 - 只有人工以后重新明确允许“本机测试”“本地 build”“本地跑探针”“本地 xcodebuild”或“恢复本地轻量检查”，Agent 才能把对应本机命令作为默认路径。

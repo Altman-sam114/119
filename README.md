@@ -65,6 +65,7 @@
 - 连续海岸线与地图叠层降噪：水陆相邻边绘制连续沙色岸线与浅色浪缘，海域和大陆读作整片战略地图；威胁热区/控区叠层改为低对比填充与细实线，热区图标只在热区中心格显示，默认格描边减淡并按坐标做确定性明度微调，全部为展示层变化，不影响任何玩法数据或命令
 - 战斗读板标签行 UI 重构：战场态势、选中军团处境和军令窗口等短标签行共享同一 SwiftUI 展示组件，减少重复 UI 结构，不改变 ViewModel 数据源或核心规则
 - HUD 信号胶囊 UI 重构：地图侦察视角、敌情交战闭环和战役推进线读板共享同一 SwiftUI 信号胶囊组件，减少地图 HUD 重复样式，不改变信号数据来源或核心规则
+- v0.71 青铜军令台 UI 重构：`BattlePalette` 统一顶栏、底部命令坞、抽屉、边缘工具和地图情报坞的青铜/象牙/深色层级，加入按压态与双层边框，保持现有 ViewModel、命令入口、布局尺寸和可访问性语义；最新云端结果待本轮 push 后确认
 - Codex 后续协作规范：`AGENTS.md`、`update_log.md`、`md/test/test.md`、`md/flow/flow.md`、`md/flow/flowchart.md` 和 `md/prompt/` 组成长期多 Agent 迭代文档系统，支持未来用 `agentx:` 主控调度 A/B/C 多轮循环
 - GitHub Actions 云端验证：`.github/workflows/ci-results.yml` 在 `main` push 时生成未加密 CI 结果包
 - 核心规则测试：`Tests/RomeLegionsCoreTests/GameStateTests.swift`

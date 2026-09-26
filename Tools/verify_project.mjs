@@ -107,7 +107,17 @@ for (const [label, pattern] of [
 // Scope data-flow assertions to actual function bodies so an unrelated helper
 // or a later declaration cannot satisfy a missing caller edge.
 function coreFunction(name) {
-  return core.match(new RegExp(`^    (?:public|private) (?:mutating )?func ${name}\\([\\s\\S]*?^    \\}`, "m"))?.[0] ?? "";
+  // Several core readouts intentionally expose a public wrapper and a private
+  // implementation with the same name. Match every candidate and inspect the
+  // longest body so data-flow assertions land on the implementation rather
+  // than the thin forwarding wrapper.
+  const pattern = new RegExp(
+    `^    (?:public|private) (?:mutating )?func ${name}\\([\\s\\S]*?^    \\}`,
+    "gm"
+  );
+  return [...core.matchAll(pattern)]
+    .map((match) => match[0])
+    .sort((left, right) => right.length - left.length)[0] ?? "";
 }
 for (const [name, tokens] of [
   ["aiIntent", ["bestAITacticalAction(for: unit, favoring: [])?.intent"]],

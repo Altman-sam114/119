@@ -408,7 +408,13 @@ struct CountermeasureCommandContextMapReadoutView: View {
         }
         .padding(.horizontal, 8)
         .padding(.vertical, 5)
-        .background(.black.opacity(0.72))
+        .background {
+            LinearGradient(
+                colors: [BattlePalette.panelRaised.opacity(0.96), .black.opacity(0.78)],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+        }
         .clipShape(.rect(cornerRadius: 7))
         .overlay {
             RoundedRectangle(cornerRadius: 7)
@@ -996,7 +1002,7 @@ struct MapIntelligenceDockView: View {
         .clipShape(.rect(cornerRadius: 8))
         .overlay {
             RoundedRectangle(cornerRadius: 8)
-                .stroke(Color(red: 0.84, green: 0.66, blue: 0.32).opacity(0.32), lineWidth: 1)
+                .stroke(BattlePalette.brass.opacity(0.42), lineWidth: 1)
         }
         .shadow(color: .black.opacity(0.28), radius: 5, y: 2)
         .accessibilityElement(children: .contain)

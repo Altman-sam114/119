@@ -52,7 +52,7 @@ struct BattleView: View {
                 : min(380, proxy.size.width * 0.42)
 
             ZStack {
-                Color(red: 0.09, green: 0.10, blue: 0.10)
+                BattlePalette.canvas
                     .ignoresSafeArea()
 
                 VStack(spacing: 0) {
