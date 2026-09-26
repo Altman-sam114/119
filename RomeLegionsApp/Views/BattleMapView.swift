@@ -72,6 +72,9 @@ struct WarMapView: View {
                 ZStack {
                     MapBackdropView()
 
+                    MapCartographyGridView(metrics: metrics)
+                        .zIndex(0.35)
+
                     CoastlineLayerView(segments: coastlineSegments, metrics: metrics)
                         .zIndex(0.5)
 
@@ -1570,7 +1573,89 @@ struct MapBackdropView: View {
                 startPoint: .top,
                 endPoint: .bottom
             )
+
+            RadialGradient(
+                colors: [.clear, .black.opacity(0.22)],
+                center: .center,
+                startRadius: 18,
+                endRadius: 900
+            )
         }
+    }
+}
+
+/// A quiet cartographic reference layer. It stays in map space with the tiles,
+/// so zooming and panning never make the strategic frame feel detached from the
+/// terrain. It is deliberately low contrast and never participates in hit tests.
+struct MapCartographyGridView: View {
+    var metrics: HexMetrics
+
+    var body: some View {
+        Canvas { context, size in
+            let inset = max(8, metrics.tileWidth * 0.42)
+            let frame = CGRect(
+                x: inset,
+                y: inset,
+                width: max(1, size.width - inset * 2),
+                height: max(1, size.height - inset * 2)
+            )
+
+            for index in 1...6 {
+                let progress = CGFloat(index) / 7
+                let x = frame.minX + frame.width * progress
+                var meridian = Path()
+                meridian.move(to: CGPoint(x: x, y: frame.minY))
+                meridian.addCurve(
+                    to: CGPoint(x: x, y: frame.maxY),
+                    control1: CGPoint(x: x - frame.width * 0.035, y: frame.height * 0.32 + frame.minY),
+                    control2: CGPoint(x: x + frame.width * 0.035, y: frame.height * 0.68 + frame.minY)
+                )
+                context.stroke(
+                    meridian,
+                    with: .color(BattlePalette.brass.opacity(0.055)),
+                    lineWidth: 0.7
+                )
+            }
+
+            for index in 1...5 {
+                let progress = CGFloat(index) / 6
+                let y = frame.minY + frame.height * progress
+                var parallel = Path()
+                parallel.move(to: CGPoint(x: frame.minX, y: y))
+                parallel.addCurve(
+                    to: CGPoint(x: frame.maxX, y: y),
+                    control1: CGPoint(x: frame.width * 0.32 + frame.minX, y: y - frame.height * 0.028),
+                    control2: CGPoint(x: frame.width * 0.68 + frame.minX, y: y + frame.height * 0.028)
+                )
+                context.stroke(
+                    parallel,
+                    with: .color(.white.opacity(0.045)),
+                    lineWidth: 0.7
+                )
+            }
+
+            context.stroke(
+                Path(roundedRect: frame, cornerRadius: max(5, metrics.tileWidth * 0.18)),
+                with: .color(BattlePalette.brass.opacity(0.18)),
+                lineWidth: 1
+            )
+
+            let compassCenter = CGPoint(x: frame.maxX - 18, y: frame.minY + 18)
+            var compass = Path()
+            compass.move(to: CGPoint(x: compassCenter.x, y: compassCenter.y - 7))
+            compass.addLine(to: CGPoint(x: compassCenter.x - 3, y: compassCenter.y + 4))
+            compass.addLine(to: CGPoint(x: compassCenter.x, y: compassCenter.y + 2))
+            compass.addLine(to: CGPoint(x: compassCenter.x + 3, y: compassCenter.y + 4))
+            compass.closeSubpath()
+            context.fill(compass, with: .color(BattlePalette.brass.opacity(0.30)))
+            context.stroke(
+                Path(ellipseIn: CGRect(x: compassCenter.x - 9, y: compassCenter.y - 9, width: 18, height: 18)),
+                with: .color(BattlePalette.brass.opacity(0.16)),
+                lineWidth: 0.8
+            )
+        }
+        .allowsHitTesting(false)
+        .accessibilityHidden(true)
     }
 }
 
@@ -1704,6 +1789,13 @@ struct HexTileView: View {
                 .overlay {
                     Hexagon()
                         .stroke(borderColor, lineWidth: isSelected || isAttackOrigin || isAttackTarget ? max(2.4, 3 * scale) : max(0.4, 0.55 * scale))
+
+                    Hexagon()
+                        .stroke(
+                            tile.terrain == .water ? .white.opacity(0.10) : .white.opacity(0.055),
+                            lineWidth: max(0.35, 0.65 * scale)
+                        )
+                        .padding(1.8 * scale)
                 }
 
             TerrainGlyphView(terrain: tile.terrain, scale: scale)

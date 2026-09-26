@@ -336,12 +336,22 @@ struct CompactGeneralTraitView: View {
     var body: some View {
         HStack(spacing: 7) {
             Image(systemName: trait.systemImage)
-                .foregroundStyle(Color(red: 0.86, green: 0.68, blue: 0.34))
+                .foregroundStyle(BattlePalette.brassBright)
+                .frame(width: 24, height: 24)
+                .background(BattlePalette.brass.opacity(0.18))
+                .clipShape(RoundedRectangle(cornerRadius: 5))
             Text(trait.displayName)
                 .font(.caption.weight(.bold))
                 .lineLimit(1)
                 .minimumScaleFactor(0.72)
             Spacer(minLength: 0)
+            if let warMeritStatus {
+                Text(warMeritStatus.rankName)
+                    .font(.caption2.weight(.black))
+                    .foregroundStyle(BattlePalette.brassBright)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.62)
+            }
             Text(trait.skillName)
                 .font(.caption2.weight(.semibold))
                 .foregroundStyle(.white.opacity(0.62))
@@ -350,7 +360,11 @@ struct CompactGeneralTraitView: View {
         }
         .padding(.horizontal, 8)
         .frame(minHeight: 28)
-        .background(.black.opacity(0.18))
+        .background(BattlePalette.panelRaised.opacity(0.58))
+        .overlay {
+            RoundedRectangle(cornerRadius: 6)
+                .stroke(BattlePalette.brass.opacity(0.22), lineWidth: 1)
+        }
         .clipShape(RoundedRectangle(cornerRadius: 6))
         if let commanderBrief, !commanderBrief.passiveContributions.isEmpty {
             GeneralPassiveContributionStrip(contributions: commanderBrief.passiveContributions, isCompact: true)
@@ -3876,16 +3890,27 @@ struct GeneralTraitCardView: View {
         VStack(alignment: .leading, spacing: 7) {
             HStack(spacing: 7) {
                 Image(systemName: trait.systemImage)
-                    .foregroundStyle(Color(red: 0.86, green: 0.68, blue: 0.34))
+                    .font(.caption.weight(.black))
+                    .foregroundStyle(BattlePalette.brassBright)
+                    .frame(width: 28, height: 28)
+                    .background(BattlePalette.brass.opacity(0.18))
+                    .clipShape(RoundedRectangle(cornerRadius: 6))
                 Text(trait.displayName)
                     .font(.caption.weight(.heavy))
                 Spacer(minLength: 0)
+                if let warMeritStatus {
+                    Text(warMeritStatus.rankName)
+                        .font(.caption2.weight(.black))
+                        .foregroundStyle(BattlePalette.brassBright)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.66)
+                }
                 Text(trait.skillName)
                     .font(.caption2.weight(.black))
                     .foregroundStyle(.black.opacity(0.75))
                     .padding(.horizontal, 6)
                     .frame(height: 20)
-                    .background(Color(red: 0.86, green: 0.68, blue: 0.34))
+                    .background(BattlePalette.brass)
                     .clipShape(RoundedRectangle(cornerRadius: 5))
             }
 
@@ -3961,11 +3986,17 @@ struct GeneralTraitCardView: View {
             }
         }
         .padding(9)
-        .background(.black.opacity(0.20))
+        .background {
+            LinearGradient(
+                colors: [BattlePalette.panelRaised.opacity(0.68), .black.opacity(0.24)],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+        }
         .clipShape(RoundedRectangle(cornerRadius: 7))
         .overlay {
             RoundedRectangle(cornerRadius: 7)
-                .stroke(Color(red: 0.86, green: 0.68, blue: 0.34).opacity(0.22), lineWidth: 1)
+                .stroke(BattlePalette.brass.opacity(0.34), lineWidth: 1)
         }
     }
 }

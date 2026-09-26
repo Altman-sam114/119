@@ -12,6 +12,12 @@
 - `BattleView`、`BattleShellControls` 和 `BattleMapView` 复用同一组 token：顶栏与命令坞采用深色渐变和双层分隔线，抽屉与边缘工具采用青铜边框和选中态，地图情报坞采用 raised panel 渐变；原有布局 metrics、44pt 入口、抽屉内容、地图叠层和 accessibility label 保持不变。
 - v0.70 云端遗留的反制姿态 Render 门禁通过隔离姿态副本验证，结构门禁的同名函数匹配器按实际实现体检查。两者只修复验证工具，不改变生产核心规则。
 
+### v0.72 战略地图制图层与将领信息牌
+
+- `MapCartographyGridView` 复用 `HexMetrics` 的地图空间，在 `MapBackdropView` 与海岸线之间绘制低对比经纬曲线、内框和罗盘参照；它只使用容器尺寸和既有镜头坐标，不持有 `GameState`、选择态或命令，也禁用命中测试。
+- `MapBackdropView` 增加边缘暗角，`HexTileView` 增加随缩放变化的内缘高光；原有地貌颜色、`TerrainMaterialProfile`、道路、海岸、城市、单位与所有 overlay 数据源保持不变，制图层只提供战略读图层级。
+- `GeneralTraitCardView` 与 `CompactGeneralTraitView` 复用 `BattlePalette`，把将领特性徽记、军阶、技能标签和卡片边框放入同一军令台语义；`WarMeritProgressView`、技能预览、目标收益和指挥链仍读取既有 ViewModel 派生值，不新增规则或状态。
+
 1. `RomeLegionsApp` 创建 `GameViewModel`，并通过 `.environmentObject(viewModel)` 注入根视图。
 2. `RootView` 根据 `viewModel.isShowingMenu` 展示 `MainMenuView` 或 `BattleView`。
 3. `MainMenuView` 调用 `viewModel.start(mode:)`，创建 `GameState.newCampaign(mode:)` 并进入战斗。

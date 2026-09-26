@@ -42,6 +42,21 @@ flowchart LR
     C --> G[GameState 核心规则]
 ```
 
+## v0.72 战略地图制图层与将领信息牌
+
+读图说明：制图层只跟随 `HexMetrics` 绘制地图空间参照，信息牌只消费既有将领派生读板；两条链路都不进入核心规则，也不改变命令入口。
+
+```mermaid
+flowchart LR
+    M["HexMetrics + 容器尺寸"] --> G["MapCartographyGridView\n经纬曲线 / 内框 / 罗盘\n禁用命中测试"]
+    B["MapBackdropView\n陆地 / 水系 / 等高线 / 道路"] --> G
+    G --> W["WarMapView 地图空间层"]
+    T["TerrainMaterialProfile + Tile"] --> H["HexTileView\n地貌材质 + 内缘高光"]
+    H --> W
+    C["selectedCommanderBrief\nGeneralSkillPreview\nWarMeritStatus"] --> P["GeneralTraitCardView / CompactGeneralTraitView\n特性 / 军阶 / 技能 / 战功"]
+    P --> U["BattlePanels 将领读板\n不新增 action、不改 GameState"]
+```
+
 ## v0.70 AI 姿态与行动同源选择
 
 读图说明：预测和真实执行进入同一个私有选择器，但前者使用明确刷新过的只读 forecast 与空集火记忆，后者使用当前状态和本回合 engaged 集合。先以行动 tier 剪枝，再按击杀、生存、收益及稳定顺序比较姿态+行动；移动可达格按预算局部复用，真实结算仍走公开命令并重验终局和尾随动作。

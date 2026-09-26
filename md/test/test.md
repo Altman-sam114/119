@@ -29,6 +29,12 @@ env HOME=$PWD/.home CLANG_MODULE_CACHE_PATH=$PWD/.build/module-cache DEVELOPER_D
 - v0.71 新增 `BattlePalette` 只读表现层 token 和三尺寸 UI 采样复判；不新增玩法测试，不改变 15 张预览路径、五种 display context、反制三条单步入口和 44pt 命中区。
 - Agent X 单人执行本轮实现（用户明确禁止子智能体），但仍保留 main push、GitHub Actions、manifest/JUnit/log/PNG 和最新 artifact 复判链路。
 
+### v0.72 当前轮次
+
+- v0.72 只修改地图与将领表现层：云端 RenderBattlePreview 仍需复判三尺寸 15 张图的地图主导壳层、固定 HUD、五种 display context、路线/海岸/城市/单位叠层、命令入口和将领详情；不新增核心规则测试。
+- Render 的战略材质采样必须继续满足三横向地图带、青绿/蓝/灰褐材质和对比度门禁；制图网格应低对比度，不能吞没路线、单位、命令坞或情报 HUD。
+- Agent X 单人执行本轮实现；本地仍不运行测试、build、Render、结构检查或 `git diff --check`，完成后只在 `main` 推送并验收最新 artifact。
+
 - 当前按人工最新要求从 v0.15 起使用云端-only 验证：本地不得运行测试、build、typecheck、RenderBattlePreview、`node Tools/verify_project.mjs`、`git diff --check`、YAML/JSON/Plist 解析或脚本语法检查。
 - 本地允许读取文件、编辑、只读 `rg` / `sed` / `git diff` / `git status`、git 同步、提交和推送。
 - 只有人工以后重新明确允许“本机测试”“本地 build”“本地跑探针”“本地 xcodebuild”或“恢复本地轻量检查”，Agent 才能把对应本机命令作为默认路径。
