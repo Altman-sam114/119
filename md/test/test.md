@@ -29,7 +29,13 @@ env HOME=$PWD/.home CLANG_MODULE_CACHE_PATH=$PWD/.build/module-cache DEVELOPER_D
 - v0.71 新增 `BattlePalette` 只读表现层 token 和三尺寸 UI 采样复判；不新增玩法测试，不改变 15 张预览路径、五种 display context、反制三条单步入口和 44pt 命中区。
 - Agent X 单人执行本轮实现（用户明确禁止子智能体），但仍保留 main push、GitHub Actions、manifest/JUnit/log/PNG 和最新 artifact 复判链路。
 
-### v0.73 当前轮次
+### v0.74 当前轮次
+
+- 当前 workflow `CI_VERSION: v0.74`；结果包命名与 manifest 必须使用本轮版本、最新 SHA、run id 和 attempt。
+- v0.74 只修改地图表现层：云端 RenderBattlePreview 仍需复判三尺寸 15 张图的地图主导壳层、固定 HUD、五种 display context、路线/海岸/城市/单位叠层、命令入口和将领详情；雾边必须低对比且不吞没单位、路线、命令坞或情报 HUD；不新增核心规则测试。
+- Agent X 单人执行本轮实现；本地仍不运行测试、build、Render、结构检查或 `git diff --check`，完成后只在 `main` 推送并验收最新 artifact。
+
+### v0.73 历史轮次
 
 - 当前 workflow `CI_VERSION: v0.73`；结果包命名与 manifest 必须使用本轮版本、最新 SHA、run id 和 attempt。
 - v0.73 只修改地图与将领表现层：云端 RenderBattlePreview 仍需复判三尺寸 15 张图的地图主导壳层、固定 HUD、五种 display context、路线/海岸/城市/单位叠层、命令入口和将领详情；坐标刻度/比例尺必须低对比且不吞没单位、路线、命令坞或情报 HUD；不新增核心规则测试。

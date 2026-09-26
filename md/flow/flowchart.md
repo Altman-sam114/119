@@ -22,6 +22,18 @@ flowchart LR
 
 本文是 `md/flow/flow.md` 的可视化版本。每张图前都有中文读图说明，方便人工快速理解当前真实逻辑。
 
+## v0.74 战区雾边与地图材质复现
+
+读图说明：百度参考图中的浅色雾边只作为地图边缘材质，叠加顺序低于制图和战术叠层，不参与选择和命令。
+
+```mermaid
+flowchart LR
+    B[MapBackdropView 原创底图] --> F[MapFogOfWarEdgeView\n低对比浅色雾边]
+    F --> C[MapCartographyGridView]
+    C --> T[HexTileView / 海岸 / 路线 / HUD]
+    F -. 只读表现层 .-> N[不写 GameState / AI / 选择态]
+```
+
 ## v0.73 战区坐标比例与将领卡信息层级
 
 读图说明：坐标刻度和比例尺跟随地图镜头，只提供战略参照；将领卡信号分组只消费已有派生读板，两条链路都不触碰核心规则。

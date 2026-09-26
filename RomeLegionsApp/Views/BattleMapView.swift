@@ -72,6 +72,9 @@ struct WarMapView: View {
                 ZStack {
                     MapBackdropView()
 
+                    MapFogOfWarEdgeView()
+                        .zIndex(0.22)
+
                     MapCartographyGridView(metrics: metrics)
                         .zIndex(0.35)
 
@@ -1593,6 +1596,37 @@ struct MapBackdropView: View {
                 endRadius: 900
             )
         }
+    }
+}
+
+/// Soft edge haze borrowed from campaign-map presentation: it frames the
+/// playable area without hiding terrain or changing any overlay semantics.
+struct MapFogOfWarEdgeView: View {
+    var body: some View {
+        ZStack {
+            LinearGradient(
+                colors: [.white.opacity(0.14), .clear, .clear, .white.opacity(0.10)],
+                startPoint: .top,
+                endPoint: .bottom
+            )
+            HStack(spacing: 0) {
+                RadialGradient(
+                    colors: [.white.opacity(0.19), .clear],
+                    center: .leading,
+                    startRadius: 8,
+                    endRadius: 170
+                )
+                Spacer(minLength: 0)
+                RadialGradient(
+                    colors: [.white.opacity(0.15), .clear],
+                    center: .trailing,
+                    startRadius: 8,
+                    endRadius: 170
+                )
+            }
+        }
+        .allowsHitTesting(false)
+        .accessibilityHidden(true)
     }
 }
 
