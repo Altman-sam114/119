@@ -2841,13 +2841,19 @@ struct RenderBattlePreview {
                     guard let index = variantState.units.firstIndex(where: { $0.id == responseUnitID }) else {
                         continue
                     }
+                    // Formation recommendations intentionally preserve a useful
+                    // commander skill's current posture. Put this isolated
+                    // response unit on cooldown so the fixture exercises the
+                    // public posture confirmation path instead of being
+                    // reported as already prepared by the commander.
+                    variantState.units[index].generalSkillCooldownRemaining = max(
+                        1,
+                        variantState.units[index].generalSkillCooldownRemaining
+                    )
                     variantState.units[index].tacticalOrder = alternativeOrder
                     orderFixture = focusedCountermeasureFixture(
                         state: variantState,
-                        matching: { preview in
-                            preview.summary.report.responseUnitID == responseUnitID &&
-                                orderPredicate(preview)
-                        }
+                        matching: orderPredicate
                     )
                     if orderFixture != nil {
                         break candidateLoop
