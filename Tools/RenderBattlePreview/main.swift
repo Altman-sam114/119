@@ -2827,11 +2827,20 @@ struct RenderBattlePreview {
             let sourceViewModel = GameViewModel()
             sourceViewModel.isShowingMenu = false
             sourceViewModel.state = fixtureState
-            if let candidate = sourceViewModel.countermeasureCommandPreviews.first(where: { $0.canFocus }),
-               let responseUnitID = candidate.responseUnit?.id,
-               let alternativeOrder = TacticalOrder.allCases.first(where: { $0 != candidate.recommendedOrder }) {
-                var variantState = fixtureState
-                if let index = variantState.units.firstIndex(where: { $0.id == responseUnitID }) {
+            let candidates = sourceViewModel.countermeasureCommandPreviews.filter { preview in
+                guard let responseUnit = preview.responseUnit else { return false }
+                return preview.canFocus &&
+                    responseUnit.faction == fixtureState.activeFaction &&
+                    !responseUnit.hasMoved &&
+                    !responseUnit.hasActed
+            }
+            candidateLoop: for candidate in candidates {
+                guard let responseUnitID = candidate.responseUnit?.id else { continue }
+                for alternativeOrder in TacticalOrder.allCases where alternativeOrder != candidate.recommendedOrder {
+                    var variantState = fixtureState
+                    guard let index = variantState.units.firstIndex(where: { $0.id == responseUnitID }) else {
+                        continue
+                    }
                     variantState.units[index].tacticalOrder = alternativeOrder
                     orderFixture = focusedCountermeasureFixture(
                         state: variantState,
@@ -2839,6 +2848,9 @@ struct RenderBattlePreview {
                             preview.id == candidate.id && orderPredicate(preview)
                         }
                     )
+                    if orderFixture != nil {
+                        break candidateLoop
+                    }
                 }
             }
         }
