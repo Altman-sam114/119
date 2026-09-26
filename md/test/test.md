@@ -31,6 +31,7 @@ env HOME=$PWD/.home CLANG_MODULE_CACHE_PATH=$PWD/.build/module-cache DEVELOPER_D
 
 ### v0.72 当前轮次
 
+- 当前 workflow `CI_VERSION: v0.72`；结果包命名与 manifest 必须使用本轮版本、最新 SHA、run id 和 attempt。
 - v0.72 只修改地图与将领表现层：云端 RenderBattlePreview 仍需复判三尺寸 15 张图的地图主导壳层、固定 HUD、五种 display context、路线/海岸/城市/单位叠层、命令入口和将领详情；不新增核心规则测试。
 - Render 的战略材质采样必须继续满足三横向地图带、青绿/蓝/灰褐材质和对比度门禁；制图网格应低对比度，不能吞没路线、单位、命令坞或情报 HUD。
 - Agent X 单人执行本轮实现；本地仍不运行测试、build、Render、结构检查或 `git diff --check`，完成后只在 `main` 推送并验收最新 artifact。
