@@ -2937,3 +2937,5 @@ df42aa2 的 run 36309363141 在 Static、SwiftPM、Gameplay Smoke 成功后，Re
 - 仅改变 SwiftUI 表现层，继续消费原有战役、行动、敌军和侦察 readout。
 
 验证状态：本地未运行验证命令，等待云端 run 完成后随本轮 main push 验收。
+
+云端 run 36311493469（commit 71de519，attempt 1）已完成并通过 Static、SwiftPM、Gameplay Smoke、RenderBattlePreview 十五图与无签名 Xcode build；截图复判确认地图主视觉、青铜工具带与底部军令坞成立。随后补充将领卡身份行，等待下一次云端重验。

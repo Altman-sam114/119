@@ -3897,6 +3897,15 @@ struct GeneralTraitCardView: View {
                     .clipShape(RoundedRectangle(cornerRadius: 6))
                 Text(trait.displayName)
                     .font(.caption.weight(.heavy))
+                if let commanderBrief,
+                   let generalName = commanderBrief.generalName,
+                   !generalName.isEmpty {
+                    Text("· \(generalName)")
+                        .font(.caption2.weight(.black))
+                        .foregroundStyle(BattlePalette.parchment.opacity(0.92))
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.72)
+                }
                 Spacer(minLength: 0)
                 if let warMeritStatus {
                     Text(warMeritStatus.rankName)
