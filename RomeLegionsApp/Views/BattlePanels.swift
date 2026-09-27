@@ -4038,10 +4038,19 @@ struct GeneralTraitCardView: View {
         .padding(9)
         .background {
             LinearGradient(
-                colors: [BattlePalette.panelRaised.opacity(0.68), .black.opacity(0.24)],
+                colors: [
+                    BattlePalette.panelRaised.opacity(0.82),
+                    BattlePalette.parchment.opacity(0.08),
+                    .black.opacity(0.30)
+                ],
                 startPoint: .topLeading,
                 endPoint: .bottomTrailing
             )
+        }
+        .overlay(alignment: .top) {
+            Rectangle()
+                .fill(BattlePalette.brass.opacity(0.60))
+                .frame(height: 2)
         }
         .clipShape(RoundedRectangle(cornerRadius: 7))
         .overlay {
