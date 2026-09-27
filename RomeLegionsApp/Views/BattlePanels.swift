@@ -3616,6 +3616,16 @@ struct AIOperationalPlanTimelineStepView: View {
         .padding(6)
         .background(.black.opacity(0.16))
         .clipShape(RoundedRectangle(cornerRadius: 7))
+        .overlay(alignment: .leading) {
+            if step.sequence < 3 {
+                Rectangle()
+                    .fill(tint.opacity(0.42))
+                    .frame(width: 1)
+                    .padding(.leading, 14)
+                    .padding(.top, 25)
+                    .padding(.bottom, -7)
+            }
+        }
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(step.accessibilityLabel)
     }
