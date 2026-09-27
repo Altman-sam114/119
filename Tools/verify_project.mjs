@@ -327,8 +327,8 @@ for (const token of ["RomeLegions CI Results", "branches:", "main", "ci-artifact
     failures.push(`.github/workflows/ci-results.yml does not include ${token}`);
   }
 }
-if (!ciWorkflow.includes("CI_VERSION: v0.72")) {
-  failures.push(".github/workflows/ci-results.yml does not include CI_VERSION v0.72");
+if (!ciWorkflow.includes("CI_VERSION: v0.74")) {
+  failures.push(".github/workflows/ci-results.yml does not include CI_VERSION v0.74");
 }
 if (!/^\s+timeout-minutes: 75\s*$/m.test(ciWorkflow)) {
   failures.push(".github/workflows/ci-results.yml must preserve the 75-minute job budget");

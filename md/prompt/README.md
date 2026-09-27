@@ -124,3 +124,5 @@ Agent A 写提示词时必须明确：
 - 禁止把旧 artifact、旧 output 或 checkout 自带报告写成新一轮云端验证结果。
 - 禁止让 Agent C 只看 Agent B 文字汇报。
 - 禁止让 Agent X 用旧 run、旧 artifact、本地输出或未验收结果推进循环。
+
+- `md/prompt/v0（玩法推进）/v0.75（战场军令台视觉重构）.md`

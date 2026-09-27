@@ -511,3 +511,7 @@ env HOME=$PWD/.home DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer xco
 - 文档-only 修改当前也不得默认运行本地轻量检查；必须通过 `main` push 后的 GitHub Actions 和 Agent C artifact 复判验收，除非人工以后重新明确允许本地验证。
 - 修改测试命令、触发条件或当前基线后，必须同步更新 `README.md`、`AGENTS.md` 和 `update_log.md`。
 - Agent C 验收通过必须基于最新 `origin/main` 的 run 和结果包；验收不通过时只输出退回 Agent B 的修正项。
+
+### v0.75 云端门禁
+
+v0.75 只更新 BattlePalette 视觉 token 与静态 CI 版本断言；完整 Static、SwiftPM、Gameplay Smoke、RenderBattlePreview 和 Xcode build 仍由 main push 后 GitHub Actions 执行，本地不运行验证命令。

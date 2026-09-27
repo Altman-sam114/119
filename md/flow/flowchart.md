@@ -533,3 +533,17 @@ flowchart LR
     V --> X["独立副本真实 skipSelectedUnit()<br/>只发生预期跳过变化并清除 secondary"]
     L --> X
 ```
+
+## v0.75 战场军令台视觉 token
+
+读图说明：视觉 token 只改变表现层，规则和命令仍沿既有 ViewModel 到核心状态链路。
+
+```mermaid
+flowchart LR
+    P[BattlePalette\nparchment / mapMist / romanRed] --> M[地图与雾边]
+    P --> H[顶部战役信号]
+    P --> G[青铜信息牌]
+    M -.表现层-.-> S[GameState 不变]
+    H -.表现层-.-> A[AI 不变]
+    G -.表现层-.-> C[命令入口不变]
+```

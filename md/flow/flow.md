@@ -409,3 +409,7 @@ Agent X 不能跳过 Agent C artifact 验收，不能把旧 run、旧 artifact�
 - 任务奖励不得重复发放。
 - 罗马完成全部核心任务必须进入胜利；罗马失去全部城市必须进入失败。
 - 战役结束后，移动、攻击、招募、科技、外交、AI 推进和结束回合不得继续改变战局。
+
+## v0.75 战场军令台视觉 token
+
+`BattlePalette` 新增 parchment、mapMist、romanRed 视觉 token，供地图雾边、战役标题和青铜信息牌共享；token 只属于 SwiftUI 表现层，不进入 ViewModel、GameState 或 AI。`Tools/verify_project.mjs` 的 CI_VERSION 断言与工作流版本保持同步。

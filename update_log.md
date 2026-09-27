@@ -2907,3 +2907,14 @@
 核心变更：曾新增小写 `agent.md` 并在 `README.md` 中记录 Codex 后续协作规范。
 
 后续处理：2026-06-28 按标准命名和多 Agent 工作流要求，统一升级为大写 `AGENT.md`，并补齐 `update_log.md`、`md/test`、`md/flow`、`md/prompt` 目录。2026-06-29 入口再统一为复数 `AGENTS.md`，匹配用户对 agents 工作流的命名。
+
+### v0.75 / 战场军令台视觉重构
+
+日期：2026-09-27
+
+核心变更：
+
+- 读取百度图片《大征服者：罗马》参考，确认地图主视觉、浅雾边、红色战役信号与青铜信息牌关系；新增 `BattlePalette` 的 parchment、mapMist、romanRed token，为后续地图/将领牌重构提供统一视觉语义。
+- 修复 `Tools/verify_project.mjs` 仍检查 v0.72、导致 v0.74 云端 Static 失败的版本漂移；同步到 v0.74。
+
+验证状态：本地未运行测试、构建、Render、verify 或 diff-check；等待本轮 main push 后最新云端 artifact。

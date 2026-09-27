@@ -7,6 +7,8 @@ enum BattlePalette {
     static let canvas = Color(red: 0.055, green: 0.062, blue: 0.064)
     static let panel = Color(red: 0.105, green: 0.098, blue: 0.086)
     static let panelRaised = Color(red: 0.155, green: 0.135, blue: 0.105)
+    static let parchment = Color(red: 0.78, green: 0.73, blue: 0.58)
+    static let mapMist = Color(red: 0.72, green: 0.78, blue: 0.66)
     static let brass = Color(red: 0.84, green: 0.66, blue: 0.32)
     static let brassBright = Color(red: 0.96, green: 0.78, blue: 0.40)
     static let brassDim = Color(red: 0.52, green: 0.38, blue: 0.18)
@@ -14,6 +16,7 @@ enum BattlePalette {
     static let muted = Color(red: 0.68, green: 0.66, blue: 0.60)
     static let danger = Color(red: 0.78, green: 0.16, blue: 0.12)
     static let signal = Color(red: 0.24, green: 0.76, blue: 0.72)
+    static let romanRed = Color(red: 0.56, green: 0.10, blue: 0.08)
 }
 
 struct CommandButtonLabel: View {
