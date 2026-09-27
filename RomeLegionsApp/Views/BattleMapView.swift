@@ -589,7 +589,13 @@ struct MapCameraControlsView: View {
             }
         }
         .padding(2)
-        .background(.black.opacity(0.52))
+        .background {
+            LinearGradient(
+                colors: [BattlePalette.panelRaised.opacity(0.88), .black.opacity(0.56)],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+        }
         .clipShape(.rect(cornerRadius: 7))
         .overlay {
             RoundedRectangle(cornerRadius: 7)
