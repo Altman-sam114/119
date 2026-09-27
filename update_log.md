@@ -2918,3 +2918,14 @@
 - 修复 `Tools/verify_project.mjs` 仍检查 v0.72、导致 v0.74 云端 Static 失败的版本漂移；同步到 v0.74。
 
 验证状态：本地未运行测试、构建、Render、verify 或 diff-check；等待本轮 main push 后最新云端 artifact。
+
+### v0.76 / 战况信号带青铜红幕
+
+日期：2026-09-27
+
+核心变更：
+
+- `BattlefieldStatusRibbonView` 使用统一 `BattlePalette` 绘制青铜、象牙与罗马红渐变信号带，增加顶部金线，强化地图主视觉上的战况标题层级。
+- 仅改变 SwiftUI 表现层，继续消费原有战役、行动、敌军和侦察 readout。
+
+验证状态：本地未运行验证命令，等待云端 run 完成后随本轮 main push 验收。

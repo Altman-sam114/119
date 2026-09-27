@@ -719,11 +719,23 @@ struct BattlefieldStatusRibbonView: View {
         .foregroundStyle(.white)
         .padding(.horizontal, 8)
         .padding(.vertical, 6)
-        .background(.black.opacity(0.50))
+        .background {
+            LinearGradient(
+                colors: [BattlePalette.panelRaised.opacity(0.94), BattlePalette.romanRed.opacity(0.42), .black.opacity(0.70)],
+                startPoint: .leading,
+                endPoint: .trailing
+            )
+        }
         .clipShape(.rect(cornerRadius: 7))
         .overlay {
             RoundedRectangle(cornerRadius: 7)
-                .stroke(Color(red: 0.84, green: 0.66, blue: 0.32).opacity(0.30), lineWidth: 1)
+                .stroke(BattlePalette.parchment.opacity(0.42), lineWidth: 1)
+        }
+        .overlay(alignment: .top) {
+            Rectangle()
+                .fill(BattlePalette.brassBright.opacity(0.62))
+                .frame(height: 1)
+                .padding(.horizontal, 8)
         }
         .accessibilityElement(children: .contain)
     }
