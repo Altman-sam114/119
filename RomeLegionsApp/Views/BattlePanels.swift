@@ -2567,10 +2567,26 @@ struct TacticalRecommendationCardView: View {
         }
         .padding(8)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(summary.kind.tintColor.opacity(0.12))
+        .background {
+            LinearGradient(
+                colors: [
+                    BattlePalette.panelRaised.opacity(0.82),
+                    summary.kind.tintColor.opacity(0.16),
+                    .black.opacity(0.28)
+                ],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+        }
         .overlay {
             RoundedRectangle(cornerRadius: 7)
                 .stroke(summary.kind.tintColor.opacity(0.38), lineWidth: 1)
+        }
+        .overlay(alignment: .top) {
+            Rectangle()
+                .fill(summary.kind.tintColor.opacity(0.78))
+                .frame(height: 2)
+                .clipShape(RoundedRectangle(cornerRadius: 1))
         }
         .clipShape(RoundedRectangle(cornerRadius: 7))
         .accessibilityLabel(summary.accessibilityLabel)

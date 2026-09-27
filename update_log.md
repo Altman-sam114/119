@@ -2939,3 +2939,7 @@ df42aa2 的 run 36309363141 在 Static、SwiftPM、Gameplay Smoke 成功后，Re
 验证状态：本地未运行验证命令，等待云端 run 完成后随本轮 main push 验收。
 
 云端 run 36311493469（commit 71de519，attempt 1）已完成并通过 Static、SwiftPM、Gameplay Smoke、RenderBattlePreview 十五图与无签名 Xcode build；截图复判确认地图主视觉、青铜工具带与底部军令坞成立。随后补充将领卡身份行，等待下一次云端重验。
+
+### v0.76.3 / 敌军作战计划青铜情报牌
+
+将 `AIOperationalPlanCardView` 的单色半透明背景重构为青铜军令台渐变、暗角和顶部信号线；AI 计划数据、时间线、地图叠层与命令链保持不变。等待最新云端 artifact 复判。
