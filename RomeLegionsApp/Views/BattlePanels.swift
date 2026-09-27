@@ -3551,11 +3551,17 @@ struct AIOperationalPlanCardView: View {
             .minimumScaleFactor(0.70)
 
             VStack(alignment: .leading, spacing: 5) {
-                Text(summary.timelineLabel.isEmpty ? summary.detail : summary.timelineLabel)
-                    .font(.caption2.weight(.bold))
-                    .foregroundStyle(summary.kind.tintColor)
-                    .lineLimit(2)
-                    .minimumScaleFactor(0.68)
+                HStack(spacing: 5) {
+                    Image(systemName: "arrow.triangle.branch")
+                        .font(.caption2.weight(.black))
+                    Text("军令链")
+                        .font(.caption2.weight(.black))
+                    Text(summary.timelineLabel.isEmpty ? summary.detail : summary.timelineLabel)
+                        .font(.caption2.weight(.bold))
+                        .lineLimit(2)
+                        .minimumScaleFactor(0.68)
+                }
+                .foregroundStyle(summary.kind.tintColor)
 
                 ForEach(Array(summary.timelineSteps.prefix(3))) { step in
                     AIOperationalPlanTimelineStepView(step: step, tint: summary.kind.tintColor)
