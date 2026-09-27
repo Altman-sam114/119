@@ -1709,6 +1709,12 @@ struct MapCartographyGridView: View {
             compass.addLine(to: CGPoint(x: compassCenter.x + 3, y: compassCenter.y + 4))
             compass.closeSubpath()
             context.fill(compass, with: .color(BattlePalette.brass.opacity(0.30)))
+            context.draw(
+                Text("N")
+                    .font(.system(size: 7, weight: .black, design: .serif))
+                    .foregroundColor(BattlePalette.parchment.opacity(0.70)),
+                at: CGPoint(x: compassCenter.x, y: compassCenter.y - 13)
+            )
             context.stroke(
                 Path(ellipseIn: CGRect(x: compassCenter.x - 9, y: compassCenter.y - 9, width: 18, height: 18)),
                 with: .color(BattlePalette.brass.opacity(0.16)),
