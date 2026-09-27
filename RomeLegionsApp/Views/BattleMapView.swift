@@ -3213,7 +3213,7 @@ struct UnitTokenView: View {
                 }
                 .overlay(alignment: .topTrailing) {
                     if let generalName = unit.generalName {
-                        CommanderTokenBadgeView(name: generalName)
+                        CommanderTokenBadgeView(name: generalName, trait: unit.generalTrait)
                             .offset(x: 5, y: -5)
                     }
                 }
@@ -3290,6 +3290,7 @@ struct LegionStandardShape: Shape {
 
 struct CommanderTokenBadgeView: View {
     var name: String
+    var trait: GeneralTrait?
 
     var body: some View {
         ZStack {
@@ -3297,7 +3298,7 @@ struct CommanderTokenBadgeView: View {
                 .fill(Color(red: 0.93, green: 0.72, blue: 0.24))
             CommanderShieldShape()
                 .stroke(.white.opacity(0.92), lineWidth: 1)
-            Image(systemName: "person.fill")
+            Image(systemName: trait?.systemImage ?? "person.fill")
                 .font(.system(size: 9, weight: .black))
                 .foregroundStyle(.black.opacity(0.14))
                 .offset(y: 1)

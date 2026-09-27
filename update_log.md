@@ -2943,3 +2943,7 @@ df42aa2 的 run 36309363141 在 Static、SwiftPM、Gameplay Smoke 成功后，Re
 ### v0.76.3 / 敌军作战计划青铜情报牌
 
 将 `AIOperationalPlanCardView` 的单色半透明背景重构为青铜军令台渐变、暗角和顶部信号线；AI 计划数据、时间线、地图叠层与命令链保持不变。等待最新云端 artifact 复判。
+
+### v0.76.4 / 地图将领徽章特性图标
+
+地图 `CommanderTokenBadgeView` 现在在将领首字母徽章内显示对应 `GeneralTrait` 图标；无特性回退人物图标。只改地图表现层，等待云端重验。
