@@ -1620,20 +1620,20 @@ struct MapFogOfWarEdgeView: View {
     var body: some View {
         ZStack {
             LinearGradient(
-                colors: [.white.opacity(0.14), .clear, .clear, .white.opacity(0.10)],
+                colors: [BattlePalette.parchment.opacity(0.16), .clear, .clear, BattlePalette.parchment.opacity(0.12)],
                 startPoint: .top,
                 endPoint: .bottom
             )
             HStack(spacing: 0) {
                 RadialGradient(
-                    colors: [.white.opacity(0.19), .clear],
+                    colors: [BattlePalette.parchment.opacity(0.20), .clear],
                     center: .leading,
                     startRadius: 8,
                     endRadius: 170
                 )
                 Spacer(minLength: 0)
                 RadialGradient(
-                    colors: [.white.opacity(0.15), .clear],
+                    colors: [BattlePalette.parchment.opacity(0.16), .clear],
                     center: .trailing,
                     startRadius: 8,
                     endRadius: 170
