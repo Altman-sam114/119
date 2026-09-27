@@ -77,6 +77,7 @@ jobs:
 
       - name: Render battle preview
         id: render_preview
+        timeout-minutes: 50
         continue-on-error: true
         shell: bash
         run: |
@@ -86,8 +87,12 @@ jobs:
             mkdir -p .home .build/module-cache
             MACOS_SDK="$(xcrun --sdk macosx --show-sdk-path)"
             ARCH="$(uname -m)"
+            echo "[preview] compiler started $(date -u)"
             env HOME="$PWD/.home" CLANG_MODULE_CACHE_PATH="$PWD/.build/module-cache" swiftc -parse-as-library \
+              -O \
               -swift-version 5 \
+              -Xfrontend -warn-long-function-bodies -Xfrontend 1000 \
+              -Xfrontend -warn-long-expression-type-checking -Xfrontend 500 \
               -sdk "$MACOS_SDK" \
               -target "${ARCH}-apple-macosx14.0" \
               -module-cache-path .build/module-cache \
@@ -102,14 +107,16 @@ jobs:
               RomeLegionsApp/Views/BattleShellControls.swift \
               RomeLegionsApp/Views/BattleMapView.swift \
               RomeLegionsApp/Views/BattlePanels.swift \
-              RomeLegionsApp/Views/BattleViewStyles.swift
-            .build/render-battle-preview ci-results/render-previews/battle-landscape-preview.png 932 430
-            .build/render-battle-preview ci-results/render-previews/battle-portrait-preview.png 390 844
-            .build/render-battle-preview ci-results/render-previews/battle-wide-preview.png 1024 768
+              RomeLegionsApp/Views/BattleViewStyles.swift || exit $?
+            echo "[preview] compiler completed $(date -u)"
+            .build/render-battle-preview ci-results/render-previews/battle-landscape-preview.png 932 430 || exit $?
+            .build/render-battle-preview ci-results/render-previews/battle-portrait-preview.png 390 844 || exit $?
+            .build/render-battle-preview ci-results/render-previews/battle-wide-preview.png 1024 768 || exit $?
           } 2>&1 | tee ci-results/render-battle-preview.log
 
       - name: Xcode build
         id: xcode_build
+        timeout-minutes: 15
         continue-on-error: true
         shell: bash
         run: |

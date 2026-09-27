@@ -1,5 +1,17 @@
 # 项目核心流程图
 
+云端诊断读图说明：预览和构建分别设 50/15 分钟上限；编译、夹具与逐图日志用于定位阻塞，失败仍进入结果包记录，不作为通过。
+
+```mermaid
+flowchart LR
+    Compile[预览编译与慢类型检查日志] --> Fixtures[夹具启动日志]
+    Fixtures --> Images[三尺寸十五图逐图日志]
+    Images --> Build[Xcode 构建]
+    Compile -->|失败或超时| Metadata[记录真实 outcome 与结果包]
+    Build --> Metadata
+    Images -->|失败或超时| Metadata
+```
+
 读图说明：反制上下文只消费既有报告；active/focused 回退与全局 primary 分开，姿态、移动和锁敌仍是三个独立单步入口。AI 候选不会让这些入口自动串联。
 
 ```mermaid

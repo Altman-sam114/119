@@ -9,6 +9,7 @@ struct RenderBattlePreview {
         let outputPath = arguments.first ?? "DerivedData/battle-landscape-preview.png"
         let width = arguments.dropFirst().first.flatMap(Double.init) ?? 932
         let height = arguments.dropFirst(2).first.flatMap(Double.init) ?? 430
+        emitPreviewDiagnostic("[preview] fixtures started: \(outputPath)")
         // Data-only fixtures never touch the five screenshot contexts below.
         try verifyAITacticalActionPreviewChain()
         let viewModel = GameViewModel()
@@ -3193,6 +3194,7 @@ struct RenderBattlePreview {
         initialDrawer: BattleDrawerCategory? = nil,
         drawerUsesScrollView: Bool = true
     ) throws -> NSBitmapImageRep {
+        emitPreviewDiagnostic("[preview] image started: \(outputPath)")
         let content = BattleView(
             initialDrawer: initialDrawer,
             drawerUsesScrollView: drawerUsesScrollView
@@ -3211,6 +3213,7 @@ struct RenderBattlePreview {
         }
 
         try png.write(to: URL(fileURLWithPath: outputPath))
+        emitPreviewDiagnostic("[preview] image completed: \(outputPath)")
         return bitmap
     }
 

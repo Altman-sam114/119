@@ -43,6 +43,9 @@ struct WarMapView: View {
             let selectedPosition = viewModel.focusedPosition
             let selectedAttackSourceID = viewModel.selectedCombatForecast?.attacker.id
             let displayContext = viewModel.battleDisplayContextReadout
+            // One pathfinding read per map update, shared by every tile.
+            let reachablePositions: Set<Position> = displayContext.mode == .unitExecution
+                ? viewModel.reachablePositions : []
             let skillRangePositions = displayContext.mode == .unitExecution
                 ? viewModel.selectedGeneralSkillRangePositions : []
             let skillTargetPositions = displayContext.mode == .unitExecution
@@ -166,7 +169,7 @@ struct WarMapView: View {
                                 unitID: unit?.id,
                                 sourceID: selectedAttackSourceID
                             ),
-                            isReachable: displayContext.mode == .unitExecution && viewModel.reachablePositions.contains(tile.position),
+                            isReachable: reachablePositions.contains(tile.position),
                             isAttackTarget: (displayContext.mode == .unitExecution || displayContext.mode == .attackLock) && attackTargets.contains { $0.position == tile.position },
                             isSkillRange: skillRangePositions.contains(tile.position),
                             isSkillTarget: skillTargetPositions.contains(tile.position) ||
