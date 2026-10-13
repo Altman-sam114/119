@@ -11,6 +11,7 @@
 ## v0.78 连续战区与微缩军团
 
 - `HexMetrics.center` 与核心 `Position.neighbors` 同为奇偶行错位：奇数行水平偏移半格、行距为 tileHeight 的 0.75；`Hexagon.vertices` 同源用于路径、`HexMetrics.vertices/sharedEdge` 与海岸共边。`CoastlineBuilder` 按真实邻接和地形字典输出海岸，不再按屏幕距离猜邻接；地图不改变核心坐标或寻路。
+- `HexMetrics.topClearance` 为固定 HUD 预留地图上安全区；默认横屏 54pt、竖屏 70pt，攻击/反制/敌将焦点读板存在时宽屏 112pt、窄屏 140pt。仅影响地图拟合布局，不写入镜头状态或核心规则。
 - 地表去除整格投影与内缘高光，收敛橄榄绿/石灰/灰蓝色阶。`ArmyMiniatureView` 只接收兵种和阵营，`BattlefieldMiniaturePainter` 只接收画布尺寸，通过纯 Canvas 几何绘制军团、城镇、树林和山脊；`UnitTokenView` 仍持有原生命、将领、姿态、经验、冷却和行动标记，`CityBadgeView` 仍提供城名/城防。命中测试、选择和命令所有权不迁移。
 
 ## v0.74 战区雾边与地图材质复现

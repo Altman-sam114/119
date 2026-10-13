@@ -2516,7 +2516,11 @@ struct RenderBattlePreview {
         }
         // Every rule neighbor must share exactly one visual edge, at every
         // aspect ratio. Non-neighbors must never look like reachable neighbors.
-        for metrics in [shortLandscapeMetrics, portraitMetrics, wideMetrics] {
+        let focusedLandscapeMetrics = HexMetrics(
+            mapWidth: viewModel.state.width, mapHeight: viewModel.state.height,
+            container: CGSize(width: 916, height: 278), topClearance: 112
+        )
+        for metrics in [shortLandscapeMetrics, portraitMetrics, wideMetrics, focusedLandscapeMetrics] {
             for tile in viewModel.state.tiles {
                 let neighbors = Set(tile.position.neighbors(width: viewModel.state.width, height: viewModel.state.height))
                 for other in viewModel.state.tiles where other.position != tile.position {
@@ -2535,6 +2539,10 @@ struct RenderBattlePreview {
                       }) else { throw PreviewRenderError.missingHexTerrainContinuity }
             }
         }
+        guard shortLandscapeMetrics.origin.y - shortLandscapeMetrics.tileHeight / 2 >= 54,
+              focusedLandscapeMetrics.origin.y - focusedLandscapeMetrics.tileHeight / 2 >= 112 else {
+            throw PreviewRenderError.missingHexTerrainContinuity
+        }
         let coastlineSegments = CoastlineBuilder.segments(
             tiles: viewModel.state.tiles,
             metrics: wideMetrics
@@ -2542,7 +2550,8 @@ struct RenderBattlePreview {
         let terrainByPosition = Dictionary(
             uniqueKeysWithValues: viewModel.state.tiles.map { ($0.position, $0.terrain) }
         )
-        let deepSeaPosition = Position(x: 1, y: 7)
+        let deepSeaPosition = Position(x: 4, y: 6)
+        let formerDeepSeaPosition = Position(x: 1, y: 7)
         let deepSeaIsSurroundedByWater = terrainByPosition[deepSeaPosition] == .water &&
             deepSeaPosition.neighbors(width: viewModel.state.width, height: viewModel.state.height).allSatisfy {
                 terrainByPosition[$0] == .water
@@ -2551,6 +2560,7 @@ struct RenderBattlePreview {
             count + tile.position.neighbors(width: viewModel.state.width, height: viewModel.state.height)
                 .filter { terrainByPosition[$0] != nil && terrainByPosition[$0] != .water }.count
         }
+        emitPreviewDiagnostic("Coastline geometry: actual=\(coastlineSegments.count), expected=\(expectedCoastlineCount), deepSea=\(deepSeaIsSurroundedByWater)")
         guard coastlineSegments.count > 10,
               coastlineSegments.count == expectedCoastlineCount,
               Set(coastlineSegments).count == coastlineSegments.count,
@@ -2561,6 +2571,8 @@ struct RenderBattlePreview {
                       wideMetrics.sharedEdge(from: segment.waterPosition, to: segment.landPosition).count == 2
               }),
               deepSeaIsSurroundedByWater,
+              deepSeaPosition.neighbors(width: viewModel.state.width, height: viewModel.state.height).count == 6,
+              coastlineSegments.contains(where: { $0.waterPosition == formerDeepSeaPosition && $0.landPosition == Position(x: 2, y: 6) }),
               !coastlineSegments.contains(where: { $0.waterPosition == deepSeaPosition }) else {
             throw PreviewRenderError.missingCoastlineStrategy
         }

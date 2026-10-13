@@ -31,6 +31,7 @@
 - 关键文件：BattleMapView.swift、BattleViewStyles.swift、RenderBattlePreview、verify_project、CI workflow、README、flow/flowchart/test 和 v0.78 提示词。未修改核心规则、AI、ViewModel、存档或用户工程配置。
 - 改前最新 main `94a5a36cfde6eff0f23ac19e021550d7ef12732b` 的历史 artifact 不可下载，手动触发 run `38342166961` attempt 1：manifest 精确匹配，五项检查成功，JUnit 5/0、Swift Testing 107 项通过。该结果只作改前对照；发现旧图棋盘裂隙/邻接视觉不符，不能视为 v0.78 通过。
 - 本地仅读取、编辑、git diff/status、fetch/pull 与后续精确提交/推送；没有运行测试、构建、typecheck、Render、verify、diff-check 或解析验证。v0.78 必须在 push 后下载最新结果包并复判 15 图；当前不得宣称商业美术质量或总目标完成。
+- 首次实现 `9d28916` / run `38343582672` attempt 1：Static、107 Swift Testing、Smoke、Xcode 成功，Render 因 `missingCoastlineStrategy` 失败（JUnit 5/1）。旧深海夹具 (1,7) 按真实邻接与 (2,6) 迦太基城相邻；修复改用六面均海水的 (4,6)，并反向断言旧坐标确有岸线，不降低检查。已产出横屏 focused 三图，发现顶部城市被固定 HUD 遮挡，补充默认/焦点地图上安全区与几何断言；待追加修复提交后最新云端重验。
 
 ### v0.74 / 战区雾边与地图材质复现
 

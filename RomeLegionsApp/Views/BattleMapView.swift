@@ -13,11 +13,6 @@ struct WarMapView: View {
 
     var body: some View {
         GeometryReader { proxy in
-            let metrics = HexMetrics(
-                mapWidth: viewModel.state.width,
-                mapHeight: viewModel.state.height,
-                container: proxy.size
-            )
             let attackTargets: [ArmyUnit] = viewModel.attackTargets
             let attackTargetIDs = Set(attackTargets.map(\.id))
             let enemyIntentSummaries = viewModel.enemyIntentSummaries
@@ -43,6 +38,14 @@ struct WarMapView: View {
             let selectedPosition = viewModel.focusedPosition
             let selectedAttackSourceID = viewModel.selectedCombatForecast?.attacker.id
             let displayContext = viewModel.battleDisplayContextReadout
+            let hasFocusReadout = displayContext.mode == .attackLock ||
+                displayContext.mode == .countermeasureFocus || displayContext.mode == .enemyCommanderFocus
+            let metrics = HexMetrics(
+                mapWidth: viewModel.state.width,
+                mapHeight: viewModel.state.height,
+                container: proxy.size,
+                topClearance: hasFocusReadout ? (proxy.size.width < 620 ? 140 : 112) : 0
+            )
             // One pathfinding read per map update, shared by every tile.
             let reachablePositions: Set<Position> = displayContext.mode == .unitExecution
                 ? viewModel.reachablePositions : []

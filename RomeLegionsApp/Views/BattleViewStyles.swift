@@ -169,16 +169,14 @@ struct HexMetrics {
     let mapSize: CGSize
     let tileAspect: CGFloat
 
-    init(mapWidth: Int, mapHeight: Int, container: CGSize) {
+    init(mapWidth: Int, mapHeight: Int, container: CGSize, topClearance: CGFloat = 0) {
         let horizontalUnits = CGFloat(mapWidth) + (mapHeight > 1 ? 0.5 : 0)
         let verticalUnits = CGFloat(max(0, mapHeight - 1)) * 0.75 + 1
         let isShortLandscape = container.width > container.height * 2
         let isLandscape = container.width > container.height
 
         let horizontalInset = min(18, max(8, container.width * 0.018))
-        let topInset = isLandscape
-            ? min(38, max(28, container.height * 0.09))
-            : min(50, max(40, container.height * 0.07))
+        let topInset = max(topClearance, isLandscape ? 54 : 70)
         let bottomInset = isLandscape
             ? min(54, max(44, container.height * 0.13))
             : min(82, max(68, container.height * 0.11))
