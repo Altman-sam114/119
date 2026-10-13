@@ -2514,6 +2514,27 @@ struct RenderBattlePreview {
               wideMetrics.mapSize.width > 700 else {
             throw PreviewRenderError.missingTerrainMaterialStrategy
         }
+        // Every rule neighbor must share exactly one visual edge, at every
+        // aspect ratio. Non-neighbors must never look like reachable neighbors.
+        for metrics in [shortLandscapeMetrics, portraitMetrics, wideMetrics] {
+            for tile in viewModel.state.tiles {
+                let neighbors = Set(tile.position.neighbors(width: viewModel.state.width, height: viewModel.state.height))
+                for other in viewModel.state.tiles where other.position != tile.position {
+                    let edge = metrics.sharedEdge(from: tile.position, to: other.position)
+                    guard (neighbors.contains(other.position) ? edge.count == 2 : edge.count < 2) else {
+                        throw PreviewRenderError.missingHexTerrainContinuity
+                    }
+                }
+                let vertices = metrics.vertices(for: tile.position)
+                guard vertices.count == 6,
+                      vertices.allSatisfy({ vertex in
+                          vertex.x >= metrics.origin.x - metrics.tileWidth / 2 - 0.001 &&
+                          vertex.x <= metrics.origin.x - metrics.tileWidth / 2 + metrics.mapSize.width + 0.001 &&
+                          vertex.y >= metrics.origin.y - metrics.tileHeight / 2 - 0.001 &&
+                          vertex.y <= metrics.origin.y - metrics.tileHeight / 2 + metrics.mapSize.height + 0.001
+                      }) else { throw PreviewRenderError.missingHexTerrainContinuity }
+            }
+        }
         let coastlineSegments = CoastlineBuilder.segments(
             tiles: viewModel.state.tiles,
             metrics: wideMetrics
@@ -2521,27 +2542,23 @@ struct RenderBattlePreview {
         let terrainByPosition = Dictionary(
             uniqueKeysWithValues: viewModel.state.tiles.map { ($0.position, $0.terrain) }
         )
-        let coastlineThreshold = wideMetrics.tileWidth * 0.95
         let deepSeaPosition = Position(x: 1, y: 7)
         let deepSeaIsSurroundedByWater = terrainByPosition[deepSeaPosition] == .water &&
-            viewModel.state.tiles.allSatisfy { tile in
-                let deepSeaCenter = wideMetrics.center(for: deepSeaPosition)
-                let center = wideMetrics.center(for: tile.position)
-                let dx = center.x - deepSeaCenter.x
-                let dy = center.y - deepSeaCenter.y
-                let isVisualNeighbor = tile.position != deepSeaPosition &&
-                    (dx * dx + dy * dy).squareRoot() <= coastlineThreshold
-                return !isVisualNeighbor || tile.terrain == .water
+            deepSeaPosition.neighbors(width: viewModel.state.width, height: viewModel.state.height).allSatisfy {
+                terrainByPosition[$0] == .water
             }
+        let expectedCoastlineCount = viewModel.state.tiles.filter { $0.terrain == .water }.reduce(0) { count, tile in
+            count + tile.position.neighbors(width: viewModel.state.width, height: viewModel.state.height)
+                .filter { terrainByPosition[$0] != nil && terrainByPosition[$0] != .water }.count
+        }
         guard coastlineSegments.count > 10,
+              coastlineSegments.count == expectedCoastlineCount,
+              Set(coastlineSegments).count == coastlineSegments.count,
               coastlineSegments.allSatisfy({ segment in
-                  let waterCenter = wideMetrics.center(for: segment.waterPosition)
-                  let landCenter = wideMetrics.center(for: segment.landPosition)
-                  let dx = landCenter.x - waterCenter.x
-                  let dy = landCenter.y - waterCenter.y
                   return terrainByPosition[segment.waterPosition] == .water &&
                       terrainByPosition[segment.landPosition] != .water &&
-                      (dx * dx + dy * dy).squareRoot() <= coastlineThreshold
+                      segment.waterPosition.neighbors(width: viewModel.state.width, height: viewModel.state.height).contains(segment.landPosition) &&
+                      wideMetrics.sharedEdge(from: segment.waterPosition, to: segment.landPosition).count == 2
               }),
               deepSeaIsSurroundedByWater,
               !coastlineSegments.contains(where: { $0.waterPosition == deepSeaPosition }) else {
@@ -3974,6 +3991,7 @@ enum PreviewRenderError: Error {
     case missingMapViewportStrategy
     case missingTerrainMaterialStrategy
     case missingCoastlineStrategy
+    case missingHexTerrainContinuity
     case missingStrategicMapMaterialCoverage
     case missingCommandDockAttackFixture
     case missingAttackForecast

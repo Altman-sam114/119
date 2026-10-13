@@ -1808,23 +1808,15 @@ struct CoastlineSegment: Identifiable, Hashable {
 
 enum CoastlineBuilder {
     static func segments(tiles: [Tile], metrics: HexMetrics) -> [CoastlineSegment] {
-        // 视觉相邻用两格中心距离判定：相邻中心距 ≤ 0.87 倍 tileWidth，
-        // 次近中心距 ≥ 1.27 倍 tileWidth，阈值取 0.95 倍稳定区分。
-        let threshold = metrics.tileWidth * 0.95
-        let waterTiles = tiles.filter { $0.terrain == .water }
-        let landTiles = tiles.filter { $0.terrain != .water }
-        var segments: [CoastlineSegment] = []
-        for water in waterTiles {
-            let waterCenter = metrics.center(for: water.position)
-            for land in landTiles {
-                let landCenter = metrics.center(for: land.position)
-                let dx = landCenter.x - waterCenter.x
-                let dy = landCenter.y - waterCenter.y
-                guard (dx * dx + dy * dy).squareRoot() <= threshold else { continue }
-                segments.append(CoastlineSegment(waterPosition: water.position, landPosition: land.position))
+        let terrain = Dictionary(uniqueKeysWithValues: tiles.map { ($0.position, $0.terrain) })
+        let width = (tiles.map(\.position.x).max() ?? -1) + 1
+        let height = (tiles.map(\.position.y).max() ?? -1) + 1
+        return tiles.filter { $0.terrain == .water }.flatMap { water -> [CoastlineSegment] in
+            water.position.neighbors(width: width, height: height).compactMap { neighbor -> CoastlineSegment? in
+                guard let neighborTerrain = terrain[neighbor], neighborTerrain != .water else { return nil }
+                return CoastlineSegment(waterPosition: water.position, landPosition: neighbor)
             }
         }
-        return segments
     }
 }
 
@@ -1840,17 +1832,14 @@ struct CoastlineLayerView: View {
             for segment in segments {
                 let water = metrics.center(for: segment.waterPosition)
                 let land = metrics.center(for: segment.landPosition)
-                let mid = CGPoint(x: (water.x + land.x) / 2, y: (water.y + land.y) / 2)
+                let edge = metrics.sharedEdge(from: segment.waterPosition, to: segment.landPosition)
+                guard edge.count == 2 else { continue }
                 let dx = land.x - water.x
                 let dy = land.y - water.y
                 let length = max(1, (dx * dx + dy * dy).squareRoot())
-                let perpX = -dy / length
-                let perpY = dx / length
-                let half = metrics.tileHeight * 0.34
-
                 var shore = Path()
-                shore.move(to: CGPoint(x: mid.x - perpX * half, y: mid.y - perpY * half))
-                shore.addLine(to: CGPoint(x: mid.x + perpX * half, y: mid.y + perpY * half))
+                shore.move(to: edge[0])
+                shore.addLine(to: edge[1])
                 context.stroke(
                     shore,
                     with: .color(Self.sandColor.opacity(0.66)),
@@ -1861,12 +1850,12 @@ struct CoastlineLayerView: View {
                 let towardWaterY = -dy / length * metrics.tileWidth * 0.075
                 var foam = Path()
                 foam.move(to: CGPoint(
-                    x: mid.x - perpX * half * 0.82 + towardWaterX,
-                    y: mid.y - perpY * half * 0.82 + towardWaterY
+                    x: edge[0].x + towardWaterX,
+                    y: edge[0].y + towardWaterY
                 ))
                 foam.addLine(to: CGPoint(
-                    x: mid.x + perpX * half * 0.82 + towardWaterX,
-                    y: mid.y + perpY * half * 0.82 + towardWaterY
+                    x: edge[1].x + towardWaterX,
+                    y: edge[1].y + towardWaterY
                 ))
                 context.stroke(
                     foam,
@@ -1923,17 +1912,10 @@ struct HexTileView: View {
                 .overlay {
                     Hexagon()
                         .stroke(borderColor, lineWidth: isSelected || isAttackOrigin || isAttackTarget ? max(2.4, 3 * scale) : max(0.4, 0.55 * scale))
-
-                    Hexagon()
-                        .stroke(
-                            tile.terrain == .water ? .white.opacity(0.10) : .white.opacity(0.055),
-                            lineWidth: max(0.35, 0.65 * scale)
-                        )
-                        .padding(1.8 * scale)
                 }
 
             TerrainGlyphView(terrain: tile.terrain, scale: scale)
-                .opacity(city == nil && unit == nil ? tile.terrain.materialProfile.landmarkOpacity : 0.08)
+                .opacity(city == nil && unit == nil ? 0.035 : 0)
                 .offset(x: 10 * scale, y: 8 * scale)
 
             if let threatHeatZoneSummary {
@@ -2047,7 +2029,6 @@ struct HexTileView: View {
                 CountermeasureTileOverlay(overlay: countermeasureOverlay, scale: scale)
             }
         }
-        .shadow(color: .black.opacity(isSelected || isAttackOrigin ? 0.38 : 0.18), radius: isSelected || isAttackOrigin ? 9 : 2, y: 2)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(accessibilityLabel)
         .accessibilityAddTraits(.isButton)
@@ -2057,17 +2038,17 @@ struct HexTileView: View {
     private var tileColor: Color {
         let base: (red: Double, green: Double, blue: Double)
         switch tile.terrain {
-        case .plains: base = (0.43, 0.49, 0.27)
-        case .forest: base = (0.13, 0.32, 0.19)
-        case .hills: base = (0.47, 0.38, 0.27)
-        case .water: base = (0.12, 0.37, 0.52)
-        case .road: base = (0.51, 0.43, 0.29)
-        case .city: base = (0.43, 0.35, 0.27)
+        case .plains: base = (0.43, 0.49, 0.32)
+        case .forest: base = (0.33, 0.43, 0.29)
+        case .hills: base = (0.48, 0.46, 0.35)
+        case .water: base = (0.24, 0.43, 0.48)
+        case .road: base = (0.48, 0.48, 0.34)
+        case .city: base = (0.47, 0.46, 0.34)
         }
 
         // 按坐标确定性微调明度，弱化逐格填色的棋盘感。
         let phase = Double((tile.position.x * 7 + tile.position.y * 13) % 5) - 2
-        let tone = 1 + phase * 0.015
+        let tone = 1 + phase * 0.006
         return Color(
             red: min(1, max(0, base.red * tone)),
             green: min(1, max(0, base.green * tone)),
@@ -2923,7 +2904,7 @@ struct WaterTextureView: View {
                 )
                 context.stroke(
                     wave,
-                    with: .color(.white.opacity(index.isMultiple(of: 2) ? 0.22 : 0.11)),
+                    with: .color(.white.opacity(index.isMultiple(of: 2) ? 0.09 : 0.045)),
                     lineWidth: max(0.8, 1.2 * scale)
                 )
             }
@@ -2959,23 +2940,15 @@ struct ForestTextureView: View {
     var scale: CGFloat
 
     var body: some View {
-        ZStack {
-            HStack(alignment: .bottom, spacing: 6 * scale) {
-                ForEach(0..<4, id: \.self) { index in
-                    Rectangle()
-                        .fill(.black.opacity(0.18))
-                        .frame(width: max(1, 1.8 * scale), height: (9 + CGFloat(index % 2) * 3) * scale)
-                }
-            }
-            .offset(y: 8 * scale)
-
-            HStack(spacing: -1 * scale) {
-                ForEach(0..<5, id: \.self) { index in
-                    Circle()
-                        .fill(index.isMultiple(of: 2) ? .black.opacity(0.18) : .white.opacity(0.08))
-                        .frame(width: (10 + CGFloat(index % 3) * 2) * scale, height: (10 + CGFloat(index % 3) * 2) * scale)
-                        .offset(y: CGFloat(index % 2) * 5 * scale)
-                }
+        Canvas { context, size in
+            let paint = BattlefieldMiniaturePainter(size: size)
+            for index in 0..<13 {
+                let x = CGFloat(9 + (index * 11) % 35)
+                let y = CGFloat(8 + (index * 7) % 24)
+                paint.ellipse(&context, x: x - 3, y: y + 3, width: 10, height: 5, color: .black.opacity(0.18))
+                paint.line(&context, [(x, y), (x, y + 6)], color: Color(red: 0.26, green: 0.25, blue: 0.16), width: 1)
+                paint.ellipse(&context, x: x - 4, y: y - 5, width: 8, height: 10, color: Color(red: 0.20, green: 0.32, blue: 0.18))
+                paint.ellipse(&context, x: x - 4, y: y - 5, width: 6, height: 6, color: Color(red: 0.37, green: 0.44, blue: 0.23))
             }
         }
     }
@@ -2985,27 +2958,17 @@ struct HillsTextureView: View {
     var scale: CGFloat
 
     var body: some View {
-        ZStack {
-            HStack(alignment: .bottom, spacing: -8 * scale) {
-                TriangleHillShape()
-                    .fill(.white.opacity(0.11))
-                    .frame(width: 28 * scale, height: 17 * scale)
-                TriangleHillShape()
-                    .fill(.black.opacity(0.16))
-                    .frame(width: 34 * scale, height: 22 * scale)
+        Canvas { context, size in
+            let paint = BattlefieldMiniaturePainter(size: size)
+            for index in 0..<3 {
+                let x = CGFloat(8 + index * 12)
+                let y = CGFloat(24 + (index % 2) * 7)
+                let peak = y - CGFloat(12 + index * 2)
+                paint.ellipse(&context, x: x - 5, y: y - 2, width: 25, height: 7, color: .black.opacity(0.10))
+                paint.polygon(&context, [(x - 7, y), (x + 3, peak), (x + 16, y)], color: Color(red: 0.58, green: 0.56, blue: 0.43))
+                paint.polygon(&context, [(x + 3, peak), (x + 7, y - 4), (x + 16, y)], color: Color(red: 0.33, green: 0.35, blue: 0.28))
+                paint.line(&context, [(x - 4, y - 3), (x + 3, peak), (x + 6, peak + 4)], color: BattlefieldMiniaturePainter.ivory.opacity(0.35), width: 0.7)
             }
-            .offset(y: 7 * scale)
-
-            VStack(spacing: 5 * scale) {
-                Capsule()
-                    .fill(.white.opacity(0.10))
-                    .frame(width: 42 * scale, height: max(1, 1.3 * scale))
-                Capsule()
-                    .fill(.black.opacity(0.10))
-                    .frame(width: 30 * scale, height: max(1, 1.3 * scale))
-                    .offset(x: 7 * scale)
-            }
-            .offset(y: 16 * scale)
         }
     }
 }
@@ -3018,7 +2981,7 @@ struct PlainsTextureView: View {
             VStack(spacing: 5 * scale) {
                 ForEach(0..<4, id: \.self) { index in
                     Capsule()
-                        .fill(index.isMultiple(of: 2) ? .white.opacity(0.12) : .black.opacity(0.08))
+                        .fill(index.isMultiple(of: 2) ? .white.opacity(0.035) : .black.opacity(0.025))
                         .frame(width: (38 - CGFloat(index) * 3) * scale, height: max(1, 1.5 * scale))
                         .offset(x: CGFloat(index % 2) * 5 * scale)
                 }
@@ -3145,32 +3108,22 @@ struct FortifiedCitySilhouetteView: View {
         let width: CGFloat = compact ? 34 : 44
         let height: CGFloat = compact ? 22 : 31
 
-        ZStack(alignment: .bottom) {
-            CityWallShape()
-                .fill(owner.factionColor)
-
-            HStack(alignment: .bottom, spacing: compact ? 1 : 2) {
-                Rectangle()
-                    .frame(width: width * 0.18, height: height * 0.46)
-                Rectangle()
-                    .frame(width: width * 0.22, height: height * 0.68)
-                Rectangle()
-                    .frame(width: width * 0.18, height: height * 0.52)
-            }
-            .foregroundStyle(.white.opacity(0.82))
-            .padding(.bottom, height * 0.16)
-
-            Rectangle()
-                .fill(Color(red: 0.90, green: 0.72, blue: 0.34))
-                .frame(height: compact ? 3 : 4)
-                .frame(maxHeight: .infinity, alignment: .top)
+        Canvas { context, size in
+            let paint = BattlefieldMiniaturePainter(size: size)
+            paint.ellipse(&context, x: 4, y: 27, width: 44, height: 11, color: .black.opacity(0.28))
+            paint.building(&context, x: 9, y: 16, width: 16, height: 12)
+            paint.building(&context, x: 26, y: 11, width: 17, height: 15)
+            paint.building(&context, x: 19, y: 24, width: 13, height: 9)
+            let wallRect = paint.rect(x: 6, y: 26, width: 39, height: 10)
+            context.fill(CityWallShape().path(in: wallRect), with: .color(BattlefieldMiniaturePainter.stone))
+            paint.polygon(&context, [(6, 34), (45, 34), (45, 38), (6, 38)], color: BattlefieldMiniaturePainter.stoneShadow)
+            paint.polygon(&context, [(22, 38), (22, 30), (25, 28), (28, 30), (28, 38)], color: .black.opacity(0.65))
+            paint.line(&context, [(35, 14), (35, 1)], color: BattlefieldMiniaturePainter.ivory, width: 0.8)
+            paint.polygon(&context, [(35, 1), (45, 3), (44, 9), (35, 7)], color: owner.factionColor)
         }
         .frame(width: width, height: height)
-        .overlay {
-            CityWallShape()
-                .stroke(.black.opacity(0.34), lineWidth: 1)
-        }
         .shadow(color: .black.opacity(0.34), radius: 2, y: 1)
+        .accessibilityHidden(true)
     }
 }
 
@@ -3194,34 +3147,149 @@ struct CityWallShape: Shape {
     }
 }
 
+/// Original vector miniatures, normalized to a 52 x 40 artboard. The painter
+/// knows neither units nor commands; map identity and hit testing stay outside.
+struct BattlefieldMiniaturePainter {
+    let size: CGSize
+    static let ivory = Color(red: 0.88, green: 0.83, blue: 0.66)
+    static let stone = Color(red: 0.70, green: 0.67, blue: 0.53)
+    static let stoneShadow = Color(red: 0.36, green: 0.37, blue: 0.31)
+    static let roof = Color(red: 0.55, green: 0.24, blue: 0.14)
+    static let steel = Color(red: 0.67, green: 0.71, blue: 0.66)
+
+    func point(_ x: CGFloat, _ y: CGFloat) -> CGPoint {
+        CGPoint(x: x * size.width / 52, y: y * size.height / 40)
+    }
+
+    func rect(x: CGFloat, y: CGFloat, width: CGFloat, height: CGFloat) -> CGRect {
+        CGRect(x: x * size.width / 52, y: y * size.height / 40,
+               width: width * size.width / 52, height: height * size.height / 40)
+    }
+
+    func polygon(_ context: inout GraphicsContext, _ points: [(CGFloat, CGFloat)], color: Color) {
+        guard let first = points.first else { return }
+        var path = Path()
+        path.move(to: point(first.0, first.1))
+        for p in points.dropFirst() { path.addLine(to: point(p.0, p.1)) }
+        path.closeSubpath()
+        context.fill(path, with: .color(color))
+    }
+
+    func line(_ context: inout GraphicsContext, _ points: [(CGFloat, CGFloat)], color: Color, width: CGFloat) {
+        guard let first = points.first else { return }
+        var path = Path()
+        path.move(to: point(first.0, first.1))
+        for p in points.dropFirst() { path.addLine(to: point(p.0, p.1)) }
+        context.stroke(path, with: .color(color), style: StrokeStyle(lineWidth: max(0.5, width * size.width / 52), lineCap: .round))
+    }
+
+    func ellipse(_ context: inout GraphicsContext, x: CGFloat, y: CGFloat, width: CGFloat, height: CGFloat, color: Color) {
+        context.fill(Path(ellipseIn: rect(x: x, y: y, width: width, height: height)), with: .color(color))
+    }
+
+    func building(_ context: inout GraphicsContext, x: CGFloat, y: CGFloat, width: CGFloat, height: CGFloat) {
+        polygon(&context, [(x, y), (x + width, y), (x + width, y + height), (x, y + height)], color: Self.stone)
+        polygon(&context, [(x + width, y), (x + width + 4, y - 3), (x + width + 4, y + height - 3), (x + width, y + height)], color: Self.stoneShadow)
+        polygon(&context, [(x - 2, y), (x + width / 2, y - 6), (x + width + 2, y)], color: Self.roof)
+        line(&context, [(x - 2, y), (x + width / 2, y - 6)], color: Self.ivory.opacity(0.75), width: 0.8)
+        for offset in stride(from: CGFloat(3), to: width, by: 5) {
+            line(&context, [(x + offset, y + 3), (x + offset, y + 6)], color: Self.stoneShadow, width: 1.4)
+        }
+    }
+
+    func soldier(_ context: inout GraphicsContext, x: CGFloat, y: CGFloat, tint: Color, archer: Bool) {
+        ellipse(&context, x: x - 4, y: y + 10, width: 12, height: 4, color: .black.opacity(0.30))
+        line(&context, [(x, y + 6), (x - 1, y + 12)], color: Self.stoneShadow, width: 2)
+        line(&context, [(x + 3, y + 6), (x + 5, y + 12)], color: Self.stoneShadow, width: 2)
+        polygon(&context, [(x - 2, y - 1), (x + 5, y - 1), (x + 6, y + 8), (x - 3, y + 8)], color: tint)
+        polygon(&context, [(x - 1, y), (x + 4, y), (x + 4, y + 5), (x - 1, y + 4)], color: Self.steel)
+        ellipse(&context, x: x - 1, y: y - 5, width: 5, height: 6, color: Self.ivory)
+        ellipse(&context, x: x - 2, y: y - 6, width: 7, height: 4, color: Self.steel)
+        if archer {
+            line(&context, [(x + 7, y - 4), (x + 10, y + 1), (x + 10, y + 5), (x + 7, y + 9)], color: Self.ivory, width: 1.3)
+            line(&context, [(x + 7, y - 4), (x + 7, y + 9)], color: .black.opacity(0.7), width: 0.6)
+        } else {
+            polygon(&context, [(x - 4, y + 1), (x + 1, y), (x + 2, y + 9), (x - 4, y + 10)], color: tint)
+            line(&context, [(x - 2, y + 2), (x - 1, y + 8)], color: Self.ivory, width: 0.8)
+            line(&context, [(x + 7, y + 8), (x + 7, y - 10)], color: Self.ivory, width: 0.9)
+        }
+    }
+
+    func horse(_ context: inout GraphicsContext, x: CGFloat, y: CGFloat, tint: Color) {
+        let hide = Color(red: 0.42, green: 0.28, blue: 0.17)
+        ellipse(&context, x: x - 2, y: y + 12, width: 23, height: 5, color: .black.opacity(0.32))
+        for offset in [CGFloat(2), 6, 13, 17] {
+            line(&context, [(x + offset, y + 5), (x + offset - 2, y + 14)], color: hide, width: 2)
+        }
+        ellipse(&context, x: x, y: y, width: 19, height: 10, color: hide)
+        polygon(&context, [(x + 13, y + 3), (x + 17, y - 9), (x + 22, y - 8), (x + 24, y - 3), (x + 19, y - 2), (x + 18, y + 6)], color: hide)
+        polygon(&context, [(x + 5, y), (x + 13, y), (x + 14, y + 8), (x + 4, y + 7)], color: tint)
+        polygon(&context, [(x + 7, y - 8), (x + 12, y - 8), (x + 13, y), (x + 5, y)], color: Self.steel)
+        ellipse(&context, x: x + 7, y: y - 14, width: 6, height: 6, color: Self.ivory)
+        line(&context, [(x + 13, y - 4), (x + 22, y - 17)], color: Self.ivory, width: 0.9)
+        line(&context, [(x, y + 2), (x - 3, y + 8)], color: Self.stoneShadow, width: 2)
+    }
+
+    func ship(_ context: inout GraphicsContext, x: CGFloat, y: CGFloat, tint: Color) {
+        polygon(&context, [(x, y), (x + 31, y - 2), (x + 24, y + 7), (x + 6, y + 8)], color: Self.stoneShadow)
+        line(&context, [(x, y), (x + 31, y - 2)], color: Self.ivory, width: 1.2)
+        line(&context, [(x + 14, y + 1), (x + 14, y - 24)], color: Self.roof, width: 1.2)
+        polygon(&context, [(x + 15, y - 23), (x + 28, y - 5), (x + 15, y - 7)], color: Self.ivory)
+        polygon(&context, [(x + 12, y - 21), (x + 3, y - 7), (x + 12, y - 8)], color: .white.opacity(0.76))
+        polygon(&context, [(x + 14, y - 24), (x + 23, y - 23), (x + 14, y - 19)], color: tint)
+        for offset in [CGFloat(7), 12, 17, 22] {
+            line(&context, [(x + offset, y + 4), (x + offset - 4, y + 10)], color: Self.ivory, width: 0.8)
+        }
+    }
+}
+
+struct ArmyMiniatureView: View {
+    let kind: UnitKind
+    let faction: Faction
+
+    var body: some View {
+        Canvas { context, size in
+            let paint = BattlefieldMiniaturePainter(size: size)
+            let tint = faction.factionColor
+            paint.ellipse(&context, x: 3, y: 26, width: 44, height: 12, color: .black.opacity(0.24))
+            let base = Path(ellipseIn: paint.rect(x: 3, y: 27, width: 44, height: 10))
+            context.stroke(base, with: .color(tint.opacity(0.9)), lineWidth: 1.3)
+            switch kind {
+            case .legion, .archer:
+                for position in [(CGFloat(14), CGFloat(12)), (29, 14), (21, 24)] {
+                    paint.soldier(&context, x: position.0, y: position.1, tint: tint, archer: kind == .archer)
+                }
+            case .cavalry:
+                paint.horse(&context, x: 8, y: 18, tint: tint)
+                paint.horse(&context, x: 20, y: 25, tint: tint)
+            case .navy:
+                paint.ship(&context, x: 8, y: 25, tint: tint)
+            }
+            if kind != .navy {
+                paint.line(&context, [(5, 25), (5, 2)], color: BattlefieldMiniaturePainter.ivory, width: 0.8)
+                let flag = LegionStandardShape().path(in: paint.rect(x: 5, y: 2, width: 8, height: 10))
+                context.fill(flag, with: .color(tint))
+                paint.line(&context, [(5, 2), (13, 2)], color: BattlePalette.brassBright, width: 1)
+            }
+        }
+        .accessibilityHidden(true)
+    }
+}
+
 struct UnitTokenView: View {
     var unit: ArmyUnit
 
     var body: some View {
         VStack(spacing: 1) {
-            LegionStandardShape()
-                .fill(unit.faction.factionColor)
+            ArmyMiniatureView(kind: unit.kind, faction: unit.faction)
                 .frame(width: 38, height: 29)
-                .overlay(alignment: .top) {
-                    Rectangle()
-                        .fill(Color(red: 0.86, green: 0.68, blue: 0.34))
-                        .frame(height: 4)
-                }
-                .overlay {
-                    HStack(spacing: 3) {
-                        Image(systemName: unit.kind.tokenSystemImage)
-                            .font(.system(size: 12, weight: .black))
-                            .foregroundStyle(.white.opacity(0.88))
-                        Text(unit.kind.shortLabel)
-                            .font(.system(size: 10, weight: .black, design: .rounded))
-                            .foregroundStyle(.white)
-                            .shadow(color: .black.opacity(0.35), radius: 1, y: 1)
-                    }
-                    .offset(y: 1)
-                }
-                .overlay {
-                    LegionStandardShape()
-                        .stroke(.white.opacity(unit.faction == .rome ? 0.34 : 0.18), lineWidth: 1)
+                .overlay(alignment: .bottomTrailing) {
+                    Text(unit.kind.shortLabel)
+                        .font(.system(size: 6, weight: .black))
+                        .foregroundStyle(BattlePalette.ivory)
+                        .padding(.horizontal, 2)
+                        .background(BattlePalette.panel.opacity(0.88))
+                        .clipShape(.rect(cornerRadius: 2))
                 }
                 .overlay(alignment: .topTrailing) {
                     if let generalName = unit.generalName {

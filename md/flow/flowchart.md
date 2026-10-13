@@ -1,5 +1,22 @@
 # 项目核心流程图
 
+## v0.78 地图几何与微缩实体
+
+读图说明：地表相邻关系与核心规则同源；微缩画师只绘制已有兵种/阵营信息，不接触命令或修改状态。
+
+```mermaid
+flowchart LR
+    P[Position.neighbors 奇偶行] --> C[CoastlineBuilder 地形邻接]
+    H[HexMetrics 行距0.75 / 奇数行偏移0.5] --> V[Hexagon.vertices / sharedEdge]
+    C --> S[海岸真实共边]
+    V --> S
+    H --> M[地表 / 路线 / 城市 / 单位同一镜头]
+    U[UnitKind / Faction / City] --> A[BattlefieldMiniaturePainter 纯Canvas]
+    A --> M
+    M --> T[HexTileView 保留选择与命令入口]
+    V --> G[云端三尺寸邻接共边与边界断言]
+```
+
 云端诊断读图说明：预览和构建分别设 50/15 分钟上限；编译、夹具与逐图日志用于定位阻塞，失败仍进入结果包记录，不作为通过。
 
 ```mermaid

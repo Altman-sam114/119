@@ -170,8 +170,8 @@ struct HexMetrics {
     let tileAspect: CGFloat
 
     init(mapWidth: Int, mapHeight: Int, container: CGSize) {
-        let horizontalUnits = CGFloat(mapWidth) * 0.76 + 0.24
-        let verticalUnits = CGFloat(mapHeight) + 0.5
+        let horizontalUnits = CGFloat(mapWidth) + (mapHeight > 1 ? 0.5 : 0)
+        let verticalUnits = CGFloat(max(0, mapHeight - 1)) * 0.75 + 1
         let isShortLandscape = container.width > container.height * 2
         let isLandscape = container.width > container.height
 
@@ -194,8 +194,8 @@ struct HexMetrics {
         tileScale = min(1.12, max(0.72, tileWidth / 44))
         actionScale = min(1.15, max(0.72, tileWidth / 54))
 
-        let totalWidth = tileWidth * (0.76 * CGFloat(mapWidth - 1) + 1)
-        let totalHeight = tileHeight * (CGFloat(mapHeight) + 0.5)
+        let totalWidth = tileWidth * horizontalUnits
+        let totalHeight = tileHeight * verticalUnits
         mapSize = CGSize(width: totalWidth, height: totalHeight)
         let remainingVerticalSpace = max(0, availableHeight - totalHeight)
         let verticalBias: CGFloat = container.height > container.width * 1.25 ? 0.40 : 0.46
@@ -206,16 +206,32 @@ struct HexMetrics {
     }
 
     func center(for position: Position) -> CGPoint {
+        // Match Position.neighbors: odd rows, not odd columns, shift half a hex.
         CGPoint(
-            x: origin.x + CGFloat(position.x) * tileWidth * 0.76,
-            y: origin.y + CGFloat(position.y) * tileHeight + (position.x.isMultiple(of: 2) ? 0 : tileHeight * 0.5)
+            x: origin.x + (CGFloat(position.x) + (position.y.isMultiple(of: 2) ? 0 : 0.5)) * tileWidth,
+            y: origin.y + CGFloat(position.y) * tileHeight * 0.75
         )
+    }
+
+    func vertices(for position: Position) -> [CGPoint] {
+        let center = center(for: position)
+        return Hexagon.vertices(in: CGRect(
+            x: center.x - tileWidth / 2, y: center.y - tileHeight / 2,
+            width: tileWidth, height: tileHeight
+        ))
+    }
+
+    func sharedEdge(from first: Position, to second: Position) -> [CGPoint] {
+        let otherVertices = vertices(for: second)
+        return vertices(for: first).filter { vertex in
+            otherVertices.contains { abs(vertex.x - $0.x) < 0.001 && abs(vertex.y - $0.y) < 0.001 }
+        }
     }
 }
 
 struct Hexagon: Shape {
-    func path(in rect: CGRect) -> Path {
-        let points = [
+    static func vertices(in rect: CGRect) -> [CGPoint] {
+        [
             CGPoint(x: rect.midX, y: rect.minY),
             CGPoint(x: rect.maxX, y: rect.minY + rect.height * 0.25),
             CGPoint(x: rect.maxX, y: rect.maxY - rect.height * 0.25),
@@ -223,7 +239,10 @@ struct Hexagon: Shape {
             CGPoint(x: rect.minX, y: rect.maxY - rect.height * 0.25),
             CGPoint(x: rect.minX, y: rect.minY + rect.height * 0.25)
         ]
+    }
 
+    func path(in rect: CGRect) -> Path {
+        let points = Self.vertices(in: rect)
         var path = Path()
         path.move(to: points[0])
         for point in points.dropFirst() {

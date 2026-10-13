@@ -4,6 +4,8 @@
 
 ## 已实现
 
+- v0.78 连续战区与微缩军团：地图奇偶行错位现在与核心六边形相邻规则一致，地表、海岸和路线共用同一几何；盾兵、弓兵、骑兵、帆船、红屋顶石墙城镇改用原创 Canvas 微缩图形，弱化棋盘阴影和高对比地貌图标。百度截图仅作构图参考，未使用原作素材。待本轮最新云端结果包验收。
+
 - iPhone/iPad SwiftUI App 工程：`RomeLegionsApp.xcodeproj`
 - 纯 Swift 玩法核心：`Sources/RomeLegionsCore/GameState.swift`
 - 战役/征服/远征入口

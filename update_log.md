@@ -21,6 +21,17 @@
 
 ## 历史记录
 
+### v0.78 / 连续战区与微缩军团美术重构（待云端验收）
+
+日期：2026-10-13
+
+- 百度实际查看《大征服者 罗马 第拉希之战》战斗截图，采用连续地貌、微缩军队/城镇、地面阵营环与小军旗的视觉关系，不下载或复用原作素材。
+- 修复旧地图按列错位、核心按行错位的不一致：HexMetrics 改为匹配 Position.neighbors 的奇偶行布局；海岸从同一六边形顶点取真实共边，去掉屏幕距离近似和逐格投影。
+- 原创 Canvas 微缩盾兵、弓兵、骑兵、帆船、石墙红屋顶城镇，树林/山脊增加体积；保留兵种、阵营、生命、将领、姿态、经验、冷却、行动状态与所有原命令。
+- 关键文件：BattleMapView.swift、BattleViewStyles.swift、RenderBattlePreview、verify_project、CI workflow、README、flow/flowchart/test 和 v0.78 提示词。未修改核心规则、AI、ViewModel、存档或用户工程配置。
+- 改前最新 main `94a5a36cfde6eff0f23ac19e021550d7ef12732b` 的历史 artifact 不可下载，手动触发 run `38342166961` attempt 1：manifest 精确匹配，五项检查成功，JUnit 5/0、Swift Testing 107 项通过。该结果只作改前对照；发现旧图棋盘裂隙/邻接视觉不符，不能视为 v0.78 通过。
+- 本地仅读取、编辑、git diff/status、fetch/pull 与后续精确提交/推送；没有运行测试、构建、typecheck、Render、verify、diff-check 或解析验证。v0.78 必须在 push 后下载最新结果包并复判 15 图；当前不得宣称商业美术质量或总目标完成。
+
 ### v0.74 / 战区雾边与地图材质复现
 
 日期：2026-09-26
