@@ -77,9 +77,10 @@ struct WarMapView: View {
             ZStack {
                 ZStack {
                     MapBackdropView()
+                        .zIndex(-2)
 
                     MapTerrainSurfaceView(tiles: viewModel.state.tiles, metrics: metrics)
-                        .zIndex(0.1)
+                        .zIndex(-1)
 
                     MapFogOfWarEdgeView()
                         .zIndex(0.6)

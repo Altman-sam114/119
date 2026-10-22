@@ -31,6 +31,7 @@
 - 改前最新 main `6c032b6c527b37a009d184dcbb89583993ff2d8c` / run `38344527750` attempt 1 / artifact `RomeLegions-ci-v0.78-main-6c032b6-run38344527750-attempt1`：manifest 精确匹配、JUnit 5/0、107 项 Swift Testing、Smoke、15 图与 Xcode 全部成功。逐图复判仍发现地貌拼板、留白与 HUD 问题，作为本轮修正依据，不冒充 v0.79 通过。
 - 关键文件：BattleMapView、BattleViewStyles、BattleShellControls、RenderBattlePreview、verify_project、CI workflow 与对应 README/flow/flowchart/test/prompt。没有修改核心规则、AI、ViewModel、存档或受保护的工程配置。
 - 本地仅阅读、编辑、git diff/status、fetch/pull 与后续精确提交/推送；未运行本地测试、构建、typecheck、Render、verify、解析或 diff-check。新增云端地表中心/道路/安全区断言；结果必须在 push 后下载最新 SHA/run/attempt 的完整结果包复判。
+- 首次提交 `cbec28d` 后继续读图层顺序，修正统一地表必须位于默认 zIndex 的军团/城镇下方；该追加修正仍需以最新提交的云端结果为准，不能验收旧排队 run。
 
 ### v0.78 / 连续战区与微缩军团美术重构（待云端验收）
 
