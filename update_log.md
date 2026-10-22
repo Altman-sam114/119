@@ -21,6 +21,17 @@
 
 ## 历史记录
 
+### v0.79 / 连续地貌与古典战场控件重构（待云端验收）
+
+日期：2026-10-22
+
+- 百度实际查看《大征服者 罗马 第拉希之战》实机截图，以连续地貌、水面、微缩实体和边缘金属圆钮为参考；原创代码绘制，不复制原作素材。本轮继续按人工要求单智能体串行执行设计、实现与云端复判。
+- 新增 MapTerrainGeometry / MapTerrainSurfaceView，真实 Tile 聚合陆地、连续水面纹理、地形过渡和相邻道路；替代逐格色板、重复纹理组件与不对应玩法的背景大陆/道路。HexTileView 保留透明六边形命中、地标、城市、军团与全部战术叠层，减少常态棋盘边框。
+- 三尺寸投影和竖屏构图调整，底部给真实情报坞留出空间；比例尺上移，窄屏状态牌精简；五类抽屉与四个镜头入口共享金属圆钮，44pt 点击槽和全部命令不变。
+- 改前最新 main `6c032b6c527b37a009d184dcbb89583993ff2d8c` / run `38344527750` attempt 1 / artifact `RomeLegions-ci-v0.78-main-6c032b6-run38344527750-attempt1`：manifest 精确匹配、JUnit 5/0、107 项 Swift Testing、Smoke、15 图与 Xcode 全部成功。逐图复判仍发现地貌拼板、留白与 HUD 问题，作为本轮修正依据，不冒充 v0.79 通过。
+- 关键文件：BattleMapView、BattleViewStyles、BattleShellControls、RenderBattlePreview、verify_project、CI workflow 与对应 README/flow/flowchart/test/prompt。没有修改核心规则、AI、ViewModel、存档或受保护的工程配置。
+- 本地仅阅读、编辑、git diff/status、fetch/pull 与后续精确提交/推送；未运行本地测试、构建、typecheck、Render、verify、解析或 diff-check。新增云端地表中心/道路/安全区断言；结果必须在 push 后下载最新 SHA/run/attempt 的完整结果包复判。
+
 ### v0.78 / 连续战区与微缩军团美术重构（待云端验收）
 
 日期：2026-10-13

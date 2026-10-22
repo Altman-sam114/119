@@ -1,5 +1,22 @@
 # 项目核心流程图
 
+## v0.79 连续地表与古典控件
+
+读图说明：地图表面从真实 Tile 统一生成，交互格只承载点击、实体与叠层；金属圆钮只复用原命令，全部结果仍由云端验证。
+
+```mermaid
+flowchart LR
+    T[真实 Tile 与核心邻接] --> G[MapTerrainGeometry 陆地路径与相邻道路]
+    H[HexMetrics 唯一坐标与安全区] --> G
+    G --> C[MapTerrainSurfaceView 连续陆地水面道路]
+    H --> I[HexTileView 透明命中与实体叠层]
+    C --> M[同一地图镜头]
+    I --> M
+    B[BattleMetalButtonStyle 金属圆钮] --> A[既有抽屉与镜头动作]
+    G --> V[云端地表中心道路断言与15图]
+    A --> V
+```
+
 ## v0.78 地图几何与微缩实体
 
 读图说明：地表相邻关系与核心规则同源；微缩画师只绘制已有兵种/阵营信息，不接触命令或修改状态。

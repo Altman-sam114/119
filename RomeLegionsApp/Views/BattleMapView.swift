@@ -78,10 +78,14 @@ struct WarMapView: View {
                 ZStack {
                     MapBackdropView()
 
+                    MapTerrainSurfaceView(tiles: viewModel.state.tiles, metrics: metrics)
+                        .zIndex(0.1)
+
                     MapFogOfWarEdgeView()
-                        .zIndex(0.22)
+                        .zIndex(0.6)
 
                     MapCartographyGridView(metrics: metrics)
+                        .opacity(0.18)
                         .zIndex(0.35)
 
                     CoastlineLayerView(segments: coastlineSegments, metrics: metrics)
@@ -264,17 +268,17 @@ struct WarMapView: View {
                         Spacer(minLength: 0)
                     }
                     .padding(.leading, 12)
-                    .padding(.bottom, 82)
+                    .padding(.bottom, proxy.size.width < 620 ? 122 : 76)
                 }
                 .allowsHitTesting(false)
                 .zIndex(4.9)
 
                 VStack {
                     HStack {
-                        BattlefieldStatusRibbonView()
+                        BattlefieldStatusRibbonView(isCompact: proxy.size.width < 620)
                             .frame(
                                 width: proxy.size.width < 620
-                                    ? 132
+                                    ? max(80, proxy.size.width - 250)
                                     : max(180, min(proxy.size.width - 250, 520)),
                                 alignment: .leading
                             )
@@ -592,18 +596,6 @@ struct MapCameraControlsView: View {
             }
         }
         .padding(2)
-        .background {
-            LinearGradient(
-                colors: [BattlePalette.panelRaised.opacity(0.88), .black.opacity(0.56)],
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
-            )
-        }
-        .clipShape(.rect(cornerRadius: 7))
-        .overlay {
-            RoundedRectangle(cornerRadius: 7)
-                .stroke(.white.opacity(0.14), lineWidth: 1)
-        }
         .accessibilityElement(children: .contain)
     }
 
@@ -624,10 +616,8 @@ struct MapCameraControlsView: View {
         Button(label, systemImage: symbol, action: action)
             .labelStyle(.iconOnly)
             .font(.caption.weight(.black))
-            .foregroundStyle(.white)
+            .buttonStyle(BattleMetalButtonStyle())
             .frame(width: 44, height: 44)
-            .background(.black.opacity(enabled ? 0.46 : 0.18))
-            .clipShape(.rect(cornerRadius: 5))
             .contentShape(Rectangle())
             .disabled(!enabled)
             .opacity(enabled ? 1 : 0.42)
@@ -689,44 +679,55 @@ struct AttackTargetButton: View {
 
 struct BattlefieldStatusRibbonView: View {
     @EnvironmentObject private var viewModel: GameViewModel
+    var isCompact = false
 
     var body: some View {
         HStack(spacing: 6) {
-            Label(viewModel.campaignStatusTitle, systemImage: viewModel.campaignStatus.kind.systemImage)
-                .font(.caption.weight(.black))
-                .foregroundStyle(viewModel.campaignStatus.kind.tintColor)
-                .lineLimit(1)
+            if isCompact {
+                Image(systemName: "flag.fill")
+                    .foregroundStyle(viewModel.state.activeFaction.factionColor)
+                Text(viewModel.state.activeFaction.displayName)
+                    .font(.caption.weight(.bold))
+                Label("\(viewModel.hostileUnitCount)", systemImage: "flame.fill")
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(BattlePalette.brassBright)
+            } else {
+                Label(viewModel.campaignStatusTitle, systemImage: viewModel.campaignStatus.kind.systemImage)
+                    .font(.caption.weight(.black))
+                    .foregroundStyle(viewModel.campaignStatus.kind.tintColor)
+                    .lineLimit(1)
 
-            Divider()
-                .frame(height: 20)
-                .overlay {
-                    Color.white.opacity(0.14)
-                }
+                Divider()
+                    .frame(height: 20)
+                    .overlay {
+                        Color.white.opacity(0.14)
+                    }
 
-            TacticalChipView(
-                symbol: "flag.fill",
-                label: "行动",
-                value: viewModel.state.activeFaction.displayName,
-                tint: viewModel.state.activeFaction.factionColor,
-                compact: true
-            )
+                TacticalChipView(
+                    symbol: "flag.fill",
+                    label: "行动",
+                    value: viewModel.state.activeFaction.displayName,
+                    tint: viewModel.state.activeFaction.factionColor,
+                    compact: true
+                )
 
-            TacticalChipView(
-                symbol: "flame.fill",
-                label: "敌军",
-                value: "\(viewModel.hostileUnitCount)",
-                tint: .red,
-                compact: true
-            )
+                TacticalChipView(
+                    symbol: "flame.fill",
+                    label: "敌军",
+                    value: "\(viewModel.hostileUnitCount)",
+                    tint: .red,
+                    compact: true
+                )
 
-            TacticalChipView(
-                symbol: viewModel.selectedMapReconPerspective.systemImage,
-                label: "侦察",
-                value: viewModel.mapReconPerspectiveHUDReadout.statusLabel,
-                tint: viewModel.selectedMapReconPerspective.mapReconTint,
-                compact: true,
-                accessibilityLabel: viewModel.mapReconPerspectiveHUDReadout.accessibilityLabel
-            )
+                TacticalChipView(
+                    symbol: viewModel.selectedMapReconPerspective.systemImage,
+                    label: "侦察",
+                    value: viewModel.mapReconPerspectiveHUDReadout.statusLabel,
+                    tint: viewModel.selectedMapReconPerspective.mapReconTint,
+                    compact: true,
+                    accessibilityLabel: viewModel.mapReconPerspectiveHUDReadout.accessibilityLabel
+                )
+            }
         }
         .foregroundStyle(.white)
         .padding(.horizontal, 8)
@@ -749,7 +750,8 @@ struct BattlefieldStatusRibbonView: View {
                 .frame(height: 1)
                 .padding(.horizontal, 8)
         }
-        .accessibilityElement(children: .contain)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("\(viewModel.campaignStatusTitle)，\(viewModel.state.activeFaction.displayName)行动，敌军\(viewModel.hostileUnitCount)，\(viewModel.mapReconPerspectiveHUDReadout.statusLabel)")
     }
 }
 
@@ -1518,108 +1520,164 @@ struct AttackTargetRing: View {
     }
 }
 
-struct MapBackdropView: View {
-    var body: some View {
-        ZStack {
-            Color(red: 0.12, green: 0.22, blue: 0.23)
+struct BattlefieldRoadSegment: Hashable {
+    let start: Position
+    let end: Position
+}
 
-            Canvas { context, size in
-                var westernLand = Path()
-                westernLand.move(to: CGPoint(x: 0, y: size.height * 0.08))
-                westernLand.addCurve(
-                    to: CGPoint(x: size.width * 0.46, y: size.height * 0.18),
-                    control1: CGPoint(x: size.width * 0.15, y: size.height * 0.02),
-                    control2: CGPoint(x: size.width * 0.31, y: size.height * 0.30)
-                )
-                westernLand.addCurve(
-                    to: CGPoint(x: size.width * 0.39, y: size.height),
-                    control1: CGPoint(x: size.width * 0.57, y: size.height * 0.50),
-                    control2: CGPoint(x: size.width * 0.48, y: size.height * 0.82)
-                )
-                westernLand.addLine(to: CGPoint(x: 0, y: size.height))
-                westernLand.closeSubpath()
-                context.fill(westernLand, with: .color(Color(red: 0.31, green: 0.36, blue: 0.23).opacity(0.72)))
+/// Pure presentation geometry. The surface and interactive tiles share vertices;
+/// roads connect only neighboring road/city cells from the actual scenario.
+struct MapTerrainGeometry {
+    let tiles: [Tile]
+    let metrics: HexMetrics
 
-                var easternLand = Path()
-                easternLand.move(to: CGPoint(x: size.width, y: 0))
-                easternLand.addLine(to: CGPoint(x: size.width * 0.61, y: 0))
-                easternLand.addCurve(
-                    to: CGPoint(x: size.width * 0.56, y: size.height * 0.64),
-                    control1: CGPoint(x: size.width * 0.50, y: size.height * 0.19),
-                    control2: CGPoint(x: size.width * 0.68, y: size.height * 0.38)
-                )
-                easternLand.addCurve(
-                    to: CGPoint(x: size.width, y: size.height * 0.78),
-                    control1: CGPoint(x: size.width * 0.68, y: size.height * 0.88),
-                    control2: CGPoint(x: size.width * 0.84, y: size.height * 0.67)
-                )
-                easternLand.closeSubpath()
-                context.fill(easternLand, with: .color(Color(red: 0.37, green: 0.32, blue: 0.23).opacity(0.68)))
-
-                var highlands = Path()
-                highlands.move(to: CGPoint(x: size.width * 0.12, y: size.height * 0.58))
-                highlands.addCurve(
-                    to: CGPoint(x: size.width * 0.88, y: size.height * 0.30),
-                    control1: CGPoint(x: size.width * 0.32, y: size.height * 0.34),
-                    control2: CGPoint(x: size.width * 0.60, y: size.height * 0.47)
-                )
-                highlands.addCurve(
-                    to: CGPoint(x: size.width * 0.16, y: size.height * 0.69),
-                    control1: CGPoint(x: size.width * 0.64, y: size.height * 0.55),
-                    control2: CGPoint(x: size.width * 0.37, y: size.height * 0.74)
-                )
-                highlands.closeSubpath()
-                context.fill(highlands, with: .color(Color(red: 0.36, green: 0.30, blue: 0.22).opacity(0.28)))
-
-                for offset in stride(from: 0.08, through: 0.92, by: 0.14) {
-                    var contour = Path()
-                    contour.move(to: CGPoint(x: 0, y: size.height * offset))
-                    contour.addCurve(
-                        to: CGPoint(x: size.width, y: size.height * max(0.04, offset - 0.08)),
-                        control1: CGPoint(x: size.width * 0.28, y: size.height * (offset - 0.11)),
-                        control2: CGPoint(x: size.width * 0.66, y: size.height * (offset + 0.10))
-                    )
-                    context.stroke(contour, with: .color(.white.opacity(0.045)), lineWidth: 1)
-                }
-
-                var strategicRoad = Path()
-                strategicRoad.move(to: CGPoint(x: size.width * 0.03, y: size.height * 0.78))
-                strategicRoad.addCurve(
-                    to: CGPoint(x: size.width * 0.97, y: size.height * 0.18),
-                    control1: CGPoint(x: size.width * 0.33, y: size.height * 0.42),
-                    control2: CGPoint(x: size.width * 0.70, y: size.height * 0.63)
-                )
-                context.stroke(strategicRoad, with: .color(Color(red: 0.80, green: 0.64, blue: 0.40).opacity(0.15)), lineWidth: 3)
-                context.stroke(
-                    strategicRoad,
-                    with: .color(.white.opacity(0.08)),
-                    style: StrokeStyle(lineWidth: 1, lineCap: .round, dash: [8, 10])
-                )
-
-                for x in stride(from: 12.0, through: size.width, by: 31) {
-                    for y in stride(from: 10.0, through: size.height, by: 29) {
-                        let phase = Int(x + y).isMultiple(of: 2) ? 0.025 : 0.014
-                        context.fill(
-                            Path(ellipseIn: CGRect(x: x, y: y, width: 1.3, height: 1.3)),
-                            with: .color(.white.opacity(phase))
-                        )
-                    }
-                }
-            }
-
-            LinearGradient(
-                colors: [.black.opacity(0.18), .clear, .black.opacity(0.24)],
-                startPoint: .top,
-                endPoint: .bottom
+    func landPath(in size: CGSize) -> Path {
+        let lastColumn = tiles.map(\.position.x).max() ?? 0
+        var land = Path()
+        for tile in tiles where tile.terrain != .water {
+            let center = metrics.center(for: tile.position)
+            let rect = CGRect(
+                x: center.x - metrics.tileWidth / 2, y: center.y - metrics.tileHeight / 2,
+                width: metrics.tileWidth, height: metrics.tileHeight
             )
+            land.addPath(Hexagon().path(in: rect))
+            // Continue edge terrain into the non-interactive scenery instead of
+            // exposing a floating rectangular board against unrelated artwork.
+            if tile.position.y == 0 {
+                land.addRect(CGRect(x: rect.minX, y: 0, width: rect.width, height: center.y))
+            }
+            if tile.position.x == 0 {
+                land.addRect(CGRect(x: 0, y: center.y - rect.height * 0.375,
+                                    width: max(0, center.x), height: rect.height * 0.75))
+            }
+            if tile.position.x == lastColumn {
+                land.addRect(CGRect(x: center.x, y: center.y - rect.height * 0.375,
+                                    width: max(0, size.width - center.x), height: rect.height * 0.75))
+            }
+        }
+        return land
+    }
 
-            RadialGradient(
-                colors: [.clear, .black.opacity(0.22)],
-                center: .center,
-                startRadius: 18,
-                endRadius: 900
+    var roadSegments: [BattlefieldRoadSegment] {
+        let terrain = Dictionary(uniqueKeysWithValues: tiles.map { ($0.position, $0.terrain) })
+        let width = (tiles.map(\.position.x).max() ?? -1) + 1
+        let height = (tiles.map(\.position.y).max() ?? -1) + 1
+        return tiles.filter { $0.terrain == .road || $0.terrain == .city }.flatMap { tile -> [BattlefieldRoadSegment] in
+            tile.position.neighbors(width: width, height: height).compactMap { neighbor -> BattlefieldRoadSegment? in
+                guard terrain[neighbor] == .road || terrain[neighbor] == .city,
+                      tile.position.y < neighbor.y ||
+                        tile.position.y == neighbor.y && tile.position.x < neighbor.x else {
+                    return nil
+                }
+                return BattlefieldRoadSegment(start: tile.position, end: neighbor)
+            }
+        }
+    }
+
+    var roadPath: Path {
+        var path = Path()
+        for road in roadSegments {
+            let start = metrics.center(for: road.start)
+            let end = metrics.center(for: road.end)
+            path.move(to: start)
+            path.addQuadCurve(
+                to: end,
+                control: CGPoint(x: (start.x + end.x) / 2, y: (start.y + end.y) / 2 - metrics.tileHeight * 0.06)
             )
         }
+        return path
+    }
+}
+
+struct MapTerrainSurfaceView: View {
+    var tiles: [Tile]
+    var metrics: HexMetrics
+
+    var body: some View {
+        Canvas { context, size in
+            let geometry = MapTerrainGeometry(tiles: tiles, metrics: metrics)
+            let land = geometry.landPath(in: size)
+            drawSea(in: &context, size: size)
+            context.fill(land, with: .linearGradient(
+                Gradient(colors: [Color(red: 0.48, green: 0.53, blue: 0.36), Color(red: 0.36, green: 0.45, blue: 0.32)]),
+                startPoint: .zero, endPoint: CGPoint(x: size.width * 0.3, y: size.height)
+            ))
+            context.drawLayer { ground in
+                ground.clip(to: land)
+                drawRelief(in: &ground, size: size)
+                let roads = geometry.roadPath
+                let roadWidth = max(2.2, metrics.tileWidth * 0.07)
+                ground.stroke(roads, with: .color(Color(red: 0.28, green: 0.29, blue: 0.20).opacity(0.50)),
+                              style: StrokeStyle(lineWidth: roadWidth + 1.8, lineCap: .round, lineJoin: .round))
+                ground.stroke(roads, with: .color(Color(red: 0.72, green: 0.65, blue: 0.45)),
+                              style: StrokeStyle(lineWidth: roadWidth, lineCap: .round, lineJoin: .round))
+                ground.stroke(roads, with: .color(BattlePalette.ivory.opacity(0.26)),
+                              style: StrokeStyle(lineWidth: max(0.5, roadWidth * 0.22), lineCap: .round))
+            }
+        }
+        .allowsHitTesting(false)
+        .accessibilityHidden(true)
+    }
+
+    private func drawSea(in context: inout GraphicsContext, size: CGSize) {
+        context.fill(Path(CGRect(origin: .zero, size: size)), with: .linearGradient(
+            Gradient(colors: [Color(red: 0.32, green: 0.46, blue: 0.47), Color(red: 0.23, green: 0.38, blue: 0.43)]),
+            startPoint: .zero, endPoint: CGPoint(x: size.width, y: size.height)
+        ))
+        for row in 0..<Int(size.height / 18) + 1 {
+            let y = CGFloat(row) * 18
+            let phase = CGFloat((row * 17) % 29)
+            for column in 0..<Int(size.width / 62) + 1 {
+                let x = CGFloat(column) * 62 + phase
+                var wave = Path()
+                wave.move(to: CGPoint(x: x, y: y))
+                wave.addCurve(to: CGPoint(x: x + 38, y: y - 1),
+                              control1: CGPoint(x: x + 12, y: y - 3), control2: CGPoint(x: x + 26, y: y + 2))
+                context.stroke(wave, with: .color(BattlePalette.ivory.opacity(row.isMultiple(of: 3) ? 0.085 : 0.035)), lineWidth: 0.7)
+            }
+        }
+    }
+
+    private func drawRelief(in context: inout GraphicsContext, size: CGSize) {
+        for tile in tiles where tile.terrain != .water {
+            let center = metrics.center(for: tile.position)
+            let tint: Color
+            switch tile.terrain {
+            case .forest: tint = Color(red: 0.18, green: 0.32, blue: 0.23).opacity(0.56)
+            case .hills: tint = Color(red: 0.61, green: 0.55, blue: 0.39).opacity(0.68)
+            case .city, .road: tint = Color(red: 0.66, green: 0.60, blue: 0.42).opacity(0.25)
+            default: tint = Color(red: 0.65, green: 0.64, blue: 0.39).opacity(0.12)
+            }
+            let radius = metrics.tileWidth * 0.78
+            context.fill(Path(ellipseIn: CGRect(x: center.x - radius, y: center.y - radius * 0.6,
+                                               width: radius * 2, height: radius * 1.2)),
+                         with: .radialGradient(Gradient(colors: [tint, .clear]), center: center,
+                                               startRadius: 0, endRadius: radius))
+        }
+        for row in 0..<Int(size.height / 12) + 1 {
+            for column in 0..<Int(size.width / 14) + 1 {
+                let seed = (row * 37 + column * 19) % 43
+                let point = CGPoint(x: CGFloat(column * 14 + seed % 9), y: CGFloat(row * 12 + seed % 7))
+                let color = seed.isMultiple(of: 3) ? BattlePalette.ivory.opacity(0.10) : Color.black.opacity(0.065)
+                context.fill(Path(ellipseIn: CGRect(x: point.x, y: point.y, width: CGFloat(1 + seed % 3), height: 0.8)), with: .color(color))
+                if seed.isMultiple(of: 7) {
+                    var grass = Path()
+                    grass.move(to: point)
+                    grass.addLine(to: CGPoint(x: point.x - 1.5, y: point.y - 2.4))
+                    context.stroke(grass, with: .color(Color(red: 0.26, green: 0.35, blue: 0.22).opacity(0.25)), lineWidth: 0.6)
+                }
+            }
+        }
+    }
+}
+
+struct MapBackdropView: View {
+    var body: some View {
+        LinearGradient(
+            colors: [Color(red: 0.32, green: 0.46, blue: 0.47), Color(red: 0.23, green: 0.38, blue: 0.43)],
+            startPoint: .topLeading, endPoint: .bottomTrailing
+        )
+        .allowsHitTesting(false)
     }
 }
 
@@ -1845,12 +1903,17 @@ struct CoastlineLayerView: View {
                 shore.addLine(to: edge[1])
                 context.stroke(
                     shore,
+                    with: .color(Self.foamColor.opacity(0.12)),
+                    style: StrokeStyle(lineWidth: max(4, metrics.tileWidth * 0.16), lineCap: .butt)
+                )
+                context.stroke(
+                    shore,
                     with: .color(Self.sandColor.opacity(0.66)),
-                    style: StrokeStyle(lineWidth: max(2.4, metrics.tileWidth * 0.075), lineCap: .round)
+                    style: StrokeStyle(lineWidth: max(1.4, metrics.tileWidth * 0.035), lineCap: .butt)
                 )
 
-                let towardWaterX = -dx / length * metrics.tileWidth * 0.075
-                let towardWaterY = -dy / length * metrics.tileWidth * 0.075
+                let towardWaterX = -dx / length * metrics.tileWidth * 0.045
+                let towardWaterY = -dy / length * metrics.tileWidth * 0.045
                 var foam = Path()
                 foam.move(to: CGPoint(
                     x: edge[0].x + towardWaterX,
@@ -1863,7 +1926,7 @@ struct CoastlineLayerView: View {
                 context.stroke(
                     foam,
                     with: .color(Self.foamColor.opacity(0.34)),
-                    style: StrokeStyle(lineWidth: max(1, metrics.tileWidth * 0.028), lineCap: .round)
+                    style: StrokeStyle(lineWidth: max(0.7, metrics.tileWidth * 0.014), lineCap: .butt)
                 )
             }
         }
@@ -1901,25 +1964,16 @@ struct HexTileView: View {
     var body: some View {
         ZStack {
             Hexagon()
-                .fill(tileColor)
+                .fill(.clear)
                 .overlay {
-                    TerrainTextureView(terrain: tile.terrain, scale: scale)
-                }
-                .overlay {
-                    if let faction = controlFaction {
-                        Hexagon()
-                            .stroke(faction.factionColor.opacity(0.48), lineWidth: max(1.2, 1.8 * scale))
-                            .padding(2.4 * scale)
+                    if tile.terrain == .forest || tile.terrain == .hills {
+                        TerrainTextureView(terrain: tile.terrain, scale: scale)
                     }
                 }
                 .overlay {
                     Hexagon()
                         .stroke(borderColor, lineWidth: isSelected || isAttackOrigin || isAttackTarget ? max(2.4, 3 * scale) : max(0.4, 0.55 * scale))
                 }
-
-            TerrainGlyphView(terrain: tile.terrain, scale: scale)
-                .opacity(city == nil && unit == nil ? 0.035 : 0)
-                .offset(x: 10 * scale, y: 8 * scale)
 
             if let threatHeatZoneSummary {
                 ThreatHeatTileOverlay(
@@ -2032,31 +2086,11 @@ struct HexTileView: View {
                 CountermeasureTileOverlay(overlay: countermeasureOverlay, scale: scale)
             }
         }
+        .contentShape(Hexagon())
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(accessibilityLabel)
         .accessibilityAddTraits(.isButton)
         .accessibilityHidden(isAttackTarget)
-    }
-
-    private var tileColor: Color {
-        let base: (red: Double, green: Double, blue: Double)
-        switch tile.terrain {
-        case .plains: base = (0.43, 0.49, 0.32)
-        case .forest: base = (0.33, 0.43, 0.29)
-        case .hills: base = (0.48, 0.46, 0.35)
-        case .water: base = (0.24, 0.43, 0.48)
-        case .road: base = (0.48, 0.48, 0.34)
-        case .city: base = (0.47, 0.46, 0.34)
-        }
-
-        // 按坐标确定性微调明度，弱化逐格填色的棋盘感。
-        let phase = Double((tile.position.x * 7 + tile.position.y * 13) % 5) - 2
-        let tone = 1 + phase * 0.006
-        return Color(
-            red: min(1, max(0, base.red * tone)),
-            green: min(1, max(0, base.green * tone)),
-            blue: min(1, max(0, base.blue * tone))
-        )
     }
 
     private var borderColor: Color {
@@ -2064,19 +2098,7 @@ struct HexTileView: View {
         if isSelected { return .white }
         if isAttackOrigin { return .cyan }
         if isReachable { return .yellow.opacity(0.24) }
-        return .black.opacity(0.05)
-    }
-
-    private var controlFaction: Faction? {
-        if let city, city.owner != .neutral {
-            return city.owner
-        }
-
-        if let unit, unit.faction != .neutral {
-            return unit.faction
-        }
-
-        return nil
+        return .clear
     }
 
     private var accessibilityLabel: String {
@@ -2150,20 +2172,14 @@ struct TerrainTextureView: View {
     var scale: CGFloat
 
     var body: some View {
-        ZStack {
+        Group {
             switch terrain {
-            case .road:
-                RoadTextureView(scale: scale)
-            case .water:
-                WaterTextureView(scale: scale)
-            case .city:
-                CityTileTextureView(scale: scale)
             case .forest:
                 ForestTextureView(scale: scale)
             case .hills:
                 HillsTextureView(scale: scale)
-            case .plains:
-                PlainsTextureView(scale: scale)
+            default:
+                EmptyView()
             }
         }
         .clipShape(Hexagon())
@@ -2866,79 +2882,6 @@ struct CountermeasureTileOverlay: View {
     }
 }
 
-struct RoadTextureView: View {
-    var scale: CGFloat
-
-    var body: some View {
-        ZStack {
-            RouteLineShape()
-                .stroke(.black.opacity(0.30), style: StrokeStyle(lineWidth: max(5, 7 * scale), lineCap: .round))
-            RouteLineShape()
-                .stroke(Color(red: 0.84, green: 0.66, blue: 0.38).opacity(0.82), style: StrokeStyle(lineWidth: max(2.8, 4.4 * scale), lineCap: .round))
-            RouteLineShape()
-                .stroke(.white.opacity(0.24), style: StrokeStyle(lineWidth: max(0.8, 1.1 * scale), lineCap: .round, dash: [4 * scale, 5 * scale]))
-
-            HStack(spacing: 5 * scale) {
-                ForEach(0..<4, id: \.self) { index in
-                    Circle()
-                        .fill(.black.opacity(index.isMultiple(of: 2) ? 0.14 : 0.08))
-                        .frame(width: 2.2 * scale, height: 2.2 * scale)
-                }
-            }
-            .offset(y: 12 * scale)
-        }
-        .padding(6 * scale)
-    }
-}
-
-struct WaterTextureView: View {
-    var scale: CGFloat
-
-    var body: some View {
-        Canvas { context, size in
-            for index in 0..<4 {
-                let y = size.height * (0.24 + CGFloat(index) * 0.18)
-                var wave = Path()
-                wave.move(to: CGPoint(x: size.width * 0.12, y: y))
-                wave.addCurve(
-                    to: CGPoint(x: size.width * 0.88, y: y - 1.5 * scale),
-                    control1: CGPoint(x: size.width * 0.34, y: y - 5 * scale),
-                    control2: CGPoint(x: size.width * 0.62, y: y + 5 * scale)
-                )
-                context.stroke(
-                    wave,
-                    with: .color(.white.opacity(index.isMultiple(of: 2) ? 0.09 : 0.045)),
-                    lineWidth: max(0.8, 1.2 * scale)
-                )
-            }
-        }
-    }
-}
-
-struct CityTileTextureView: View {
-    var scale: CGFloat
-
-    var body: some View {
-        ZStack {
-            VStack(spacing: 4 * scale) {
-                ForEach(0..<3, id: \.self) { row in
-                    HStack(spacing: 4 * scale) {
-                        ForEach(0..<4, id: \.self) { column in
-                            Rectangle()
-                                .fill(.black.opacity((row + column).isMultiple(of: 2) ? 0.13 : 0.07))
-                                .frame(width: 7 * scale, height: 5 * scale)
-                        }
-                    }
-                }
-            }
-
-            RoundedRectangle(cornerRadius: 2 * scale)
-                .stroke(Color(red: 0.88, green: 0.70, blue: 0.36).opacity(0.34), lineWidth: max(1, 1.5 * scale))
-                .frame(width: 43 * scale, height: 30 * scale)
-        }
-    }
-}
-
 struct ForestTextureView: View {
     var scale: CGFloat
 
@@ -2973,46 +2916,6 @@ struct HillsTextureView: View {
                 paint.line(&context, [(x - 4, y - 3), (x + 3, peak), (x + 6, peak + 4)], color: BattlefieldMiniaturePainter.ivory.opacity(0.35), width: 0.7)
             }
         }
-    }
-}
-
-struct PlainsTextureView: View {
-    var scale: CGFloat
-
-    var body: some View {
-        ZStack {
-            VStack(spacing: 5 * scale) {
-                ForEach(0..<4, id: \.self) { index in
-                    Capsule()
-                        .fill(index.isMultiple(of: 2) ? .white.opacity(0.035) : .black.opacity(0.025))
-                        .frame(width: (38 - CGFloat(index) * 3) * scale, height: max(1, 1.5 * scale))
-                        .offset(x: CGFloat(index % 2) * 5 * scale)
-                }
-            }
-            .rotationEffect(.degrees(-9))
-
-            HStack(spacing: 12 * scale) {
-                ForEach(0..<3, id: \.self) { _ in
-                    Image(systemName: "line.diagonal")
-                        .font(.system(size: 5 * scale, weight: .bold))
-                        .foregroundStyle(.white.opacity(0.16))
-                }
-            }
-            .offset(y: 13 * scale)
-        }
-    }
-}
-
-struct RouteLineShape: Shape {
-    func path(in rect: CGRect) -> Path {
-        var path = Path()
-        path.move(to: CGPoint(x: rect.minX, y: rect.midY + rect.height * 0.10))
-        path.addCurve(
-            to: CGPoint(x: rect.maxX, y: rect.midY - rect.height * 0.08),
-            control1: CGPoint(x: rect.minX + rect.width * 0.32, y: rect.minY + rect.height * 0.18),
-            control2: CGPoint(x: rect.minX + rect.width * 0.66, y: rect.maxY - rect.height * 0.12)
-        )
-        return path
     }
 }
 

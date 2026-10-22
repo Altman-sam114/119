@@ -2543,6 +2543,52 @@ struct RenderBattlePreview {
               focusedLandscapeMetrics.origin.y - focusedLandscapeMetrics.tileHeight / 2 >= 112 else {
             throw PreviewRenderError.missingHexTerrainContinuity
         }
+        for (metrics, size) in [
+            (shortLandscapeMetrics, CGSize(width: 916, height: 278)),
+            (portraitMetrics, CGSize(width: 374, height: 670)),
+            (wideMetrics, CGSize(width: 1008, height: 606))
+        ] {
+            let surface = MapTerrainGeometry(tiles: viewModel.state.tiles, metrics: metrics)
+            let land = surface.landPath(in: size)
+            guard viewModel.state.tiles.allSatisfy({ tile in
+                land.contains(metrics.center(for: tile.position)) == (tile.terrain != .water)
+            }),
+            !surface.roadSegments.isEmpty,
+            Set(surface.roadSegments).count == surface.roadSegments.count,
+            surface.roadSegments.allSatisfy({ road in
+                let startTerrain = viewModel.state.tile(at: road.start)?.terrain
+                let endTerrain = viewModel.state.tile(at: road.end)?.terrain
+                return road.start.neighbors(width: viewModel.state.width, height: viewModel.state.height).contains(road.end) &&
+                    (startTerrain == .road || startTerrain == .city) &&
+                    (endTerrain == .road || endTerrain == .city)
+            }),
+            metrics.origin.y - metrics.tileHeight / 2 + metrics.mapSize.height <= size.height - (size.width > size.height ? 70 : 112) + 0.001 else {
+                throw PreviewRenderError.missingContinuousTerrainSurface
+            }
+        }
+        let roadFixtureTiles: [Tile] = (0..<3).flatMap { y in
+            (0..<4).map { x in
+                let position = Position(x: x, y: y)
+                let terrain: TerrainType
+                switch (x, y) {
+                case (0, 0), (1, 0), (3, 2): terrain = .road
+                case (1, 1): terrain = .city
+                default: terrain = .water
+                }
+                return Tile(position: position, terrain: terrain)
+            }
+        }
+        let fixtureSurface = MapTerrainGeometry(tiles: roadFixtureTiles, metrics: wideMetrics)
+        let expectedRoads: Set<BattlefieldRoadSegment> = [
+            BattlefieldRoadSegment(start: Position(x: 0, y: 0), end: Position(x: 1, y: 0)),
+            BattlefieldRoadSegment(start: Position(x: 1, y: 0), end: Position(x: 1, y: 1))
+        ]
+        guard Set(fixtureSurface.roadSegments) == expectedRoads,
+              Set(MapTerrainGeometry(tiles: Array(roadFixtureTiles.reversed()), metrics: wideMetrics).roadSegments) == expectedRoads,
+              portraitMetrics.origin.y - portraitMetrics.tileHeight / 2 < 160 else {
+            throw PreviewRenderError.missingContinuousTerrainSurface
+        }
+        emitPreviewDiagnostic("Continuous terrain surface: tile centers, legal road joins, isolated road and HUD clearance passed")
         let coastlineSegments = CoastlineBuilder.segments(
             tiles: viewModel.state.tiles,
             metrics: wideMetrics
@@ -4004,6 +4050,7 @@ enum PreviewRenderError: Error {
     case missingTerrainMaterialStrategy
     case missingCoastlineStrategy
     case missingHexTerrainContinuity
+    case missingContinuousTerrainSurface
     case missingStrategicMapMaterialCoverage
     case missingCommandDockAttackFixture
     case missingAttackForecast

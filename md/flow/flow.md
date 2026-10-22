@@ -8,6 +8,13 @@
 
 本文只记录当前真实链路，不写历史叙事。
 
+## v0.79 地表绘制与交互分层
+
+- `MapTerrainGeometry` 只读取 Tile 和 HexMetrics，聚合真实非水域六边形为陆地路径，并把边缘地形延展到不可交互背景；水面、陆地渐变、地形过渡、草点和道路由 `MapTerrainSurfaceView` 在同一个 Canvas 统一绘制。道路只连接核心邻接关系中的 road/city，不再绘制虚构的屏幕背景通路或每格独立路段。
+- `HexTileView` 继续持有城市、单位、森林/山脊地标与全部战术叠层，使用透明地表和显式 `contentShape(Hexagon())` 接收原点击；原格子填色、平原/水面/道路逐格纹理由统一地表取代。绘制层禁用命中，不写入 GameState 或 ViewModel。
+- `HexMetrics` 横屏采用 0.50 / 宽屏 0.72 / 竖屏 0.98 的投影比例，保留奇偶行、核心共边与镜头变换；底部安全区横屏 70pt、竖屏 112pt，竖屏剩余空间垂直偏置 0.16。比例尺在情报坞上方，窄屏状态牌只显示当前阵营和敌军数量，完整战况仍由原抽屉与无障碍文本提供。
+- `BattleMetalButtonStyle` 为五类抽屉与四个镜头入口共用的只读金属圆钮样式，外层仍为 44pt 点击槽；按钮 action、disabled、焦点与抽屉状态所有权不变。
+
 ## v0.78 连续战区与微缩军团
 
 - `HexMetrics.center` 与核心 `Position.neighbors` 同为奇偶行错位：奇数行水平偏移半格、行距为 tileHeight 的 0.75；`Hexagon.vertices` 同源用于路径、`HexMetrics.vertices/sharedEdge` 与海岸共边。`CoastlineBuilder` 按真实邻接和地形字典输出海岸，不再按屏幕距离猜邻接；地图不改变核心坐标或寻路。

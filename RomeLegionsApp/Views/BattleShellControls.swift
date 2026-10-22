@@ -165,14 +165,7 @@ struct BattleEdgeToolsView: View {
                 }
                 .labelStyle(.iconOnly)
                 .font(.caption.weight(.black))
-                .foregroundStyle(activeDrawer == category ? .black : BattlePalette.ivory)
-                .frame(width: visualSize, height: visualSize)
-                .background(activeDrawer == category ? BattlePalette.brassBright : .black.opacity(0.62))
-                .clipShape(.rect(cornerRadius: 6))
-                .overlay {
-                    RoundedRectangle(cornerRadius: 6)
-                        .stroke(activeDrawer == category ? BattlePalette.ivory.opacity(0.86) : BattlePalette.brass.opacity(0.24), lineWidth: activeDrawer == category ? 1.5 : 1)
-                }
+                .buttonStyle(BattleMetalButtonStyle(isSelected: activeDrawer == category, diameter: visualSize))
                 .overlay(alignment: .bottomTrailing) {
                     if activeDrawer == category {
                         Image(systemName: "checkmark.circle.fill")
@@ -187,8 +180,6 @@ struct BattleEdgeToolsView: View {
             }
         }
         .padding(2)
-        .background(BattlePalette.panel.opacity(0.82))
-        .clipShape(.rect(cornerRadius: 7))
     }
 }
 

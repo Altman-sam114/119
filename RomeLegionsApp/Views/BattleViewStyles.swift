@@ -62,6 +62,33 @@ struct CommandIconButtonStyle: ButtonStyle {
     }
 }
 
+struct BattleMetalButtonStyle: ButtonStyle {
+    var isSelected = false
+    var diameter: CGFloat = 36
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .foregroundStyle(Color(red: 0.22, green: 0.23, blue: 0.18))
+            .frame(width: diameter, height: diameter)
+            .background {
+                Circle()
+                    .fill(LinearGradient(
+                        colors: isSelected
+                            ? [BattlePalette.brassBright, BattlePalette.brass, BattlePalette.brassDim]
+                            : [BattlePalette.ivory, BattlePalette.parchment, Color(red: 0.43, green: 0.44, blue: 0.34)],
+                        startPoint: .topLeading, endPoint: .bottomTrailing
+                    ))
+            }
+            .clipShape(Circle())
+            .overlay {
+                Circle().stroke(Color(red: 0.27, green: 0.28, blue: 0.22), lineWidth: 1.5)
+                Circle().stroke(BattlePalette.ivory.opacity(0.52), lineWidth: 0.7).padding(2.5)
+            }
+            .shadow(color: .black.opacity(0.30), radius: 2, y: 2)
+            .scaleEffect(configuration.isPressed ? 0.94 : 1)
+    }
+}
+
 struct PrimaryButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
@@ -177,12 +204,10 @@ struct HexMetrics {
 
         let horizontalInset = min(18, max(8, container.width * 0.018))
         let topInset = max(topClearance, isLandscape ? 54 : 70)
-        let bottomInset = isLandscape
-            ? min(54, max(44, container.height * 0.13))
-            : min(82, max(68, container.height * 0.11))
+        let bottomInset: CGFloat = isLandscape ? 70 : 112
         let availableWidth = max(1, container.width - horizontalInset * 2)
         let availableHeight = max(1, container.height - topInset - bottomInset)
-        tileAspect = isShortLandscape ? 0.68 : (isLandscape ? 0.78 : 0.86)
+        tileAspect = isShortLandscape ? 0.50 : (isLandscape ? 0.72 : 0.98)
         let widthBased = availableWidth / horizontalUnits
         let heightBased = availableHeight / (verticalUnits * tileAspect)
         let fittedTileWidth = min(widthBased, heightBased)
@@ -196,7 +221,7 @@ struct HexMetrics {
         let totalHeight = tileHeight * verticalUnits
         mapSize = CGSize(width: totalWidth, height: totalHeight)
         let remainingVerticalSpace = max(0, availableHeight - totalHeight)
-        let verticalBias: CGFloat = container.height > container.width * 1.25 ? 0.40 : 0.46
+        let verticalBias: CGFloat = container.height > container.width * 1.25 ? 0.16 : 0.46
         origin = CGPoint(
             x: horizontalInset + (availableWidth - totalWidth) / 2 + tileWidth / 2,
             y: topInset + remainingVerticalSpace * verticalBias + tileHeight / 2
@@ -684,17 +709,17 @@ extension TerrainType {
     var materialProfile: TerrainMaterialProfile {
         switch self {
         case .plains:
-            return TerrainMaterialProfile(signature: "field-furrow-grass", layerCount: 3, landmarkOpacity: 0.16)
+            return TerrainMaterialProfile(signature: "continuous-field-relief-grass", layerCount: 3, landmarkOpacity: 0.10)
         case .forest:
             return TerrainMaterialProfile(signature: "canopy-trunk-shadow", layerCount: 3, landmarkOpacity: 0.13)
         case .hills:
             return TerrainMaterialProfile(signature: "ridge-contour-shadow", layerCount: 3, landmarkOpacity: 0.15)
         case .water:
-            return TerrainMaterialProfile(signature: "wave-current-depth", layerCount: 3, landmarkOpacity: 0.12)
+            return TerrainMaterialProfile(signature: "continuous-sea-wave-depth", layerCount: 3, landmarkOpacity: 0.085)
         case .road:
-            return TerrainMaterialProfile(signature: "road-bed-route-stone", layerCount: 4, landmarkOpacity: 0.11)
+            return TerrainMaterialProfile(signature: "neighbor-road-verge-stone", layerCount: 3, landmarkOpacity: 0.11)
         case .city:
-            return TerrainMaterialProfile(signature: "block-wall-street", layerCount: 3, landmarkOpacity: 0.10)
+            return TerrainMaterialProfile(signature: "settlement-ground-wall-roof", layerCount: 3, landmarkOpacity: 0.10)
         }
     }
 
