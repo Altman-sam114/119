@@ -1533,27 +1533,24 @@ struct MapTerrainGeometry {
     let metrics: HexMetrics
 
     func landPath(in size: CGSize) -> Path {
+        let terrain = Dictionary(uniqueKeysWithValues: tiles.map { ($0.position, $0.terrain) })
         let lastColumn = tiles.map(\.position.x).max() ?? 0
+        let lastRow = tiles.map(\.position.y).max() ?? 0
+        let firstSceneryColumn = min(0, Int(floor(-metrics.origin.x / metrics.tileWidth)) - 1)
+        let lastSceneryColumn = max(lastColumn, Int(ceil((size.width - metrics.origin.x) / metrics.tileWidth)) + 1)
+        let firstSceneryRow = min(0, Int(floor(-metrics.origin.y / (metrics.tileHeight * 0.75))) - 1)
         var land = Path()
-        for tile in tiles where tile.terrain != .water {
-            let center = metrics.center(for: tile.position)
-            let rect = CGRect(
-                x: center.x - metrics.tileWidth / 2, y: center.y - metrics.tileHeight / 2,
-                width: metrics.tileWidth, height: metrics.tileHeight
-            )
-            land.addPath(Hexagon().path(in: rect))
-            // Continue edge terrain into the non-interactive scenery instead of
-            // exposing a floating rectangular board against unrelated artwork.
-            if tile.position.y == 0 {
-                land.addRect(CGRect(x: rect.minX, y: 0, width: rect.width, height: center.y))
-            }
-            if tile.position.x == 0 {
-                land.addRect(CGRect(x: 0, y: center.y - rect.height * 0.375,
-                                    width: max(0, center.x), height: rect.height * 0.75))
-            }
-            if tile.position.x == lastColumn {
-                land.addRect(CGRect(x: center.x, y: center.y - rect.height * 0.375,
-                                    width: max(0, size.width - center.x), height: rect.height * 0.75))
+        // Extrapolate edge cells on the same lattice. Rectangular extensions
+        // expose artificial right-angle coastlines when the board is centered.
+        for y in firstSceneryRow...lastRow {
+            for x in firstSceneryColumn...lastSceneryColumn {
+                let source = Position(x: min(lastColumn, max(0, x)), y: max(0, y))
+                guard let sourceTerrain = terrain[source], sourceTerrain != .water else { continue }
+                let center = metrics.center(for: Position(x: x, y: y))
+                land.addPath(Hexagon().path(in: CGRect(
+                    x: center.x - metrics.tileWidth / 2, y: center.y - metrics.tileHeight / 2,
+                    width: metrics.tileWidth, height: metrics.tileHeight
+                )))
             }
         }
         return land

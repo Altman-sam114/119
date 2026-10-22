@@ -2526,6 +2526,7 @@ struct RenderBattlePreview {
                 for other in viewModel.state.tiles where other.position != tile.position {
                     let edge = metrics.sharedEdge(from: tile.position, to: other.position)
                     guard (neighbors.contains(other.position) ? edge.count == 2 : edge.count < 2) else {
+                        emitPreviewDiagnostic("Hex edge mismatch: \(tile.position) -> \(other.position), shared=\(edge.count), aspect=\(metrics.tileAspect)")
                         throw PreviewRenderError.missingHexTerrainContinuity
                     }
                 }
@@ -2536,11 +2537,17 @@ struct RenderBattlePreview {
                           vertex.x <= metrics.origin.x - metrics.tileWidth / 2 + metrics.mapSize.width + 0.001 &&
                           vertex.y >= metrics.origin.y - metrics.tileHeight / 2 - 0.001 &&
                           vertex.y <= metrics.origin.y - metrics.tileHeight / 2 + metrics.mapSize.height + 0.001
-                      }) else { throw PreviewRenderError.missingHexTerrainContinuity }
+                      }) else {
+                    emitPreviewDiagnostic("Hex bounds mismatch: \(tile.position), aspect=\(metrics.tileAspect)")
+                    throw PreviewRenderError.missingHexTerrainContinuity
+                }
             }
         }
-        guard shortLandscapeMetrics.origin.y - shortLandscapeMetrics.tileHeight / 2 >= 54,
-              focusedLandscapeMetrics.origin.y - focusedLandscapeMetrics.tileHeight / 2 >= 112 else {
+        let defaultMapTop = shortLandscapeMetrics.origin.y - shortLandscapeMetrics.tileHeight / 2
+        let focusedMapTop = focusedLandscapeMetrics.origin.y - focusedLandscapeMetrics.tileHeight / 2
+        emitPreviewDiagnostic("Hex HUD clearance: default=\(defaultMapTop), focused=\(focusedMapTop)")
+        guard defaultMapTop + 0.001 >= 54,
+              focusedMapTop + 0.001 >= 112 else {
             throw PreviewRenderError.missingHexTerrainContinuity
         }
         for (metrics, size) in [
