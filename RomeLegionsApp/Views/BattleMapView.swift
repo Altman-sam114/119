@@ -2970,12 +2970,7 @@ struct ForestTextureView: View {
     var body: some View {
         Canvas { context, size in
             let paint = BattlefieldMiniaturePainter(size: size)
-            let trees = (0..<17).map { index in
-                (x: CGFloat(8 + (variation + index * 13 + index * index * 7) % 37),
-                 y: CGFloat(9 + (variation * 3 + index * 19 + index * index) % 22),
-                 size: CGFloat(5 + (variation + index * 7) % 4))
-            }.sorted { $0.y < $1.y }
-            for tree in trees {
+            for tree in treeSamples {
                 let x = tree.x
                 let y = tree.y
                 let crown = tree.size
@@ -2990,6 +2985,21 @@ struct ForestTextureView: View {
                               color: Color(red: 0.46, green: 0.49, blue: 0.29).opacity(0.75))
             }
         }
+    }
+
+    private var treeSamples: [(x: CGFloat, y: CGFloat, size: CGFloat)] {
+        var samples: [(x: CGFloat, y: CGFloat, size: CGFloat)] = []
+        for index in 0..<17 {
+            let squared: Int = index * index
+            let horizontalSeed: Int = variation + index * 13 + squared * 7
+            let verticalSeed: Int = variation * 3 + index * 19 + squared
+            let crownSeed: Int = variation + index * 7
+            let x = CGFloat(8 + horizontalSeed % 37)
+            let y = CGFloat(9 + verticalSeed % 22)
+            let crown = CGFloat(5 + crownSeed % 4)
+            samples.append((x: x, y: y, size: crown))
+        }
+        return samples.sorted { $0.y < $1.y }
     }
 }
 
