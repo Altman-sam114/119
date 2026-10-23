@@ -11,6 +11,7 @@ struct RenderBattlePreview {
         let height = arguments.dropFirst(2).first.flatMap(Double.init) ?? 430
         emitPreviewDiagnostic("[preview] fixtures started: \(outputPath)")
         // Data-only fixtures never touch the five screenshot contexts below.
+        try verifyNaturalTerrainContours()
         try verifyAITacticalActionPreviewChain()
         let viewModel = GameViewModel()
         viewModel.isShowingMenu = false
@@ -4025,6 +4026,76 @@ struct RenderBattlePreview {
         }
     }
 
+    private static func verifyNaturalTerrainContours() throws {
+        let island: Set<Position> = [Position(x: 3, y: 3)]
+        let lake = Set((1...5).flatMap { y in
+            (1...5).compactMap { x -> Position? in
+                x == 3 && y == 3 ? nil : Position(x: x, y: y)
+            }
+        })
+        let bridge = Set((1...5).map { Position(x: $0, y: 3) })
+        let separated = bridge.subtracting([Position(x: 3, y: 3)])
+        let scenarios: [(String, Set<Position>, Int)] = [
+            ("island", island, 1), ("lake", lake, 2),
+            ("bridge", bridge, 1), ("separated", separated, 2), ("sea", [], 0)
+        ]
+        for size in [CGSize(width: 916, height: 278), CGSize(width: 374, height: 670), CGSize(width: 1008, height: 606)] {
+            let metrics = HexMetrics(mapWidth: 7, mapHeight: 7, container: size)
+            for (name, landPositions, expectedLoops) in scenarios {
+                let tiles = (0..<7).flatMap { y in
+                    (0..<7).map { x in
+                        let position = Position(x: x, y: y)
+                        return Tile(position: position, terrain: landPositions.contains(position) ? .plains : .water)
+                    }
+                }
+                let geometry = MapTerrainGeometry(tiles: tiles, metrics: metrics)
+                let contours = geometry.contours(in: size)
+                let reversed = MapTerrainGeometry(tiles: Array(tiles.reversed()), metrics: metrics).contours(in: size)
+                let expectedEdges = landPositions.reduce(0) { count, position in
+                    count + position.neighbors(width: 7, height: 7).filter { !landPositions.contains($0) }.count
+                }
+                var curveCount = 0
+                contours.path.forEach { element in
+                    if case .quadCurve = element { curveCount += 1 }
+                }
+                guard contours.loops.count == expectedLoops,
+                      contours.boundaryEdgeCount == expectedEdges,
+                      contours.loops.reduce(0, { $0 + $1.count }) == expectedEdges,
+                      curveCount == expectedEdges,
+                      contours.loops == reversed.loops,
+                      tiles.allSatisfy({ tile in
+                          contours.path.contains(metrics.center(for: tile.position)) == (tile.terrain != .water)
+                      }) else {
+                    emitPreviewDiagnostic("Natural coast failed: \(name), loops=\(contours.loops.count), edges=\(contours.boundaryEdgeCount)/\(expectedEdges), curves=\(curveCount), size=\(size)")
+                    throw PreviewRenderError.missingNaturalTerrainContours
+                }
+                if name == "bridge" {
+                    for x in 1..<5 {
+                        let start = metrics.center(for: Position(x: x, y: 3))
+                        let end = metrics.center(for: Position(x: x + 1, y: 3))
+                        for step in 0...10 {
+                            let progress = CGFloat(step) / 10
+                            let point = CGPoint(x: start.x + (end.x - start.x) * progress,
+                                                y: start.y + (end.y - start.y) * progress)
+                            guard contours.path.contains(point) else {
+                                throw PreviewRenderError.missingNaturalTerrainContours
+                            }
+                        }
+                    }
+                }
+            }
+            let campaign = GameState.newCampaign(mode: .campaign)
+            let campaignMetrics = HexMetrics(mapWidth: campaign.width, mapHeight: campaign.height, container: size)
+            let campaignContours = MapTerrainGeometry(tiles: campaign.tiles, metrics: campaignMetrics).contours(in: size)
+            guard campaign.tiles.allSatisfy({ tile in
+                campaignContours.path.contains(campaignMetrics.center(for: tile.position)) == (tile.terrain != .water)
+            }), campaignContours.loops.reduce(0, { $0 + $1.count }) == campaignContours.boundaryEdgeCount else {
+                throw PreviewRenderError.missingNaturalTerrainContours
+            }
+        }
+        emitPreviewDiagnostic("Natural terrain contours: stable closed loops, island, lake, bridge, separated coast and campaign centers passed at three sizes")
+    }
+
     private static func emitPreviewDiagnostic(_ message: String) {
         FileHandle.standardError.write(Data("\(message)\n".utf8))
     }
@@ -4058,6 +4129,7 @@ enum PreviewRenderError: Error {
     case missingCoastlineStrategy
     case missingHexTerrainContinuity
     case missingContinuousTerrainSurface
+    case missingNaturalTerrainContours
     case missingStrategicMapMaterialCoverage
     case missingCommandDockAttackFixture
     case missingAttackForecast

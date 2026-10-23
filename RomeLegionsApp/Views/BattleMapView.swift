@@ -69,17 +69,15 @@ struct WarMapView: View {
                 translation: gestureTranslation,
                 in: proxy.size
             )
-            let coastlineSegments = CoastlineBuilder.segments(
-                tiles: viewModel.state.tiles,
-                metrics: metrics
-            )
+            let terrainGeometry = MapTerrainGeometry(tiles: viewModel.state.tiles, metrics: metrics)
+            let terrainContours = terrainGeometry.contours(in: proxy.size)
 
             ZStack {
                 ZStack {
                     MapBackdropView()
                         .zIndex(-2)
 
-                    MapTerrainSurfaceView(tiles: viewModel.state.tiles, metrics: metrics)
+                    MapTerrainSurfaceView(tiles: viewModel.state.tiles, metrics: metrics, contours: terrainContours)
                         .zIndex(-1)
 
                     MapFogOfWarEdgeView()
@@ -89,7 +87,7 @@ struct WarMapView: View {
                         .opacity(0.18)
                         .zIndex(0.35)
 
-                    CoastlineLayerView(segments: coastlineSegments, metrics: metrics)
+                    CoastlineLayerView(contours: terrainContours, metrics: metrics)
                         .zIndex(0.5)
 
                     if overlayPresentation.enemyRouteOpacity > 0 {
@@ -487,10 +485,12 @@ struct AttackLockMapReadoutView: View {
             }
             .font(.caption2.weight(.bold))
             .foregroundStyle(.white)
-            .frame(minWidth: 44, minHeight: 44)
+            .fixedSize(horizontal: true, vertical: false)
+            .frame(minWidth: 60, minHeight: 44)
             .background(.black.opacity(0.30))
             .clipShape(.rect(cornerRadius: 6))
             .contentShape(Rectangle())
+            .layoutPriority(2)
             .accessibilityLabel(forecast.cancelAccessibilityLabel)
             .accessibilityHint("清除目标锁定，不会结算攻击")
         }
@@ -1526,6 +1526,62 @@ struct BattlefieldRoadSegment: Hashable {
     let end: Position
 }
 
+private struct BattlefieldTerrainVertex: Hashable, Comparable {
+    let x: Int
+    let y: Int
+
+    static func < (left: Self, right: Self) -> Bool {
+        left.y == right.y ? left.x < right.x : left.y < right.y
+    }
+
+    func point(using metrics: HexMetrics) -> CGPoint {
+        CGPoint(
+            x: metrics.origin.x - metrics.tileWidth / 2 + CGFloat(x) * metrics.tileWidth / 2,
+            y: metrics.origin.y - metrics.tileHeight / 2 + CGFloat(y) * metrics.tileHeight / 4
+        )
+    }
+
+    static func vertices(for position: Position) -> [Self] {
+        let x = position.x * 2 + (position.y.isMultiple(of: 2) ? 0 : 1)
+        let y = position.y * 3
+        return [Self(x: x + 1, y: y), Self(x: x + 2, y: y + 1),
+                Self(x: x + 2, y: y + 3), Self(x: x + 1, y: y + 4),
+                Self(x: x, y: y + 3), Self(x: x, y: y + 1)]
+    }
+}
+
+private struct BattlefieldTerrainEdge: Hashable {
+    let start: BattlefieldTerrainVertex
+    let end: BattlefieldTerrainVertex
+}
+
+struct BattlefieldTerrainContours {
+    let loops: [[CGPoint]]
+    let boundaryEdgeCount: Int
+    let path: Path
+
+    init(loops: [[CGPoint]], boundaryEdgeCount: Int) {
+        self.loops = loops
+        self.boundaryEdgeCount = boundaryEdgeCount
+        var shoreline = Path()
+        for loop in loops where loop.count >= 3 {
+            for index in loop.indices {
+                let corner = loop[index]
+                let previous = loop[(index + loop.count - 1) % loop.count]
+                let next = loop[(index + 1) % loop.count]
+                let entry = CGPoint(x: corner.x + (previous.x - corner.x) * 0.45,
+                                    y: corner.y + (previous.y - corner.y) * 0.45)
+                let exit = CGPoint(x: corner.x + (next.x - corner.x) * 0.45,
+                                   y: corner.y + (next.y - corner.y) * 0.45)
+                if index == 0 { shoreline.move(to: entry) } else { shoreline.addLine(to: entry) }
+                shoreline.addQuadCurve(to: exit, control: corner)
+            }
+            shoreline.closeSubpath()
+        }
+        path = shoreline
+    }
+}
+
 /// Pure presentation geometry. The surface and interactive tiles share vertices;
 /// roads connect only neighboring road/city cells from the actual scenario.
 struct MapTerrainGeometry {
@@ -1533,27 +1589,45 @@ struct MapTerrainGeometry {
     let metrics: HexMetrics
 
     func landPath(in size: CGSize) -> Path {
+        contours(in: size).path
+    }
+
+    func contours(in size: CGSize) -> BattlefieldTerrainContours {
         let terrain = Dictionary(uniqueKeysWithValues: tiles.map { ($0.position, $0.terrain) })
         let lastColumn = tiles.map(\.position.x).max() ?? 0
         let lastRow = tiles.map(\.position.y).max() ?? 0
         let firstSceneryColumn = min(0, Int(floor(-metrics.origin.x / metrics.tileWidth)) - 1)
         let lastSceneryColumn = max(lastColumn, Int(ceil((size.width - metrics.origin.x) / metrics.tileWidth)) + 1)
         let firstSceneryRow = min(0, Int(floor(-metrics.origin.y / (metrics.tileHeight * 0.75))) - 1)
-        var land = Path()
-        // Extrapolate edge cells on the same lattice. Rectangular extensions
-        // expose artificial right-angle coastlines when the board is centered.
+        var edges = Set<BattlefieldTerrainEdge>()
+        // Integer lattice keys cancel internal edges without rounding screen
+        // coordinates. Opposite winding preserves lakes inside the land path.
         for y in firstSceneryRow...lastRow {
             for x in firstSceneryColumn...lastSceneryColumn {
                 let source = Position(x: min(lastColumn, max(0, x)), y: max(0, y))
                 guard let sourceTerrain = terrain[source], sourceTerrain != .water else { continue }
-                let center = metrics.center(for: Position(x: x, y: y))
-                land.addPath(Hexagon().path(in: CGRect(
-                    x: center.x - metrics.tileWidth / 2, y: center.y - metrics.tileHeight / 2,
-                    width: metrics.tileWidth, height: metrics.tileHeight
-                )))
+                let vertices = BattlefieldTerrainVertex.vertices(for: Position(x: x, y: y))
+                for index in vertices.indices {
+                    let edge = BattlefieldTerrainEdge(start: vertices[index], end: vertices[(index + 1) % 6])
+                    if edges.remove(BattlefieldTerrainEdge(start: edge.end, end: edge.start)) == nil {
+                        edges.insert(edge)
+                    }
+                }
             }
         }
-        return land
+        var outgoing = Dictionary(uniqueKeysWithValues: edges.map { ($0.start, $0.end) })
+        var loops: [[CGPoint]] = []
+        for start in outgoing.keys.sorted() where outgoing[start] != nil {
+            var current = start
+            var loop: [CGPoint] = []
+            repeat {
+                loop.append(current.point(using: metrics))
+                guard let next = outgoing.removeValue(forKey: current) else { break }
+                current = next
+            } while current != start
+            if current == start && loop.count >= 3 { loops.append(loop) }
+        }
+        return BattlefieldTerrainContours(loops: loops, boundaryEdgeCount: edges.count)
     }
 
     var roadSegments: [BattlefieldRoadSegment] {
@@ -1590,14 +1664,15 @@ struct MapTerrainGeometry {
 struct MapTerrainSurfaceView: View {
     var tiles: [Tile]
     var metrics: HexMetrics
+    var contours: BattlefieldTerrainContours
 
     var body: some View {
         Canvas { context, size in
             let geometry = MapTerrainGeometry(tiles: tiles, metrics: metrics)
-            let land = geometry.landPath(in: size)
+            let land = contours.path
             drawSea(in: &context, size: size)
             context.fill(land, with: .linearGradient(
-                Gradient(colors: [Color(red: 0.48, green: 0.53, blue: 0.36), Color(red: 0.36, green: 0.45, blue: 0.32)]),
+                Gradient(colors: [Color(red: 0.46, green: 0.51, blue: 0.35), Color(red: 0.34, green: 0.42, blue: 0.30)]),
                 startPoint: .zero, endPoint: CGPoint(x: size.width * 0.3, y: size.height)
             ))
             context.drawLayer { ground in
@@ -1619,14 +1694,18 @@ struct MapTerrainSurfaceView: View {
 
     private func drawSea(in context: inout GraphicsContext, size: CGSize) {
         context.fill(Path(CGRect(origin: .zero, size: size)), with: .linearGradient(
-            Gradient(colors: [Color(red: 0.32, green: 0.46, blue: 0.47), Color(red: 0.23, green: 0.38, blue: 0.43)]),
+            Gradient(colors: [Color(red: 0.30, green: 0.43, blue: 0.44), Color(red: 0.19, green: 0.33, blue: 0.38)]),
             startPoint: .zero, endPoint: CGPoint(x: size.width, y: size.height)
         ))
+        context.stroke(contours.path, with: .color(Color(red: 0.53, green: 0.66, blue: 0.59).opacity(0.20)),
+                       style: StrokeStyle(lineWidth: metrics.tileWidth * 0.30, lineCap: .round, lineJoin: .round))
+        context.stroke(contours.path, with: .color(Color(red: 0.59, green: 0.70, blue: 0.64).opacity(0.18)),
+                       style: StrokeStyle(lineWidth: metrics.tileWidth * 0.14, lineCap: .round, lineJoin: .round))
         for row in 0..<Int(size.height / 18) + 1 {
-            let y = CGFloat(row) * 18
+            let y = CGFloat(row) * 18 + CGFloat((row * 11) % 13)
             let phase = CGFloat((row * 17) % 29)
             for column in 0..<Int(size.width / 62) + 1 {
-                let x = CGFloat(column) * 62 + phase
+                let x = CGFloat(column) * 62 + phase + CGFloat((row * 7 + column * 13) % 23)
                 var wave = Path()
                 wave.move(to: CGPoint(x: x, y: y))
                 wave.addCurve(to: CGPoint(x: x + 38, y: y - 1),
@@ -1637,6 +1716,7 @@ struct MapTerrainSurfaceView: View {
     }
 
     private func drawRelief(in context: inout GraphicsContext, size: CGSize) {
+        drawGroundVariation(in: &context, size: size)
         for tile in tiles where tile.terrain != .water {
             let center = metrics.center(for: tile.position)
             let tint: Color
@@ -1647,9 +1727,9 @@ struct MapTerrainSurfaceView: View {
             default: tint = Color(red: 0.65, green: 0.64, blue: 0.39).opacity(0.12)
             }
             let radius = metrics.tileWidth * 0.78
-            context.fill(Path(ellipseIn: CGRect(x: center.x - radius, y: center.y - radius * 0.6,
-                                               width: radius * 2, height: radius * 1.2)),
-                         with: .radialGradient(Gradient(colors: [tint, .clear]), center: center,
+            context.fill(Path(ellipseIn: CGRect(x: center.x - radius, y: center.y - radius,
+                                               width: radius * 2, height: radius * 2)),
+                         with: .radialGradient(Gradient(colors: [tint, .clear, .clear]), center: center,
                                                startRadius: 0, endRadius: radius))
         }
         for row in 0..<Int(size.height / 12) + 1 {
@@ -1663,6 +1743,31 @@ struct MapTerrainSurfaceView: View {
                     grass.move(to: point)
                     grass.addLine(to: CGPoint(x: point.x - 1.5, y: point.y - 2.4))
                     context.stroke(grass, with: .color(Color(red: 0.26, green: 0.35, blue: 0.22).opacity(0.25)), lineWidth: 0.6)
+                }
+            }
+        }
+    }
+
+    private func drawGroundVariation(in context: inout GraphicsContext, size: CGSize) {
+        for row in 0..<Int(size.height / 36) + 1 {
+            for column in 0..<Int(size.width / 48) + 1 {
+                let seed = (row * 97 + column * 61 + row * column * 7) % 101
+                let center = CGPoint(x: CGFloat(column * 48 + seed % 37), y: CGFloat(row * 36 + seed % 29))
+                let radius = CGFloat(24 + seed % 46)
+                let tint = seed.isMultiple(of: 3)
+                    ? Color(red: 0.73, green: 0.67, blue: 0.43).opacity(0.13)
+                    : Color(red: 0.22, green: 0.32, blue: 0.20).opacity(0.12)
+                context.fill(Path(ellipseIn: CGRect(x: center.x - radius, y: center.y - radius,
+                                                   width: radius * 2, height: radius * 2)),
+                             with: .radialGradient(Gradient(colors: [tint, .clear]), center: center,
+                                                   startRadius: 0, endRadius: radius))
+                if seed.isMultiple(of: 4) {
+                    var contour = Path()
+                    contour.move(to: CGPoint(x: center.x - 18, y: center.y + 3))
+                    contour.addCurve(to: CGPoint(x: center.x + 24, y: center.y - 2),
+                                     control1: CGPoint(x: center.x - 6, y: center.y - 7),
+                                     control2: CGPoint(x: center.x + 9, y: center.y + 6))
+                    context.stroke(contour, with: .color(BattlePalette.parchment.opacity(0.12)), lineWidth: 0.65)
                 }
             }
         }
@@ -1880,55 +1985,29 @@ enum CoastlineBuilder {
 }
 
 struct CoastlineLayerView: View {
-    var segments: [CoastlineSegment]
+    var contours: BattlefieldTerrainContours
     var metrics: HexMetrics
 
     private static let sandColor = Color(red: 0.82, green: 0.72, blue: 0.50)
     private static let foamColor = Color(red: 0.72, green: 0.86, blue: 0.90)
 
     var body: some View {
-        Canvas { context, _ in
-            for segment in segments {
-                let water = metrics.center(for: segment.waterPosition)
-                let land = metrics.center(for: segment.landPosition)
-                let edge = metrics.sharedEdge(from: segment.waterPosition, to: segment.landPosition)
-                guard edge.count == 2 else { continue }
-                let dx = land.x - water.x
-                let dy = land.y - water.y
-                let length = max(1, (dx * dx + dy * dy).squareRoot())
-                var shore = Path()
-                shore.move(to: edge[0])
-                shore.addLine(to: edge[1])
-                context.stroke(
-                    shore,
-                    with: .color(Self.foamColor.opacity(0.12)),
-                    style: StrokeStyle(lineWidth: max(4, metrics.tileWidth * 0.16), lineCap: .butt)
-                )
-                context.stroke(
-                    shore,
-                    with: .color(Self.sandColor.opacity(0.66)),
-                    style: StrokeStyle(lineWidth: max(1.4, metrics.tileWidth * 0.035), lineCap: .butt)
-                )
-
-                let towardWaterX = -dx / length * metrics.tileWidth * 0.045
-                let towardWaterY = -dy / length * metrics.tileWidth * 0.045
-                var foam = Path()
-                foam.move(to: CGPoint(
-                    x: edge[0].x + towardWaterX,
-                    y: edge[0].y + towardWaterY
-                ))
-                foam.addLine(to: CGPoint(
-                    x: edge[1].x + towardWaterX,
-                    y: edge[1].y + towardWaterY
-                ))
-                context.stroke(
-                    foam,
-                    with: .color(Self.foamColor.opacity(0.34)),
-                    style: StrokeStyle(lineWidth: max(0.7, metrics.tileWidth * 0.014), lineCap: .butt)
-                )
+        Canvas { context, size in
+            let shore = contours.path
+            context.stroke(shore, with: .color(Color(red: 0.18, green: 0.25, blue: 0.19).opacity(0.42)),
+                           style: StrokeStyle(lineWidth: max(3, metrics.tileWidth * 0.07), lineCap: .round, lineJoin: .round))
+            context.stroke(shore, with: .color(Self.sandColor.opacity(0.74)),
+                           style: StrokeStyle(lineWidth: max(1.4, metrics.tileWidth * 0.033), lineCap: .round, lineJoin: .round))
+            context.drawLayer { foam in
+                var water = Path(CGRect(origin: .zero, size: size))
+                water.addPath(shore)
+                foam.clip(to: water, style: FillStyle(eoFill: true))
+                foam.stroke(shore, with: .color(Self.foamColor.opacity(0.38)),
+                            style: StrokeStyle(lineWidth: max(3, metrics.tileWidth * 0.09), lineCap: .round, lineJoin: .round))
             }
         }
         .allowsHitTesting(false)
+        .accessibilityHidden(true)
     }
 }
 
@@ -1965,7 +2044,10 @@ struct HexTileView: View {
                 .fill(.clear)
                 .overlay {
                     if tile.terrain == .forest || tile.terrain == .hills {
-                        TerrainTextureView(terrain: tile.terrain, scale: scale)
+                        TerrainTextureView(
+                            terrain: tile.terrain, scale: scale,
+                            variation: tile.position.x * 17 + tile.position.y * 29
+                        )
                     }
                 }
                 .overlay {
@@ -2168,14 +2250,15 @@ struct HexTileView: View {
 struct TerrainTextureView: View {
     var terrain: TerrainType
     var scale: CGFloat
+    var variation = 0
 
     var body: some View {
         Group {
             switch terrain {
             case .forest:
-                ForestTextureView(scale: scale)
+                ForestTextureView(scale: scale, variation: variation)
             case .hills:
-                HillsTextureView(scale: scale)
+                HillsTextureView(scale: scale, variation: variation)
             default:
                 EmptyView()
             }
@@ -2882,17 +2965,29 @@ struct CountermeasureTileOverlay: View {
 
 struct ForestTextureView: View {
     var scale: CGFloat
+    var variation = 0
 
     var body: some View {
         Canvas { context, size in
             let paint = BattlefieldMiniaturePainter(size: size)
-            for index in 0..<13 {
-                let x = CGFloat(9 + (index * 11) % 35)
-                let y = CGFloat(8 + (index * 7) % 24)
-                paint.ellipse(&context, x: x - 3, y: y + 3, width: 10, height: 5, color: .black.opacity(0.18))
-                paint.line(&context, [(x, y), (x, y + 6)], color: Color(red: 0.26, green: 0.25, blue: 0.16), width: 1)
-                paint.ellipse(&context, x: x - 4, y: y - 5, width: 8, height: 10, color: Color(red: 0.20, green: 0.32, blue: 0.18))
-                paint.ellipse(&context, x: x - 4, y: y - 5, width: 6, height: 6, color: Color(red: 0.37, green: 0.44, blue: 0.23))
+            let trees = (0..<17).map { index in
+                (x: CGFloat(8 + (variation + index * 13 + index * index * 7) % 37),
+                 y: CGFloat(9 + (variation * 3 + index * 19 + index * index) % 22),
+                 size: CGFloat(5 + (variation + index * 7) % 4))
+            }.sorted { $0.y < $1.y }
+            for tree in trees {
+                let x = tree.x
+                let y = tree.y
+                let crown = tree.size
+                paint.ellipse(&context, x: x - 2, y: y + 3, width: crown + 4, height: 4, color: .black.opacity(0.20))
+                paint.line(&context, [(x, y), (x, y + 6)], color: Color(red: 0.25, green: 0.24, blue: 0.15), width: 1)
+                paint.ellipse(&context, x: x - crown / 2, y: y - crown, width: crown, height: crown + 2,
+                              color: Color(red: 0.17, green: 0.28, blue: 0.16))
+                paint.ellipse(&context, x: x - crown / 2, y: y - crown, width: crown * 0.78, height: crown * 0.72,
+                              color: Color(red: 0.31, green: 0.40, blue: 0.21))
+                paint.ellipse(&context, x: x - crown * 0.24, y: y - crown * 0.92,
+                              width: crown * 0.35, height: crown * 0.28,
+                              color: Color(red: 0.46, green: 0.49, blue: 0.29).opacity(0.75))
             }
         }
     }
@@ -2900,19 +2995,25 @@ struct ForestTextureView: View {
 
 struct HillsTextureView: View {
     var scale: CGFloat
+    var variation = 0
 
     var body: some View {
         Canvas { context, size in
             let paint = BattlefieldMiniaturePainter(size: size)
-            for index in 0..<3 {
-                let x = CGFloat(8 + index * 12)
-                let y = CGFloat(24 + (index % 2) * 7)
-                let peak = y - CGFloat(12 + index * 2)
-                paint.ellipse(&context, x: x - 5, y: y - 2, width: 25, height: 7, color: .black.opacity(0.10))
-                paint.polygon(&context, [(x - 7, y), (x + 3, peak), (x + 16, y)], color: Color(red: 0.58, green: 0.56, blue: 0.43))
-                paint.polygon(&context, [(x + 3, peak), (x + 7, y - 4), (x + 16, y)], color: Color(red: 0.33, green: 0.35, blue: 0.28))
-                paint.line(&context, [(x - 4, y - 3), (x + 3, peak), (x + 6, peak + 4)], color: BattlefieldMiniaturePainter.ivory.opacity(0.35), width: 0.7)
-            }
+            let rise = CGFloat(variation % 5)
+            paint.ellipse(&context, x: 5, y: 25, width: 44, height: 9, color: .black.opacity(0.13))
+            paint.polygon(&context, [(3, 28), (12, 17), (18, 20), (29, 7 + rise), (35, 14), (40, 13), (50, 29), (32, 33), (16, 30)],
+                          color: Color(red: 0.48, green: 0.48, blue: 0.37))
+            paint.polygon(&context, [(18, 20), (29, 7 + rise), (27, 21), (35, 31), (22, 28)],
+                          color: Color(red: 0.66, green: 0.62, blue: 0.46))
+            paint.polygon(&context, [(29, 7 + rise), (35, 14), (40, 13), (50, 29), (35, 31), (27, 21)],
+                          color: Color(red: 0.31, green: 0.35, blue: 0.28))
+            paint.polygon(&context, [(3, 28), (12, 17), (11, 25), (22, 28), (16, 30)],
+                          color: Color(red: 0.60, green: 0.57, blue: 0.42))
+            paint.line(&context, [(8, 24), (12, 17), (18, 20), (29, 7 + rise), (32, 14)],
+                       color: BattlefieldMiniaturePainter.ivory.opacity(0.46), width: 0.8)
+            paint.line(&context, [(29, 13 + rise), (24, 23), (31, 27)], color: Color.black.opacity(0.22), width: 0.7)
+            paint.line(&context, [(39, 18), (36, 24), (43, 28)], color: BattlefieldMiniaturePainter.ivory.opacity(0.18), width: 0.7)
         }
     }
 }

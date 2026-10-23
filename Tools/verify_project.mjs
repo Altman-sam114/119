@@ -207,6 +207,12 @@ for (const token of ["MapTerrainSurfaceView", "MapTerrainGeometry", "Battlefield
 for (const token of ["missingContinuousTerrainSurface", "land.contains(metrics.center", "expectedRoads", "fixtureSurface.roadSegments"]) {
   if (!renderPreview.includes(token)) failures.push(`Continuous terrain cloud gate missing: ${token}`);
 }
+for (const token of ["BattlefieldTerrainVertex", "BattlefieldTerrainContours", "terrainGeometry.contours", "contours: terrainContours", "drawGroundVariation", "shoreline.addQuadCurve"]) {
+  if (!battle.includes(token)) failures.push(`Natural terrain presentation missing: ${token}`);
+}
+for (const token of ["verifyNaturalTerrainContours()", "missingNaturalTerrainContours", "contours.loops == reversed.loops", "curveCount == expectedEdges", 'name == "bridge"']) {
+  if (!renderPreview.includes(token)) failures.push(`Natural terrain cloud gate missing: ${token}`);
+}
 for (const token of ["commandDockSecondaryTarget", "selectedAttackTargetID", "selectedCombatForecast", "attackerIdentityLabel", "identityChainLabel", "cancelSelectedAttackTarget", "stateArchiveBeforeAttackForecast", "stateArchiveAfterCancel", "stateArchiveAfterRepeatedCancel", "aiIntentSnapshotBeforeAttackForecast", "missingAttackForecast", "stateBeforeAttackForecast", "EnemyCommanderThreatMapOverlay", "EnemyCommanderThreatFocusReadout", "activeEnemyCommanderThreatFocusReadout", "hasExecutableCommand", "commandAvailabilityLabel", "mapHeadlineLabel", "mapSpatialLabel", "mapStatusLabel", "compactStatusColumns", "primaryEnemyCommanderThreatMapOverlay", "activeEnemyCommanderThreatSummary", "activeEnemyCommanderThreatID", "activeEnemyCommanderThreatMapOverlay", "enemyCommanderThreatOverlaysByPosition", "enemyCommanderThreatOverlayPositions", "focusedEnemyCommanderThreatID", "focusEnemyCommanderThreat", "missingEnemyCommanderThreatMapOverlay", "missingActiveEnemyCommanderThreatPrimary", "missingActiveEnemyCommanderThreatSecondary", "missingActiveEnemyCommanderThreatSummary", "missingActiveEnemyCommanderThreatOverlay", "missingActiveEnemyCommanderThreatSource", "missingActiveEnemyCommanderThreatReadout", "missingEnemyCommanderThreatFocusReadout", "missingEnemyCommanderThreatCommandCleanup", "missingFocusedEnemyCommanderThreatRender", "missingFocusedEnemyCommanderThreatCardRender", "focusedOutputPath", "focusedEnemyDrawerOutputPath", "hasVisibleFocusedEnemyCommanderThreatPreview", "hasVisibleFocusedEnemyCommanderThreatCard", "initialDrawer: .enemy", "enemyCommanderThreatID", "MapOverlayLegendKind.enemyCommanderThreat", "missingAIMoveSkillPreviewChain", "moveSkillIntent", "moveSkillIntent.tacticalOrder == .forcedMarch", "moveSkillPreview", "moveSkillOverlay", "moveSkillResolution", "campaignEndSkillOverlay", "campaignEndSkillProjection", "missingCountermeasureCommandContext", "missingCountermeasureCommandSource", "missingCountermeasureCommandConfirmation", "assertCountermeasureSingleStepCommands", "CountermeasureCommandRuntimeSnapshot", "confirmCountermeasureOrder()", "confirmCountermeasureMovement()", "lockCountermeasureTarget()", "missingCountermeasureOrderRuntimeConfirmation", "missingCountermeasureMovementRuntimeConfirmation", "missingCountermeasureTargetRuntimeConfirmation", "missingCountermeasureCommandCleanup", "missingCountermeasureCommandRender", "focusedCountermeasureOutputPath", "focused-countermeasure", "BattleDisplayContextReadout", "isMapAttackOrigin", "selectedAttackSourceIDBeforeForecast", "attackOriginIDsBeforeForecast", "attackOriginIDsAfterForecast", "missingBattleDisplayContext", "missingMapOverlayHierarchy", "visibleRawSourceIdentifier", "missingContextualCommandDock", "missingMapVisualPriority"]) {
   if (!renderPreview.includes(token)) {
     failures.push(`RenderBattlePreview does not include ${token}`);
@@ -339,8 +345,8 @@ for (const token of ["RomeLegions CI Results", "branches:", "main", "ci-artifact
     failures.push(`.github/workflows/ci-results.yml does not include ${token}`);
   }
 }
-if (!ciWorkflow.includes("CI_VERSION: v0.79")) {
-  failures.push(".github/workflows/ci-results.yml does not include CI_VERSION v0.79");
+if (!ciWorkflow.includes("CI_VERSION: v0.80")) {
+  failures.push(".github/workflows/ci-results.yml does not include CI_VERSION v0.80");
 }
 if (!/^\s+timeout-minutes: 75\s*$/m.test(ciWorkflow)) {
   failures.push(".github/workflows/ci-results.yml must preserve the 75-minute job budget");

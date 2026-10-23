@@ -1,5 +1,12 @@
 # 测试规范
 
+## v0.80 当前轮次
+
+- `CI_VERSION: v0.80`，保留 Static、SwiftPM、Gameplay Smoke、Render 与 Xcode 五项云端检查和三尺寸五场景 15 PNG；本地不运行验证。
+- `verifyNaturalTerrainContours()` 在截图状态创建前验证三尺寸孤岛、内湖、单格陆桥、断开陆桥与全海夹具：轮廓数量、独立邻接统计的边数、闭环边数、曲线数、反转存储顺序稳定、全部水陆中心分类。陆桥相邻中心连线上 11 个采样点必须连续落在陆地；真实 campaign 全部中心分类与闭环完整性同样验证。失败 token 为 `missingNaturalTerrainContours`，不替代既有连续地表、真实共边、道路、镜头与命令门禁。
+- C 阶段逐图复判地面、沙岸、浅水、浪缘同源，无逐边裂缝或内湖填平；森林/山脊可辨且不遮挡单位、城市和路线；竖屏战区上移后地图/固定 HUD/情报坞不重叠，攻击 HUD 的取消文字完整。动态触控、极端字体与 VoiceOver 仍需人工设备体验。
+- 改前 `20c1e5b` / run `39809982535` attempt 1 / artifact `RomeLegions-ci-v0.79-main-20c1e5b-run39809982535-attempt1` 已核对 manifest、JUnit 5/0、107 核心测试、主日志和全部 15 图；该包仅为 v0.79 验收和 v0.80 改前对照。
+
 ## v0.79 当前轮次
 
 - CI_VERSION 为 v0.79，保留五项云端检查、三尺寸五场景 15 PNG 与所有既有玩法/只读断言。无本地测试、构建、解析或 diff-check。

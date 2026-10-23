@@ -207,7 +207,7 @@ struct HexMetrics {
         let bottomInset: CGFloat = isLandscape ? 70 : 112
         let availableWidth = max(1, container.width - horizontalInset * 2)
         let availableHeight = max(1, container.height - topInset - bottomInset)
-        tileAspect = isShortLandscape ? 0.50 : (isLandscape ? 0.72 : 0.98)
+        tileAspect = isShortLandscape ? 0.50 : (isLandscape ? 0.72 : 1.14)
         let widthBased = availableWidth / horizontalUnits
         let heightBased = availableHeight / (verticalUnits * tileAspect)
         let fittedTileWidth = min(widthBased, heightBased)
@@ -221,7 +221,7 @@ struct HexMetrics {
         let totalHeight = tileHeight * verticalUnits
         mapSize = CGSize(width: totalWidth, height: totalHeight)
         let remainingVerticalSpace = max(0, availableHeight - totalHeight)
-        let verticalBias: CGFloat = container.height > container.width * 1.25 ? 0.16 : 0.46
+        let verticalBias: CGFloat = container.height > container.width * 1.25 ? 0.08 : 0.46
         origin = CGPoint(
             x: horizontalInset + (availableWidth - totalWidth) / 2 + tileWidth / 2,
             y: topInset + remainingVerticalSpace * verticalBias + tileHeight / 2
