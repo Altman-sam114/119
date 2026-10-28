@@ -16,8 +16,8 @@
 - 核心架构：纯 Swift `RomeLegionsCore` 负责玩法规则；`GameViewModel` 负责 UI 状态、命令与派生数据组装，地图战场、战略态势和选中对象 readout 分别由三个独立 Swift 文件承载；SwiftUI 视图负责展示和命令入口。
 - 当前玩法：六边形地图、战略地图缩放/拖移/选择聚焦/复位、地形、城市、阵营、军团、移动、攻击、战斗目标锁定与攻击预演、反击、占城、招募、科技、任务 requirement、战役目标、胜负结算、结束保护、外交、城市扩建、城市经营与招募读板、军团训练、将领任命、军团成长决策读板、军团成长优先级读板、主动技能、技能冷却、将领详情读板、将领指挥链读板、将领战机威胁桥接读板、将令技能入口链路、将领技能目标与收益读板、被动贡献、战功状态、军团编制与成长读板、选中军团处境命令入口读板、选中军团军令窗口读板、战役推进线 HUD、地图侦察视角 HUD、战术命令建议与补线路径读板、本方将领协同与战术连携读板、将领协同步骤读板、机动落点与地图风险读板、战场焦点与将领机会读板、战场目标链路、战场态势交汇链路、敌情交战闭环 HUD、目标线地图叠层、阶段聚焦、阶段命令预览与联动高亮、地图控制与威胁热区读板、主动地图叠层图例、AI 作战计划与时间线读板、敌方将领协同读板、敌方将领威胁读板、敌情反制建议读板、反制落点/目标地图叠层、反制指令聚焦、反制命令链高亮与反制焦点链路、战术姿态与姿态预览、AI 回合、AI 主攻优先执行、AI 回合内集火协同、敌军意图预判、敌军意图六边形路径/目标叠层、AI 将领移动后施令、移动后技能预演/计划/威胁/地图叠层同源、战线压力读板、战局态势面板。
 - 当前测试入口：Swift Testing、Gameplay Smoke、项目结构检查、SwiftUI 类型检查、战斗页预览图渲染、无签名 Xcode 构建。
-- 当前协作系统：已建立 `AGENTS.md`、`update_log.md`、`md/prompt/`、`md/test/test.md`、`md/flow/flow.md`、`md/flow/flowchart.md`，默认按 `main` 直推、GitHub Actions 云端重验证、Agent C 下载未加密结果包复判，并具备未来由 Agent X 主控调度 Agent A/B/C 多轮循环的文档基线。
-- 当前 CI 入口：`.github/workflows/ci-results.yml`，在 `main` push 和手动触发时运行结构检查、SwiftPM 测试、Gameplay Smoke、RenderBattlePreview 和无签名 Xcode build，并上传 CI 结果包。
+- 当前开发流程：用户给目标，同一个模型自主规划、实现、修复与核对云端结果；根目录 `work.md` 记录当前计划/进度/编辑范围，压缩后先读，完成后清空任务内容。历史分角色制度停用，`md/prompt/` 仅作归档，默认不开子智能体。
+- 当前 CI 入口：`.github/workflows/ci-results.yml`，`main` push 或手动触发后按改动范围选择结构/Swift Testing/Smoke/Render/Xcode；结果包明确 selected/skipped 与原因。默认云端-only，本地不编译测试或自动校验，不运行无关 CI 测试。
 
 ## 历史记录
 
@@ -2949,6 +2949,15 @@
 - 存档链路已有 `SaveStore`，但 UI 入口和测试覆盖仍可继续完善。
 
 ## 历史维护记录
+
+### 2026-10-28 / 自主迭代、临时计划与按范围云端验证
+
+- 按用户要求取消活动入口中的 A/B/C/X 召唤、身份、提示词交接和主控循环，由同一个模型端到端完成目标；参考 AITRANS 的文档分工与按任务验证思想，不引入其本地编译、业务探针或分支制度。
+- 根目录新增 `work.md`：任务开始记录目标/验收/步骤/本轮编辑范围，阶段变化与压缩前更新；真正完成后迁移长期结论并清空任务内容，阻塞/待验收不提前清除。入口、flow、test 不再要求每次功能都逐版维护，历史 prompt 原样归档。
+- 云端-only 与 `main` 直推保持；CI 按真实依赖选 baseline/direct，明确主动 skipped 与必需项失败，文档或路由维护不再触发无关 Swift/Smoke/Render/Xcode。同步更新结构检查，移除旧角色与强制历史 prompt 合同，增加范围/结果状态的直接 Node 测试。
+- 关键文件：AGENTS、README、work、flow/flowchart、test、prompt README、CI workflow 与相关 Tools；不改 Swift、玩法、UI、美术或用户已有工程/工作区/unity分析改动。不分配新玩法版本。
+- 本地仅执行读取/编辑、只读 Git/rg/sed、fetch 与 GitHub 查询；未运行本地测试、build、typecheck、Render、verify、diff-check、解析或语法检查。本轮云端结果须在 push 后按最新 SHA/run/attempt 独立核对，当前未宣称通过。
+
 
 ### 2026-09-27 / v0.76.1 云端预览诊断修复（待云端验收）
 

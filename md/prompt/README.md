@@ -1,154 +1,17 @@
-# Agent A 提示词目录说明
+# 历史设计归档
 
-`md/prompt/` 存放 Agent A 为每轮迭代写给 Agent B 的版本化实现提示词。提示词是执行依据，不是版本日志；正式版本和重要维护事项写入 `update_log.md`。
+`md/prompt/` 只保留既有版本的设计背景、目标与验收约束，不再承担迭代入口。旧文档中的角色召唤、身份标签、分角色交接、强制逐轮提示词和全量验证要求已停用；不因阅读旧提示词恢复旧流程。
 
-## 角色召唤
+## 当前执行入口
 
-- `agenta`、`a:` 或 `A:`：召唤 Agent A。
-- `agentb`、`b:` 或 `B:`：召唤 Agent B。
-- `agentc`、`c:` 或 `C:`：召唤 Agent C。
-- `agentx`、`x:` 或 `X:`：召唤 Agent X。
-- 没有前缀时，按普通 Codex 任务处理；若任务需要 A/B/C/X 边界，应提醒用户指定角色，或说明本轮按普通任务执行。
+- 用户直接给目标，由同一个模型自主规划、开发、核对云端结果和修复，默认不开子智能体。
+- 稳定流程以根目录 `AGENTS.md` 为准；当前任务写入根目录 `work.md`，阶段完成及时更新，任务完成清空任务内容。
+- 验证按 `md/test/test.md` 的 `baseline + direct + optional` 选择；默认云端-only，不运行无关 CI 测试。
+- 分支仍为 `main` 直接 commit/push，不引入参考项目的其他分支或本地构建制度。
 
-Agent A、B、C、X 的最终回复第一行分别必须是：
+## 归档边界
 
-```text
-我是 Agent A。
-我是 Agent B。
-我是 Agent C。
-我是 Agent X。
-```
-
-## 目录和命名
-
-目录按版本主题管理：
-
-```text
-md/prompt/v0（协作系统）/v0.1（建立多Agent协作文档）.md
-md/prompt/v0（某主题）/v0.3（某任务）.md
-```
-
-人工指定版本号时按人工要求；未指定时从 `update_log.md` 现有版本继续递增。
-
-当前最新玩法推进提示词：
-
-- `md/prompt/v0（玩法推进）/v0.81（生图兵模与军团展示重构）.md`（内置生图四兵种、真实 App 资源打包、单人串行 A/B/C 与云端 15 战斗图加兵模检视图）
-
-- `md/prompt/v0（玩法推进）/v0.80（自然海岸与战区地貌重构）.md`（单人串行 A/B/C，百度实机对照、轮廓同源与云端岛湖陆桥门禁）
-
-- `md/prompt/v0（玩法推进）/v0.79（连续地貌与古典战场控件重构）.md`（人工要求单智能体，串行设计、实现与最新云端 artifact 复判）
-
-- `md/prompt/v0（玩法推进）/v0.78（连续战区与微缩军团美术重构）.md`（按用户要求单智能体串行设计、实现、云端验收）
-
-- `md/prompt/v0（玩法推进）/v0.76.1（云端预览诊断修复）.md`（验证维护，不作为新玩法版本）
-
-- `md/prompt/v0（玩法推进）/v0.74（战区雾边与地图材质复现）.md`
-- `md/prompt/v0（玩法推进）/v0.73（战区坐标比例与将领卡信息层级）.md`
-- `md/prompt/v0（玩法推进）/v0.72（战略地图制图层与将领信息牌）.md`
-
-- `md/prompt/v0（玩法推进）/v0.71（战斗页青铜军令UI重构与云端门禁修复）.md`
-
-- `md/prompt/v0（玩法推进）/v0.70（AI战术姿态同源预演与计划威胁桥接）.md`
-- `md/prompt/v0（玩法推进）/v0.69（AI将领机动施令与同源预演）.md`
-- `md/prompt/v0（玩法推进）/v0.68（地图视觉层级与上下文命令坞）.md`
-- `md/prompt/v0（玩法推进）/v0.67（反制决策确认闭环）.md`
-- `md/prompt/v0（玩法推进）/v0.66（敌将焦点指挥卡与地图命令上下文）.md`
-- `md/prompt/v0（玩法推进）/v0.65（敌将威胁聚焦同源读板）.md`
-- `md/prompt/v0（玩法推进）/v0.64（敌将技能威胁地图焦点与空间叠层）.md`
-- `md/prompt/v0（玩法推进）/v0.63（战斗目标锁定身份与取消入口）.md`
-- `md/prompt/v0（玩法推进）/v0.62（战斗目标锁定与攻击预演）.md`
-- `md/prompt/v0（玩法推进）/v0.61（AI击杀优先保护与移动集火协同）.md`
-- `md/prompt/v0（玩法推进）/v0.60（AI集火协同与交战记忆）.md`
-- `md/prompt/v0（玩法推进）/v0.59（连续海岸线与地图叠层降噪）.md`
-- `md/prompt/v0（玩法推进）/v0.58（战略地图镜头与聚焦控制）.md`
-- `md/prompt/v0（玩法推进）/v0.57（GameViewModel派生读板模块化拆分）.md`
-- `md/prompt/v0（玩法推进）/v0.56（BattleView战斗壳层模块化拆分）.md`
-- `md/prompt/v0（玩法推进）/v0.55（战斗指挥层级与命令界面重构）.md`
-- `md/prompt/v0（玩法推进）/v0.54（地图材质与战区尺度重构）.md`
-- `md/prompt/v0（玩法推进）/v0.53（地图层级与战场可读性重构）.md`
-- `md/prompt/v0（玩法推进）/v0.52（地图主导战斗壳层UI重构）.md`
-- `md/prompt/v0（玩法推进）/v0.51（HUD信号胶囊UI重构）.md`
-- `md/prompt/v0（玩法推进）/v0.50（战斗读板标签行UI重构）.md`
-- `md/prompt/v0（玩法推进）/v0.49（AI作战计划时间线读板）.md`
-- `md/prompt/v0（玩法推进）/v0.48（将领协同步骤读板）.md`
-- `md/prompt/v0（玩法推进）/v0.47（战役推进线HUD）.md`
-- `md/prompt/v0（玩法推进）/v0.46（地图侦察视角HUD）.md`
-- `md/prompt/v0（玩法推进）/v0.45（选中军团军令窗口读板）.md`
-- `md/prompt/v0（玩法推进）/v0.44（将领战机威胁桥接读板）.md`
-- `md/prompt/v0（玩法推进）/v0.43（敌情交战闭环HUD）.md`
-
-## Agent A 提示词必含内容
-
-每个 Agent A 提示词必须包含：
-
-- 版本号。
-- 版本分配依据。
-- 背景。
-- 目标。
-- 非目标。
-- 当前架构依据。
-- 实现步骤。
-- 关键文件。
-- 测试要求。
-- CI / main push 要求。
-- 文档更新要求。
-- 验收标准。
-- 风险和禁止项。
-
-## Agent X 与每轮提示词管理
-
-Agent X 可以围绕人工总目标 X 要求 Agent A 为每个小轮次生成版本化提示词。Agent X 不直接替代 Agent A 写实现提示词，也不直接替代 Agent B 实现或 Agent C 验收。
-
-Agent X 要求 Agent A 生成每轮提示词时，必须明确：
-
-- 本轮目标和它对应总目标 X 的哪一部分。
-- 本轮非目标和不得扩大的范围。
-- 需要读取的源码、测试、文档和历史提示词。
-- 本轮实现步骤、关键文件和必须保持不变的旧行为。
-- 本轮云端-only 验证限制；当前不得要求 Agent B 运行本地测试、build、typecheck、RenderBattlePreview、`verify_project` 或 `git diff --check`。
-- `main` commit/push 要求。
-- GitHub Actions artifact 要求。
-- Agent C 下载、核对和复判要求。
-- Agent X 在 Agent C 结论后如何判断继续、退回、暂停或完成。
-
-每轮提示词必须按版本目录保存，不覆盖旧提示词；若人工指定版本号，以人工指定为准，否则从 `update_log.md` 现有版本继续递增。
-
-## 云端阶段要求
-
-Agent A 写提示词时必须明确：
-
-- 本轮固定使用 `main` 作为唯一上传、提交、推送和云端验证分支。
-- Agent B 开始前同步最新 `origin/main`，完成后在 `main` 上 commit 并 `git push origin main`。
-- 当前按人工要求默认不跑本地验证命令；完整结构检查、SwiftPM、Gameplay Smoke、RenderBattlePreview 和 Xcode build 由 GitHub Actions 重验证。
-- `.github/workflows/ci-results.yml` 的结果包必须可供 Agent C 下载，且不得加密。
-- Agent C 必须用 `gh auth login` 后下载最新 run artifact 到 `/private/tmp/romelegions-c-review-<run_id>/`。
-- Agent C 必须核对 manifest 的 `branch=main`、`commitSha`、`runId`、`runAttempt` 与 `origin/main` 最新状态一致。
-- 云端失败时，不回滚 main；退回 Agent B 在 `main` 上追加修复 commit 并重新 push。
-- Agent X 主控循环时，不得跳过 Agent C 最新 artifact 验收，也不得在云端失败时进入下一轮伪装成功。
-- 本轮不设计 PR、`develop`、`smalldata_test`、`codeb/...` 或其他候选分支流，除非人工另行明确要求。
-
-## 禁止项
-
-- 禁止把业务实现写进提示词后由 Agent A 直接完成，除非人工明确要求 Agent A 也实现。
-- 禁止把 AITRANS、MD Journal 或其他项目的业务探针、模型、截图、数据文件硬复制到本项目。
-- 禁止把旧 artifact、旧 output 或 checkout 自带报告写成新一轮云端验证结果。
-- 禁止让 Agent C 只看 Agent B 文字汇报。
-- 禁止让 Agent X 用旧 run、旧 artifact、本地输出或未验收结果推进循环。
-
-- `md/prompt/v0（玩法推进）/v0.75（战场军令台视觉重构）.md`
-
-- `md/prompt/v0（玩法推进）/v0.76.3（敌军作战计划青铜情报牌）.md`
-
-- `md/prompt/v0（玩法推进）/v0.76.4（地图将领徽章特性图标）.md`
-
-- `md/prompt/v0（玩法推进）/v0.76.5（AI军令时间线连接层）.md`
-
-- `md/prompt/v0（玩法推进）/v0.76.6（AI军令链语义标题）.md`
-
-- `md/prompt/v0（玩法推进）/v0.76.7（将领详情青铜羊皮纸层）.md`
-
-- `md/prompt/v0（玩法推进）/v0.76.8（地图羊皮纸暖雾边）.md`
-
-- `md/prompt/v0（玩法推进）/v0.76.9（战略地图北向罗盘）.md`
-
-- `md/prompt/v0（玩法推进）/v0.77.0（地图比例尺军令台统一）.md`
+- 保留原目录、版本名和正文作为历史语境，不批量改写或删除旧文件，也不再要求每轮新增提示词。
+- 只在调查相关历史设计时阅读对应文件，不通读全部旧合同。
+- 旧设计不等于当前实现，不等于本轮测试通过；先核对源码、工程、最新用户目标和当前规范。
+- 旧路径、旧版本号、旧云端结果与旧身份要求均不得作为当前执行依据。正式版本和维护结论仍写入 `update_log.md`，不写入本目录。

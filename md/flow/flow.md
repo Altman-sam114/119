@@ -4,7 +4,7 @@
 
 云端验证诊断：预览步骤依次记录编译、夹具、逐图渲染进度，任一命令失败立即返回失败。预览与 Xcode 分别有 50/15 分钟步骤上限，在 75 分钟 job 预算内给结果元数据与 artifact 上传保留时间；超时结果仍按失败复判。
 
-一句话总览：`RomeLegions` 当前是 SwiftUI App + 纯 Swift 核心规则的罗马题材战棋原型，用户在菜单选择模式后进入战场，SwiftUI 通过 `GameViewModel` 调用 `GameState` 完成移动、战斗、城市、科技、外交、战役胜负结算、AI、敌军意图、AI 作战计划与时间线读板、敌方将领威胁及其技能威胁地图焦点/空间叠层、敌将焦点指挥卡与地图命令上下文、敌情反制建议及地图叠层、战线压力、战场焦点、战场态势交汇、选中军团处境与命令入口、选中军团军令窗口、将领战机威胁桥接、地图控制、威胁热区、玩家侧战术建议、本方将领协同、将领协同步骤和机动落点展示；真实 AI 回合会按当前意图威胁分优先执行主攻单位；协作层默认通过 `main` 直推触发 GitHub Actions，并由 Agent C 下载未加密结果包复判；未来可由 Agent X 围绕人工总目标调度 A/B/C 多轮迭代。
+一句话总览：`RomeLegions` 当前是 SwiftUI App + 纯 Swift 核心规则的罗马题材战棋原型，用户在菜单选择模式后进入战场，SwiftUI 通过 `GameViewModel` 调用 `GameState` 完成移动、战斗、城市、科技、外交、战役胜负结算、AI、敌军意图、AI 作战计划与时间线读板、敌方将领威胁及其技能威胁地图焦点/空间叠层、敌将焦点指挥卡与地图命令上下文、敌情反制建议及地图叠层、战线压力、战场焦点、战场态势交汇、选中军团处境与命令入口、选中军团军令窗口、将领战机威胁桥接、地图控制、威胁热区、玩家侧战术建议、本方将领协同、将领协同步骤和机动落点展示；真实 AI 回合会按当前意图威胁分优先执行主攻单位；开发层由同一个模型按用户目标自主规划、实现与核对云端结果，根目录 `work.md` 保存当前计划和恢复点；默认 `main` 直推，GitHub Actions 仅运行相关检查。
 
 本文只记录当前真实链路，不写历史叙事。
 
@@ -253,35 +253,20 @@
 - 存档内容是编码后的完整 `GameState` blob，同时保存模式、回合、当前势力、时间和摘要。
 - 当前核心存档代码已存在，但 UI 中继续完善存档列表、继续游戏、删除存档和错误展示仍是扩展点。
 
-## 云端协作执行流
+## 自主开发与云端执行流
 
-1. 人工提出目标；若消息以 `agenta`、`a:` 或 `A:` 开头，召唤 Agent A。
-2. Agent A 读取项目文档、相关源码和历史提示词，写入版本化提示词，明确云端-only 验证限制、`main` commit/push、CI artifact 和 Agent C 复判要求。
-3. Agent B 读取提示词和项目文档，先同步最新 `origin/main`，确认当前分支是 `main` 且工作区无无关改动。
-4. Agent B 小步实现并更新必要测试和文档；当前按人工要求从 v0.15 起不跑本地验证命令，只做读取、编辑、只读 diff/status 检查、提交和推送。
-5. Agent B 在 `main` 上提交本轮相关文件并 push 到 `origin/main`。
-6. GitHub Actions 的 `RomeLegions CI Results` workflow 在 `main` push 或手动触发时运行，产出未加密 CI 结果包。
-7. Agent C 用 `gh auth login` 后下载最新 run 的 artifact 到 `/private/tmp/romelegions-c-review-<run_id>/`。
-8. Agent C 核对 manifest、JUnit、主日志、失败摘要、run id、run attempt 和 `origin/main` 最新 commit。
-9. 若云端失败或验收不通过，Agent C 退回 Agent B，Agent B 在 `main` 上追加修复 commit 并重新 push。
-10. 若通过，Agent C 确认文档同步、记录版本事项和结果包证据；若 Agent C 产生新提交，也必须 push 并验收最新 run。
+1. 用户直接提出目标；同一个模型读取 `AGENTS.md`、根目录 `work.md`、Git 状态与相关源码/测试，不需要角色召唤或提示词交接，默认不开子智能体。
+2. 区分并保护已有改动，安全同步 `origin/main`；将目标、非目标、验收标准、分步计划、本轮编辑记录、风险和下一步写入 `work.md`。
+3. 小步实现相关代码/测试和必要文档，阶段完成或决策/阻塞变化时更新计划；压缩后先重读计划并核对实际文件与 commit。
+4. 按 `md/test/test.md` 选择 baseline/direct/optional，记录 skipped 原因。本地只做读取、编辑、只读 diff/status 和 Git 操作，默认不编译、测试或运行自动校验。
+5. 核对本轮文件/hunk、`main` 分支与远端后提交并 `git push origin main`，不把用户已有改动纳入提交。
+6. `RomeLegions CI Results` 根据本次 push 的完整比较区间选择检查：baseline 结构检查；核心共享输入选择 Swift Testing/Smoke/Render/Xcode，战斗 UI/读板/兵模选择 Render/Xcode，其余按直接依赖选择；纯文档或 CI 路由不启动游戏编译和截图。未知路径或缺基线时保守 full。
+7. workflow 上传未加密 manifest、scope、JUnit、失败摘要与已选检查日志/必要产物；主动未选项标明 skipped 原因，必需项意外缺失/跳过算失败。
+8. 同一个模型确认 GitHub 身份，下载本轮 artifact 到 `/private/tmp/romelegions-review-<run_id>/`；重新核对 `origin/main` 最新 SHA、run/attempt、验证范围、日志和必要图像。
+9. 云端失败先诊断，追加修复并重新 push；通过后继续下一步。缺权限、账号/付费、归属不明冲突或必要人工决策时保留恢复点并报告，不盲目循环。
+10. 总目标和必要验证完成后，把长期结论与精确证据写入 `update_log.md`，清空 `work.md` 的任务内容、保留空模板，再简洁交付。文档收口提交只跑自身相关检查，不为记录结果重复业务全量。
 
-## Agent X 主控循环
-
-Agent X 是未来的主控调度角色。人工用 `agentx`、`x:` 或 `X:` 提供总目标 X 后，Agent X 不直接替代 Agent A/B/C，而是把总目标拆成多个可验证的小轮次，并让每轮继续走现有云端协作执行流。
-
-Agent X 循环步骤：
-
-1. Agent X 读取入口文档、当前状态和人工总目标，拆出当前轮次目标、非目标和验收标准。
-2. Agent X 要求 Agent A 为当前轮次生成版本化提示词，提示词必须写清本轮目标、实现边界、云端-only 验证限制、`main` push、GitHub Actions artifact 和 Agent C 验收要求。
-3. Agent B 按提示词实现，先同步 `origin/main`，在 `main` 上提交并 push 本轮相关 diff。
-4. GitHub Actions 生成最新 run 的未加密 artifact，只上传必要 manifest、JUnit、关键日志、失败摘要和必要结果包。
-5. Agent C 下载最新 artifact 到 `/private/tmp/romelegions-c-review-<run_id>/`，核对 manifest、JUnit、主日志、失败摘要、run id、run attempt 和 `origin/main` 最新 commit。
-6. Agent X 根据 Agent C 结论判断：继续下一轮、退回 Agent B 追加修复、暂停等待人工确认，或宣布总目标完成。
-
-Agent X 停止条件包括：总目标已完成；连续 3 轮遇到同一阻塞；连续 2 轮没有产生有效 diff；CI 连续失败且原因相同；需要账号、权限、密钥、付费服务或人工决策；当前工作区存在无法判断归属的冲突；用户要求停止或改变方向。
-
-Agent X 不能跳过 Agent C artifact 验收，不能把旧 run、旧 artifact、本地输出或 checkout 自带报告冒充最新云端结果，不能为了循环推进扩大无关改动范围。
+`md/prompt/` 仅为历史设计归档，旧角色与全量验收规定不再生效。入口/flow/test 只在长期事实、职责或制度改变时更新；普通任务不逐版改遍所有文档。
 
 ## 核心状态对象 / 模块
 
@@ -384,8 +369,8 @@ Agent X 不能跳过 Agent C artifact 验收，不能把旧 run、旧 artifact�
 - 模型层：`RomeLegionsCore`，纯 Swift 可测试规则。
 - 数据层：`SaveStore`，持久化 `GameState`。
 - 测试层：`GameStateTests` 直接验证核心模型；工具脚本验证结构、冒烟和 UI 渲染。
-- CI 层：`.github/workflows/ci-results.yml` 运行结构检查、SwiftPM 测试、Gameplay Smoke、RenderBattlePreview 和无签名 Xcode build，并上传未加密结果包。
-- 协作层：`AGENTS.md`、`update_log.md`、`md/test/test.md`、`md/flow/` 和 `md/prompt/` 约束 Agent 迭代；当前流程是本地只读检查、`main` 直推、云端重验证和 Agent C 结果包复判，按人工要求不运行本地测试或本地轻量验证命令；Agent X 可作为主控调度多轮 A/B/C 循环。
+- CI 层：`.github/workflows/ci-results.yml` 通过 `Tools/ci_scope.mjs` 按改动选择结构检查、Swift Testing、Gameplay Smoke、Render 或 Xcode；结果包区分已选、主动 skipped 与意外失败，范围/结果路由由定向 Node 合同测试覆盖。
+- 开发层：`AGENTS.md` 定义稳定规则，`work.md` 保存当前计划/编辑记录与恢复点，`md/test/test.md` 决定验证范围，`update_log.md` 留长期证据；同一个模型按目标完成规划、实现与云端核对，不默认启用子智能体。
 
 ## 已确认的铁律
 
@@ -396,8 +381,8 @@ Agent X 不能跳过 Agent C artifact 验收，不能把旧 run、旧 artifact�
 - 外交条约必须能阻止被保护势力之间的攻击。
 - 战术姿态只能在单位移动或行动前切换。
 - 城市招募优先城市格，城市格被占用时使用相邻可用格。
-- Agent C 不能只看 Agent B 文字汇报，必须核对最新云端结果包。
-- Agent X 不能越过 Agent C 的最新 artifact 验收来推进下一轮。
+- 不能只凭文字汇报验收，必须核对精确 SHA/run/attempt 的云端范围与结果。
+- 不运行无关测试，不把主动 skipped 记成通过，不把必需项意外 skipped 记成范围优化。
 
 ## 未来扩展点
 

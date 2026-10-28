@@ -494,50 +494,54 @@ flowchart TD
     N --> O["只读展示仍可查看<br/>状态、预览、敌军意图"]
 ```
 
-## 6. 多 Agent 云端迭代流
+## 6. 自主开发与云端迭代流
 
-读图说明：这张图展示人工、Agent X、Agent A、Agent B、GitHub Actions 和 Agent C 的职责边界。Agent X 只做主控调度和轮次判断，不替代 A/B/C；当前默认不是 PR 流，而是 `main` 直推、云端结果包、Agent C 下载复判；失败时在 `main` 上追加修复 commit。
+读图说明：同一个模型直接承接用户目标，规划、实现、核对云端结果与修复，不再分角色交接，也不默认开子智能体。`work.md` 用于上下文恢复，完成后清空任务内容；结果只写入长期日志。
 
 ```mermaid
 flowchart TD
-    A["人工用 agentx: 提供总目标 X<br/>功能、禁止项、验收标准、测试要求"] --> B["Agent X<br/>读取入口文档，拆分当前轮次目标"]
-    B --> C["Agent A<br/>读取文档和源码，设计本轮提示词"]
-    C --> D["写入 md/prompt/vX/...md<br/>目标、非目标、步骤、CI、artifact、Agent C 要求"]
-    D --> E["Agent B<br/>同步 origin/main，在 main 小步实现"]
-    E --> F["云端-only 约束<br/>本地不跑测试/build/typecheck/Render/verify<br/>只做只读 diff/status 检查"]
-    F --> G["main commit/push<br/>git push origin main"]
-    G --> H["GitHub Actions<br/>RomeLegions CI Results"]
-    H --> I["未加密必要 CI 结果包<br/>manifest / junit / logs / xcresult"]
-    I --> J["Agent C<br/>gh auth login 后下载最新 artifact"]
-    J --> K["核对 origin/main 最新 commit<br/>run id / run attempt / manifest / 日志"]
-    K --> L["Agent C 输出验收结论<br/>通过或不通过"]
-    L --> M{"Agent X 判断下一步"}
-    M -->|退回修复| N["退回问题清单<br/>Agent B 追加修复 commit"]
-    N --> E
-    M -->|继续下一轮| C
-    M -->|暂停等待人工| O["人工确认方向、权限或取舍"]
-    O --> B
-    M -->|总目标完成| P["Agent X 输出最终结论<br/>列出 run、artifact 和剩余风险"]
+    A[用户目标与验收标准] --> B[读取 AGENTS.md / work.md / Git 状态与相关源码]
+    B --> C[安全同步 main，保护已有改动]
+    C --> D[写入 work.md 分步计划、范围与编辑记录]
+    D --> E[同一个模型小步实现并更新进度]
+    E --> F[本地只读 diff/status，不编译测试或自动校验]
+    F --> G[精确暂存本轮改动，main commit/push]
+    G --> H[GitHub Actions 按改动范围验证]
+    H --> I[上传 manifest / scope / JUnit / 相关日志与必要产物]
+    I --> J[同一个模型下载并核对最新 SHA / run / attempt]
+    J --> K{目标与必要验证是否完成}
+    K -->|失败| L[定位原因，更新恢复点，追加修复]
+    L --> E
+    K -->|尚有下一步| D
+    K -->|需要人工或阻塞| M[保留 work.md，说明问题并等待]
+    K -->|全部完成| N[长期证据写 update_log.md，清空 work.md 任务内容]
+    N --> O[收口提交只跑相关文档检查，交付结果与风险]
 ```
 
 ## 7. 测试选择流
 
-读图说明：这张图帮助 Agent B/C/X 判断当前验证路径。按人工最新要求，从 v0.15 起本地不运行测试、build、typecheck、RenderBattlePreview、`verify_project` 或 `git diff --check`；默认直接 push 到 `main` 触发云端重验证，并由 Agent C 下载结果包复判。
+读图说明：以本轮编辑记录和真实依赖选择 baseline/direct/optional；CI 按 push 比较区间落实范围，默认云端-only。纯文档或路由维护不触发游戏编译/渲染；所选项缺失算失败，主动未选的无关项明确 skipped。
 
 ```mermaid
 flowchart TD
-    A["本轮改动完成"] --> B["云端-only 约束<br/>本地只读 diff/status<br/>不跑 git diff --check / verify_project / build / test"]
-    B --> F{"是否可推送 origin/main？"}
-    F -->|否| G["报告阻塞<br/>缺 origin、权限或网络"]
-    F -->|是| H["main commit/push<br/>触发 GitHub Actions"]
-    H --> I["云端重验证<br/>Swift Testing / Smoke / RenderBattlePreview / Xcode build"]
-    I --> J["上传结果包<br/>manifest / junit / logs / preview PNG / xcresult"]
-    J --> K["Agent C 下载并核对<br/>/private/tmp/romelegions-c-review-run_id"]
-    K --> L{"云端是否通过？"}
-    L -->|是| M["验收通过<br/>记录 run 和 artifact"]
-    L -->|否| N["退回 Agent B<br/>main 追加修复 commit"]
-    N --> H
-    G --> Q["说明无法触发云端验证<br/>不得用本地测试伪装通过"]
+    A[本轮文件/符号及受影响调用方] --> B[work.md 记录 baseline / direct / optional 与 skipped 原因]
+    B --> C[main push，云端取得完整比较区间]
+    C --> D{改动范围}
+    D -->|文档或 CI 路由| E[结构/文档合同，路由变化加 Node 定向测试]
+    D -->|核心公共输入| F[Swift Testing + Smoke + Render + Xcode]
+    D -->|战斗 UI/读板/兵模| G[Render + Xcode]
+    D -->|测试/其它 App/工具| H[只选直接依赖检查]
+    D -->|未知路径/无基线/有依据手动 full| I[保守完整回归并记录原因]
+    E --> J[结果包明确 selected / skipped / failure]
+    F --> J
+    G --> J
+    H --> J
+    I --> J
+    J --> K[核对最新 SHA、run/attempt、范围和必要产物]
+    K --> L{必要检查通过且覆盖充分}
+    L -->|是| M[记录精确证据，不重复无关检查]
+    L -->|否| N[修复或补足直接证据后重新 push]
+    N --> C
 ```
 
 ## v0.63 战斗目标锁定与取消链

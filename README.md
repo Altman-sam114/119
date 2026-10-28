@@ -1,193 +1,50 @@
 # RomeLegions
 
-这是一个受《帝国军团罗马：大征服者》公开截图启发的原创 SwiftUI iOS 战棋原型。当前战场使用代码绘制的地貌/城市与内置生图工具生成的四兵种透明贴图，没有复用商店截图或原游戏素材。
+受罗马题材战棋公开截图启发的原创 SwiftUI iOS 原型。战场地貌、城市与战术叠层由代码绘制，四兵种采用原创透明 PNG；不复用原游戏素材，不依赖第三方框架。
 
-## 已实现
+## 主要能力
 
-- v0.81 生图兵模与军团展示：原创军团、弓兵、骑兵、战舰透明贴图接入真实战场、命令坞和情报检视，保留动态阵营军旗/地面环及全部生命、经验、将领、姿态、冷却和行动标记。资源随 App 打包，ImageIO 最长边 384px 解码缓存，旧 Canvas 仅作缺失时降级。新增四兵种/五阵营检视图及 alpha/打包门禁；最新云端结果待本轮 push 后复判，尚不宣称完整商业美术品质。实际提示词与资源说明见 `md/art/battle-unit-art.md`。
+- 战役、征服、远征入口；六边形地图、地形、城市、阵营与军团。
+- 回合制移动、攻击、反击、占城、招募、科技、外交、城市扩建、军团训练与将领任命；任务、胜负结算和结束保护。
+- 战斗目标锁定、身份链与攻击预演；确认才结算，取消只清理选择。预览、真实结算与 AI 评分共用核心规则。
+- 战术姿态、将领特性/主动技能、范围/目标/冷却、经验/战功与成长建议；选中单位的处境、军令窗口与指挥链读板。
+- AI 招募、休整、移动后攻击、集火、立即击杀优先、移动后施令，以及姿态与行动联合候选；意图、计划、威胁与地图读板同源，只读预测不改变战局。
+- 敌路、敌将威胁、反制、目标线、热区与控区叠层；敌将聚焦、反制姿态/移动/锁敌为独立入口，不自动串联命令。
+- 地图主导的响应式战斗壳层、固定 HUD、分类抽屉、选择驱动命令坞、地图缩放/拖移/聚焦/复位；镜头不进入玩法或存档。
+- 同源自然海岸、岛/湖/陆桥、连续地表和相邻道路；四兵种 PNG 配合真实阵营军旗/地环及原生命、经验、将领、姿态、冷却与行动标记。
 
-- v0.80 自然海岸与战区地貌：以整数六边形顶点消除内部共边，生成可保留岛、湖与陆桥的稳定闭环；地面、浅水、沙岸和浪缘共享圆角轮廓。新增低对比土地细节与按坐标变化的树林/山脊，上移竖屏战区并为攻击“取消”保留明确宽度。全部为原创表现层；最终 `00a7f01` / run `39890649879` 的五项检查与完整 15 图已验收。
+## 架构与资源
 
-- v0.79 连续地貌与古典战场控件：真实 Tile 统一生成陆地、水面、地形过渡和相邻道路，移除逐格色板与虚构背景道路；军团、城镇和交互叠层继续共用原有地图坐标。边缘工具与镜头入口采用金属圆钮，横屏投影更开阔，竖屏战区上移并给底部情报坞预留空间。保留 44pt 命中、五种上下文、所有原命令；`20c1e5b` / run `39809982535` 的五项检查和完整 15 图已验收。
+| 层 | 入口 |
+| --- | --- |
+| 核心规则 | `Sources/RomeLegionsCore/GameState.swift`，纯 Swift `RomeLegionsCore` |
+| 状态与派生 | `RomeLegionsApp/App/GameViewModel.swift` 与 Map/Strategy/Selection readout 文件 |
+| 展示 | Root/MainMenu/BattleView；BattleShellControls、BattleMapView、BattlePanels、BattleViewStyles |
+| 存档 | `SaveStore`，SQLite 中保存完整 `GameState` |
+| 验证 | Swift Testing、GameplaySmoke、RenderBattlePreview、结构检查与云端 Xcode build |
 
-- v0.78 连续战区与微缩军团：地图奇偶行错位现在与核心六边形相邻规则一致，地表、海岸和路线共用同一几何；盾兵、弓兵、骑兵、帆船、红屋顶石墙城镇改用原创 Canvas 微缩图形，弱化棋盘阴影和高对比地貌图标。百度截图仅作构图参考，未使用原作素材。待本轮最新云端结果包验收。
+最低平台为 iOS 17 / macOS 14，工程为 `RomeLegionsApp.xcodeproj`，scheme 为 `RomeLegions`。
 
-- iPhone/iPad SwiftUI App 工程：`RomeLegionsApp.xcodeproj`
-- 纯 Swift 玩法核心：`Sources/RomeLegionsCore/GameState.swift`
-- 战役/征服/远征入口
-- 六边形战役地图、地形、城市、阵营、军团
-- 回合制移动、攻击、反击、城市占领
-- 战斗目标锁定与攻击预演：地图徽标、目标菜单和抽屉列表先锁定目标，命令坞确认/歼灭按钮才结算；`SelectedCombatForecast` 复用核心 `CombatPreview` 展示伤害、反击、双方剩余生命、支援/包夹/指挥/守援修正和预计结果，多目标不再隐式取第一个
-- 战斗目标身份链与取消锁定：地图锁定 HUD、底部命令坞、紧凑/完整预演读板和 VoiceOver 共用 `SelectedCombatForecast` 的攻击者/防守者阵营、兵种、将领和坐标；“取消锁定”只清理 `GameViewModel` 选择态并恢复攻击者焦点，重复取消安全，不会结算攻击或修改核心状态
-- 反制决策确认闭环：`CountermeasureCommandContextReadout` 将当前反制的回应军团、推荐姿态、落点、目标、收益风险和步骤同源提供给地图、反制卡与底部命令坞；“确认姿态”“前往落点”“锁定目标”分别复用现有单步命令，锁敌只进入攻击预演，不会自动串联移动、攻击或技能
-- 战术姿态：均衡、突击、坚守、行军，影响移动、伤害和防御
-- 战斗修正：友军支援、包夹、将领指挥和守军支援会进入预览与结算
-- 城市收入、资源池、招募、科技、任务和简单 AI 回合
-- 城市经营与招募读板：城市情报展示本城产出、势力收入、库存、扩建收益、部署摘要和四类兵种招募成本/阻塞原因
-- 战役目标与胜负结算：任务目标可由核心规则判断，罗马完成核心目标后胜利，失去全部城市后失败
-- 战役结束保护：胜负已定后移动、攻击、招募、科技、外交、AI 推进等写状态命令不再改变战局
-- 城市扩建、军团训练、将领任命和外交派使
-- 军团成长决策读板：训练/任命有核心只读预览，展示成本、预计经验/军阶/伤害、恢复、候选将领/特性和阻塞原因，并复用到军令按钮
-- 军团成长优先级读板：核心层只读汇总训练/任命推荐，按生命损失、升阶收益、缺将领、近敌和战备排序，顶部态势与战局面板显示首要成长建议
-- 将领特性与主动技能：鹰旗鼓舞、攻城布阵、战地补给、盾墙号令
-- 将领技能范围、目标与冷却预览：地图叠层、将领卡和军令按钮展示预计恢复、削城防、冷却和不可用原因
-- 将领技能目标与收益读板：将领卡展示当前主动技能目标数、目标类型、预计恢复/削城防收益、地图标记数量和前几个目标名称，和地图紫标同源
-- 将领详情与指挥链读板：选中单位展示将领名、特性、被动贡献、技能状态、预计效果、战功摘要和将令技能入口链路，并用一条短指挥链串联被动、技能目标、战功、将令、目标线阶段和处境入口；无将领单位显示“无被动贡献”
-- 将领战机威胁桥接读板：选中有将领军团时，将领卡用短读板串联本方将令机会、技能目标、敌方将领威胁、反制入口、目标线阶段和敌情闭环，提示当前该发动技能、参与合击、压制敌将还是救线，不新增自动命令
-- 选中军团军令窗口读板：选中单位情报面板用短读板串联处境入口、反制指令、目标线阶段、将领战机、军议、机动、姿态、敌情闭环和战场态势，提示当前军团先看哪个入口、为什么、下一步接什么，不新增自动命令
-- 地图侦察视角与单层情报坞：地图底部可切换敌路、反制、目标线、热区/控区视角，复用同一 ViewModel UI 状态控制路线、tile 徽标和图例的显示优先级；横屏收敛为一行、竖屏最多两行，敌情闭环摘要和完整抽屉仍可达，不改变叠层数据或自动执行命令
-- 战役推进线 HUD：元老院任务面板和顶部推进 chip 串联当前首要战役目标、战役进度、战线压力、战场目标线、地图侦察视角和态势交汇，说明战役目标如何落到地图下一步，不新增自动命令
-- 战功状态：经验转为军阶、伤害加成和下一军阶进度，在兵牌、情报面板和将领卡中可读
-- 战术姿态预览：均衡、突击、坚守、行军会展示切换后的攻、防、移、变化值、当前标记和不可切换原因
-- 军团编制与成长读板：核心层只读派生军团职责、战备等级、相邻/两格友军、近敌、有效攻防移、建议姿态和命令建议，顶部态势、战局面板和选中单位情报均可读
-- 战术命令建议与补线路径读板：核心层只读派生选中单位的攻击、补线、推进、坚守或整备建议，地图显示本方建议路径/目标，情报面板显示推荐姿态、风险和命令理由
-- 本方将领协同与战术连携读板：核心层只读整合将领技能、合击修正、补线、推进和整备机会，顶部将令 chip、战局面板和选中单位情报展示预计伤害/恢复、支援、包夹、指挥、阻塞原因和协同步骤；将令卡会逐步展示角色、军团、姿态、位置和目标，将领卡和技能按钮会把“2 将令”阶段、技能状态和按钮入口串成同源行动提示
-- 机动落点与地图风险读板：核心层只读评估选中单位真实可达格，输出打击、夺城、补线、推进或稳固落点，地图叠层、顶部机动 chip、战局面板和选中单位情报展示落点路径、热区风险、控区影响、预计伤害和推荐姿态
-- 手机横屏紧凑战斗栏、可攻击目标头顶徽标、选中单位待机/跳过
-- AI 招募、休整、战术姿态、将领技能冷却判断、移动后攻击和目标优先级评估；真实 AI 回合会按当前意图威胁分优先执行主攻单位，并带回合内交战记忆：目标选择先把可立即击杀候选独立成第一层，再在同层使用既有战术分和集火偏好；直接攻击、移动落点与移动后攻击共享本回合已交战目标，静态意图仍使用空记忆只读预测
-- AI 将领机动施令与同源预演：原地技能和直接攻击继续保持既有顺序；两者都不可用时，AI 可从真实可达格选择有收益的技能落点，`AIIntent`、作战计划、敌将威胁报告和地图技能范围共用落点 `GeneralSkillPreview`，真实执行通过 `moveUnit` 后重新预览并调用 `useGeneralSkill`；占城结束战役会阻止尾随施令，移动技能不会抢占当前直接击杀
-- AI 战术姿态与行动联合候选：私有 `bestAITacticalAction` 同时选择合法姿态、目标和落点，静态 intent 与真实 AI 共用选择入口；硬顺序为休整、原地有收益技能、直接攻击、移动技能、普通移动、固守。同一攻击层先保留立即击杀，再比较生存、反击风险与战术收益，集火加分不能越过击杀层；已移动单位只保留当前姿态。搜索按移动预算局部复用可达格，不新增存档字段或跨回合缓存；v0.70 云端验收尚待最新结果包确认
-- AI 计划与敌将战术理由同源：`aiTacticalActionExplanation` 只按已选 intent 的姿态、落点和目标复用唯一预览，说明突击击杀、坚守反击风险和行军合法落点，不反向重选行动；敌将报告保留真实起点，非本次施令的技能窗口明确为“待命技能”，全局 primary 与 focused/active fallback 不变
-- 敌军意图预判：地图徽标、贴合六边形邻接的路径线段、目的地/目标格叠层、顶部敌情芯片和侧栏敌情面板展示攻击、接敌、夺城、固守等倾向，预计伤害与规划态战斗预览一致
-- 敌情交战闭环 HUD：ViewModel 只读聚合敌军路线、战线压力、敌方将领威胁、反制建议/指令、回应军团将领链和战场态势交汇，地图内用一条紧凑 HUD 展示当前敌情到我方回应的作战链，不新增自动反制或命令队列
-- 敌军作战计划读板：核心层只读聚合敌军意图、战线压力、威胁热区和敌方将领技能机会，展示集火、夺城、推进、固守、整备或将领协同计划；敌情计划卡和战局行会把核心 steps 展开为角色、军团、意图、起点、落点、目标、姿态和预计影响时间线，不改变真实 AI 决策
-- 敌方将领威胁读板：核心层只读聚合敌将 trait、技能窗口、AI 意图、作战计划、战线压力和热区，顶部敌将 chip、敌情卡和战局行展示首要敌将威胁
-- 敌将技能威胁地图焦点与空间叠层：`EnemyCommanderThreatReport` 同源派生敌将起点、技能范围、受影响位置/对象、目标/目的地和威胁链路线；敌情卡的定位入口只改变 `GameViewModel` 选择态并保留 HUD/图例上下文，不发动敌将技能、不移动、不攻击，也不写入 `GameState`、存档或 AI 意图
-- 敌将威胁聚焦同源读板：有效聚焦时地图侦察 HUD、顶部敌将 chip、敌情卡、定位标题和 VoiceOver 统一使用 `activeEnemyCommanderThreatSummary`（focused，否则 primary）；失效焦点自动回退首要威胁，全量 overlay 集合和全局首要交战闭环保持不变
-- 敌将焦点指挥卡与地图命令上下文：`activeEnemyCommanderThreatFocusReadout` 由同一 active summary/overlay 派生，统一地图焦点读板、底部 SelectionCommandDockView 和 EnemyCommanderThreatCardView 的姓名、等级、技能、目标、路线与 accessibility；有效焦点标记为已定位，失效焦点明确回退首要威胁，命令坞只提供“更多情报”和“仅侦察”，不伪装 selectedUnit、不执行敌将命令
-- 敌情反制建议读板、地图叠层与焦点链路：核心层只读聚合敌将威胁、AI 作战计划、战线压力、热区、本方战术建议、机动落点和将领协同，顶部反制 chip、敌情卡和战局行展示建议回应单位、命令、收益和风险，地图用“1 回应、2 落点、3 目标”阶段标记、反制线和目标标记展示回应空间关系；敌情卡和军令面板还可定位回应军团并显示同一链路摘要、推荐姿态、落点、目标、下一步和阻塞原因，推荐姿态按钮与当前可攻击反制目标会显示反制提示但不自动执行
-- 战线压力读板：核心层聚合敌军意图，展示罗马单位或城市被多路攻击、夺城或推进的压力等级、来源和预计伤害
-- 战场焦点与将领机会读板：核心层综合战线压力、战术建议、军团编制和将领技能状态，提示救线、打击、补线、推进、整编或将领技能机会
-- 战场目标链路、地图叠层、阶段聚焦、命令预览与联动高亮：ViewModel 只读组合战场焦点、将领协同、机动落点和本方军议，战场面板用“1 焦点、2 将令、3 机动、4 军议”串联当前目标线，地图用阶段标记和金色连线展示同一空间关系，目标线卡片可定位各阶段并说明对应既有命令入口、当前状态和下一步；地图阶段徽标、目标线阶段按钮、姿态推荐、攻击按钮和将领技能入口会读取同一阶段 cue 做联动提示，但不自动执行命令
-- 战场态势交汇链路：ViewModel 只读聚合当前目标线、反制建议、反制指令预览、活动目标线阶段、将领协同、机动落点、威胁热区和地图控区，战场面板与战局顶部用一张短读板说明主线、回应、空间压力和下一步，不新增命令队列或自动执行
-- 选中军团处境命令入口读板：ViewModel 只读聚合当前选中军团的战线压力、威胁热区、脚下控区、编制、军议、机动、将令信号，并连接既有反制、目标线、将领技能、机动、军议和姿态入口；情报面板用小卡说明压力、机会和入口，军令窗口再压缩成行动顺序，不新增命令队列、评分或自动执行
-- 地图控制与威胁热区读板：核心层只读派生每格友军/敌军影响、控制状态和威胁热度，地图低透明叠层、顶部热区 chip、战场卡和战局行均可读
-- 主动地图叠层图例：战斗地图情报坞按当前侦察视角优先排列敌军路线/目标、热区、控区、军议路径、机动落点、战场目标线、反制落点/目标、可移动/可攻击和技能范围，非当前项降权但仍可横向访问，同时保留阵营色说明
-- 地图主导战斗壳层：战斗页使用薄资源带、全宽主地图、五类边缘工具、可关闭按需抽屉和选择驱动底部命令坞；军团、城市与地块的身份和高频命令就地可读，原情报、战场、敌情、科技、外交、任务与战报入口继续复用既有面板和 `GameViewModel` 行为
-- 战略地图镜头：地图支持双指缩放、放大后拖移、按钮缩放、聚焦当前选择和一键复位；地貌、路线、格子、城市、军团与攻击入口共享同一镜头变换，顶部战况、镜头工具和底部情报坞保持固定，镜头状态不进入玩法核心或存档
-- 战斗指挥层级：`BattleInterfaceMetrics` 统一三种尺寸的顶部、地图、命令坞与边缘工具尺度；五个抽屉入口改为地图右上横向贴边控制，底部按“身份、当前目标、主要命令、次要命令”组织，并进一步降低非当前侦察路线和默认格边界权重
-- 战斗 UI 模块化：`BattleView.swift` 只保留根壳层和布局所有权，壳层控制、地图渲染、战斗面板与共享样式分别由独立 Swift 文件维护；状态与命令仍统一来自 `GameViewModel`
-- ViewModel 派生读板模块化：`GameViewModel.swift` 只保留状态协调类，地图战场、战略态势和选中对象的 summary/readout/overlay 类型由三个独立 Swift 文件维护；算法、状态流与命令入口保持不变
-- 地图构图与将领兵牌层级：六边格按屏幕比例采用稳定垂直偏置，竖屏战区上移并减少空场；有将领军团使用原创姓名首字徽章，和普通军团形成不依赖颜色的形状/字符差异
-- 原创战略底图与六类地貌材质：全屏地图背景使用确定性 Canvas 绘制陆地分区、水系、等高线、战略道路和纸面颗粒；平原、森林、丘陵、水域、道路和城市分别使用田垄、树冠、山脊、波纹、路床和街区纹理，短横屏使用稳定的扁平六边比例扩大可见战区；城市和军团升级为城墙/军旗轮廓，继续保留阵营、城防、兵种、将领、生命、战功、姿态、冷却和行动状态
-- 连续海岸线与地图叠层降噪：水陆相邻边绘制连续沙色岸线与浅色浪缘，海域和大陆读作整片战略地图；威胁热区/控区叠层改为低对比填充与细实线，热区图标只在热区中心格显示，默认格描边减淡并按坐标做确定性明度微调，全部为展示层变化，不影响任何玩法数据或命令
-- 战斗读板标签行 UI 重构：战场态势、选中军团处境和军令窗口等短标签行共享同一 SwiftUI 展示组件，减少重复 UI 结构，不改变 ViewModel 数据源或核心规则
-- HUD 信号胶囊 UI 重构：地图侦察视角、敌情交战闭环和战役推进线读板共享同一 SwiftUI 信号胶囊组件，减少地图 HUD 重复样式，不改变信号数据来源或核心规则
-- v0.71 青铜军令台 UI 重构：`BattlePalette` 统一顶栏、底部命令坞、抽屉、边缘工具和地图情报坞的青铜/象牙/深色层级，加入按压态与双层边框，保持现有 ViewModel、命令入口、布局尺寸和可访问性语义；最新云端结果待本轮 push 后确认
-- v0.72 战略地图制图层与将领信息牌：地图在既有原创底图上加入低对比制图网格、内框和罗盘参照，六边格补充内缘高光；紧凑/完整将领卡复用青铜军令台 token 显示特性、军阶、技能和战功，规则与命令入口不变；最新云端结果待本轮 push 后确认
-- v0.73 战区坐标比例与将领卡信息层级：地图制图层增加边缘坐标刻度、战区比例尺和方位参照，继续跟随镜头且不参与命中；完整将领卡增加“特性 / 指挥 / 战功”信号分组，强化大征服者式军令牌阅读顺序，不新增规则、AI 或命令；最新云端结果待本轮 push 后确认
-- v0.74 战区雾边与地图材质复现：参照百度图片中《大征服者：罗马》的浅色雾边、地图主导和金属军令牌关系，在原创底图边缘加入低对比战区雾层；不遮挡地貌、单位、路线或叠层，也不改变规则与命令；最新云端结果待本轮 push 后确认
-- Codex 后续协作规范：`AGENTS.md`、`update_log.md`、`md/test/test.md`、`md/flow/flow.md`、`md/flow/flowchart.md` 和 `md/prompt/` 组成长期多 Agent 迭代文档系统，支持未来用 `agentx:` 主控调度 A/B/C 多轮循环
-- GitHub Actions 云端验证：`.github/workflows/ci-results.yml` 在 `main` push 时生成未加密 CI 结果包
-- 核心规则测试：`Tests/RomeLegionsCoreTests/GameStateTests.swift`
+原创资源在 `RomeLegionsApp/Resources/BattleUnitArt/`，以普通 folder resource 随 App 打包，不依赖 asset catalog 或网络。ImageIO 最长边 384px 解码缓存，旧 Canvas 仅作缺失时降级；资源说明见 [兵模美术](md/art/battle-unit-art.md)。独立 macOS 云端 Render 通过显式 `ROMELEGIONS_ART_ROOT` 读取同一资源，iOS 仅从 bundle 读取。
 
-## 运行
+## 开发流程
 
-1. 打开 `RomeLegionsApp.xcodeproj`
-2. 选择 iPhone 或 iPad Simulator
-3. 运行 `RomeLegions` target
+用户给目标后，由同一个模型按“读取现状 → work.md 计划 → 小步实现 → main 提交/push → 相关云端验证 → 核对结果/修复 → 清空计划”自主完成，不需要角色召唤或提示词交接，默认不开子智能体。
 
-战场地貌和城市仍由代码绘制，四兵种使用 `RomeLegionsApp/Resources/BattleUnitArt/` 原创 PNG，并以普通 folder resource 加入 Resources build phase，不依赖 asset catalog 或网络。`Assets.xcassets` 仍暂不参与资源编译。独立 macOS 云端预览通过 `ROMELEGIONS_ART_ROOT` 读取同一兵模文件，iOS 仅从 App bundle 读取。
+- [AGENTS.md](AGENTS.md)：稳定事实、硬规则与迭代入口。
+- [work.md](work.md)：当前任务的计划、进度、编辑记录与恢复点；上下文压缩后先读，任务完成后清空内容、保留空模板。
+- [核心流程](md/flow/flow.md) 与 [流程图](md/flow/flowchart.md)：当前真实架构和执行流。
+- [测试规范](md/test/test.md)：`baseline + direct + optional` 选择及云端结果核对。
+- [更新日志](update_log.md)：版本、维护、决策与真实验证证据；[旧设计归档](md/prompt/README.md) 不作为当前执行规则。
 
-## 协作规范
+普通任务不必改遍全部文档；架构/职责改变才更新 flow，验证制度改变才更新 test，长期事实改变才更新入口。
 
-后续使用 Codex 继续迭代时，先读取 `AGENTS.md`。该文件是本项目的入口记忆、项目总览、基本规则和多 Agent 工作流。
+## 云端编译与测试
 
-协作文档分工：
+默认只走 `main` 直推和 GitHub Actions；[CI workflow](.github/workflows/ci-results.yml) 按改动范围选检查并上传未加密结果包。同一个模型核对最新 commit、run/attempt、manifest、JUnit、日志和必要产物，失败后追加修复提交。
 
-- `AGENTS.md`：入口规则、架构边界、Agent A/B/C/X 工作流、交付格式和禁止项
-- `update_log.md`：版本更新记录、历史决策、完成事项和遗留问题
-- `md/prompt/`：Agent A 每轮输出详细实现提示词的位置，按版本号管理
-- `md/prompt/README.md`：角色召唤、提示词格式和云端阶段要求
-- `md/test/test.md`：测试规范、测试分层、命令、触发条件和当前基线
-- `md/flow/flow.md`：当前真实架构和核心运行流程
-- `md/flow/flowchart.md`：与 `flow.md` 同步的 Mermaid 可视化流程图
+- 纯文档或 CI 路由修改只做相关结构/路由检查，不编译游戏、不渲染战斗图。
+- 核心公共规则修改覆盖受影响的预览、结算、AI 与 App；战斗 UI/读板修改选择云端 Render 和 Xcode，不默认陪跑无关核心测试。
+- 只有发布、明确共享依赖、失败调查或用户要求才扩大回归；主动跳过的无关项明确记录，不冒充通过。
 
-每次功能完成后必须同步更新测试说明和 `README.md` 完成情况；若测试流程、架构边界、核心流程或协作规则变化，也要同步更新 `AGENTS.md`、`update_log.md`、`md/test/test.md` 或 `md/flow/` 对应文档。
-
-## 协作与云端验证
-
-默认协作流固定为 `main` 直推。当前按人工要求从 v0.15 起不在本地运行测试、build、typecheck、RenderBattlePreview 或结构验证；Agent B 只做读取、编辑、只读 diff/status 检查、提交并 push 到 `origin/main`。GitHub Actions 运行结构检查、SwiftPM 测试、Gameplay Smoke、RenderBattlePreview 和无签名 Xcode build，并上传未加密结果包。Agent C 使用 `gh auth login` 后下载最新 run artifact，核对 manifest、JUnit、日志、预览产物和 `origin/main` 最新 commit；失败时退回 Agent B 在 `main` 上追加修复 commit。
-
-`agentx:` 用于未来启动主控循环。Agent X 接收人工总目标后拆分轮次，并调度 Agent A 写提示词、Agent B 实现 push、Agent C 下载 artifact 验收；Agent X 不直接替代 A/B/C，也不能跳过 Agent C 的最新云端结果包复判。
-
-## 本地验证
-
-默认完整验证在云端运行。当前人工已明确要求不做本地测试；以下本机命令只在人工以后重新明确允许本地验证、定位失败或快速检查时使用。
-
-不依赖 SwiftPM 的核心玩法冒烟测试：
-
-```sh
-swiftc -swift-version 5 -module-cache-path .build/module-cache Sources/RomeLegionsCore/GameState.swift Tools/GameplaySmoke/main.swift -o .build/gameplay-smoke
-.build/gameplay-smoke
-```
-
-工程结构检查：
-
-```sh
-node Tools/verify_project.mjs
-```
-
-v0.68 起，地图、顶部 HUD、情报坞和命令坞共享纯 ViewModel 派生的五种 `BattleDisplayContextReadout` precedence：baselineRecon、unitExecution、attackLock、enemyCommanderFocus、countermeasureFocus。`MapOverlayPresentation` 统一主/次/隐藏图层，技能范围只在军团执行上下文出现；反制 source/report/preview/overlay 原始字段和 automation identifier 保留，但地图、命令坞和 VoiceOver 使用短的人类可读文案。竖屏命令坞在既有 102pt 内采用身份/动作两区，姿态、落点、锁敌仍是独立 44pt 入口。
-
-v0.69 起，云端验证还会用隔离的军需官夹具断言原位无收益、合法强行军移动后有收益时产生 `.useSkill` 意图，作战计划、敌将威胁报告和地图 overlay 的落点、目标、范围、影响区与同一 post-move `GeneralSkillPreview` 精确一致；隔离执行副本会真实运行 `performSimpleAI` 核对移动、恢复、行动消耗和冷却。Swift Testing 覆盖原地技能旧优先级、立即击杀保护、冷却/无落点 fallback 与占领最后一座罗马城市后的停止保护；Gameplay Smoke 覆盖移动施令同源链、立即击杀和终局占城，Render 继续验证地图 overlay 且仍只输出原有 15 张 PNG，不新增第 16 张。
-
-v0.70 的 Smoke 使用 `verifyAITacticalActionSmoke(order:)` 分别核对突击击杀、坚守生存和行军独有落点，并真实执行 AI 比较伤害、反击及行动消耗；Render 在截图状态创建前运行 `verifyAITacticalActionPreviewChain()`，核对 intent、计划、敌将威胁与地图的数据及有预览依据的理由，该行军夹具的敌路为五条连续六边邻接段，敌将威胁线仍是起点到落点的抽象空间线。97 项 Swift Testing 仅为 v0.69 历史已验收基线，v0.70 源码新增十项独立测试，预期总数 107，实际发现、执行数量和结果待云端日志确认；CI 保留 75 分钟预算、五项检查与原三尺寸五场景 15 PNG，必须由 Agent C 验收最新 v0.70 SHA/run/attempt/artifact。
-
-v0.58 起，云端预览还会在渲染前断言地图镜头默认态、缩放上下限、拖移边界、中心/边缘聚焦和复位策略；三尺寸六图用于复判镜头工具与固定 HUD 无重叠、地图空间层保持对齐。v0.59 起，渲染前还会断言战役地图的海岸线段非空、每段一端为水一端为陆且相邻，深海格不产出海岸段；断言失败抛出 `missingCoastlineStrategy`。
-
-v0.62 起，云端预览还会断言攻击目标锁定只改变 ViewModel 选择态、`SelectedCombatForecast.preview` 与 `state.attackPreview` 同源一致，单位场景渲染后清除锁定再进入城市场景；地图、目标菜单和抽屉攻击列表不得绕过确认命令直接结算。
-
-v0.63 起，云端预览还会断言紧凑/完整预演共用攻击者→防守者身份字段（含将领与坐标），地图和命令坞提供可访问的取消锁定入口；取消只清理 ViewModel 锁定态、恢复攻击者选择并保持 `GameState`、存档编码和 AI 意图快照不变，重复取消仍幂等后才进入城市场景。
-
-v0.64 起，云端预览还会断言 `EnemyCommanderThreatReport -> EnemyCommanderThreatSummary -> EnemyCommanderThreatMapOverlay` 的位置、范围、影响、目标和路线字段同源，地图图例与侦察 HUD 引用同一个 threat id；`focusEnemyCommanderThreat(_:)` 的有效、重复和无效调用只改变 ViewModel 聚焦/banner/镜头上下文，保持 `GameState`、存档编码、单位/城市/资源、回合、活动阵营和 AI 意图快照不变，并且不会暴露错误的本方攻击或技能执行入口。三尺寸六图继续复判敌将起点徽标、技能范围、影响/目标标记与既有敌路、反制、目标线、热区和固定 HUD 的层级。
-
-v0.66 起，云端预览在 v0.65 双敌将夹具上继续断言 `activeEnemyCommanderThreatFocusReadout` 的 summary/overlay 同源、focused/primary fallback 状态、无效焦点不残留 secondary，以及选择地块/反制聚焦后的清理；readout 的 `hasExecutableCommand` 固定为 `false`，地图、底部命令坞和敌情卡共享同一 threat 身份。预览还在隔离的双威胁副本上真实执行 `skipSelectedUnit()`，核对核心状态只发生预期的“跳过”变化并清除焦点；每个尺寸额外输出 `*-focused.png`（地图焦点读板/底部只读命令坞）和 `*-focused-enemy.png`（已定位敌情卡）供 Agent C 复判，默认城市/单位六图像素基线不变。`focused-enemy` 的 ImageRenderer 调用使用 `drawerUsesScrollView = false`，在现有 `BattleInterfaceMetrics` 计算的有限抽屉尺寸中复用同一敌情内容树，绕过无宿主生命周期的 ScrollView/嵌套 GeometryReader 首次测量；真实 App 默认保留可滚动抽屉。Agent B 仍只提交相关文件并由 GitHub Actions 运行最新 v0.66 结果包，Agent C 复判 manifest、日志、JUnit 和三尺寸十二图。
-
-v0.67 起，云端预览还断言 active 反制 preview、overlay 与 `CountermeasureCommandContextReadout` 的 source id、回应、落点和目标一致，无效 focused id 明确回退 primary 且不残留旧 source；同一反制 fixture 的隔离 ViewModel 副本会真实调用姿态、移动和锁敌三个公开入口，以核心状态编码、全量单位/城市/资源、回合、战役状态和 AI intent 快照核对每次只有对应单步变化，锁敌只切入既有攻击预演。每个尺寸新增 `*-focused-countermeasure.png`，与 v0.66 旧 12 图组成 15 图 artifact；完整测试、构建和渲染仍只在 GitHub Actions 执行。
-
-战斗页三尺寸预览图；渲染前会断言六类地貌 profile 唯一、多层纹理和三种尺寸战区尺度策略，并继续断言敌军意图 ViewModel 叠层包含移动后攻击六边形邻接路径、目标格和预计伤害文案，以及战役推进线 HUD、地图侦察视角 HUD、敌情交战闭环 HUD、主动地图叠层图例、AI 作战计划读板与时间线读板、敌方将领威胁读板、敌将技能威胁地图 overlay/焦点、敌情反制建议读板、反制落点/目标地图 overlay、反制指令聚焦与焦点链路、战线压力读板、战场焦点摘要、战场目标链路、战场态势交汇链路、选中军团处境命令入口读板、选中军团军令窗口读板、目标线地图 overlay、阶段聚焦、阶段命令预览与联动高亮 cue、将令技能入口链路、将领指挥链读板、将领战机威胁桥接读板、将领技能目标与收益读板、地图控制摘要、威胁热区摘要、选中单位的军团编制摘要、军团成长决策摘要、军团成长优先级摘要、本方将领协同摘要和步骤读板、机动落点摘要/地图 overlay、战术建议摘要/路径/目标、将领详情、被动贡献、战功摘要、战术姿态预览和城市经营/招募读板存在。渲染后还会采样地图横向三带与青绿/蓝/灰褐材质分布；每个命令会写出请求的城市场景 PNG、同尺寸 `*-unit.png` 单位场景 PNG、`*-focused.png` 地图/底部焦点场景和 `*-focused-enemy.png` 已定位敌情卡场景：
-
-```sh
-env HOME=$PWD/.home CLANG_MODULE_CACHE_PATH=$PWD/.build/module-cache /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/swiftc -parse-as-library -sdk /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX26.5.sdk -target arm64-apple-macosx14.0 -o .build/render-battle-preview \
-  Tools/RenderBattlePreview/main.swift Sources/RomeLegionsCore/GameState.swift \
-  RomeLegionsApp/App/GameViewModelMapReadouts.swift \
-  RomeLegionsApp/App/GameViewModelStrategyReadouts.swift \
-  RomeLegionsApp/App/GameViewModelSelectionReadouts.swift \
-  RomeLegionsApp/App/GameViewModel.swift \
-  RomeLegionsApp/Views/BattleView.swift RomeLegionsApp/Views/BattleShellControls.swift \
-  RomeLegionsApp/Views/BattleMapView.swift RomeLegionsApp/Views/BattlePanels.swift \
-  RomeLegionsApp/Views/BattleViewStyles.swift
-ROMELEGIONS_ART_ROOT="$PWD/RomeLegionsApp/Resources/BattleUnitArt" .build/render-battle-preview DerivedData/battle-landscape-preview.png 932 430 --unit-art-sheet
-ROMELEGIONS_ART_ROOT="$PWD/RomeLegionsApp/Resources/BattleUnitArt" .build/render-battle-preview DerivedData/battle-portrait-preview.png 390 844
-ROMELEGIONS_ART_ROOT="$PWD/RomeLegionsApp/Resources/BattleUnitArt" .build/render-battle-preview DerivedData/battle-wide-preview.png 1024 768
-```
-
-模拟器攻击 UI 复现入口：
-
-```sh
-DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer /usr/bin/xcrun simctl launch booted com.codex.RomeLegions --attack-demo
-```
-
-SwiftUI 源码类型检查：
-
-```sh
-/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/swiftc -typecheck -swift-version 5 -sdk /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS26.5.sdk -target arm64-apple-ios17.0 -module-cache-path DerivedData/ManualModuleCache \
-  Sources/RomeLegionsCore/GameState.swift RomeLegionsApp/App/RomeLegionsApp.swift \
-  RomeLegionsApp/App/GameViewModelMapReadouts.swift \
-  RomeLegionsApp/App/GameViewModelStrategyReadouts.swift \
-  RomeLegionsApp/App/GameViewModelSelectionReadouts.swift \
-  RomeLegionsApp/App/GameViewModel.swift RomeLegionsApp/Views/RootView.swift \
-  RomeLegionsApp/Views/MainMenuView.swift RomeLegionsApp/Views/BattleView.swift \
-  RomeLegionsApp/Views/BattleShellControls.swift RomeLegionsApp/Views/BattleMapView.swift \
-  RomeLegionsApp/Views/BattlePanels.swift RomeLegionsApp/Views/BattleViewStyles.swift
-```
-
-无签名构建：
-
-```sh
-env HOME=$PWD/.home DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer xcodebuild -project RomeLegionsApp.xcodeproj -scheme RomeLegions -configuration Debug -destination generic/platform=iOS -derivedDataPath $PWD/DerivedData CODE_SIGNING_ALLOWED=NO build
-env HOME=$PWD/.home DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer xcodebuild -project RomeLegionsApp.xcodeproj -scheme RomeLegions -configuration Debug -destination generic/platform='iOS Simulator' -derivedDataPath $PWD/DerivedData CODE_SIGNING_ALLOWED=NO build
-```
-
-- v0.75：战场军令台视觉 token 统一地图雾边、战役信号与青铜信息牌语义，并修复 CI 静态门禁版本漂移；本轮完整验证仅走云端。
+除非用户明确要求，本地不运行测试、build、typecheck、Render、结构/解析/语法校验或 `git diff --check`。本地允许读取、编辑、只读 Git 检查、同步/提交/推送及云端结果查询下载。用户明确授权本机编译或运行时，只能使用已有 UDID 以 `FAC4325D` 开头的唯一 iOS 模拟器，不创建或选择其他设备；云端不受此设备限制。

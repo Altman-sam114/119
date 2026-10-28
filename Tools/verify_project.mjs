@@ -24,29 +24,21 @@ const requiredFiles = [
   "RomeLegionsApp/Resources/BattleUnitArt/archer.png",
   "RomeLegionsApp/Resources/BattleUnitArt/navy.png",
   "md/art/battle-unit-art.md",
-  "md/prompt/v0（玩法推进）/v0.81（生图兵模与军团展示重构）.md",
   "RomeLegionsApp/Assets.xcassets/Contents.json",
   "RomeLegionsApp/Assets.xcassets/AccentColor.colorset/Contents.json",
   "RomeLegionsApp/Assets.xcassets/AppIcon.appiconset/Contents.json",
   "RomeLegionsApp/Assets.xcassets/AppIcon.appiconset/AppIcon.png",
   "README.md",
   "AGENTS.md",
+  "work.md",
   "update_log.md",
   "md/test/test.md",
   "md/flow/flow.md",
   "md/flow/flowchart.md",
   "md/prompt/README.md",
   ".github/workflows/ci-results.yml",
-  "md/prompt/v0（协作系统）/v0.1（建立多Agent协作文档）.md",
-  "md/prompt/v0（玩法推进）/v0.4（战役目标与胜负结算）.md",
-  "md/prompt/v0（玩法推进）/v0.63（战斗目标锁定身份与取消入口）.md",
-  "md/prompt/v0（玩法推进）/v0.64（敌将技能威胁地图焦点与空间叠层）.md",
-  "md/prompt/v0（玩法推进）/v0.65（敌将威胁聚焦同源读板）.md",
-  "md/prompt/v0（玩法推进）/v0.66（敌将焦点指挥卡与地图命令上下文）.md",
-  "md/prompt/v0（玩法推进）/v0.67（反制决策确认闭环）.md"
-  ,"md/prompt/v0（玩法推进）/v0.68（地图视觉层级与上下文命令坞）.md"
-  ,"md/prompt/v0（玩法推进）/v0.69（AI将领机动施令与同源预演）.md"
-  ,"md/prompt/v0（玩法推进）/v0.70（AI战术姿态同源预演与计划威胁桥接）.md"
+  "Tools/ci_scope.mjs",
+  "Tools/ci_scope.test.mjs"
 ];
 
 const failures = [];
@@ -322,35 +314,35 @@ for (const token of ["aiMoveThenGeneralSkillIntentMatchesPostMovePreviewAndResol
 }
 
 const agentGuide = readFileSync("AGENTS.md", "utf8");
-for (const token of ["Agent A", "Agent B", "Agent C", "核心架构边界", "测试规则", "禁止项", "git push origin main", "GitHub Actions"]) {
+for (const token of ["自主迭代流程", "work.md", "核心架构边界", "测试规则", "禁止项", "git push origin main", "GitHub Actions", "云端-only", "完成后清空"]) {
   if (!agentGuide.includes(token)) {
     failures.push(`AGENTS.md does not include ${token}`);
   }
 }
 
 const testGuide = readFileSync("md/test/test.md", "utf8");
-for (const token of ["Probe / Fast", "Smoke", "Stage Regression", "Full", "node Tools/verify_project.mjs", "swift test", "GitHub Actions", "ci-artifact-manifest.json"]) {
+for (const token of ["baseline + direct + optional", "skipped + reason", "云端-only", "node Tools/verify_project.mjs", "swift test", "GitHub Actions", "ci-artifact-manifest.json", "validationProfile"]) {
   if (!testGuide.includes(token)) {
     failures.push(`md/test/test.md does not include ${token}`);
   }
 }
 
 const flowGuide = readFileSync("md/flow/flow.md", "utf8");
-for (const token of ["当前核心数据流", "当前核心执行流", "云端协作执行流", "核心状态对象", "关键边界", "不允许破坏的行为"]) {
+for (const token of ["当前核心数据流", "当前核心执行流", "自主开发与云端执行流", "核心状态对象", "关键边界", "不允许破坏的行为"]) {
   if (!flowGuide.includes(token)) {
     failures.push(`md/flow/flow.md does not include ${token}`);
   }
 }
 
 const flowchartGuide = readFileSync("md/flow/flowchart.md", "utf8");
-for (const token of ["```mermaid", "核心数据流", "回合执行流", "多 Agent 云端迭代流", "测试选择流", "GitHub Actions"]) {
+for (const token of ["```mermaid", "核心数据流", "回合执行流", "自主开发与云端迭代流", "测试选择流", "GitHub Actions"]) {
   if (!flowchartGuide.includes(token)) {
     failures.push(`md/flow/flowchart.md does not include ${token}`);
   }
 }
 
 const promptReadme = readFileSync("md/prompt/README.md", "utf8");
-for (const token of ["角色召唤", "Agent A 提示词必含内容", "CI / main push", "gh auth login"]) {
+for (const token of ["历史设计归档", "当前执行入口", "work.md", "不再承担迭代入口"]) {
   if (!promptReadme.includes(token)) {
     failures.push(`md/prompt/README.md does not include ${token}`);
   }
@@ -362,8 +354,8 @@ for (const token of ["RomeLegions CI Results", "branches:", "main", "ci-artifact
     failures.push(`.github/workflows/ci-results.yml does not include ${token}`);
   }
 }
-if (!ciWorkflow.includes("CI_VERSION: v0.81")) {
-  failures.push(".github/workflows/ci-results.yml does not include CI_VERSION v0.81");
+if (!/^\s+CI_VERSION: \S+$/m.test(ciWorkflow)) {
+  failures.push(".github/workflows/ci-results.yml must declare its artifact version");
 }
 for (const token of ["export ROMELEGIONS_ART_ROOT=", "--unit-art-sheet", "bundled $kind.png matches source", '"$APP_PACKAGE/BattleUnitArt/$kind.png"']) {
   if (!ciWorkflow.includes(token)) failures.push(`Army artwork CI integration missing: ${token}`);
@@ -371,17 +363,8 @@ for (const token of ["export ROMELEGIONS_ART_ROOT=", "--unit-art-sheet", "bundle
 if (!/^\s+timeout-minutes: 75\s*$/m.test(ciWorkflow)) {
   failures.push(".github/workflows/ci-results.yml must preserve the 75-minute job budget");
 }
-const requiredCIChecks = [
-  '["static-checks", outcomes.staticChecksOutcome, "ci-results/static-checks.log"]',
-  '["swift-tests", outcomes.swiftTestsOutcome, "ci-results/swift-test.log"]',
-  '["gameplay-smoke", outcomes.gameplaySmokeOutcome, "ci-results/gameplay-smoke.log"]',
-  '["render-battle-preview", outcomes.renderPreviewOutcome, "ci-results/render-battle-preview.log"]',
-  '["xcode-build", outcomes.buildOutcome, "ci-results/xcodebuild.log"]'
-];
-const declaredCIChecks = ciWorkflow.match(/const checks = \[([\s\S]*?)\n\s*\];/)?.[1]
-  .split("\n").map((line) => line.trim().replace(/,$/, "")).filter(Boolean) ?? [];
-if (JSON.stringify(declaredCIChecks) !== JSON.stringify(requiredCIChecks)) {
-  failures.push("CI JUnit metadata must preserve exactly the five configured checks and their outcome/log mappings");
+for (const token of ["Tools/ci_scope.mjs", "Tools/ci_scope.test.mjs", "evaluateChecks(scope, outcomes)", "validation-scope.json", "<skipped message=", "steps.metadata.outputs.failed_checks"]) {
+  if (!ciWorkflow.includes(token)) failures.push(`CI scope/result contract missing: ${token}`);
 }
 for (const [stepID, outcomeVariable] of [
   ["static_checks", "STATIC_OUTCOME"],
@@ -392,8 +375,8 @@ for (const [stepID, outcomeVariable] of [
 ]) {
   if (!ciWorkflow.includes(`id: ${stepID}`) ||
       !ciWorkflow.includes(`${outcomeVariable}: \${{ steps.${stepID}.outcome }}`) ||
-      !ciWorkflow.includes(`[ "$${outcomeVariable}" != "success" ]`)) {
-    failures.push(`CI must run ${stepID}, propagate its actual outcome and fail on non-success`);
+      (stepID !== "static_checks" && !ciWorkflow.includes(`if: steps.scope.outputs.${stepID} == 'true'`))) {
+    failures.push(`CI must select ${stepID} by scope and propagate its actual outcome`);
   }
 }
 const requiredRenderPreviewPaths = [
