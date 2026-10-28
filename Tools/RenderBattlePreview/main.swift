@@ -2579,7 +2579,9 @@ struct RenderBattlePreview {
                     (startTerrain == .road || startTerrain == .city) &&
                     (endTerrain == .road || endTerrain == .city)
             }),
-            metrics.origin.y - metrics.tileHeight / 2 + metrics.mapSize.height <= size.height - (size.width > size.height ? 70 : 112) + 0.001 else {
+            metrics.origin.y - metrics.tileHeight / 2 + metrics.mapSize.height <=
+                size.height - BattleMapChromeMetrics.bottomClearance(isNarrow: size.width < 620) + 0.001 else {
+                emitPreviewDiagnostic("Terrain center/road/clearance mismatch: size=\(size), origin=\(metrics.origin), map=\(metrics.mapSize)")
                 throw PreviewRenderError.missingContinuousTerrainSurface
             }
         }
@@ -2601,10 +2603,22 @@ struct RenderBattlePreview {
             BattlefieldRoadSegment(start: Position(x: 1, y: 0), end: Position(x: 1, y: 1))
         ]
         guard Set(fixtureSurface.roadSegments) == expectedRoads,
-              Set(MapTerrainGeometry(tiles: Array(roadFixtureTiles.reversed()), metrics: wideMetrics).roadSegments) == expectedRoads,
-              portraitMetrics.origin.y - portraitMetrics.tileHeight / 2 < 160 else {
+              Set(MapTerrainGeometry(tiles: Array(roadFixtureTiles.reversed()), metrics: wideMetrics).roadSegments) == expectedRoads else {
             throw PreviewRenderError.missingContinuousTerrainSurface
         }
+        let portraitTop = portraitMetrics.origin.y - portraitMetrics.tileHeight / 2
+        let portraitBottomClearance = BattleMapChromeMetrics.bottomClearance(isNarrow: true)
+        let portraitFreeSpace = max(0, 670 - 70 - portraitBottomClearance - portraitMetrics.mapSize.height)
+        let expectedPortraitTop = 70 + portraitFreeSpace * 0.38
+        // The map now occupies the working area's center, not the old top strip.
+        // Assert the new composition and both HUD clearances, not a looser cap.
+        guard abs(portraitTop - expectedPortraitTop) < 0.001,
+              portraitTop >= 70,
+              portraitTop + portraitMetrics.mapSize.height <= 670 - portraitBottomClearance + 0.001 else {
+            emitPreviewDiagnostic("Portrait composition mismatch: top=\(portraitTop), expected=\(expectedPortraitTop), map=\(portraitMetrics.mapSize)")
+            throw PreviewRenderError.missingContinuousTerrainSurface
+        }
+        emitPreviewDiagnostic("Portrait working-area composition: top=\(portraitTop), expected=\(expectedPortraitTop), bottomClearance=\(portraitBottomClearance)")
         emitPreviewDiagnostic("Continuous terrain surface: tile centers, legal road joins, isolated road and HUD clearance passed")
         let coastlineSegments = CoastlineBuilder.segments(
             tiles: viewModel.state.tiles,

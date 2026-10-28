@@ -37,8 +37,12 @@
 - 改前证据：v0.81 da244ab / run 40630157134 attempt1 的既有缓存 manifest/JUnit 5/0、107 Swift Testing、Smoke、Render 和 Xcode 日志一致；最新 32fb4fe / run 40689576052 文档检查成功、四项主动 skipped。新目录下载首包偏慢，未以其空目录冒充新结果；旧实现证据只作为改前对照。
 - 首轮 `c4c0418b0c1ae621e34e450938fa1b89ee09ba4b` 已 push；run `40699499521` attempt1 结果下载至 `/private/tmp/romelegions-review-40699499521/`，manifest 精确匹配 task-scoped static/Render/Xcode，JUnit5/3/2skipped。Static 13/14 Node合同通过，失败为17图清单仍断言16；Render/Xcode 同因旧 Panels 内 private legendTint 跨文件不可见失败，未产 PNG。
 - 追加修复：Tools/ci_scope.test.mjs 将清单断言改17并要求新地标图缺失进入失败；将 legendTint 从 Panels 私有扩展移到共享 BattleViewStyles，不改变颜色或放宽检查。
+- 修复提交 `36c3a39089c24fd5fc310c5674340c4017562480` 已 push main；最新 run `40702065272` 已排队，等待本 SHA 云端结果。此前失败不是重复重试，已针对两条具体诊断修复。
+- run40702065272已结束：云端日志确认14项Node合同、App build及九资源cmp通过；四兵种alpha/五材质解码与明暗门禁通过，Render在 `missingContinuousTerrainSurface` 停止。读源码发现仍有旧“portrait地图顶端<160pt”构图断言，与本轮明确的0.38居中策略不符；保留真实地形中心/道路检查，改为精确预期居中位置+上下HUD安全区，并给失败分支添加坐标诊断。不是放宽为更大上限。
+- 结果包9MB下载较慢，另用授权API取得签名URL进行有界curl下载；未将缺少PNG的本地目录称为已完成验收。下一目标准备了凯撒/汉尼拔肖像原稿，仍在生成目录、尚未接入或提交，须先完成本轮验收。
+- 下载通路：gh单连接超时、curl单连接约30KB/s；改为同一签名artifact URL按1MB HTTP Range分段下载，仅拼接/解包云端结果，不运行项目验证。构图修正只改Render工具，下轮direct为Render，App bundle继续引用36c3a39的真实通过证据。
 
 ## 当前步骤、阻塞与下一步
 
-- 当前：首轮云端失败已有具体诊断，修复已完成、待精确提交，人工文件仍保持原状。
-- 下一步：push追加修复后核对最新云端 static + Render + Xcode 与17图；不以UI步骤的 continue-on-error 显示结论代替 manifest/JUnit。
+- 当前：修复第二个云端具体诊断（旧构图门禁），人工文件仍保持原状；待追加提交。
+- 下一步：下载40702065272核对已产出五图，再push构图断言修正，核对新SHA的完整17图；不以步骤 continue-on-error 显示结论代替实际 outcome。
