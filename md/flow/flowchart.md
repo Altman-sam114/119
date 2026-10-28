@@ -1,6 +1,26 @@
 # 项目核心流程图
 
-## v0.81 原创兵模资源链
+## 战场材质与地标链
+
+```mermaid
+flowchart LR
+    P[原创四兵种与五类地表地标 PNG] --> R[既有 BattleUnitArt folder resource]
+    R --> L[BattleArtworkLoader / bundle 或 macOS 显式根目录]
+    L --> U[Unit 缓存 384px]
+    L --> S[Scenery 地表768px / 地标384px]
+    T[真实 Tile / HexMetrics / 同源海岸] --> M[MapTerrainSurfaceView 地表裁剪与道路]
+    S --> M
+    S --> E[透明城镇 / 树林 / 山脊]
+    U --> A[军团兵牌 / 招募兵种图]
+    E --> V[地图实体 / 原战术叠层与命令]
+    A --> V
+    C[BattleMapChromeMetrics] --> H[情报坞 / 安全区 / 44pt入口]
+    V --> Q[云端17图 / 九资源alpha明暗与bundle cmp]
+    M --> Q
+    H --> Q
+```
+
+## 原创兵模资源链
 
 读图说明：贴图只提供外观；兵种、阵营和状态仍来自真实单位。App 与云端预览读取同一资源，云端必须同时证明贴图透明、实际打包和原战斗链路不退化。
 

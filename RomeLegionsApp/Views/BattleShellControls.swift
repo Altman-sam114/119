@@ -846,6 +846,7 @@ struct CityDockCommandButtonsView: View {
                     title: option.kind.shortLabel,
                     symbol: option.kind.tokenSystemImage,
                     tint: option.kind == .navy ? .cyan : .orange,
+                    artKind: option.kind,
                     isDisabled: !option.canRecruit || viewModel.isCampaignOver,
                     accessibilityLabel: option.accessibilityLabel,
                     action: { viewModel.recruit(option.kind) }
@@ -905,23 +906,47 @@ struct DockCommandButtonContent: View {
     var title: String
     var symbol: String
     var tint: Color
+    var artKind: UnitKind? = nil
     var isSecondary = false
 
     var body: some View {
-        VStack(spacing: 3) {
-            Image(systemName: symbol)
-                .font(.subheadline.weight(.bold))
+        VStack(spacing: 1) {
+            ZStack {
+                Circle()
+                    .fill(tint.opacity(isSecondary ? 0.12 : 0.22))
+                if let artKind, let image = BattleUnitArtwork.image(for: artKind) {
+                    Image(decorative: image, scale: 1, orientation: .up)
+                        .resizable()
+                        .interpolation(.high)
+                        .scaledToFit()
+                } else {
+                    Image(systemName: symbol)
+                        .font(.system(size: 12, weight: .bold))
+                        .foregroundStyle(tint)
+                }
+            }
+            .frame(width: 25, height: 25)
             Text(title)
-                .font(.caption2.weight(.bold))
+                .font(.system(size: 9, weight: .bold))
                 .lineLimit(1)
         }
-        .foregroundStyle(.white)
+        .foregroundStyle(BattlePalette.ivory)
         .frame(width: 44, height: 44)
-        .background(isSecondary ? .black.opacity(0.20) : tint.opacity(0.30))
+        .background {
+            LinearGradient(
+                colors: [BattlePalette.panelRaised, BattlePalette.panel],
+                startPoint: .topLeading, endPoint: .bottomTrailing
+            )
+        }
         .clipShape(.rect(cornerRadius: 6))
         .overlay {
             RoundedRectangle(cornerRadius: 6)
-                .stroke(tint.opacity(isSecondary ? 0.42 : 0.82), lineWidth: 1)
+                .stroke(tint.opacity(isSecondary ? 0.36 : 0.70), lineWidth: 1)
+        }
+        .overlay(alignment: .bottom) {
+            Capsule().fill(tint.opacity(isSecondary ? 0.35 : 0.80))
+                .frame(width: 18, height: 1.5)
+                .padding(.bottom, 1)
         }
     }
 }
@@ -930,6 +955,7 @@ struct DockCommandButton: View {
     var title: String
     var symbol: String
     var tint: Color
+    var artKind: UnitKind? = nil
     var isSecondary = false
     var isDisabled = false
     var accessibilityLabel: String?
@@ -942,6 +968,7 @@ struct DockCommandButton: View {
                 title: title,
                 symbol: symbol,
                 tint: tint,
+                artKind: artKind,
                 isSecondary: isSecondary
             )
         }
@@ -993,7 +1020,7 @@ struct TopBarView: View {
 
             VStack(alignment: .leading, spacing: 1) {
                 Text(topBarTitle)
-                    .font(.subheadline.weight(.black))
+                    .font(.system(.subheadline, design: .serif, weight: .bold))
                     .lineLimit(1)
                     .minimumScaleFactor(0.72)
                 if !isCondensed {

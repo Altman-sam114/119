@@ -1,39 +1,50 @@
 import SwiftUI
 import ImageIO
 
-/// The App and cloud renderer share the same art catalog. Only macOS preview
-/// executables may opt into an explicit source directory instead of the bundle.
-enum BattleUnitArtwork {
+/// Resource lookup and bounded decoding are shared; caches remain catalog-owned.
+/// Only the macOS cloud renderer can opt into a source directory.
+enum BattleArtworkLoader {
     static let resourceSubdirectory = "BattleUnitArt"
-    static let maximumDecodeSize = 384
 
-    static func resourceURL(for kind: UnitKind) -> URL? {
+    static func resourceURL(named name: String) -> URL? {
         if let bundled = Bundle.main.url(
-            forResource: kind.rawValue, withExtension: "png", subdirectory: resourceSubdirectory
+            forResource: name, withExtension: "png", subdirectory: resourceSubdirectory
         ) {
             return bundled
         }
         #if os(macOS)
         if let directory = ProcessInfo.processInfo.environment["ROMELEGIONS_ART_ROOT"], !directory.isEmpty {
             return URL(fileURLWithPath: directory, isDirectory: true)
-                .appendingPathComponent(kind.rawValue).appendingPathExtension("png")
+                .appendingPathComponent(name).appendingPathExtension("png")
         }
         #endif
         return nil
     }
 
-    private static let images: [String: CGImage] = {
-        var result: [String: CGImage] = [:]
+    static func decode(named name: String, maximumSize: Int) -> CGImage? {
+        guard let url = resourceURL(named: name),
+              let source = CGImageSourceCreateWithURL(url as CFURL, nil) else { return nil }
         let options: [CFString: Any] = [
             kCGImageSourceCreateThumbnailFromImageAlways: true,
             kCGImageSourceCreateThumbnailWithTransform: true,
-            kCGImageSourceThumbnailMaxPixelSize: maximumDecodeSize,
+            kCGImageSourceThumbnailMaxPixelSize: maximumSize,
             kCGImageSourceShouldCacheImmediately: true
         ]
+        return CGImageSourceCreateThumbnailAtIndex(source, 0, options as CFDictionary)
+    }
+}
+
+enum BattleUnitArtwork {
+    static let maximumDecodeSize = 384
+
+    static func resourceURL(for kind: UnitKind) -> URL? {
+        BattleArtworkLoader.resourceURL(named: kind.rawValue)
+    }
+
+    private static let images: [String: CGImage] = {
+        var result: [String: CGImage] = [:]
         for kind in UnitKind.allCases {
-            guard let url = resourceURL(for: kind),
-                  let source = CGImageSourceCreateWithURL(url as CFURL, nil),
-                  let image = CGImageSourceCreateThumbnailAtIndex(source, 0, options as CFDictionary) else { continue }
+            guard let image = BattleArtworkLoader.decode(named: kind.rawValue, maximumSize: maximumDecodeSize) else { continue }
             result[kind.rawValue] = image
         }
         return result
@@ -44,6 +55,25 @@ enum BattleUnitArtwork {
     }
 }
 
+enum BattleSceneryKind: String, CaseIterable, Hashable {
+    case ground, water, city, forest, hills
+
+    var isSurface: Bool { self == .ground || self == .water }
+    var maximumDecodeSize: Int { isSurface ? 768 : 384 }
+}
+
+enum BattleSceneryArtwork {
+    private static let images: [BattleSceneryKind: CGImage] = {
+        var result: [BattleSceneryKind: CGImage] = [:]
+        for kind in BattleSceneryKind.allCases {
+            result[kind] = BattleArtworkLoader.decode(named: kind.rawValue, maximumSize: kind.maximumDecodeSize)
+        }
+        return result
+    }()
+
+    static func image(for kind: BattleSceneryKind) -> CGImage? { images[kind] }
+}
+
 enum UnitTokenPresentation: Equatable {
     case map
     case compact
@@ -51,20 +81,28 @@ enum UnitTokenPresentation: Equatable {
 
     var artSize: CGSize {
         switch self {
-        case .map: return CGSize(width: 44, height: 36)
+        case .map: return CGSize(width: 54, height: 46)
         case .compact: return CGSize(width: 40, height: 31)
-        case .inspection: return CGSize(width: 78, height: 62)
+        case .inspection: return CGSize(width: 86, height: 68)
         }
     }
 
     var strengthWidth: CGFloat {
         switch self {
-        case .map, .compact: return 36
+        case .map: return 42
+        case .compact: return 36
         case .inspection: return 58
         }
     }
 
     var strengthHeight: CGFloat { self == .inspection ? 8 : 6 }
+}
+
+enum BattleMapChromeMetrics {
+    static func intelligenceHeight(isNarrow: Bool) -> CGFloat { isNarrow ? 78 : 56 }
+    static func bottomClearance(isNarrow: Bool) -> CGFloat {
+        intelligenceHeight(isNarrow: isNarrow) + 20
+    }
 }
 
 /// Shared Roman command-deck palette. Keeping chrome colors in one place makes
@@ -271,7 +309,7 @@ struct HexMetrics {
 
         let horizontalInset = min(18, max(8, container.width * 0.018))
         let topInset = max(topClearance, isLandscape ? 54 : 70)
-        let bottomInset: CGFloat = isLandscape ? 70 : 112
+        let bottomInset = BattleMapChromeMetrics.bottomClearance(isNarrow: container.width < 620)
         let availableWidth = max(1, container.width - horizontalInset * 2)
         let availableHeight = max(1, container.height - topInset - bottomInset)
         tileAspect = isShortLandscape ? 0.50 : (isLandscape ? 0.72 : 1.14)
@@ -288,7 +326,7 @@ struct HexMetrics {
         let totalHeight = tileHeight * verticalUnits
         mapSize = CGSize(width: totalWidth, height: totalHeight)
         let remainingVerticalSpace = max(0, availableHeight - totalHeight)
-        let verticalBias: CGFloat = container.height > container.width * 1.25 ? 0.08 : 0.46
+        let verticalBias: CGFloat = container.height > container.width * 1.25 ? 0.38 : 0.46
         origin = CGPoint(
             x: horizontalInset + (availableWidth - totalWidth) / 2 + tileWidth / 2,
             y: topInset + remainingVerticalSpace * verticalBias + tileHeight / 2

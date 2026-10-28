@@ -1,24 +1,42 @@
 # 当前任务
 
-<!-- 空闲模板。开始任务时填写，阶段变化与压缩前更新；完成后清空任务内容，长期结论写入 update_log.md。暂停、失败或阻塞时保留恢复点。 -->
+<!-- 活跃任务恢复点；本轮遵循单模型、云端-only，不开启子智能体。 -->
 
 ## 目标与验收
 
-- 目标：
-- 非目标：
-- 验收标准：
+- 目标：持续向成熟罗马题材战棋推进；当前小目标是以《大征服者：罗马》公开实机图为布局/材质参考，改进战斗 UI、地图质感和四兵种原创生成美术。
+- 非目标：不复制商业游戏原素材，不更换引擎，不混入人工工程/Unity 分析改动；此视觉迭代不更改核心规则、AI 数值和存档。
+- 验收标准：四类高品质透明兵模实际打包、地图不遮蔽单位/城市/命令；三尺寸五场景的云端 Render 与 Xcode 成功，manifest/JUnit/PNG 与最新实现 SHA 精确核对；保留 44pt 命令入口和所有原选择/预演链路。
 
 ## 计划与进度
 
+1. [完成] 安全 fetch/pull 后 main 与 origin/main 同为 32fb4fe；核对改前云端 manifest/JUnit/日志及三类代表图，百度移动检索取得两张真实战斗参考。
+2. [完成，待云端验收] 四兵种+五类材质地标、共享解码缓存、地图实体/情报条与命令钮已经接入；原15图门禁保留，加材质/地标门禁和第17张检视图。
+3. [进行中] 精确提交 main/push，下载本轮结果包、逐图核对并修复；记录结论后继续下一小目标（将领/AI）。
+
 ## 本轮编辑记录与已有改动保护
+
+- 起点：main `32fb4fe3e14cd3a99ebe0c698ab520eda98ea00e`，GitHub API 确认远端同 SHA；`gh auth status` active 为 Altman-sam114。
+- 已有未提交：`RomeLegionsApp.xcodeproj/project.pbxproj`（人工签名/注释排序）、Xcode `UserInterfaceState.xcuserstate`、未跟踪 `md/unity分析/`；不覆盖、不暂存。
+- 当前编辑：四兵种 PNG 已替换，五类新材质/地标已复制；BattleViewStyles 共享加载器/缓存与 chrome 尺寸，BattleMapView 材质/地标/实体层级/78pt 竖屏情报行，BattleShellControls 兵种招募图/金属命令钮；Render 新资源门禁/检视图/同源采样区域；verify/CI 范围测试/结果清单与必要 README、AGENTS、flow/flowchart/test、美术说明同步。
+- 预计文件：BattleMapView.swift、BattleViewStyles.swift、BattleShellControls.swift、Resources/BattleUnitArt 四 PNG、Tools/RenderBattlePreview、必要结构/CI 与架构/美术说明；不为小改动重写全部入口。
 
 ## 关键决策与风险
 
+- 用户明确持续迭代、不得多开子智能体：全程当前模型串行完成；目标未完成不清空恢复点。
+- 百度桌面搜索/图片页返回安全验证，移动版成功。实际查看 Bilibili BV1xF1oBUEeQ（麦松战役）与 BV14o1dBDEYM 实机缩略图；只参考地图主导、材质、实体比例，不打包原图。
+- 内置生图实际完成四兵种+五地表/地标；弓兵首稿右侧弓箭裁切，已单独编辑缩小构图修正。工具没有可核验模型 ID，不虚构底层模型名称；不使用 CLI/API fallback。
+- Git 默认 DNS 指向不可连接地址，使用单条命令 `-c http.curloptResolve=github.com:443:140.82.112.3` 成功 fetch/pull；不改系统 DNS、不写永久 Git 配置。
+
 ## 验证选择与证据
 
-- baseline：
-- direct：
-- optional：
-- skipped 及原因：
+- baseline：云端 diff/结构合同；如改 CI/结构工具，加现有 CI 范围 Node 测试。
+- direct：Battle UI/共享样式/兵模 -> Render 全部既有门禁、16 PNG 与 Xcode App/bundle；新增材质必须做资源/解码/视觉直接证据。
+- optional：当前无；后续规则/AI 迭代独立选择核心真实行为验证。
+- skipped 及原因：本地所有编译/测试/自动校验禁止；本轮视觉阶段不改核心，云端 Swift Testing/Gameplay Smoke 不选。
+- 改前证据：v0.81 da244ab / run 40630157134 attempt1 的既有缓存 manifest/JUnit 5/0、107 Swift Testing、Smoke、Render 和 Xcode 日志一致；最新 32fb4fe / run 40689576052 文档检查成功、四项主动 skipped。新目录下载首包偏慢，未以其空目录冒充新结果；旧实现证据只作为改前对照。
 
 ## 当前步骤、阻塞与下一步
+
+- 当前：完成代码及精确提示词记录，只读 diff/来源核对完成；未运行本地验证。准备精确暂存，三项人工改动仍保留。
+- 下一步：提交 main/push 后核对最新云端 static + Render + Xcode 与17图；失败追加修复，不把当前阶段写成已验收。

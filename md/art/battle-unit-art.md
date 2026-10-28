@@ -1,4 +1,44 @@
-# Battle Unit Art / v0.81
+# Battle Unit Art
+
+## 当前兵模
+
+- 内置 image_gen 生成的原创透明 PNG，工具未返回可核验底层模型名称；未使用 CLI fallback 或额外 API key。四兵种全部替换，旧稿与首次接入说明留作来源追溯，不代表当前文件。
+- 当前盾兵为六人两列、弓兵为六人两列、骑兵为三骑、海军为单艘战舰；同向镜头、左上光源、灰铁/青铜/深红/象牙材质。当前是静态 2D 预渲染兵模，不冒充可旋转 3D 或完整商业成品。
+- 逐字节复制至 `RomeLegionsApp/Resources/BattleUnitArt/{legion,archer,cavalry,navy}.png`；原图保留在 Codex 生成目录。军旗/地环仍读取真实阵营，不靠贴图颜色判断归属。
+- 百度移动版搜索“大征服者罗马 截图”后查看 [麦松战役](https://www.bilibili.com/video/BV1xF1oBUEeQ) 和 [另一战斗实机图](https://www.bilibili.com/video/BV14o1dBDEYM)；只参考微缩实体比例和材质，不复制或打包原作截图。
+- 关联地表资源及提示词见 [战场材质](battle-scenery-art.md)。所有资源的 alpha、受限解码、实际 bundle 与真实战斗图由云端检查。
+
+### 当前 legion.png 提示词
+
+```text
+Use case: stylized-concept. Asset type: premium original Roman strategy game battle unit sprite, transparent PNG cutout, NOT a UI mockup. Create a high-end miniature formation of SIX ancient Roman legionaries, full body, two disciplined ranks of three soldiers, all facing toward the lower-right, consistent elevated three-quarter isometric camera looking down at 35 degrees. Realistic hand-painted 3D strategy miniature quality, sculpted bronze helmets with small red crests, segmented steel armor, deep oxblood tunics, large curved red rectangular scutum shields with restrained gold lightning emblems, short swords. Readable strong silhouettes at small game-map scale; compact formation, fine material shading, slight natural pose variation, physically coherent feet. Warm upper-left sunlight, subtle soft contact shadow but no terrain, no base platform, no backdrop. Composition: square 1024x1024, entire six-person formation centered with generous transparent margins, no cropping, camera sees helmets, shoulders, shields and feet clearly. Palette: muted crimson, aged bronze, ivory and cool worn steel. Constraints: genuinely transparent alpha background, one cohesive original formation, no text, no numerals, no watermark, no UI, no hexagon, no toy plastic look, no chibi proportions, no giant single hero.
+```
+
+### 当前 archer.png 首稿与构图修订
+
+```text
+Use case: stylized-concept. Asset type: premium original ancient Roman strategy game ARCHER formation sprite, transparent PNG cutout. Create SIX realistic Roman auxiliary archers, full body, in two staggered ranks of three, all facing lower-right at an elevated three-quarter isometric camera about 35 degrees above horizon. Each holds a clearly curved wooden bow at the ready, with quiver, worn leather armor over ivory tunic, restrained crimson cloaks, bronze helmets, sandals. High-end hand-painted 3D strategy miniature rendering, detailed leather, linen, bronze and wood; adult natural proportions, distinct readable silhouette at small battle-map size. All archers and their equipment entirely in frame, no cropped limbs, centered compact formation with transparent margins, square composition. Match warm upper-left sunlight and grounded soft contact shadows, no physical base and no terrain. Palette muted red, ivory, bronze, dark natural wood. Constraints: genuinely transparent alpha background, original artwork, no text or numbers, no logos, no UI or icons, no hexagon base, no giant hero, no toy plastic, no chibi.
+```
+
+首稿右侧弓箭触及画框，使用该首稿为唯一编辑目标，保持透明背景，实际修订请求：
+
+```text
+Edit target image 1: the six Roman archer formation on transparent background. Preserve exactly the premium painted realistic material style, the SIX adult archers, ivory tunics, crimson cloaks, bronze helmets, bows and same elevated isometric camera. Correct ONLY the framing: shrink/reframe the ENTIRE formation to occupy at most 76 percent of the square canvas, center it, complete the clipped rightmost bow and arrow so ALL equipment and all feet are visible. There must be at least 10 percent completely empty transparent margin beyond every bow tip and arrow tip on ALL four sides. Preserve genuine alpha transparency, no backdrop, no terrain, no new people or other objects, no text or watermark. Keep the compact two ranks of three archers facing lower-right, warm upper-left lighting and detailed tactile armor.
+```
+
+### 当前 cavalry.png 提示词
+
+```text
+Use case: stylized-concept. Asset type: original premium Roman strategy game CAVALRY squad sprite, transparent PNG cutout. Subject: THREE ancient Roman cavalry soldiers mounted on three muscular chestnut and dark bay horses, compact staggered triangular formation, all facing lower-right, elevated isometric orthographic camera looking down 35 degrees. All THREE horses complete with correct legs, heads, tails and hooves, riders in bronze helmets, iron chainmail, deep crimson cloaks, short upright lances and small round bronze shields. High-end realistic hand-painted 3D miniature quality, sculpted anatomy, tactile worn leather tack, finely shaded metal, layered red saddle blankets. Warm upper-left daylight and soft ambient occlusion, consistent historical game asset lighting. Composition: a square canvas, entire formation must fit within central 78 percent of canvas including lance tips, hooves and tails; empty transparent border of at least 10 percent on all four sides. Clearly readable formation at small map scale, not a cinematic portrait. Constraints: genuine transparent alpha, no floor plane or terrain, no circular base, no watermark, no text, no UI, no flag, no chibi, no toy plastic. Premium original game miniature, not a reproduction of a commercial asset.
+```
+
+### 当前 navy.png 提示词
+
+```text
+Use case: stylized-concept. Asset type: premium original Roman naval strategy-game miniature sprite, transparent PNG cutout. ONE ancient Roman quinquereme war galley, complete ship seen from elevated isometric orthographic camera 35 degrees looking down, bow pointing lower-right. Long dark walnut hull with bronze ram, elegant upward curved stern, twin steering oars, orderly banks of narrow oars on both sides, one central mast with a large ivory square sail carrying a broad simple muted crimson stripe, detailed rigging, small crenellated foredeck, believable tiny deck details. High-end hand-painted realistic 3D miniature game rendering, finely carved wood grain, sail cloth folds, warm upper-left sunlight with subtle shaded interior. Clear silhouette at small map size. Square canvas, whole ship centered in central 78 percent, all oars, ropes, mast, prow and stern fully inside, transparent air of at least 10 percent on every edge. True transparent alpha background even between rigging and oars. NO water, NO ocean, NO splash, NO base or tile, NO flag, NO human portrait, NO text or letters, NO watermark, NO UI. Original historical strategy-game asset, not copied from a commercial game.
+```
+
+## 首次接入记录（历史资源，已替换）
 
 ## 来源与交付
 

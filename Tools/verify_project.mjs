@@ -23,7 +23,13 @@ const requiredFiles = [
   "RomeLegionsApp/Resources/BattleUnitArt/cavalry.png",
   "RomeLegionsApp/Resources/BattleUnitArt/archer.png",
   "RomeLegionsApp/Resources/BattleUnitArt/navy.png",
+  "RomeLegionsApp/Resources/BattleUnitArt/ground.png",
+  "RomeLegionsApp/Resources/BattleUnitArt/water.png",
+  "RomeLegionsApp/Resources/BattleUnitArt/city.png",
+  "RomeLegionsApp/Resources/BattleUnitArt/forest.png",
+  "RomeLegionsApp/Resources/BattleUnitArt/hills.png",
   "md/art/battle-unit-art.md",
+  "md/art/battle-scenery-art.md",
   "RomeLegionsApp/Assets.xcassets/Contents.json",
   "RomeLegionsApp/Assets.xcassets/AccentColor.colorset/Contents.json",
   "RomeLegionsApp/Assets.xcassets/AppIcon.appiconset/Contents.json",
@@ -203,6 +209,12 @@ if (!/\/\* BattleUnitArt in Resources \*\//.test(pbx) ||
 }
 for (const token of ["verifyBattleUnitArtwork()", "opaqueBattleUnitArtwork", "bitmap.hasAlpha", "resourcePaths.count == UnitKind.allCases.count", "BattleUnitArtworkProofView", "battle-unit-art-preview.png"]) {
   if (!renderPreview.includes(token)) failures.push(`Army artwork cloud gate missing: ${token}`);
+}
+for (const token of ["BattleArtworkLoader", "BattleSceneryKind", "BattleSceneryArtwork", "drawSurfaceTexture", "TerrainLandmarkArtworkView", "MapCompactLegendStripView", "BattleMapChromeMetrics"]) {
+  if (!battle.includes(token)) failures.push(`Textured battlefield component missing: ${token}`);
+}
+for (const token of ["verifyBattleSceneryArtwork()", "invalidBattleSceneryAlpha", "kind.maximumDecodeSize", "BattleSceneryArtworkProofView", "battle-scenery-art-preview.png"]) {
+  if (!renderPreview.includes(token)) failures.push(`Scenery artwork cloud gate missing: ${token}`);
 }
 for (const token of ["ArmyMiniatureView", "BattlefieldMiniaturePainter", "Hexagon.vertices", "func sharedEdge", "position.y.isMultiple(of: 2)"]) {
   if (!battle.includes(token)) failures.push(`Battle map continuity/miniature component missing: ${token}`);
@@ -395,13 +407,14 @@ const requiredRenderPreviewPaths = [
   "ci-results/render-previews/battle-wide-preview-focused.png",
   "ci-results/render-previews/battle-wide-preview-focused-enemy.png",
   "ci-results/render-previews/battle-wide-preview-focused-countermeasure.png",
-  "ci-results/render-previews/battle-unit-art-preview.png"
+  "ci-results/render-previews/battle-unit-art-preview.png",
+  "ci-results/render-previews/battle-scenery-art-preview.png"
 ];
 const declaredRenderPreviewPaths = [...ciWorkflow.matchAll(
   /^\s+"(ci-results\/render-previews\/battle-[^"]+\.png)"[,]?$/gm
 )].map((match) => match[1]);
 if (JSON.stringify(declaredRenderPreviewPaths) !== JSON.stringify(requiredRenderPreviewPaths)) {
-  failures.push(".github/workflows/ci-results.yml must preserve all 15 battle previews and the v0.81 army artwork sheet");
+  failures.push(".github/workflows/ci-results.yml must preserve 15 battle previews and both artwork proof sheets");
 }
 
 if (failures.length > 0) {

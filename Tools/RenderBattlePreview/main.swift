@@ -11,8 +11,13 @@ struct RenderBattlePreview {
         let height = arguments.dropFirst(2).first.flatMap(Double.init) ?? 430
         emitPreviewDiagnostic("[preview] fixtures started: \(outputPath)")
         try verifyBattleUnitArtwork()
+        try verifyBattleSceneryArtwork()
         if arguments.contains("--unit-art-sheet") {
             try renderUnitArtworkSheet(beside: outputPath)
+            try renderArtworkProof(
+                BattleSceneryArtworkProofView(), name: "battle-scenery-art-preview.png",
+                size: CGSize(width: 700, height: 440), beside: outputPath
+            )
         }
         // Data-only fixtures never touch the five screenshot contexts below.
         try verifyNaturalTerrainContours()
@@ -3640,22 +3645,22 @@ struct RenderBattlePreview {
             container: CGSize(width: logicalWidth, height: logicalHeight)
         )
         let commandDockHeight = Double(interfaceMetrics.commandDockHeight)
-        let intelligenceHeight: Int = logicalWidth < 620 ? 96 : 58
+        let intelligenceHeight = Int(BattleMapChromeMetrics.intelligenceHeight(isNarrow: logicalWidth < 620))
         let region = (
             x: 10,
             y: max(0, Int(logicalHeight - commandDockHeight) - intelligenceHeight - 4),
             width: min(230, max(1, Int(logicalWidth) - 20)),
             height: intelligenceHeight
         )
-        let legendRegionX = logicalWidth < 620 ? (hasEngagementBadge ? 140 : 20) : 300
+        let legendRegionX = logicalWidth < 620 ? (hasEngagementBadge ? 120 : 20) : 300
         let legendRegionY = logicalWidth < 620
-            ? region.y + intelligenceHeight / 2
+            ? region.y + intelligenceHeight - 30
             : region.y
         let legendRegion = (
             x: legendRegionX,
             y: legendRegionY,
             width: max(1, Int(logicalWidth) - legendRegionX - 20),
-            height: logicalWidth < 620 ? intelligenceHeight / 2 : intelligenceHeight
+            height: logicalWidth < 620 ? 24 : intelligenceHeight
         )
         var signature = (bright: 0, red: 0, cyan: 0, gold: 0)
         var legendSignature = (bright: 0, tinted: 0)
@@ -4100,6 +4105,55 @@ struct RenderBattlePreview {
         emitPreviewDiagnostic("Natural terrain contours: stable closed loops, island, lake, bridge, separated coast and campaign centers passed at three sizes")
     }
 
+    private static func verifyBattleSceneryArtwork() throws {
+        var paths = Set<String>()
+        for kind in BattleSceneryKind.allCases {
+            guard let url = BattleArtworkLoader.resourceURL(named: kind.rawValue),
+                  paths.insert(url.path).inserted,
+                  let image = BattleSceneryArtwork.image(for: kind),
+                  min(image.width, image.height) >= 256,
+                  max(image.width, image.height) <= kind.maximumDecodeSize else {
+                throw PreviewRenderError.missingBattleSceneryArtwork
+            }
+            let bitmap = NSBitmapImageRep(cgImage: image)
+            var opaque = 0
+            var transparent = 0
+            var darkest: CGFloat = 1
+            var lightest: CGFloat = 0
+            for y in stride(from: 0, to: image.height, by: 8) {
+                for x in stride(from: 0, to: image.width, by: 8) {
+                    guard let color = bitmap.colorAt(x: x, y: y)?.usingColorSpace(.deviceRGB) else { continue }
+                    if color.alphaComponent < 0.02 { transparent += 1 }
+                    if color.alphaComponent > 0.98 {
+                        opaque += 1
+                        let luminance = (color.redComponent + color.greenComponent + color.blueComponent) / 3
+                        darkest = min(darkest, luminance)
+                        lightest = max(lightest, luminance)
+                    }
+                }
+            }
+            guard opaque > 200, lightest - darkest > 0.16 else {
+                throw PreviewRenderError.missingBattleSceneryArtwork
+            }
+            if kind.isSurface {
+                guard transparent == 0 else { throw PreviewRenderError.invalidBattleSceneryAlpha }
+            } else {
+                guard bitmap.hasAlpha, transparent > 200,
+                      bitmap.colorAt(x: 0, y: 0)?.alphaComponent == 0,
+                      bitmap.colorAt(x: image.width - 1, y: image.height - 1)?.alphaComponent == 0 else {
+                    throw PreviewRenderError.invalidBattleSceneryAlpha
+                }
+            }
+            emitPreviewDiagnostic("[scenery] \(kind.rawValue): \(image.width)x\(image.height), solid=\(opaque), transparent=\(transparent), range=\(lightest - darkest)")
+        }
+        guard paths.count == 5,
+              BattleMapChromeMetrics.intelligenceHeight(isNarrow: true) == 78,
+              BattleMapChromeMetrics.intelligenceHeight(isNarrow: false) == 56,
+              UnitTokenPresentation.map.artSize.width >= 54 else {
+            throw PreviewRenderError.missingBattleSceneryArtwork
+        }
+    }
+
     private static func verifyBattleUnitArtwork() throws {
         var resourcePaths: Set<String> = []
         for kind in UnitKind.allCases {
@@ -4147,7 +4201,16 @@ struct RenderBattlePreview {
     }
 
     private static func renderUnitArtworkSheet(beside outputPath: String) throws {
-        let renderer = ImageRenderer(content: BattleUnitArtworkProofView().frame(width: 700, height: 500))
+        try renderArtworkProof(
+            BattleUnitArtworkProofView(), name: "battle-unit-art-preview.png",
+            size: CGSize(width: 700, height: 500), beside: outputPath
+        )
+    }
+
+    private static func renderArtworkProof<Content: View>(
+        _ content: Content, name: String, size: CGSize, beside outputPath: String
+    ) throws {
+        let renderer = ImageRenderer(content: content.frame(width: size.width, height: size.height))
         renderer.scale = 2
         guard let image = renderer.nsImage,
               let tiff = image.tiffRepresentation,
@@ -4156,13 +4219,66 @@ struct RenderBattlePreview {
             throw PreviewRenderError.missingBattleUnitArtwork
         }
         let url = URL(fileURLWithPath: outputPath).deletingLastPathComponent()
-            .appendingPathComponent("battle-unit-art-preview.png")
+            .appendingPathComponent(name)
         try png.write(to: url)
-        emitPreviewDiagnostic("[art] four unit kinds / five faction standards rendered: \(url.path)")
+        emitPreviewDiagnostic("[art] proof rendered: \(url.path)")
     }
 
     private static func emitPreviewDiagnostic(_ message: String) {
         FileHandle.standardError.write(Data("\(message)\n".utf8))
+    }
+}
+
+private struct BattleSceneryArtworkProofView: View {
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("TERRA · 地表与城镇")
+                .font(.system(size: 24, weight: .bold, design: .serif))
+                .foregroundStyle(BattlePalette.ivory)
+            Text("原创生成材质 · 真实地形裁剪 · 同一资源缓存")
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundStyle(BattlePalette.parchment)
+            HStack(spacing: 12) {
+                surface(.ground, label: "草地 / 石灰土")
+                surface(.water, label: "海面 / 深度纹理")
+            }
+            .frame(height: 118)
+            HStack(spacing: 12) {
+                landmark(.city, label: "城镇")
+                landmark(.forest, label: "林地")
+                landmark(.hills, label: "山脊")
+            }
+            .frame(maxHeight: .infinity)
+        }
+        .padding(20)
+        .background(BattlePalette.panel)
+    }
+
+    private func surface(_ kind: BattleSceneryKind, label: String) -> some View {
+        ZStack(alignment: .bottomLeading) {
+            if let image = BattleSceneryArtwork.image(for: kind) {
+                Image(decorative: image, scale: 1, orientation: .up).resizable()
+            }
+            Text(label).font(.system(size: 11, weight: .bold))
+                .foregroundStyle(BattlePalette.ivory)
+                .padding(7).background(BattlePalette.panel.opacity(0.80))
+        }
+        .clipShape(.rect(cornerRadius: 5))
+    }
+
+    private func landmark(_ kind: BattleSceneryKind, label: String) -> some View {
+        VStack(spacing: 4) {
+            if let image = BattleSceneryArtwork.image(for: kind) {
+                Image(decorative: image, scale: 1, orientation: .up)
+                    .resizable().interpolation(.high).scaledToFit()
+                    .frame(maxHeight: .infinity)
+            }
+            Text(label).font(.system(size: 12, weight: .bold)).foregroundStyle(BattlePalette.ivory)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(8)
+        .background(Color(red: 0.32, green: 0.38, blue: 0.26))
+        .clipShape(.rect(cornerRadius: 5))
     }
 }
 
@@ -4231,6 +4347,8 @@ enum PreviewRenderError: Error {
     case renderFailed
     case missingBattleUnitArtwork
     case opaqueBattleUnitArtwork
+    case missingBattleSceneryArtwork
+    case invalidBattleSceneryAlpha
     case missingMapDominantBattleShell
     case missingMapIntelligenceDock
     case missingMapOverlayFocusStrategy

@@ -33,7 +33,7 @@ test("test and tool changes select their own execution entry", () => {
 });
 
 test("battle presentation and artwork select Render and App build without core execution", () => {
-  for (const file of ["RomeLegionsApp/App/GameViewModel.swift", "RomeLegionsApp/App/GameViewModelMapReadouts.swift", "RomeLegionsApp/Views/BattlePanels.swift", "RomeLegionsApp/Resources/BattleUnitArt/legion.png"]) {
+  for (const file of ["RomeLegionsApp/App/GameViewModel.swift", "RomeLegionsApp/App/GameViewModelMapReadouts.swift", "RomeLegionsApp/Views/BattlePanels.swift", "RomeLegionsApp/Resources/BattleUnitArt/legion.png", "RomeLegionsApp/Resources/BattleUnitArt/ground.png", "RomeLegionsApp/Resources/BattleUnitArt/city.png"]) {
     assert.deepEqual(ids(file), ["static-checks", "render-battle-preview", "xcode-build"]);
   }
 });

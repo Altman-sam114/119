@@ -185,6 +185,7 @@ struct WarMapView: View {
                         )
                         .frame(width: metrics.tileWidth, height: metrics.tileHeight)
                         .position(center)
+                        .zIndex(unit != nil || city != nil ? 1 + Double(tile.position.y) * 0.01 : 0)
                         .onTapGesture {
                             viewModel.selectTile(tile.position)
                         }
@@ -267,7 +268,7 @@ struct WarMapView: View {
                         Spacer(minLength: 0)
                     }
                     .padding(.leading, 12)
-                    .padding(.bottom, proxy.size.width < 620 ? 122 : 76)
+                    .padding(.bottom, BattleMapChromeMetrics.bottomClearance(isNarrow: proxy.size.width < 620) + 4)
                 }
                 .allowsHitTesting(false)
                 .zIndex(4.9)
@@ -1006,7 +1007,7 @@ struct MapIntelligenceDockView: View {
         let filteredLegendItems = legendItems.filter { displayContext.visibleLegendKinds.contains($0.kind) }
         Group {
             if usesTwoRows {
-                VStack(spacing: 5) {
+                VStack(spacing: 2) {
                     HStack(spacing: 6) {
                         MapReconModeSelectorView(readout: readout, onSelect: onSelect)
                         Spacer(minLength: 0)
@@ -1015,12 +1016,16 @@ struct MapIntelligenceDockView: View {
 
                     HStack(spacing: 6) {
                         if let engagementLoop {
-                            EnemyEngagementCompactBadgeView(readout: engagementLoop)
+                            Label(engagementLoop.statusLabel, systemImage: "arrow.triangle.2.circlepath")
+                                .font(.system(size: 9, weight: .bold))
+                                .foregroundStyle(BattlePalette.brassBright)
+                                .lineLimit(1)
+                                .frame(width: 84, height: 20, alignment: .leading)
+                                .accessibilityLabel(engagementLoop.accessibilityLabel)
                         }
-                        MapOverlayLegendView(
+                        MapCompactLegendStripView(
                             items: filteredLegendItems,
-                            perspective: readout.selectedKind,
-                            compact: true
+                            presentation: MapOverlayPresentation(perspective: readout.selectedKind, context: displayContext)
                         )
                         .frame(maxWidth: .infinity, alignment: .leading)
                     }
@@ -1043,7 +1048,8 @@ struct MapIntelligenceDockView: View {
             }
         }
         .padding(6)
-        .background(.black.opacity(0.72))
+        .frame(height: BattleMapChromeMetrics.intelligenceHeight(isNarrow: usesTwoRows))
+        .background(BattlePalette.panel.opacity(0.90))
         .clipShape(.rect(cornerRadius: 8))
         .overlay {
             RoundedRectangle(cornerRadius: 8)
@@ -1052,6 +1058,39 @@ struct MapIntelligenceDockView: View {
         .shadow(color: .black.opacity(0.28), radius: 5, y: 2)
         .accessibilityElement(children: .contain)
         .accessibilityLabel("\(displayContext.title)，\(displayContext.statusLabel)，\(readout.selectorLabel)")
+    }
+}
+
+struct MapCompactLegendStripView: View {
+    var items: [MapOverlayLegendItem]
+    var presentation: MapOverlayPresentation
+
+    private var orderedItems: [MapOverlayLegendItem] {
+        items.enumerated().sorted { lhs, rhs in
+            let first = presentation.legendPriority(lhs.element.kind)
+            let second = presentation.legendPriority(rhs.element.kind)
+            return first == second ? lhs.offset < rhs.offset : first < second
+        }.map(\.element)
+    }
+
+    var body: some View {
+        HStack(spacing: 8) {
+            ForEach(Array(orderedItems.prefix(3))) { item in
+                Label(item.title, systemImage: item.symbol)
+                    .font(.system(size: 9, weight: .semibold))
+                    .foregroundStyle(item.kind.legendTint)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.75)
+            }
+            if items.count > 3 {
+                Text("+\(items.count - 3)")
+                    .font(.system(size: 9, weight: .bold))
+                    .foregroundStyle(BattlePalette.muted)
+            }
+        }
+        .frame(height: 20)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(items.map(\.accessibilityLabel).joined(separator: "，"))
     }
 }
 
@@ -1068,22 +1107,23 @@ struct MapReconModeSelectorView: View {
                     VStack(spacing: 1) {
                         Image(systemName: kind.systemImage)
                             .font(.caption.weight(.black))
+                            .foregroundStyle(kind.mapReconTint)
                         Text(kind.shortLabel)
                             .font(.caption2.weight(.bold))
                             .lineLimit(1)
                     }
-                    .foregroundStyle(readout.selectedKind == kind ? .black : .white.opacity(0.76))
+                    .foregroundStyle(readout.selectedKind == kind ? BattlePalette.ivory : BattlePalette.muted)
                     .frame(width: 44, height: 44)
                     .background(
                         readout.selectedKind == kind
-                            ? kind.mapReconTint
-                            : kind.mapReconTint.opacity(0.16)
+                            ? kind.mapReconTint.opacity(0.30)
+                            : kind.mapReconTint.opacity(0.10)
                     )
                     .clipShape(.rect(cornerRadius: 6))
                     .overlay {
                         RoundedRectangle(cornerRadius: 6)
                             .stroke(
-                                readout.selectedKind == kind ? .white.opacity(0.82) : .white.opacity(0.08),
+                                readout.selectedKind == kind ? kind.mapReconTint.opacity(0.84) : BattlePalette.brass.opacity(0.16),
                                 lineWidth: readout.selectedKind == kind ? 1.5 : 1
                             )
                     }
@@ -1677,6 +1717,7 @@ struct MapTerrainSurfaceView: View {
             ))
             context.drawLayer { ground in
                 ground.clip(to: land)
+                drawSurfaceTexture(.ground, in: &ground, size: size, opacity: 0.52)
                 drawRelief(in: &ground, size: size)
                 let roads = geometry.roadPath
                 let roadWidth = max(2.2, metrics.tileWidth * 0.07)
@@ -1697,12 +1738,13 @@ struct MapTerrainSurfaceView: View {
             Gradient(colors: [Color(red: 0.30, green: 0.43, blue: 0.44), Color(red: 0.19, green: 0.33, blue: 0.38)]),
             startPoint: .zero, endPoint: CGPoint(x: size.width, y: size.height)
         ))
+        drawSurfaceTexture(.water, in: &context, size: size, opacity: 0.40)
         context.stroke(contours.path, with: .color(Color(red: 0.53, green: 0.66, blue: 0.59).opacity(0.20)),
                        style: StrokeStyle(lineWidth: metrics.tileWidth * 0.30, lineCap: .round, lineJoin: .round))
         context.stroke(contours.path, with: .color(Color(red: 0.59, green: 0.70, blue: 0.64).opacity(0.18)),
                        style: StrokeStyle(lineWidth: metrics.tileWidth * 0.14, lineCap: .round, lineJoin: .round))
-        for row in 0..<Int(size.height / 18) + 1 {
-            let y = CGFloat(row) * 18 + CGFloat((row * 11) % 13)
+        for row in 0..<Int(size.height / 36) + 1 {
+            let y = CGFloat(row) * 36 + CGFloat((row * 11) % 13)
             let phase = CGFloat((row * 17) % 29)
             for column in 0..<Int(size.width / 62) + 1 {
                 let x = CGFloat(column) * 62 + phase + CGFloat((row * 7 + column * 13) % 23)
@@ -1711,6 +1753,23 @@ struct MapTerrainSurfaceView: View {
                 wave.addCurve(to: CGPoint(x: x + 38, y: y - 1),
                               control1: CGPoint(x: x + 12, y: y - 3), control2: CGPoint(x: x + 26, y: y + 2))
                 context.stroke(wave, with: .color(BattlePalette.ivory.opacity(row.isMultiple(of: 3) ? 0.085 : 0.035)), lineWidth: 0.7)
+            }
+        }
+    }
+
+    private func drawSurfaceTexture(
+        _ kind: BattleSceneryKind, in context: inout GraphicsContext, size: CGSize, opacity: Double
+    ) {
+        guard let bitmap = BattleSceneryArtwork.image(for: kind) else { return }
+        let image = Image(decorative: bitmap, scale: 1, orientation: .up)
+        let side = max(180, metrics.tileWidth * 5)
+        context.drawLayer { texture in
+            texture.opacity = opacity
+            for row in 0...Int(ceil(size.height / side)) {
+                for column in 0...Int(ceil(size.width / side)) {
+                    let rect = CGRect(x: CGFloat(column) * side, y: CGFloat(row) * side, width: side, height: side)
+                    texture.draw(image, in: rect)
+                }
             }
         }
     }
@@ -2256,14 +2315,40 @@ struct TerrainTextureView: View {
         Group {
             switch terrain {
             case .forest:
-                ForestTextureView(scale: scale, variation: variation)
+                if let image = BattleSceneryArtwork.image(for: .forest) {
+                    TerrainLandmarkArtworkView(image: image, scale: scale, variation: variation)
+                } else {
+                    ForestTextureView(scale: scale, variation: variation)
+                }
             case .hills:
-                HillsTextureView(scale: scale, variation: variation)
+                if let image = BattleSceneryArtwork.image(for: .hills) {
+                    TerrainLandmarkArtworkView(image: image, scale: scale, variation: variation)
+                } else {
+                    HillsTextureView(scale: scale, variation: variation)
+                }
             default:
                 EmptyView()
             }
         }
-        .clipShape(Hexagon())
+        .allowsHitTesting(false)
+        .accessibilityHidden(true)
+    }
+}
+
+struct TerrainLandmarkArtworkView: View {
+    var image: CGImage
+    var scale: CGFloat
+    var variation: Int
+
+    var body: some View {
+        GeometryReader { proxy in
+            let width = proxy.size.width * (variation.isMultiple(of: 3) ? 1.12 : 1.02)
+            Image(decorative: image, scale: 1, orientation: .up)
+                .resizable()
+                .interpolation(.high)
+                .frame(width: width, height: width * 0.68)
+                .position(x: proxy.size.width / 2, y: proxy.size.height / 2 - 3 * scale)
+        }
     }
 }
 
@@ -3120,8 +3205,28 @@ struct FortifiedCitySilhouetteView: View {
     var compact: Bool
 
     var body: some View {
-        let width: CGFloat = compact ? 34 : 44
-        let height: CGFloat = compact ? 22 : 31
+        Group {
+            if let image = BattleSceneryArtwork.image(for: .city) {
+                Image(decorative: image, scale: 1, orientation: .up)
+                    .resizable()
+                    .interpolation(.high)
+                    .frame(width: compact ? 48 : 66, height: compact ? 30 : 46)
+                    .overlay(alignment: .topTrailing) {
+                        Image(systemName: "flag.fill")
+                            .font(.system(size: compact ? 8 : 11, weight: .black))
+                            .foregroundStyle(owner.factionColor)
+                            .shadow(color: .black.opacity(0.65), radius: 1, y: 1)
+                            .offset(x: -6, y: 1)
+                    }
+            } else {
+                vectorCity
+            }
+        }
+        .shadow(color: .black.opacity(0.30), radius: 1, y: 1)
+        .accessibilityHidden(true)
+    }
+
+    private var vectorCity: some View {
 
         Canvas { context, size in
             let paint = BattlefieldMiniaturePainter(size: size)
@@ -3136,9 +3241,7 @@ struct FortifiedCitySilhouetteView: View {
             paint.line(&context, [(35, 14), (35, 1)], color: BattlefieldMiniaturePainter.ivory, width: 0.8)
             paint.polygon(&context, [(35, 1), (45, 3), (44, 9), (35, 7)], color: owner.factionColor)
         }
-        .frame(width: width, height: height)
-        .shadow(color: .black.opacity(0.34), radius: 2, y: 1)
-        .accessibilityHidden(true)
+        .frame(width: compact ? 34 : 44, height: compact ? 22 : 31)
     }
 }
 

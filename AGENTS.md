@@ -56,7 +56,7 @@
 - SwiftUI 只展示与触发公开命令，不在 `body`、按钮闭包或生命周期内写复杂规则。`RootView` 切换菜单/战斗；战斗壳层、控制、地图、读板、样式各自保持职责。
 - `WarMapView` 的 `MapViewportState` 只管理缩放、拖移、选择聚焦和复位，不进入 `GameState`、存档或玩法选择源。
 - `SaveStore` 通过 SQLite 保存编码后的完整 `GameState`，不绕过状态结构写零散状态。
-- `Resources/BattleUnitArt/` 原创四兵种 PNG 随 App 打包；`BattleUnitArtwork` 只负责 ImageIO 受限解码缓存。独立 macOS 云端 Render 通过显式 `ROMELEGIONS_ART_ROOT` 读资源，iOS 仅从 bundle 读取；缺失时 Canvas 降级不能冒充资源验收通过。
+- `Resources/BattleUnitArt/` 原创四兵种、地表材质与地标 PNG 随 App 打包；`BattleArtworkLoader` 统一查找与 ImageIO 受限解码，Unit/Scenery 目录各自缓存。独立 macOS 云端 Render 通过显式 `ROMELEGIONS_ART_ROOT` 读资源，iOS 仅从 bundle 读取；缺失时 Canvas 降级不能冒充资源验收通过。
 - `Tests/RomeLegionsCoreTests/GameStateTests.swift` 验证核心规则；`Tools/GameplaySmoke` 验证集成，`Tools/RenderBattlePreview` 验证展示链路，`Tools/verify_project.mjs` 验证结构。UI/静态合同不能替代核心行为测试。
 
 ## 6. 测试规则

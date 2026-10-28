@@ -8,7 +8,14 @@
 
 本文只记录当前真实链路，不写历史叙事。
 
-## v0.81 生图兵模与军团展示
+## 战场美术与材质链
+
+- `BattleArtworkLoader` 统一 bundle/macOS 显式源码资源查找和 ImageIO 有界解码；`BattleUnitArtwork` 缓存四兵种（384px），`BattleSceneryArtwork` 缓存五类材质/地标（地表 768px，城镇/树林/山脊 384px）。全部位于既有 `BattleUnitArt` folder resource，不修改存档或核心状态。
+- `MapTerrainSurfaceView` 在连续水面和真实陆地路径内叠加地表 PNG；地表平铺、地形明暗、同源海岸与相邻道路共用 `HexMetrics`，不会以图片中的纹理决定地形或点击。`TerrainTextureView`、`FortifiedCitySilhouetteView` 读取透明地标，旧 Canvas 仅为缺资源降级；实体层高于地表地标，战术路线仍在原层级。
+- 地图兵牌为 54x46pt、紧凑命令兵牌保持 40x31pt，生命/将领/姿态/行动标记仍由原 `UnitTokenView` 控制。招募命令只增加同源兵种小图，仍调用原招募命令。`BattleMapChromeMetrics` 同时提供情报坞高度与地图底部安全区；竖屏被动图例收为 20pt 信息行，四个侦察按钮和全部命令保留 44pt 点击槽。
+- 云端保留三尺寸五场景，同时核对九类资源和两张美术检视图；App 九类 PNG 与源码逐字节匹配。美术验收不以降级图形代替真实贴图。
+
+## 生图兵模与军团展示
 
 - `BattleUnitArtwork` 在共享样式编译单元集中映射 `UnitKind.rawValue -> BattleUnitArt/<kind>.png`。iOS 仅从 App bundle 读取；独立 macOS Render 可通过显式 `ROMELEGIONS_ART_ROOT` 指向同一源码资源目录。ImageIO 一次生成最长边 384px 的 CGImage 缓存，不在 body 更新时重复解码，也不请求网络。
 - `ArmyMiniatureView` 优先组合透明 PNG、动态阵营地面环和军旗，缺失时才使用保留的 `VectorArmyMiniatureView`；美术不持有 GameState、命令或选择态。`UnitTokenView` 继续独占生命、经验、将领、姿态、冷却与行动标记，`UnitTokenPresentation` 仅定义地图、紧凑命令与情报检视三种尺寸。地图、命令坞和情报卡消费同一资源映射。

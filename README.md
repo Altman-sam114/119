@@ -1,6 +1,6 @@
 # RomeLegions
 
-受罗马题材战棋公开截图启发的原创 SwiftUI iOS 原型。战场地貌、城市与战术叠层由代码绘制，四兵种采用原创透明 PNG；不复用原游戏素材，不依赖第三方框架。
+受罗马题材战棋公开截图启发的原创 SwiftUI iOS 原型。战场采用原创地表材质、立体城镇/树林/山脊与四兵种透明 PNG，代码负责真实地形裁剪、道路和战术叠层；不复用原游戏素材，不依赖第三方框架。
 
 ## 主要能力
 
@@ -11,7 +11,7 @@
 - AI 招募、休整、移动后攻击、集火、立即击杀优先、移动后施令，以及姿态与行动联合候选；意图、计划、威胁与地图读板同源，只读预测不改变战局。
 - 敌路、敌将威胁、反制、目标线、热区与控区叠层；敌将聚焦、反制姿态/移动/锁敌为独立入口，不自动串联命令。
 - 地图主导的响应式战斗壳层、固定 HUD、分类抽屉、选择驱动命令坞、地图缩放/拖移/聚焦/复位；镜头不进入玩法或存档。
-- 同源自然海岸、岛/湖/陆桥、连续地表和相邻道路；四兵种 PNG 配合真实阵营军旗/地环及原生命、经验、将领、姿态、冷却与行动标记。
+- 同源自然海岸、岛/湖/陆桥、连续草地/水面材质与相邻道路；城镇/树林/山脊采用原创预渲染地标，四兵种配合真实阵营军旗/地环及原生命、经验、将领、姿态、冷却与行动标记。
 
 ## 架构与资源
 
@@ -25,7 +25,7 @@
 
 最低平台为 iOS 17 / macOS 14，工程为 `RomeLegionsApp.xcodeproj`，scheme 为 `RomeLegions`。
 
-原创资源在 `RomeLegionsApp/Resources/BattleUnitArt/`，以普通 folder resource 随 App 打包，不依赖 asset catalog 或网络。ImageIO 最长边 384px 解码缓存，旧 Canvas 仅作缺失时降级；资源说明见 [兵模美术](md/art/battle-unit-art.md)。独立 macOS 云端 Render 通过显式 `ROMELEGIONS_ART_ROOT` 读取同一资源，iOS 仅从 bundle 读取。
+原创资源在 `RomeLegionsApp/Resources/BattleUnitArt/`，以普通 folder resource 随 App 打包，不依赖 asset catalog 或网络。共享 ImageIO 加载器将兵模/地标限制到最长边 384px、地表材质限制到 768px，再由各目录一次缓存；旧 Canvas 仅作缺失时降级。资源说明见 [兵模美术](md/art/battle-unit-art.md) 和 [战场材质](md/art/battle-scenery-art.md)。独立 macOS 云端 Render 通过显式 `ROMELEGIONS_ART_ROOT` 读取同一资源，iOS 仅从 bundle 读取。
 
 ## 开发流程
 

@@ -21,6 +21,17 @@
 
 ## 历史记录
 
+### v0.82 / 写实材质、地标与编队美术（待云端验收）
+
+日期：2026-10-28
+
+- 当前模型单独执行，百度桌面页被安全验证拦截后通过移动版取得麦松战役与另一战斗实机图；采用地图主导、低饱和材质与立体微缩实体关系，不复制/打包商业素材。
+- 内置生图工具实际生成四兵种新版及草地、海面、城镇、树林、山脊五种原创资源；弓兵首稿裁边通过同工具单独编辑修正。完整请求见 `md/art/battle-unit-art.md` 与 `md/art/battle-scenery-art.md`，未使用 CLI fallback、额外 key 或虚构底层模型名。
+- 共享 `BattleArtworkLoader` 去重资源查找/有界解码，兵模/地标384px、地表768px分别缓存；真实地形裁剪、海岸、道路、命中、状态和命令所有权不变。地图兵牌放大，地标位于实体下，竖屏情报坞78pt并保留44pt侦察按钮，招募入口显示实际兵种小图，命令按钮采用收敛金属层级。
+- 关键文件：BattleViewStyles、BattleMapView、BattleShellControls、九类资源、RenderBattlePreview、verify_project、CI workflow/范围测试及必要架构/资源/测试说明。未更改核心规则、AI、ViewModel、存档或人工工程配置。
+- 改前对照：业务 SHA `da244ab4980d0c9dccfb9950087a57bebd28d8dd` / run `40630157134` attempt1 的既有缓存 manifest/JUnit5/0、107核心测试、Smoke、16图、Xcode日志一致；最新文档 SHA `32fb4fe3e14cd3a99ebe0c698ab520eda98ea00e` / run `40689576052` 为文档检查通过、其余四项明确 skipped。不是本轮新实现的验证结论。
+- 本地仅读取、编辑、资源复制、只读 diff/status 与 Git/API 同步查询，无本地编译/测试/自动校验；本轮选择 baseline结构+CI范围合同、direct完整Render（17PNG）+Xcode九资源cmp，Swift Testing/Smoke因核心未变主动跳过。提交后必须核对最新SHA/run/attempt结果，当前不宣布验收或总目标完成。
+
 ### v0.81 / 生图兵模与军团展示重构（待云端验收）
 
 日期：2026-10-28
