@@ -35,8 +35,10 @@
 - optional：当前无；后续规则/AI 迭代独立选择核心真实行为验证。
 - skipped 及原因：本地所有编译/测试/自动校验禁止；本轮视觉阶段不改核心，云端 Swift Testing/Gameplay Smoke 不选。
 - 改前证据：v0.81 da244ab / run 40630157134 attempt1 的既有缓存 manifest/JUnit 5/0、107 Swift Testing、Smoke、Render 和 Xcode 日志一致；最新 32fb4fe / run 40689576052 文档检查成功、四项主动 skipped。新目录下载首包偏慢，未以其空目录冒充新结果；旧实现证据只作为改前对照。
+- 首轮 `c4c0418b0c1ae621e34e450938fa1b89ee09ba4b` 已 push；run `40699499521` attempt1 结果下载至 `/private/tmp/romelegions-review-40699499521/`，manifest 精确匹配 task-scoped static/Render/Xcode，JUnit5/3/2skipped。Static 13/14 Node合同通过，失败为17图清单仍断言16；Render/Xcode 同因旧 Panels 内 private legendTint 跨文件不可见失败，未产 PNG。
+- 追加修复：Tools/ci_scope.test.mjs 将清单断言改17并要求新地标图缺失进入失败；将 legendTint 从 Panels 私有扩展移到共享 BattleViewStyles，不改变颜色或放宽检查。
 
 ## 当前步骤、阻塞与下一步
 
-- 当前：完成代码及精确提示词记录，只读 diff/来源核对完成；未运行本地验证。准备精确暂存，三项人工改动仍保留。
-- 下一步：提交 main/push 后核对最新云端 static + Render + Xcode 与17图；失败追加修复，不把当前阶段写成已验收。
+- 当前：首轮云端失败已有具体诊断，修复已完成、待精确提交，人工文件仍保持原状。
+- 下一步：push追加修复后核对最新云端 static + Render + Xcode 与17图；不以UI步骤的 continue-on-error 显示结论代替 manifest/JUnit。

@@ -140,7 +140,8 @@ test("actual metadata rejects a successful Render outcome with missing required 
   const render = manifest.checkResults.find(({ id }) => id === "render-battle-preview");
   assert.equal(render.outcome, "success");
   assert.equal(render.status, "failure");
-  assert.equal(manifest.renderPreviewPaths.length, 16);
+  assert.equal(manifest.renderPreviewPaths.length, 17);
   assert.ok(render.missingPaths.includes("ci-results/render-previews/battle-unit-art-preview.png"));
+  assert.ok(render.missingPaths.includes("ci-results/render-previews/battle-scenery-art-preview.png"));
   assert.match(output, /failed_checks=1/);
 });

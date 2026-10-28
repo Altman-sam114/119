@@ -31,6 +31,7 @@
 - 关键文件：BattleViewStyles、BattleMapView、BattleShellControls、九类资源、RenderBattlePreview、verify_project、CI workflow/范围测试及必要架构/资源/测试说明。未更改核心规则、AI、ViewModel、存档或人工工程配置。
 - 改前对照：业务 SHA `da244ab4980d0c9dccfb9950087a57bebd28d8dd` / run `40630157134` attempt1 的既有缓存 manifest/JUnit5/0、107核心测试、Smoke、16图、Xcode日志一致；最新文档 SHA `32fb4fe3e14cd3a99ebe0c698ab520eda98ea00e` / run `40689576052` 为文档检查通过、其余四项明确 skipped。不是本轮新实现的验证结论。
 - 本地仅读取、编辑、资源复制、只读 diff/status 与 Git/API 同步查询，无本地编译/测试/自动校验；本轮选择 baseline结构+CI范围合同、direct完整Render（17PNG）+Xcode九资源cmp，Swift Testing/Smoke因核心未变主动跳过。提交后必须核对最新SHA/run/attempt结果，当前不宣布验收或总目标完成。
+- 首轮 `c4c0418` / run `40699499521` attempt1 结果已下载复判：JUnit5项/3失败/2主动skipped。Static 旧清单断言16与实际17不符；Render/Xcode 因 Panels 私有 `legendTint` 跨文件不可见编译失败，无PNG。追加将配色移入共享样式并同步17图断言/缺图门禁，等待最新修复SHA重验，没有弱化原检查。
 
 ### v0.81 / 生图兵模与军团展示重构（待云端验收）
 

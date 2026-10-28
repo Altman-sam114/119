@@ -5364,31 +5364,3 @@ extension BattleObjectiveMapRole {
     }
 }
 
-private extension MapOverlayLegendKind {
-    var legendTint: Color {
-        switch self {
-        case .enemyRoute, .enemyTarget:
-            return .red
-        case .enemyCommanderThreat:
-            return .purple
-        case .threatHeat:
-            return .orange
-        case .mapControl:
-            return .cyan
-        case .tacticalPath:
-            return .blue
-        case .maneuverOption:
-            return .green
-        case .battleObjective:
-            return Color(red: 0.92, green: 0.70, blue: 0.28)
-        case .countermeasure:
-            return Color(red: 0.28, green: 0.78, blue: 0.76)
-        case .reachable:
-            return .yellow
-        case .attackTarget:
-            return .pink
-        case .skillRange:
-            return .purple
-        }
-    }
-}
