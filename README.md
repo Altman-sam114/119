@@ -1,10 +1,12 @@
 # RomeLegions
 
-这是一个受《帝国军团罗马：大征服者》公开商店页面启发的原创 SwiftUI iOS 战棋原型。当前战场使用代码绘制的战略底图、地貌纹理和军团/城市标记，没有复用商店截图或原游戏素材。
+这是一个受《帝国军团罗马：大征服者》公开截图启发的原创 SwiftUI iOS 战棋原型。当前战场使用代码绘制的地貌/城市与内置生图工具生成的四兵种透明贴图，没有复用商店截图或原游戏素材。
 
 ## 已实现
 
-- v0.80 自然海岸与战区地貌：以整数六边形顶点消除内部共边，生成可保留岛、湖与陆桥的稳定闭环；地面、浅水、沙岸和浪缘共享圆角轮廓。新增低对比土地细节与按坐标变化的树林/山脊，上移竖屏战区并为攻击“取消”保留明确宽度。全部为原创表现层，最新云端结果待本轮 push 后复判。
+- v0.81 生图兵模与军团展示：原创军团、弓兵、骑兵、战舰透明贴图接入真实战场、命令坞和情报检视，保留动态阵营军旗/地面环及全部生命、经验、将领、姿态、冷却和行动标记。资源随 App 打包，ImageIO 最长边 384px 解码缓存，旧 Canvas 仅作缺失时降级。新增四兵种/五阵营检视图及 alpha/打包门禁；最新云端结果待本轮 push 后复判，尚不宣称完整商业美术品质。实际提示词与资源说明见 `md/art/battle-unit-art.md`。
+
+- v0.80 自然海岸与战区地貌：以整数六边形顶点消除内部共边，生成可保留岛、湖与陆桥的稳定闭环；地面、浅水、沙岸和浪缘共享圆角轮廓。新增低对比土地细节与按坐标变化的树林/山脊，上移竖屏战区并为攻击“取消”保留明确宽度。全部为原创表现层；最终 `00a7f01` / run `39890649879` 的五项检查与完整 15 图已验收。
 
 - v0.79 连续地貌与古典战场控件：真实 Tile 统一生成陆地、水面、地形过渡和相邻道路，移除逐格色板与虚构背景道路；军团、城镇和交互叠层继续共用原有地图坐标。边缘工具与镜头入口采用金属圆钮，横屏投影更开阔，竖屏战区上移并给底部情报坞预留空间。保留 44pt 命中、五种上下文、所有原命令；`20c1e5b` / run `39809982535` 的五项检查和完整 15 图已验收。
 
@@ -85,7 +87,7 @@
 2. 选择 iPhone 或 iPad Simulator
 3. 运行 `RomeLegions` target
 
-当前工程用代码绘制占位美术，`Assets.xcassets` 暂时只保留在项目中，不参与 target 的资源编译。这样可以避免受限环境里 `actool` 访问 CoreSimulatorService 失败；后续替换正式图标或图片资源时，再把资产目录加入 Resources build phase。
+战场地貌和城市仍由代码绘制，四兵种使用 `RomeLegionsApp/Resources/BattleUnitArt/` 原创 PNG，并以普通 folder resource 加入 Resources build phase，不依赖 asset catalog 或网络。`Assets.xcassets` 仍暂不参与资源编译。独立 macOS 云端预览通过 `ROMELEGIONS_ART_ROOT` 读取同一兵模文件，iOS 仅从 App bundle 读取。
 
 ## 协作规范
 
@@ -156,9 +158,9 @@ env HOME=$PWD/.home CLANG_MODULE_CACHE_PATH=$PWD/.build/module-cache /Applicatio
   RomeLegionsApp/Views/BattleView.swift RomeLegionsApp/Views/BattleShellControls.swift \
   RomeLegionsApp/Views/BattleMapView.swift RomeLegionsApp/Views/BattlePanels.swift \
   RomeLegionsApp/Views/BattleViewStyles.swift
-.build/render-battle-preview DerivedData/battle-landscape-preview.png 932 430
-.build/render-battle-preview DerivedData/battle-portrait-preview.png 390 844
-.build/render-battle-preview DerivedData/battle-wide-preview.png 1024 768
+ROMELEGIONS_ART_ROOT="$PWD/RomeLegionsApp/Resources/BattleUnitArt" .build/render-battle-preview DerivedData/battle-landscape-preview.png 932 430 --unit-art-sheet
+ROMELEGIONS_ART_ROOT="$PWD/RomeLegionsApp/Resources/BattleUnitArt" .build/render-battle-preview DerivedData/battle-portrait-preview.png 390 844
+ROMELEGIONS_ART_ROOT="$PWD/RomeLegionsApp/Resources/BattleUnitArt" .build/render-battle-preview DerivedData/battle-wide-preview.png 1024 768
 ```
 
 模拟器攻击 UI 复现入口：

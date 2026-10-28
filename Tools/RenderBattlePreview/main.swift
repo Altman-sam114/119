@@ -10,6 +10,10 @@ struct RenderBattlePreview {
         let width = arguments.dropFirst().first.flatMap(Double.init) ?? 932
         let height = arguments.dropFirst(2).first.flatMap(Double.init) ?? 430
         emitPreviewDiagnostic("[preview] fixtures started: \(outputPath)")
+        try verifyBattleUnitArtwork()
+        if arguments.contains("--unit-art-sheet") {
+            try renderUnitArtworkSheet(beside: outputPath)
+        }
         // Data-only fixtures never touch the five screenshot contexts below.
         try verifyNaturalTerrainContours()
         try verifyAITacticalActionPreviewChain()
@@ -4096,8 +4100,118 @@ struct RenderBattlePreview {
         emitPreviewDiagnostic("Natural terrain contours: stable closed loops, island, lake, bridge, separated coast and campaign centers passed at three sizes")
     }
 
+    private static func verifyBattleUnitArtwork() throws {
+        var resourcePaths: Set<String> = []
+        for kind in UnitKind.allCases {
+            guard let url = BattleUnitArtwork.resourceURL(for: kind),
+                  resourcePaths.insert(url.path).inserted,
+                  let image = BattleUnitArtwork.image(for: kind),
+                  image.width >= 256, image.height >= 256,
+                  max(image.width, image.height) <= BattleUnitArtwork.maximumDecodeSize else {
+                throw PreviewRenderError.missingBattleUnitArtwork
+            }
+            let bitmap = NSBitmapImageRep(cgImage: image)
+            guard bitmap.hasAlpha,
+                  bitmap.colorAt(x: 0, y: 0)?.alphaComponent == 0,
+                  bitmap.colorAt(x: image.width - 1, y: 0)?.alphaComponent == 0,
+                  bitmap.colorAt(x: 0, y: image.height - 1)?.alphaComponent == 0,
+                  bitmap.colorAt(x: image.width - 1, y: image.height - 1)?.alphaComponent == 0 else {
+                throw PreviewRenderError.opaqueBattleUnitArtwork
+            }
+            var transparent = 0
+            var solid = 0
+            var detailed = 0
+            for y in stride(from: 0, to: image.height, by: 6) {
+                for x in stride(from: 0, to: image.width, by: 6) {
+                    guard let color = bitmap.colorAt(x: x, y: y)?.usingColorSpace(.deviceRGB) else { continue }
+                    if color.alphaComponent < 0.02 { transparent += 1 }
+                    if color.alphaComponent > 0.9 {
+                        solid += 1
+                        if max(color.redComponent, color.greenComponent, color.blueComponent) -
+                            min(color.redComponent, color.greenComponent, color.blueComponent) > 0.08 {
+                            detailed += 1
+                        }
+                    }
+                }
+            }
+            guard transparent > 200, solid > 200, detailed > 100 else {
+                throw PreviewRenderError.opaqueBattleUnitArtwork
+            }
+            emitPreviewDiagnostic("[art] \(kind.rawValue): decoded \(image.width)x\(image.height), transparent=\(transparent), solid=\(solid), material=\(detailed)")
+        }
+        guard resourcePaths.count == UnitKind.allCases.count,
+              UnitTokenPresentation.compact.artSize.height + UnitTokenPresentation.compact.strengthHeight + 1 <= 44,
+              UnitTokenPresentation.inspection.artSize.width > UnitTokenPresentation.map.artSize.width else {
+            throw PreviewRenderError.missingBattleUnitArtwork
+        }
+    }
+
+    private static func renderUnitArtworkSheet(beside outputPath: String) throws {
+        let renderer = ImageRenderer(content: BattleUnitArtworkProofView().frame(width: 700, height: 500))
+        renderer.scale = 2
+        guard let image = renderer.nsImage,
+              let tiff = image.tiffRepresentation,
+              let bitmap = NSBitmapImageRep(data: tiff),
+              let png = bitmap.representation(using: .png, properties: [:]) else {
+            throw PreviewRenderError.missingBattleUnitArtwork
+        }
+        let url = URL(fileURLWithPath: outputPath).deletingLastPathComponent()
+            .appendingPathComponent("battle-unit-art-preview.png")
+        try png.write(to: url)
+        emitPreviewDiagnostic("[art] four unit kinds / five faction standards rendered: \(url.path)")
+    }
+
     private static func emitPreviewDiagnostic(_ message: String) {
         FileHandle.standardError.write(Data("\(message)\n".utf8))
+    }
+}
+
+private struct BattleUnitArtworkProofView: View {
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("LEGIONES · 兵模检视")
+                .font(.system(size: 20, weight: .bold, design: .serif))
+                .foregroundStyle(BattlePalette.ivory)
+            Text("原创预渲染兵模 · 阵营由实时军旗与地面环识别 · 四兵种同源资源")
+                .font(.system(size: 10, weight: .medium))
+                .foregroundStyle(BattlePalette.parchment)
+            HStack {
+                Color.clear.frame(width: 52, height: 10)
+                ForEach(Faction.allCases) { faction in
+                    Text(faction.displayName)
+                        .font(.system(size: 11, weight: .bold))
+                        .foregroundStyle(BattlePalette.ivory)
+                        .frame(maxWidth: .infinity)
+                }
+            }
+            ForEach(UnitKind.allCases) { kind in
+                HStack(spacing: 0) {
+                    Text(kind.displayName)
+                        .font(.system(size: 12, weight: .bold))
+                        .foregroundStyle(BattlePalette.ivory)
+                        .frame(width: 52, alignment: .leading)
+                    ForEach(Faction.allCases) { faction in
+                        UnitTokenView(
+                            unit: ArmyUnit(
+                                id: "art-\(kind.rawValue)-\(faction.rawValue)", kind: kind, faction: faction,
+                                position: Position(x: 0, y: 0), health: 80, experience: 2,
+                                generalName: faction == .rome ? "凯撒" : nil,
+                                generalTrait: faction == .rome ? .eagleStandard : nil
+                            ),
+                            presentation: .inspection
+                        )
+                        .frame(maxWidth: .infinity)
+                    }
+                }
+                .frame(maxHeight: .infinity)
+                .background(.black.opacity(0.08))
+            }
+        }
+        .padding(16)
+        .background(LinearGradient(
+            colors: [Color(red: 0.29, green: 0.34, blue: 0.25), BattlePalette.panel],
+            startPoint: .topLeading, endPoint: .bottomTrailing
+        ))
     }
 }
 
@@ -4115,6 +4229,8 @@ private struct CountermeasureCommandRuntimeSnapshot {
 
 enum PreviewRenderError: Error {
     case renderFailed
+    case missingBattleUnitArtwork
+    case opaqueBattleUnitArtwork
     case missingMapDominantBattleShell
     case missingMapIntelligenceDock
     case missingMapOverlayFocusStrategy

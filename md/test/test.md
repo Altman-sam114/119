@@ -1,5 +1,14 @@
 # 测试规范
 
+## v0.81 当前轮次
+
+- `CI_VERSION: v0.81`，保留五项云端检查、107 项核心测试基线与原三尺寸五场景 15 PNG；新增且必须产出 `battle-unit-art-preview.png`（1400x1000，四兵种/五阵营）。本地不执行测试、构建、解码检查或解析脚本。
+- `verifyBattleUnitArtwork()` 检查四类唯一资源路径、ImageIO 限定解码尺寸、真实 alpha 与四角透明、足量实体/透明/材质像素，以及紧凑兵牌不超过 44pt。失败 token 为 `missingBattleUnitArtwork` / `opaqueBattleUnitArtwork`；正式验收不能由 Canvas fallback 替代。
+- 云端 Render 使用显式 `ROMELEGIONS_ART_ROOT="$PWD/RomeLegionsApp/Resources/BattleUnitArt"`。首个横屏命令传 `--unit-art-sheet`，其余两尺寸保持原五场景；manifest 的 `renderPreviewPaths` 必须列出完整 16 图，不删除任何旧场景或断言。
+- Xcode build 成功后在同一步骤用 `cmp` 核对 `Debug-iphoneos/RomeLegions.app/BattleUnitArt/` 的四类 PNG 与源码资源，日志逐项输出 `[art] bundled <kind>.png matches source`；漏包或内容不一致必须让 buildOutcome 失败。
+- C 阶段下载最新 SHA/run/attempt artifact，核对 manifest/JUnit/日志/失败摘要与 16 图。逐图确认没有矩形背景、拉伸、阵营军旗/地环丢失、健康/经验/将领/姿态/冷却/行动标记遮挡，原 44pt 命令和 102pt 竖屏坞不退化。图像断言只是资源和回归证据，不等价于人工高档美术目标已完成。
+- 改前最新 `00a7f01` / run `39890649879` attempt 1 的 v0.80 包已重新下载核对，JUnit 5/0、107 核心测试、15 图与 Xcode 成功；本轮必须重新验收 v0.81，不能沿用基线通过结论。
+
 ## v0.80 当前轮次
 
 - `CI_VERSION: v0.80`，保留 Static、SwiftPM、Gameplay Smoke、Render 与 Xcode 五项云端检查和三尺寸五场景 15 PNG；本地不运行验证。
@@ -334,9 +343,9 @@ env HOME=$PWD/.home CLANG_MODULE_CACHE_PATH=$PWD/.build/module-cache /Applicatio
   RomeLegionsApp/Views/BattleView.swift RomeLegionsApp/Views/BattleShellControls.swift \
   RomeLegionsApp/Views/BattleMapView.swift RomeLegionsApp/Views/BattlePanels.swift \
   RomeLegionsApp/Views/BattleViewStyles.swift
-.build/render-battle-preview DerivedData/battle-landscape-preview.png 932 430
-.build/render-battle-preview DerivedData/battle-portrait-preview.png 390 844
-.build/render-battle-preview DerivedData/battle-wide-preview.png 1024 768
+ROMELEGIONS_ART_ROOT="$PWD/RomeLegionsApp/Resources/BattleUnitArt" .build/render-battle-preview DerivedData/battle-landscape-preview.png 932 430 --unit-art-sheet
+ROMELEGIONS_ART_ROOT="$PWD/RomeLegionsApp/Resources/BattleUnitArt" .build/render-battle-preview DerivedData/battle-portrait-preview.png 390 844
+ROMELEGIONS_ART_ROOT="$PWD/RomeLegionsApp/Resources/BattleUnitArt" .build/render-battle-preview DerivedData/battle-wide-preview.png 1024 768
 ```
 
 当前基线：
@@ -440,9 +449,9 @@ env HOME=$PWD/.home CLANG_MODULE_CACHE_PATH=$PWD/.build/module-cache /Applicatio
   RomeLegionsApp/Views/BattleView.swift RomeLegionsApp/Views/BattleShellControls.swift \
   RomeLegionsApp/Views/BattleMapView.swift RomeLegionsApp/Views/BattlePanels.swift \
   RomeLegionsApp/Views/BattleViewStyles.swift
-.build/render-battle-preview DerivedData/battle-landscape-preview.png 932 430
-.build/render-battle-preview DerivedData/battle-portrait-preview.png 390 844
-.build/render-battle-preview DerivedData/battle-wide-preview.png 1024 768
+ROMELEGIONS_ART_ROOT="$PWD/RomeLegionsApp/Resources/BattleUnitArt" .build/render-battle-preview DerivedData/battle-landscape-preview.png 932 430 --unit-art-sheet
+ROMELEGIONS_ART_ROOT="$PWD/RomeLegionsApp/Resources/BattleUnitArt" .build/render-battle-preview DerivedData/battle-portrait-preview.png 390 844
+ROMELEGIONS_ART_ROOT="$PWD/RomeLegionsApp/Resources/BattleUnitArt" .build/render-battle-preview DerivedData/battle-wide-preview.png 1024 768
 ```
 
 可选无签名构建：

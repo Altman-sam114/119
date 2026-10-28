@@ -51,6 +51,7 @@
 - 视图层：`RootView` 根据 `isShowingMenu` 切换 `MainMenuView` 和 `BattleView`；战斗 UI 由 `BattleView` 根壳层、`BattleShellControls` 壳层控制、`BattleMapView` 地图、`BattlePanels` 读板和 `BattleViewStyles` 共享样式组成，只展示状态并触发 `GameViewModel` 命令。`WarMapView` 的 `MapViewportState` 只管理本地缩放、拖移、选择聚焦和复位，不写入 `GameState`、存档或玩法选择源。
 - 存档层：`SaveStore` 用 SQLite 存取编码后的 `GameState`，不得绕过核心状态结构写散落状态。
 - 工具层：`Tools/GameplaySmoke`、`Tools/RenderBattlePreview`、`Tools/verify_project.mjs` 分别负责核心冒烟、战斗页截图和结构检查。
+- 兵模美术：`Resources/BattleUnitArt/` 是内置生图生成的原创四兵种 PNG，普通 folder resource 随 App 打包。`BattleUnitArtwork` 只负责 ImageIO 受限解码缓存；独立 macOS 云端 Render 使用显式 `ROMELEGIONS_ART_ROOT`，iOS 仅从 bundle 读取。阵营和单位状态仍来自真实单位，不能由图片反推规则；缺失 Canvas 降级不得冒充资源验收通过。
 - 测试层：`Tests/RomeLegionsCoreTests/GameStateTests.swift` 锁定核心规则，不用 UI 测试替代核心规则测试。
 - CI 层：`.github/workflows/ci-results.yml` 在 `main` push 或手动触发时运行结构检查、SwiftPM 测试、Gameplay Smoke、RenderBattlePreview 和无签名 Xcode build，并上传未加密 CI 结果包供 Agent C 复判。
 

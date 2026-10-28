@@ -1,4 +1,71 @@
 import SwiftUI
+import ImageIO
+
+/// The App and cloud renderer share the same art catalog. Only macOS preview
+/// executables may opt into an explicit source directory instead of the bundle.
+enum BattleUnitArtwork {
+    static let resourceSubdirectory = "BattleUnitArt"
+    static let maximumDecodeSize = 384
+
+    static func resourceURL(for kind: UnitKind) -> URL? {
+        if let bundled = Bundle.main.url(
+            forResource: kind.rawValue, withExtension: "png", subdirectory: resourceSubdirectory
+        ) {
+            return bundled
+        }
+        #if os(macOS)
+        if let directory = ProcessInfo.processInfo.environment["ROMELEGIONS_ART_ROOT"], !directory.isEmpty {
+            return URL(fileURLWithPath: directory, isDirectory: true)
+                .appendingPathComponent(kind.rawValue).appendingPathExtension("png")
+        }
+        #endif
+        return nil
+    }
+
+    private static let images: [String: CGImage] = {
+        var result: [String: CGImage] = [:]
+        let options: [CFString: Any] = [
+            kCGImageSourceCreateThumbnailFromImageAlways: true,
+            kCGImageSourceCreateThumbnailWithTransform: true,
+            kCGImageSourceThumbnailMaxPixelSize: maximumDecodeSize,
+            kCGImageSourceShouldCacheImmediately: true
+        ]
+        for kind in UnitKind.allCases {
+            guard let url = resourceURL(for: kind),
+                  let source = CGImageSourceCreateWithURL(url as CFURL, nil),
+                  let image = CGImageSourceCreateThumbnailAtIndex(source, 0, options as CFDictionary) else { continue }
+            result[kind.rawValue] = image
+        }
+        return result
+    }()
+
+    static func image(for kind: UnitKind) -> CGImage? {
+        images[kind.rawValue]
+    }
+}
+
+enum UnitTokenPresentation: Equatable {
+    case map
+    case compact
+    case inspection
+
+    var artSize: CGSize {
+        switch self {
+        case .map: return CGSize(width: 44, height: 36)
+        case .compact: return CGSize(width: 40, height: 31)
+        case .inspection: return CGSize(width: 78, height: 62)
+        }
+    }
+
+    var strengthWidth: CGFloat {
+        switch self {
+        case .map, .compact: return 36
+        case .inspection: return 58
+        }
+    }
+
+    var strengthHeight: CGFloat { self == .inspection ? 8 : 6 }
+}
 
 /// Shared Roman command-deck palette. Keeping chrome colors in one place makes
 /// the map, drawers and order dock feel like one instrument panel while the

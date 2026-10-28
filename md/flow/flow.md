@@ -8,6 +8,12 @@
 
 本文只记录当前真实链路，不写历史叙事。
 
+## v0.81 生图兵模与军团展示
+
+- `BattleUnitArtwork` 在共享样式编译单元集中映射 `UnitKind.rawValue -> BattleUnitArt/<kind>.png`。iOS 仅从 App bundle 读取；独立 macOS Render 可通过显式 `ROMELEGIONS_ART_ROOT` 指向同一源码资源目录。ImageIO 一次生成最长边 384px 的 CGImage 缓存，不在 body 更新时重复解码，也不请求网络。
+- `ArmyMiniatureView` 优先组合透明 PNG、动态阵营地面环和军旗，缺失时才使用保留的 `VectorArmyMiniatureView`；美术不持有 GameState、命令或选择态。`UnitTokenView` 继续独占生命、经验、将领、姿态、冷却与行动标记，`UnitTokenPresentation` 仅定义地图、紧凑命令与情报检视三种尺寸。地图、命令坞和情报卡消费同一资源映射。
+- `BattleUnitArt` 作为普通 folder reference 进入 Xcode Resources，不启用 asset catalog。云端 Render 验证四类映射、alpha、材质像素与紧凑行高，另输出 `battle-unit-art-preview.png`；Xcode build 后逐字节核对 App 内四类 PNG 与源码资源。原三尺寸五场景 15 张战斗图、核心规则与命令门禁不变。
+
 ## v0.80 自然轮廓与地貌绘制
 
 - `MapTerrainGeometry.contours(in:)` 使用整数 `BattlefieldTerrainVertex` 抵消内部共边，按稳定顺序追踪外岸与内湖的反向闭环，再以受限二次曲线生成 `BattlefieldTerrainContours.path`；仍以真实 Tile 和 HexMetrics 为唯一地形与坐标来源，不更改命中格、核心邻接或寻路。

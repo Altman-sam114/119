@@ -381,7 +381,7 @@ struct SelectionCommandDockView: View {
             EnemyCommanderThreatFocusIdentityView(readout: focusReadout, isCompact: isPortrait)
         } else if let unit = viewModel.selectedUnit {
             HStack(spacing: 9) {
-                UnitTokenView(unit: unit)
+                UnitTokenView(unit: unit, presentation: isPortrait ? .compact : .inspection)
                 VStack(alignment: .leading, spacing: 3) {
                     Text("\(unit.faction.displayName) \(unit.kind.displayName)")
                         .font(.subheadline.weight(.bold))

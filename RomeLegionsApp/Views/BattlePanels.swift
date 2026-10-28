@@ -80,7 +80,7 @@ struct CompactSelectionPanelView: View {
             if let unit = viewModel.selectedUnit {
                 VStack(alignment: .leading, spacing: 7) {
                     HStack(spacing: 8) {
-                        UnitTokenView(unit: unit)
+                        UnitTokenView(unit: unit, presentation: .inspection)
                         VStack(alignment: .leading, spacing: 1) {
                             Text("\(unit.faction.displayName) \(unit.kind.displayName)")
                                 .font(.subheadline.weight(.bold))
@@ -3688,7 +3688,7 @@ struct SelectionPanelView: View {
             if let unit = viewModel.selectedUnit {
                 VStack(alignment: .leading, spacing: 8) {
                     HStack {
-                        UnitTokenView(unit: unit)
+                        UnitTokenView(unit: unit, presentation: .inspection)
                         VStack(alignment: .leading, spacing: 2) {
                             Text("\(unit.faction.displayName) \(unit.kind.displayName)")
                                 .font(.headline.weight(.bold))

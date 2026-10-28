@@ -1,5 +1,25 @@
 # 项目核心流程图
 
+## v0.81 原创兵模资源链
+
+读图说明：贴图只提供外观；兵种、阵营和状态仍来自真实单位。App 与云端预览读取同一资源，云端必须同时证明贴图透明、实际打包和原战斗链路不退化。
+
+```mermaid
+flowchart LR
+    G[内置生图 / 原创四兵种 PNG] --> R[Resources/BattleUnitArt]
+    R --> B[Xcode folder resource / App bundle]
+    R --> E[macOS Render 显式 ART_ROOT]
+    B --> C[BattleUnitArtwork / ImageIO 384px 缓存]
+    E --> C
+    U[真实 UnitKind / Faction] --> M[ArmyMiniatureView / 贴图与动态军旗地环]
+    C --> M
+    M --> T[UnitTokenView / 原生命将领姿态冷却行动标记]
+    T --> V[地图 / 紧凑命令 / 情报检视]
+    C --> F[资源缺失才使用原 Canvas 降级]
+    R --> Q[云端 alpha / 打包 cmp / 15 战斗图加检视图]
+    V --> Q
+```
+
 ## v0.80 自然海岸同源绘制
 
 读图说明：整数顶点只负责连接真实地形的边界；外岸和内湖保留绕向，地面、浅水与浪缘读取同一条曲线，不影响玩法六边形。

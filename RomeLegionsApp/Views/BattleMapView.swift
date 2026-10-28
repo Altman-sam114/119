@@ -3263,6 +3263,52 @@ struct ArmyMiniatureView: View {
     let faction: Faction
 
     var body: some View {
+        Group {
+            if let image = BattleUnitArtwork.image(for: kind) {
+                paintedMiniature(image)
+            } else {
+                VectorArmyMiniatureView(kind: kind, faction: faction)
+            }
+        }
+        .allowsHitTesting(false)
+        .accessibilityHidden(true)
+    }
+
+    private func paintedMiniature(_ image: CGImage) -> some View {
+        GeometryReader { proxy in
+            ZStack(alignment: .bottom) {
+                Ellipse()
+                    .fill(.black.opacity(0.24))
+                    .frame(width: proxy.size.width * 0.84, height: proxy.size.height * 0.18)
+                Ellipse()
+                    .stroke(faction.factionColor.opacity(0.94), lineWidth: 1.4)
+                    .frame(width: proxy.size.width * 0.84, height: proxy.size.height * 0.18)
+
+                Image(decorative: image, scale: 1, orientation: .up)
+                    .resizable()
+                    .interpolation(.high)
+                    .scaledToFit()
+                    .padding(.horizontal, 2)
+                    .padding(.bottom, proxy.size.height * 0.04)
+                    .shadow(color: .black.opacity(0.34), radius: 0.8, x: 0.6, y: 1)
+
+                Canvas { context, size in
+                    let paint = BattlefieldMiniaturePainter(size: size)
+                    paint.line(&context, [(5, 34), (5, 12)], color: BattlefieldMiniaturePainter.ivory, width: 0.9)
+                    let flag = LegionStandardShape().path(in: paint.rect(x: 5, y: 12, width: 9, height: 11))
+                    context.fill(flag, with: .color(faction.factionColor))
+                    context.stroke(flag, with: .color(BattlePalette.brassBright.opacity(0.88)), lineWidth: 0.6)
+                }
+            }
+        }
+    }
+}
+
+struct VectorArmyMiniatureView: View {
+    let kind: UnitKind
+    let faction: Faction
+
+    var body: some View {
         Canvas { context, size in
             let paint = BattlefieldMiniaturePainter(size: size)
             let tint = faction.factionColor
@@ -3293,11 +3339,12 @@ struct ArmyMiniatureView: View {
 
 struct UnitTokenView: View {
     var unit: ArmyUnit
+    var presentation: UnitTokenPresentation = .map
 
     var body: some View {
         VStack(spacing: 1) {
             ArmyMiniatureView(kind: unit.kind, faction: unit.faction)
-                .frame(width: 38, height: 29)
+                .frame(width: presentation.artSize.width, height: presentation.artSize.height)
                 .overlay(alignment: .bottomTrailing) {
                     Text(unit.kind.shortLabel)
                         .font(.system(size: 6, weight: .black))
@@ -3355,17 +3402,24 @@ struct UnitTokenView: View {
 
             GeometryReader { proxy in
                 ZStack(alignment: .leading) {
-                    Capsule().fill(.black.opacity(0.5))
+                    Capsule().fill(BattlePalette.panel.opacity(0.94))
                     Capsule()
-                        .fill(unit.healthRatio > 0.42 ? Color.green : Color.red)
+                        .fill(LinearGradient(
+                            colors: unit.healthRatio > 0.42
+                                ? [Color(red: 0.60, green: 0.76, blue: 0.38), Color(red: 0.22, green: 0.46, blue: 0.24)]
+                                : [Color(red: 0.90, green: 0.40, blue: 0.22), BattlePalette.danger],
+                            startPoint: .top, endPoint: .bottom
+                        ))
                         .frame(width: proxy.size.width * unit.healthRatio)
                     Text("\(unit.health)")
-                        .font(.system(size: 6, weight: .black, design: .rounded))
-                        .foregroundStyle(.white)
+                        .font(.system(size: presentation == .inspection ? 7 : 6, weight: .black, design: .rounded))
+                        .foregroundStyle(BattlePalette.ivory)
+                        .shadow(color: .black, radius: 0.6, y: 0.5)
                         .frame(maxWidth: .infinity)
                 }
+                .overlay { Capsule().stroke(BattlePalette.brass.opacity(0.55), lineWidth: 0.5) }
             }
-            .frame(width: 38, height: 7)
+            .frame(width: presentation.strengthWidth, height: presentation.strengthHeight)
         }
     }
 }

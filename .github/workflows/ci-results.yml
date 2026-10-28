@@ -10,7 +10,7 @@ permissions:
   contents: read
 
 env:
-  CI_VERSION: v0.80
+  CI_VERSION: v0.81
   PROJECT_NAME: RomeLegions
   XCODE_PROJECT: RomeLegionsApp.xcodeproj
   XCODE_SCHEME: RomeLegions
@@ -109,7 +109,8 @@ jobs:
               RomeLegionsApp/Views/BattlePanels.swift \
               RomeLegionsApp/Views/BattleViewStyles.swift || exit $?
             echo "[preview] compiler completed $(date -u)"
-            .build/render-battle-preview ci-results/render-previews/battle-landscape-preview.png 932 430 || exit $?
+            export ROMELEGIONS_ART_ROOT="$PWD/RomeLegionsApp/Resources/BattleUnitArt"
+            .build/render-battle-preview ci-results/render-previews/battle-landscape-preview.png 932 430 --unit-art-sheet || exit $?
             .build/render-battle-preview ci-results/render-previews/battle-portrait-preview.png 390 844 || exit $?
             .build/render-battle-preview ci-results/render-previews/battle-wide-preview.png 1024 768 || exit $?
           } 2>&1 | tee ci-results/render-battle-preview.log
@@ -121,6 +122,7 @@ jobs:
         shell: bash
         run: |
           set -o pipefail
+          {
           xcodebuild \
             -project "$XCODE_PROJECT" \
             -scheme "$XCODE_SCHEME" \
@@ -129,8 +131,13 @@ jobs:
             -derivedDataPath "$DERIVED_DATA_PATH" \
             -resultBundlePath "$RESULT_BUNDLE_PATH" \
             CODE_SIGNING_ALLOWED=NO \
-            build \
-            2>&1 | tee ci-results/xcodebuild.log
+            build || exit $?
+          APP_PACKAGE="$DERIVED_DATA_PATH/Build/Products/Debug-iphoneos/RomeLegions.app"
+          for kind in legion cavalry archer navy; do
+            cmp "RomeLegionsApp/Resources/BattleUnitArt/$kind.png" "$APP_PACKAGE/BattleUnitArt/$kind.png" || exit $?
+            echo "[art] bundled $kind.png matches source"
+          done
+          } 2>&1 | tee ci-results/xcodebuild.log
 
       - name: Generate CI result metadata
         id: metadata
@@ -206,7 +213,8 @@ jobs:
               "ci-results/render-previews/battle-wide-preview-unit.png",
               "ci-results/render-previews/battle-wide-preview-focused.png",
               "ci-results/render-previews/battle-wide-preview-focused-enemy.png",
-              "ci-results/render-previews/battle-wide-preview-focused-countermeasure.png"
+              "ci-results/render-previews/battle-wide-preview-focused-countermeasure.png",
+              "ci-results/render-previews/battle-unit-art-preview.png"
             ]
           };
           fs.writeFileSync("ci-results/ci-artifact-manifest.json", JSON.stringify(manifest, null, 2) + "\n");

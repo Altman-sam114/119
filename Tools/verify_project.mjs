@@ -19,6 +19,12 @@ const requiredFiles = [
   "RomeLegionsApp/Views/BattleViewStyles.swift",
   "Tools/RenderBattlePreview/main.swift",
   "RomeLegionsApp/Resources/Info.plist",
+  "RomeLegionsApp/Resources/BattleUnitArt/legion.png",
+  "RomeLegionsApp/Resources/BattleUnitArt/cavalry.png",
+  "RomeLegionsApp/Resources/BattleUnitArt/archer.png",
+  "RomeLegionsApp/Resources/BattleUnitArt/navy.png",
+  "md/art/battle-unit-art.md",
+  "md/prompt/v0（玩法推进）/v0.81（生图兵模与军团展示重构）.md",
   "RomeLegionsApp/Assets.xcassets/Contents.json",
   "RomeLegionsApp/Assets.xcassets/AccentColor.colorset/Contents.json",
   "RomeLegionsApp/Assets.xcassets/AppIcon.appiconset/Contents.json",
@@ -195,6 +201,17 @@ for (const token of ["CompactCommandPanelView", "PhoneCommandDeckView", "Tactica
 }
 
 const renderPreview = readFileSync("Tools/RenderBattlePreview/main.swift", "utf8");
+for (const token of ["BattleUnitArtwork", "CGImageSourceCreateThumbnailAtIndex", "maximumDecodeSize = 384", "UnitTokenPresentation", "VectorArmyMiniatureView", "Image(decorative: image", "BattleUnitArt"]) {
+  if (!battle.includes(token)) failures.push(`Production army artwork missing: ${token}`);
+}
+if (!/\/\* BattleUnitArt in Resources \*\//.test(pbx) ||
+    !/lastKnownFileType = folder; path = BattleUnitArt/.test(pbx) ||
+    !/isa = PBXResourcesBuildPhase;[\s\S]*?BattleUnitArt in Resources/.test(pbx)) {
+  failures.push("Army artwork folder must be copied into the App resources");
+}
+for (const token of ["verifyBattleUnitArtwork()", "opaqueBattleUnitArtwork", "bitmap.hasAlpha", "resourcePaths.count == UnitKind.allCases.count", "BattleUnitArtworkProofView", "battle-unit-art-preview.png"]) {
+  if (!renderPreview.includes(token)) failures.push(`Army artwork cloud gate missing: ${token}`);
+}
 for (const token of ["ArmyMiniatureView", "BattlefieldMiniaturePainter", "Hexagon.vertices", "func sharedEdge", "position.y.isMultiple(of: 2)"]) {
   if (!battle.includes(token)) failures.push(`Battle map continuity/miniature component missing: ${token}`);
 }
@@ -345,8 +362,11 @@ for (const token of ["RomeLegions CI Results", "branches:", "main", "ci-artifact
     failures.push(`.github/workflows/ci-results.yml does not include ${token}`);
   }
 }
-if (!ciWorkflow.includes("CI_VERSION: v0.80")) {
-  failures.push(".github/workflows/ci-results.yml does not include CI_VERSION v0.80");
+if (!ciWorkflow.includes("CI_VERSION: v0.81")) {
+  failures.push(".github/workflows/ci-results.yml does not include CI_VERSION v0.81");
+}
+for (const token of ["export ROMELEGIONS_ART_ROOT=", "--unit-art-sheet", "bundled $kind.png matches source", '"$APP_PACKAGE/BattleUnitArt/$kind.png"']) {
+  if (!ciWorkflow.includes(token)) failures.push(`Army artwork CI integration missing: ${token}`);
 }
 if (!/^\s+timeout-minutes: 75\s*$/m.test(ciWorkflow)) {
   failures.push(".github/workflows/ci-results.yml must preserve the 75-minute job budget");
@@ -391,13 +411,14 @@ const requiredRenderPreviewPaths = [
   "ci-results/render-previews/battle-wide-preview-unit.png",
   "ci-results/render-previews/battle-wide-preview-focused.png",
   "ci-results/render-previews/battle-wide-preview-focused-enemy.png",
-  "ci-results/render-previews/battle-wide-preview-focused-countermeasure.png"
+  "ci-results/render-previews/battle-wide-preview-focused-countermeasure.png",
+  "ci-results/render-previews/battle-unit-art-preview.png"
 ];
 const declaredRenderPreviewPaths = [...ciWorkflow.matchAll(
   /^\s+"(ci-results\/render-previews\/battle-[^"]+\.png)"[,]?$/gm
 )].map((match) => match[1]);
 if (JSON.stringify(declaredRenderPreviewPaths) !== JSON.stringify(requiredRenderPreviewPaths)) {
-  failures.push(".github/workflows/ci-results.yml must preserve exactly the 15 render preview paths in v0.70");
+  failures.push(".github/workflows/ci-results.yml must preserve all 15 battle previews and the v0.81 army artwork sheet");
 }
 
 if (failures.length > 0) {
