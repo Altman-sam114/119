@@ -2956,7 +2956,9 @@
 - 根目录新增 `work.md`：任务开始记录目标/验收/步骤/本轮编辑范围，阶段变化与压缩前更新；真正完成后迁移长期结论并清空任务内容，阻塞/待验收不提前清除。入口、flow、test 不再要求每次功能都逐版维护，历史 prompt 原样归档。
 - 云端-only 与 `main` 直推保持；CI 按真实依赖选 baseline/direct，明确主动 skipped 与必需项失败，文档或路由维护不再触发无关 Swift/Smoke/Render/Xcode。同步更新结构检查，移除旧角色与强制历史 prompt 合同，增加范围/结果状态的直接 Node 测试。
 - 关键文件：AGENTS、README、work、flow/flowchart、test、prompt README、CI workflow 与相关 Tools；不改 Swift、玩法、UI、美术或用户已有工程/工作区/unity分析改动。不分配新玩法版本。
-- 本地仅执行读取/编辑、只读 Git/rg/sed、fetch 与 GitHub 查询；未运行本地测试、build、typecheck、Render、verify、diff-check、解析或语法检查。本轮云端结果须在 push 后按最新 SHA/run/attempt 独立核对，当前未宣称通过。
+- 实现提交 `162e585000778ee8a5d632cf6bd0604990a8c8a6` 已在 `main` push；run `40689247953` / attempt `1` / artifact `RomeLegions-ci-v0.81-main-162e585-run40689247953-attempt1`（3657 bytes）已下载至 `/private/tmp/romelegions-review-40689247953/`。重新 fetch 后 manifest 的 branch/SHA/run/attempt 精确匹配；scope 仅选择 Static，14 项 CI 范围与真实 metadata/JUnit 直接测试全部通过，JUnit 五个检查身份为 1 成功、4 skipped、0 失败。主日志、失败摘要、GitHub 各步骤状态一致，无虚构 PNG/xcresult 或业务测试通过结论。
+- Swift Testing、Gameplay Smoke、RenderBattlePreview、Xcode 均主动 skipped：本轮未修改其业务输入；没有重跑游戏测试、App 构建或截图。核心/UI/美术没有新增验收结论，CI 重步骤的路径依赖经定向合同覆盖，但本轮未实际执行它们。收口只将证据记入本日志并清空 `work.md` 为模板，收口提交独立核对最新文档检查，不重复前述 Node 或业务检查。
+- 实际本地操作仅为读取/编辑、只读 `git status`/`git diff`/`git log`/`git show`/`rg`/`sed`、`git fetch origin`、`git pull --ff-only origin main`（up to date）、精确 `git add`/`git commit`/`git push origin main` 与 `gh auth status`/`gh run list/view/watch/download`/`gh api`。未运行本地测试、build、typecheck、Render、verify、diff-check、解析或语法检查；身份为 `Altman-sam114`，用户已有三类改动保持原状。
 
 
 ### 2026-09-27 / v0.76.1 云端预览诊断修复（待云端验收）
