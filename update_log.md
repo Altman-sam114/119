@@ -33,6 +33,7 @@
 - 本地仅读取、编辑、资源复制、只读 diff/status 与 Git/API 同步查询，无本地编译/测试/自动校验；本轮选择 baseline结构+CI范围合同、direct完整Render（17PNG）+Xcode九资源cmp，Swift Testing/Smoke因核心未变主动跳过。提交后必须核对最新SHA/run/attempt结果，当前不宣布验收或总目标完成。
 - 首轮 `c4c0418` / run `40699499521` attempt1 结果已下载复判：JUnit5项/3失败/2主动skipped。Static 旧清单断言16与实际17不符；Render/Xcode 因 Panels 私有 `legendTint` 跨文件不可见编译失败，无PNG。追加将配色移入共享样式并同步17图断言/缺图门禁，等待最新修复SHA重验，没有弱化原检查。
 - 修复 `36c3a39` / run `40702065272` attempt1 云端日志确认14项Node合同、Xcode `BUILD SUCCEEDED`与九类资源cmp通过；全部新资源alpha/解码/明暗门禁通过，Render在旧portrait“地图顶端<160pt”构图断言停止（本轮明确改为居中，旧断言失效）。保留地形中心与真实道路门禁，追加精确0.38居中位置和上下HUD安全区检查及诊断；App输入未变，下次仅需static+Render，Xcode证据引用本SHA，不重复编译或冒称新SHA重新构建。
+- 2026-10-29重新下载纠正：40702065272的Static实际被Panels EOF新增空行拦截，Node合同没有执行，不能采用上一条“14项Node通过”的描述；Xcode/九资源cmp真实通过。`e495ad8` / run40799212655 attempt1的manifest/JUnit5项1失败3skipped、Static成功一致；Render通过构图/海岸与7张图后被命令区分断言拦下（unit.red70/city.red73）。城市招募兵模也含红色，确认攻击样式过弱；保留断言，追加主操作强色渐变/象牙图标并移除EOF多余空行，补混合视觉修复路由合同后等待真实云端重验。新肖像原稿尚未接入，本地未测试。
 
 ### v0.81 / 生图兵模与军团展示重构（待云端验收）
 

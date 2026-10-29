@@ -47,6 +47,9 @@ test("other App and project inputs require build, not unrelated battle screensho
 test("mixed changes union dependencies, including both rename endpoints", () => {
   assert.deepEqual(ids("README.md", "Tools/GameplaySmoke/main.swift", "RomeLegionsApp/Views/BattleMapView.swift"), ["static-checks", "gameplay-smoke", "render-battle-preview", "xcode-build"]);
   assert.deepEqual(ids("Sources/RomeLegionsCore/Old.swift", "md/moved.md"), all);
+  const visualRepair = selectScope(["RomeLegionsApp/Views/BattleShellControls.swift", "Tools/RenderBattlePreview/main.swift", "Tools/ci_scope.test.mjs"]);
+  assert.deepEqual(visualRepair.selectedChecks, ["static-checks", "render-battle-preview", "xcode-build"]);
+  assert.equal(visualRepair.ciContracts, true);
 });
 
 test("unknown paths or unavailable baselines fail safe to full validation", () => {

@@ -761,6 +761,7 @@ struct UnitDockCommandButtonsView: View {
                 title: forecast.confirmationTitle,
                 symbol: forecast.outcomeSymbol,
                 tint: forecast.isHighRisk ? .orange : .red,
+                isPrimaryAction: true,
                 isDisabled: viewModel.isCampaignOver,
                 accessibilityLabel: forecast.confirmationAccessibilityLabel,
                 action: viewModel.confirmSelectedAttack
@@ -893,7 +894,8 @@ struct AttackTargetMenuButton: View {
             DockCommandButtonContent(
                 title: "选敌",
                 symbol: "bolt.fill",
-                tint: .red
+                tint: .red,
+                isPrimaryAction: true
             )
         }
         .buttonStyle(.plain)
@@ -908,12 +910,13 @@ struct DockCommandButtonContent: View {
     var tint: Color
     var artKind: UnitKind? = nil
     var isSecondary = false
+    var isPrimaryAction = false
 
     var body: some View {
         VStack(spacing: 1) {
             ZStack {
                 Circle()
-                    .fill(tint.opacity(isSecondary ? 0.12 : 0.22))
+                    .fill(tint.opacity(isPrimaryAction ? 0.54 : (isSecondary ? 0.12 : 0.22)))
                 if let artKind, let image = BattleUnitArtwork.image(for: artKind) {
                     Image(decorative: image, scale: 1, orientation: .up)
                         .resizable()
@@ -922,7 +925,7 @@ struct DockCommandButtonContent: View {
                 } else {
                     Image(systemName: symbol)
                         .font(.system(size: 12, weight: .bold))
-                        .foregroundStyle(tint)
+                        .foregroundStyle(isPrimaryAction ? BattlePalette.ivory : tint)
                 }
             }
             .frame(width: 25, height: 25)
@@ -934,7 +937,9 @@ struct DockCommandButtonContent: View {
         .frame(width: 44, height: 44)
         .background {
             LinearGradient(
-                colors: [BattlePalette.panelRaised, BattlePalette.panel],
+                colors: isPrimaryAction
+                    ? [tint.opacity(0.62), tint.opacity(0.28), BattlePalette.panel]
+                    : [BattlePalette.panelRaised, BattlePalette.panel],
                 startPoint: .topLeading, endPoint: .bottomTrailing
             )
         }
@@ -957,6 +962,7 @@ struct DockCommandButton: View {
     var tint: Color
     var artKind: UnitKind? = nil
     var isSecondary = false
+    var isPrimaryAction = false
     var isDisabled = false
     var accessibilityLabel: String?
     var accessibilityHint: String = ""
@@ -969,7 +975,8 @@ struct DockCommandButton: View {
                 symbol: symbol,
                 tint: tint,
                 artKind: artKind,
-                isSecondary: isSecondary
+                isSecondary: isSecondary,
+                isPrimaryAction: isPrimaryAction
             )
         }
         .buttonStyle(.plain)

@@ -5363,4 +5363,3 @@ extension BattleObjectiveMapRole {
         }
     }
 }
-
