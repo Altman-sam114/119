@@ -221,10 +221,10 @@ for (const token of ["BattleArtworkLoader", "BattleSceneryKind", "BattleSceneryA
 for (const token of ["verifyBattleSceneryArtwork()", "invalidBattleSceneryAlpha", "kind.maximumDecodeSize", "BattleSceneryArtworkProofView", "battle-scenery-art-preview.png"]) {
   if (!renderPreview.includes(token)) failures.push(`Scenery artwork cloud gate missing: ${token}`);
 }
-for (const token of ["BattleCommanderPortrait", "BattleCommanderArtwork", "CommanderPortraitView", "SelectedUnitIdentityView", "MapWorkspaceLayout", "contentSize: workspace.canvasSize", "viewport.hasNavigation"]) {
+for (const token of ["BattleCommanderPortrait", "BattleCommanderArtwork", "CommanderPortraitView", "SelectedUnitIdentityView", "MapWorkspaceLayout", "MapCanvasViewport", "contentSize: workspace.canvasSize", "viewport.hasNavigation"]) {
   if (!battle.includes(token)) failures.push(`Commander/workspace component missing: ${token}`);
 }
-for (const token of ["verifyBattleCommanderArtwork()", "verifyMapWorkspaceLayout()", "originals.count == 4", "missingMapWorkspaceLayout", "BattleCommanderArtworkProofView", "battle-commander-art-preview.png"]) {
+for (const token of ["verifyBattleCommanderArtwork()", "verifyMapWorkspaceLayout()", "verifyFixedMapCanvas", "hasFixedReconSelector", "originals.count == 4", "missingMapWorkspaceLayout", "BattleCommanderArtworkProofView", "battle-commander-art-preview.png"]) {
   if (!renderPreview.includes(token)) failures.push(`Commander/workspace cloud gate missing: ${token}`);
 }
 for (const token of ["ArmyMiniatureView", "BattlefieldMiniaturePainter", "Hexagon.vertices", "func sharedEdge", "position.y.isMultiple(of: 2)"]) {

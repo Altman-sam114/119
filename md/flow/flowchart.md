@@ -37,7 +37,7 @@ flowchart LR
     P[手势 / 镜头按钮 / 复位] --> C
     C --> V[画布统一 1x...1.8x 与边界平移]
     M --> V
-    V --> F[视口裁剪 / 固定HUD不变换]
+    V --> F[MapCanvasViewport overlay隔离布局 / 视口裁剪 / 固定HUD不变换]
     C -.不写回.-> G[GameState / 存档 / AI]
 ```
 

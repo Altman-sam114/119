@@ -3728,7 +3728,40 @@ struct RenderBattlePreview {
             signature.cyan > 8 &&
             signature.gold > 8 &&
             legendSignature.bright > 8 &&
-            legendSignature.tinted > 12
+            legendSignature.tinted > 12 &&
+            hasFixedReconSelector(in: bitmap, logicalWidth: logicalWidth, logicalHeight: logicalHeight)
+    }
+
+    private static func hasFixedReconSelector(
+        in bitmap: NSBitmapImageRep, logicalWidth: Double, logicalHeight: Double
+    ) -> Bool {
+        let shell = BattleInterfaceMetrics(container: CGSize(width: logicalWidth, height: logicalHeight))
+        let height = Double(BattleMapChromeMetrics.intelligenceHeight(isNarrow: logicalWidth < 620))
+        let startX = Int(shell.mapInset) + 18
+        let startY = Int(logicalHeight - Double(shell.commandDockHeight + shell.mapInset) - 8 - height) + 6
+        let scaleX = Double(bitmap.pixelsWide) / logicalWidth
+        let scaleY = Double(bitmap.pixelsHigh) / logicalHeight
+        var counts = [Int](repeating: 0, count: 4)
+        for index in 0..<4 {
+            for y in (startY + 4)..<(startY + 40) {
+                for x in (startX + index * 47 + 4)..<(startX + index * 47 + 40) {
+                    let pixelX = min(max(Int(Double(x) * scaleX), 0), bitmap.pixelsWide - 1)
+                    let pixelY = min(max(Int(Double(y) * scaleY), 0), bitmap.pixelsHigh - 1)
+                    guard let color = bitmap.colorAt(x: pixelX, y: pixelY)?.usingColorSpace(.deviceRGB) else { continue }
+                    let r = color.redComponent, g = color.greenComponent, b = color.blueComponent
+                    let matches: Bool
+                    switch index {
+                    case 0: matches = r > 0.25 && r > g + 0.12 && r > b + 0.10
+                    case 1: matches = g > 0.30 && b > 0.30 && g > r + 0.10 && b > r + 0.10
+                    case 2: matches = r > 0.35 && g > 0.25 && r > b + 0.12 && g > b + 0.08
+                    default: matches = r > 0.45 && g > 0.20 && r > g + 0.15 && g > b + 0.08
+                    }
+                    if matches { counts[index] += 1 }
+                }
+            }
+        }
+        emitPreviewDiagnostic("Fixed recon selector pixels at \(startX),\(startY): \(counts)")
+        return counts.allSatisfy { $0 >= 8 }
     }
 
     private static func hasMapDominantBattleShell(
@@ -4135,6 +4168,7 @@ struct RenderBattlePreview {
                 let workspace = MapWorkspaceLayout(mapWidth: state.width, mapHeight: state.height,
                                                    container: container, hasFocusReadout: focused)
                 let metrics = workspace.metrics
+                try verifyFixedMapCanvas(workspace)
                 let contours = MapTerrainGeometry(tiles: state.tiles, metrics: metrics).contours(in: workspace.canvasSize)
                 guard workspace.canvasSize.width >= container.width,
                       workspace.canvasSize.height >= container.height,
@@ -4192,6 +4226,45 @@ struct RenderBattlePreview {
                 emitPreviewDiagnostic("Workspace: viewport=\(container), canvas=\(workspace.canvasSize), tileWidth=\(metrics.tileWidth), focused=\(focused); 1x pan/focus/reset passed")
             }
         }
+    }
+
+    private static func verifyFixedMapCanvas(_ workspace: MapWorkspaceLayout) throws {
+        let size = workspace.container
+        let proof = ZStack {
+            MapCanvasViewport(workspace: workspace, camera: MapViewportState()) { Color.black }
+            Color.clear
+                .overlay(alignment: .topLeading) { Color.red.frame(width: 16, height: 16).padding(8) }
+                .overlay(alignment: .topTrailing) { Color.green.frame(width: 16, height: 16).padding(8) }
+                .overlay(alignment: .bottomLeading) { Color.blue.frame(width: 16, height: 16).padding(8) }
+                .overlay(alignment: .bottomTrailing) { Color.yellow.frame(width: 16, height: 16).padding(8) }
+        }
+        .frame(width: size.width, height: size.height)
+        let renderer = ImageRenderer(content: proof)
+        renderer.scale = 1
+        guard let tiff = renderer.nsImage?.tiffRepresentation,
+              let bitmap = NSBitmapImageRep(data: tiff) else {
+            throw PreviewRenderError.missingFixedMapCanvas
+        }
+        let points = [CGPoint(x: 16, y: 16), CGPoint(x: size.width - 16, y: 16),
+                      CGPoint(x: 16, y: size.height - 16), CGPoint(x: size.width - 16, y: size.height - 16)]
+        for (index, point) in points.enumerated() {
+            guard let color = bitmap.colorAt(x: Int(point.x), y: Int(point.y))?.usingColorSpace(.deviceRGB) else {
+                throw PreviewRenderError.missingFixedMapCanvas
+            }
+            let r = color.redComponent, g = color.greenComponent, b = color.blueComponent
+            let matches: Bool
+            switch index {
+            case 0: matches = r > 0.70 && g < 0.35 && b < 0.35
+            case 1: matches = g > 0.55 && r < 0.40 && b < 0.40
+            case 2: matches = b > 0.70 && r < 0.35 && g < 0.55
+            default: matches = r > 0.70 && g > 0.65 && b < 0.35
+            }
+            guard matches else {
+                emitPreviewDiagnostic("Fixed canvas anchor failed: viewport=\(size), canvas=\(workspace.canvasSize), corner=\(index), rgb=\(r),\(g),\(b)")
+                throw PreviewRenderError.missingFixedMapCanvas
+            }
+        }
+        emitPreviewDiagnostic("Fixed canvas: four HUD anchors stayed in viewport \(size)")
     }
 
     private static func verifyBattleCommanderArtwork() throws {
@@ -4510,6 +4583,7 @@ private struct CountermeasureCommandRuntimeSnapshot {
 enum PreviewRenderError: Error {
     case renderFailed
     case missingMapWorkspaceLayout
+    case missingFixedMapCanvas
     case missingBattleCommanderArtwork
     case missingBattleUnitArtwork
     case opaqueBattleUnitArtwork

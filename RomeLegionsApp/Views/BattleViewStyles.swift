@@ -417,6 +417,30 @@ struct MapWorkspaceLayout {
     var workingCenter: CGPoint { CGPoint(x: workingRect.midX, y: workingRect.midY) }
 }
 
+struct MapCanvasViewport<Content: View>: View {
+    let workspace: MapWorkspaceLayout
+    let camera: MapViewportState
+    private let content: Content
+
+    init(workspace: MapWorkspaceLayout, camera: MapViewportState, @ViewBuilder content: () -> Content) {
+        self.workspace = workspace
+        self.camera = camera
+        self.content = content()
+    }
+
+    var body: some View {
+        // Overlay content cannot enlarge the viewport's layout or move its HUD.
+        Color.clear
+            .frame(width: workspace.container.width, height: workspace.container.height)
+            .overlay {
+                ZStack { content }
+                    .frame(width: workspace.canvasSize.width, height: workspace.canvasSize.height)
+                    .scaleEffect(camera.scale)
+                    .offset(camera.offset)
+            }
+    }
+}
+
 struct HexMetrics {
     let tileWidth: CGFloat
     let tileHeight: CGFloat

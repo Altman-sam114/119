@@ -80,7 +80,7 @@ struct WarMapView: View {
             let terrainContours = terrainGeometry.contours(in: workspace.canvasSize)
 
             ZStack {
-                ZStack {
+                MapCanvasViewport(workspace: workspace, camera: interactiveViewport) {
                     MapBackdropView()
                         .zIndex(-2)
 
@@ -226,9 +226,6 @@ struct WarMapView: View {
                             .zIndex(3)
                     }
                 }
-                .frame(width: workspace.canvasSize.width, height: workspace.canvasSize.height)
-                .scaleEffect(interactiveViewport.scale)
-                .offset(interactiveViewport.offset)
                 .contentShape(Rectangle())
                 .simultaneousGesture(mapNavigationGesture(workspace: workspace, camera: idleViewport))
 

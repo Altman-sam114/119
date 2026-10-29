@@ -30,6 +30,7 @@
 - 接入此前内置生图完成并已目检的凯撒、汉尼拔、维钦托利和拉比埃努斯原稿，256px 有界缓存、真实姓名精确匹配；地图圆形标记、底栏身份与敌将卡共享视图，未知将领不冒用肖像。`SelectedUnitIdentityView` 取代底栏混杂军团状态与多行预演的布局，长预演留在既有地图/完整读板。
 - Render 增加真实工作区、1x 大画布平移、角落聚焦与复位、四肖像独立解码/姓名门禁及第18张检视图；App 增至十三资源逐字节比对。保留全部既有几何、命令、AI/readout与原17图，不削弱断言。
 - 本地只读/编辑/资源复制和 Git 同步，未编译、测试、typecheck、Render、verify、diff-check 或解析校验。计划 baseline结构+14项CI合同，direct完整Render+Xcode；核心/Smoke因规则未变主动skipped。仍需最新实现SHA/run/attempt结果复判，当前不宣布验收或持续目标完成。
+- 首轮 `467ddbacd2b5258efabda8cee35564d85ee95acd` / run `40816924269` attempt1，已下载并核对 manifest/JUnit 5项0失败2skipped、14项Node合同、18PNG和Xcode十三资源cmp均成功；但目检发现超大画布撑开父 ZStack，竖屏HUD向左裁切、横屏情报坞向下偏移，视觉验收拒绝。追加 `MapCanvasViewport` 固定透明基底/overlay隔离布局、三尺寸四角实际渲染锚点与四侦察按钮逐个位置像素门禁，保留旧断言，不以CI绿灯冒充验收。
 
 ### v0.82 / 写实材质、地标与编队美术
 
