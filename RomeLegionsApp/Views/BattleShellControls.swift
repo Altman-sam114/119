@@ -380,22 +380,7 @@ struct SelectionCommandDockView: View {
            viewModel.focusedEnemyCommanderThreatID != nil {
             EnemyCommanderThreatFocusIdentityView(readout: focusReadout, isCompact: isPortrait)
         } else if let unit = viewModel.selectedUnit {
-            HStack(spacing: 9) {
-                UnitTokenView(unit: unit, presentation: isPortrait ? .compact : .inspection)
-                VStack(alignment: .leading, spacing: 3) {
-                    Text("\(unit.faction.displayName) \(unit.kind.displayName)")
-                        .font(.subheadline.weight(.bold))
-                        .lineLimit(1)
-                    Text("\(unit.generalName ?? "无将领") · \(unit.resolvedTacticalOrder.displayName)")
-                        .font(.caption)
-                        .foregroundStyle(.white.opacity(0.70))
-                        .lineLimit(1)
-                    if !isPortrait {
-                        unitCommandCueView
-                    }
-                }
-            }
-            .accessibilityElement(children: .combine)
+            SelectedUnitIdentityView(unit: unit, isCompact: isPortrait)
         } else if let city = viewModel.selectedCity,
                   let brief = viewModel.selectedCityBrief {
             HStack(spacing: 9) {
@@ -439,54 +424,6 @@ struct SelectionCommandDockView: View {
         }
     }
 
-    private var unitCommandCue: String {
-        if let forecast = viewModel.selectedCombatForecast {
-            return forecast.compactLabel
-        }
-        if let situation = viewModel.selectedUnitSituationReadout {
-            return situation.primaryCommandEntryLabel
-        }
-        if let recommendation = viewModel.selectedTacticalRecommendationSummary {
-            return "目标 \(recommendation.targetLabel)"
-        }
-        return "等待军令"
-    }
-
-    @ViewBuilder
-    private var unitCommandCueView: some View {
-        if let forecast = viewModel.selectedCombatForecast {
-            VStack(alignment: .leading, spacing: 1) {
-                Label("\(forecast.attackerLabel) \(forecast.attackerPositionLabel) → \(forecast.defenderLabel) \(forecast.defenderPositionLabel)", systemImage: forecast.outcomeSymbol)
-                    .font(.caption2.weight(.bold))
-                    .foregroundStyle(Color(red: 0.91, green: 0.74, blue: 0.38))
-                    .lineLimit(2)
-                    .minimumScaleFactor(0.54)
-                if forecast.attacker.generalName != nil || forecast.defender.generalName != nil {
-                    Text("\(forecast.attackerGeneralLabel) → \(forecast.defenderGeneralLabel)")
-                        .font(.caption2.weight(.semibold))
-                        .foregroundStyle(.white.opacity(0.58))
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.56)
-                }
-                Text("\(forecast.damageLabel) · \(forecast.retaliationLabel) · \(forecast.outcomeLabel)")
-                    .font(.caption2.monospacedDigit().weight(.semibold))
-                    .foregroundStyle(.white.opacity(0.64))
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.56)
-            }
-        } else {
-            Label(unitCommandCue, systemImage: unitCommandCueSymbol)
-                .font(.caption.monospacedDigit().weight(.bold))
-                .foregroundStyle(Color(red: 0.91, green: 0.74, blue: 0.38))
-                .lineLimit(2)
-                .minimumScaleFactor(0.58)
-        }
-    }
-
-    private var unitCommandCueSymbol: String {
-        viewModel.selectedCombatForecast?.outcomeSymbol ?? "scope"
-    }
-
     private func cityCommandCue(_ brief: SelectedCityBrief) -> String {
         if brief.canDevelop {
             return "经营目标 · \(brief.developmentGainLabel)"
@@ -494,6 +431,42 @@ struct SelectionCommandDockView: View {
         return "部署目标 · \(brief.deploymentSummary)"
     }
 
+}
+
+struct SelectedUnitIdentityView: View {
+    var unit: ArmyUnit
+    var isCompact: Bool
+
+    var body: some View {
+        HStack(spacing: 9) {
+            if unit.generalName != nil {
+                CommanderPortraitView(name: unit.generalName, diameter: isCompact ? 40 : 56,
+                                      tint: unit.faction.factionColor)
+            } else {
+                ArmyMiniatureView(kind: unit.kind, faction: unit.faction)
+                    .frame(width: isCompact ? 40 : 56, height: isCompact ? 36 : 48)
+            }
+            VStack(alignment: .leading, spacing: 3) {
+                Text(unit.generalName ?? "\(unit.faction.displayName)\(unit.kind.displayName)")
+                    .font(.system(isCompact ? .subheadline : .headline, design: .serif, weight: .bold))
+                    .foregroundStyle(BattlePalette.ivory)
+                    .lineLimit(1)
+                Text("\(unit.faction.displayName) · \(unit.kind.displayName) · \(unit.health)")
+                    .font(.caption2.monospacedDigit().weight(.semibold))
+                    .foregroundStyle(BattlePalette.parchment)
+                    .lineLimit(1)
+                if !isCompact {
+                    Label(unit.resolvedTacticalOrder.displayName, systemImage: unit.resolvedTacticalOrder.systemImage)
+                        .font(.caption2.weight(.semibold))
+                        .foregroundStyle(BattlePalette.muted)
+                        .lineLimit(1)
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("\(unit.generalName ?? "无将领")，\(unit.faction.displayName)\(unit.kind.displayName)，兵力\(unit.health)，姿态\(unit.resolvedTacticalOrder.displayName)")
+    }
 }
 
 struct SelectionDockCommandButtonsView: View {
@@ -630,14 +603,8 @@ struct EnemyCommanderThreatFocusIdentityView: View {
 
     var body: some View {
         HStack(spacing: 7) {
-            ZStack {
-                RoundedRectangle(cornerRadius: 6)
-                    .fill(readout.isFocused ? readoutLevelTint.opacity(0.86) : .white.opacity(0.12))
-                    .frame(width: 40, height: 40)
-                Image(systemName: readout.skillSymbol)
-                    .font(.caption.weight(.black))
-                    .foregroundStyle(.white)
-            }
+            CommanderPortraitView(name: readout.commanderLabel, diameter: 40,
+                                  tint: readoutLevelTint, fallbackSymbol: readout.skillSymbol)
 
             VStack(alignment: .leading, spacing: 2) {
                 Text("敌将 · \(readout.commanderLabel)")
@@ -649,13 +616,6 @@ struct EnemyCommanderThreatFocusIdentityView: View {
                     .foregroundStyle(.white.opacity(0.78))
                     .lineLimit(isCompact ? 1 : 2)
                     .minimumScaleFactor(isCompact ? 0.46 : 0.54)
-                if !isCompact {
-                    Text("\(readout.targetLabel) · \(readout.routeLabel)")
-                        .font(.caption2)
-                        .foregroundStyle(.white.opacity(0.62))
-                        .lineLimit(2)
-                        .minimumScaleFactor(0.50)
-                }
             }
             .fixedSize(horizontal: false, vertical: !isCompact)
         }

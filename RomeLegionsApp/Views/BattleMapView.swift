@@ -40,12 +40,13 @@ struct WarMapView: View {
             let displayContext = viewModel.battleDisplayContextReadout
             let hasFocusReadout = displayContext.mode == .attackLock ||
                 displayContext.mode == .countermeasureFocus || displayContext.mode == .enemyCommanderFocus
-            let metrics = HexMetrics(
+            let workspace = MapWorkspaceLayout(
                 mapWidth: viewModel.state.width,
                 mapHeight: viewModel.state.height,
                 container: proxy.size,
-                topClearance: hasFocusReadout ? (proxy.size.width < 620 ? 140 : 112) : 0
+                hasFocusReadout: hasFocusReadout
             )
+            let metrics = workspace.metrics
             // One pathfinding read per map update, shared by every tile.
             let reachablePositions: Set<Position> = displayContext.mode == .unitExecution
                 ? viewModel.reachablePositions : []
@@ -64,13 +65,19 @@ struct WarMapView: View {
                 perspective: viewModel.selectedMapReconPerspective,
                 context: displayContext
             )
-            let interactiveViewport = viewport.applying(
+            let idleViewport = viewport.framing(
+                on: selectedPosition.map { metrics.center(for: $0) } ??
+                    CGPoint(x: workspace.canvasSize.width / 2, y: workspace.canvasSize.height / 2),
+                in: proxy.size, contentSize: workspace.canvasSize, center: workspace.workingCenter
+            )
+            let interactiveViewport = idleViewport.applying(
                 magnification: gestureMagnification,
                 translation: gestureTranslation,
-                in: proxy.size
+                in: proxy.size,
+                contentSize: workspace.canvasSize
             )
             let terrainGeometry = MapTerrainGeometry(tiles: viewModel.state.tiles, metrics: metrics)
-            let terrainContours = terrainGeometry.contours(in: proxy.size)
+            let terrainContours = terrainGeometry.contours(in: workspace.canvasSize)
 
             ZStack {
                 ZStack {
@@ -219,11 +226,11 @@ struct WarMapView: View {
                             .zIndex(3)
                     }
                 }
+                .frame(width: workspace.canvasSize.width, height: workspace.canvasSize.height)
                 .scaleEffect(interactiveViewport.scale)
                 .offset(interactiveViewport.offset)
                 .contentShape(Rectangle())
-                .simultaneousGesture(mapMagnificationGesture(container: proxy.size))
-                .simultaneousGesture(mapDragGesture(container: proxy.size))
+                .simultaneousGesture(mapNavigationGesture(workspace: workspace, camera: idleViewport))
 
                 VStack {
                     Spacer(minLength: 62)
@@ -231,22 +238,18 @@ struct WarMapView: View {
                         MapCameraControlsView(
                             usesHorizontalLayout: proxy.size.height < 390,
                             canFocus: selectedPosition != nil,
-                            canZoomIn: viewport.scale < MapViewportState.maximumScale,
-                            canZoomOut: viewport.scale > MapViewportState.minimumScale,
-                            canReset: !viewport.isDefault,
+                            canZoomIn: idleViewport.scale < MapViewportState.maximumScale,
+                            canZoomOut: idleViewport.scale > MapViewportState.minimumScale,
+                            canReset: viewport.hasNavigation,
                             onZoomIn: {
-                                withAnimation(.easeInOut(duration: 0.18)) {
-                                    viewport.setScale(viewport.scale + 0.2, in: proxy.size)
-                                }
+                                zoomViewport(by: 0.2, camera: idleViewport, workspace: workspace)
                             },
                             onZoomOut: {
-                                withAnimation(.easeInOut(duration: 0.18)) {
-                                    viewport.setScale(viewport.scale - 0.2, in: proxy.size)
-                                }
+                                zoomViewport(by: -0.2, camera: idleViewport, workspace: workspace)
                             },
                             onFocus: {
                                 guard let selectedPosition else { return }
-                                focusViewport(on: selectedPosition, metrics: metrics, container: proxy.size)
+                                focusViewport(on: selectedPosition, camera: idleViewport, workspace: workspace)
                             },
                             onReset: {
                                 withAnimation(.easeInOut(duration: 0.22)) {
@@ -359,9 +362,10 @@ struct WarMapView: View {
                 }
                 .zIndex(5.1)
             }
+            .frame(width: proxy.size.width, height: proxy.size.height)
             .onChange(of: selectedPosition) { _, newPosition in
                 guard let newPosition else { return }
-                focusViewport(on: newPosition, metrics: metrics, container: proxy.size)
+                focusViewport(on: newPosition, camera: idleViewport, workspace: workspace)
             }
             .clipShape(RoundedRectangle(cornerRadius: 8))
             .overlay {
@@ -371,34 +375,42 @@ struct WarMapView: View {
         }
     }
 
-    private func mapMagnificationGesture(container: CGSize) -> some Gesture {
+    private func mapNavigationGesture(workspace: MapWorkspaceLayout, camera: MapViewportState) -> some Gesture {
         MagnificationGesture()
             .updating($gestureMagnification) { value, state, _ in
                 state = value
             }
+            .simultaneously(with: DragGesture(minimumDistance: 8)
+                .updating($gestureTranslation) { value, state, _ in
+                    state = value.translation
+                })
             .onEnded { value in
-                viewport.setScale(viewport.scale * value, in: container)
+                viewport = camera.applying(
+                    magnification: value.first ?? 1,
+                    translation: value.second?.translation ?? .zero,
+                    in: workspace.container, contentSize: workspace.canvasSize
+                )
             }
     }
 
-    private func mapDragGesture(container: CGSize) -> some Gesture {
-        DragGesture(minimumDistance: 8)
-            .updating($gestureTranslation) { value, state, _ in
-                state = value.translation
-            }
-            .onEnded { value in
-                viewport.pan(by: value.translation, in: container)
-            }
+    private func zoomViewport(by delta: CGFloat, camera: MapViewportState, workspace: MapWorkspaceLayout) {
+        withAnimation(.easeInOut(duration: 0.18)) {
+            var next = camera
+            next.setScale(camera.scale + delta, in: workspace.container, contentSize: workspace.canvasSize)
+            viewport = next
+        }
     }
 
-    private func focusViewport(on position: Position, metrics: HexMetrics, container: CGSize) {
-        let workingCenter = CGPoint(x: container.width / 2, y: max(58, (container.height - 66) / 2))
+    private func focusViewport(on position: Position, camera: MapViewportState, workspace: MapWorkspaceLayout) {
         withAnimation(.easeInOut(duration: 0.28)) {
-            viewport.focus(
-                on: metrics.center(for: position),
-                in: container,
-                viewportCenter: workingCenter
+            var next = camera
+            next.focus(
+                on: workspace.metrics.center(for: position),
+                in: workspace.container,
+                viewportCenter: workspace.workingCenter,
+                contentSize: workspace.canvasSize
             )
+            viewport = next
         }
     }
 }
@@ -3546,20 +3558,20 @@ struct CommanderTokenBadgeView: View {
 
     var body: some View {
         ZStack {
-            CommanderShieldShape()
-                .fill(Color(red: 0.93, green: 0.72, blue: 0.24))
-            CommanderShieldShape()
-                .stroke(.white.opacity(0.92), lineWidth: 1)
-            Image(systemName: trait?.systemImage ?? "person.fill")
-                .font(.system(size: 9, weight: .black))
-                .foregroundStyle(.black.opacity(0.14))
-                .offset(y: 1)
-            Text(String(name.prefix(1)))
-                .font(.system(size: 7, weight: .black, design: .rounded))
-                .foregroundStyle(Color(red: 0.24, green: 0.10, blue: 0.07))
-                .minimumScaleFactor(0.7)
+            if BattleCommanderPortrait.matching(name) != nil {
+                CommanderPortraitView(name: name, diameter: 22)
+            } else {
+                CommanderShieldShape()
+                    .fill(Color(red: 0.93, green: 0.72, blue: 0.24))
+                CommanderShieldShape()
+                    .stroke(.white.opacity(0.92), lineWidth: 1)
+                Text(String(name.prefix(1)))
+                    .font(.system(size: 7, weight: .black, design: .rounded))
+                    .foregroundStyle(Color(red: 0.24, green: 0.10, blue: 0.07))
+                    .minimumScaleFactor(0.7)
+            }
         }
-        .frame(width: 17, height: 18)
+        .frame(width: 22, height: 22)
         .shadow(color: .black.opacity(0.42), radius: 2, y: 1)
         .accessibilityHidden(true)
     }

@@ -54,9 +54,9 @@
 - 核心规则只在 `Sources/RomeLegionsCore/GameState.swift` 或后续核心模块建模；规则变化同步影响预览、结算、AI 评分和测试。
 - `GameViewModel` 持有 `GameState`，负责选择态、命令态、预览和 UI 派生组装；Map/Strategy/Selection 三个 readout 文件只定义展示数据，不另设核心状态源。
 - SwiftUI 只展示与触发公开命令，不在 `body`、按钮闭包或生命周期内写复杂规则。`RootView` 切换菜单/战斗；战斗壳层、控制、地图、读板、样式各自保持职责。
-- `WarMapView` 的 `MapViewportState` 只管理缩放、拖移、选择聚焦和复位，不进入 `GameState`、存档或玩法选择源。
+- `WarMapView` 的 `MapWorkspaceLayout` 区分战区画布和固定 HUD 工作区，`MapViewportState` 按画布边界管理缩放、拖移、首帧取景、选择聚焦和复位；二者不进入 `GameState`、存档或玩法选择源。
 - `SaveStore` 通过 SQLite 保存编码后的完整 `GameState`，不绕过状态结构写零散状态。
-- `Resources/BattleUnitArt/` 原创四兵种、地表材质与地标 PNG 随 App 打包；`BattleArtworkLoader` 统一查找与 ImageIO 受限解码，Unit/Scenery 目录各自缓存。独立 macOS 云端 Render 通过显式 `ROMELEGIONS_ART_ROOT` 读资源，iOS 仅从 bundle 读取；缺失时 Canvas 降级不能冒充资源验收通过。
+- `Resources/BattleUnitArt/` 原创四兵种、地表材质、地标与将领肖像 PNG 随 App 打包；`BattleArtworkLoader` 统一查找与 ImageIO 受限解码，Unit/Scenery/Commander 各自缓存。肖像只按真实姓名精确匹配，未知将领不得冒用已有身份。独立 macOS 云端 Render 通过显式 `ROMELEGIONS_ART_ROOT` 读资源，iOS 仅从 bundle 读取；缺失时降级不能冒充资源验收通过。
 - `Tests/RomeLegionsCoreTests/GameStateTests.swift` 验证核心规则；`Tools/GameplaySmoke` 验证集成，`Tools/RenderBattlePreview` 验证展示链路，`Tools/verify_project.mjs` 验证结构。UI/静态合同不能替代核心行为测试。
 
 ## 6. 测试规则

@@ -74,6 +74,75 @@ enum BattleSceneryArtwork {
     static func image(for kind: BattleSceneryKind) -> CGImage? { images[kind] }
 }
 
+enum BattleCommanderPortrait: String, CaseIterable, Hashable {
+    case caesar, hannibal, vercingetorix, labienus
+
+    var name: String {
+        switch self {
+        case .caesar: return "凯撒"
+        case .hannibal: return "汉尼拔"
+        case .vercingetorix: return "维钦托利"
+        case .labienus: return "拉比埃努斯"
+        }
+    }
+
+    var resourceName: String { "commander-\(rawValue)" }
+
+    static func matching(_ name: String?) -> Self? {
+        allCases.first { $0.name == name }
+    }
+}
+
+enum BattleCommanderArtwork {
+    static let maximumDecodeSize = 256
+
+    private static let images: [BattleCommanderPortrait: CGImage] = {
+        var result: [BattleCommanderPortrait: CGImage] = [:]
+        for portrait in BattleCommanderPortrait.allCases {
+            result[portrait] = BattleArtworkLoader.decode(
+                named: portrait.resourceName, maximumSize: maximumDecodeSize
+            )
+        }
+        return result
+    }()
+
+    static func image(named name: String?) -> CGImage? {
+        guard let portrait = BattleCommanderPortrait.matching(name) else { return nil }
+        return images[portrait]
+    }
+}
+
+struct CommanderPortraitView: View {
+    var name: String?
+    var diameter: CGFloat
+    var tint: Color = BattlePalette.brass
+    var fallbackSymbol = "person.fill"
+
+    var body: some View {
+        ZStack {
+            Circle().fill(BattlePalette.panelRaised)
+            if let image = BattleCommanderArtwork.image(named: name) {
+                Image(decorative: image, scale: 1, orientation: .up)
+                    .resizable()
+                    .interpolation(.high)
+                    .scaledToFill()
+            } else {
+                Image(systemName: fallbackSymbol)
+                    .font(.system(size: diameter * 0.38, weight: .bold))
+                    .foregroundStyle(BattlePalette.parchment)
+            }
+        }
+        .frame(width: diameter, height: diameter)
+        .clipShape(Circle())
+        .overlay {
+            Circle().strokeBorder(BattlePalette.ivory.opacity(0.36), lineWidth: 0.6).padding(2)
+            Circle().strokeBorder(tint, lineWidth: 1.5)
+        }
+        .shadow(color: .black.opacity(0.36), radius: 2, y: 1)
+        .accessibilityHidden(true)
+    }
+}
+
 enum UnitTokenPresentation: Equatable {
     case map
     case compact
@@ -223,6 +292,7 @@ struct MapViewportState: Equatable {
 
     private(set) var scale: CGFloat = minimumScale
     private(set) var offset: CGSize = .zero
+    private(set) var hasNavigation = false
 
     var isDefault: Bool {
         abs(scale - Self.minimumScale) < 0.001 &&
@@ -230,66 +300,121 @@ struct MapViewportState: Equatable {
             abs(offset.height) < 0.001
     }
 
-    mutating func setScale(_ proposedScale: CGFloat, in container: CGSize) {
+    mutating func setScale(_ proposedScale: CGFloat, in container: CGSize, contentSize: CGSize? = nil) {
+        hasNavigation = true
         scale = min(Self.maximumScale, max(Self.minimumScale, proposedScale))
-        offset = clampedOffset(offset, in: container)
+        offset = clampedOffset(offset, in: container, contentSize: contentSize)
     }
 
-    mutating func pan(by translation: CGSize, in container: CGSize) {
+    mutating func pan(by translation: CGSize, in container: CGSize, contentSize: CGSize? = nil) {
+        hasNavigation = true
         offset = clampedOffset(
             CGSize(
                 width: offset.width + translation.width,
                 height: offset.height + translation.height
             ),
-            in: container
+            in: container,
+            contentSize: contentSize
         )
     }
 
     mutating func focus(
         on point: CGPoint,
         in container: CGSize,
-        viewportCenter: CGPoint? = nil
+        viewportCenter: CGPoint? = nil,
+        contentSize: CGSize? = nil
     ) {
-        setScale(max(scale, Self.focusScale), in: container)
-        let transformCenter = CGPoint(x: container.width / 2, y: container.height / 2)
-        let destination = viewportCenter ?? transformCenter
-        let proposedOffset = CGSize(
-            width: destination.x - transformCenter.x - (point.x - transformCenter.x) * scale,
-            height: destination.y - transformCenter.y - (point.y - transformCenter.y) * scale
-        )
-        offset = clampedOffset(proposedOffset, in: container)
+        setScale(max(scale, Self.focusScale), in: container, contentSize: contentSize)
+        position(point, at: viewportCenter, in: container, contentSize: contentSize)
+    }
+
+    func framing(on point: CGPoint, in container: CGSize, contentSize: CGSize, center: CGPoint) -> Self {
+        guard !hasNavigation else { return self }
+        var result = self
+        result.position(point, at: center, in: container, contentSize: contentSize)
+        return result
     }
 
     mutating func reset() {
         scale = Self.minimumScale
         offset = .zero
+        hasNavigation = false
     }
 
     func applying(
         magnification: CGFloat,
         translation: CGSize,
-        in container: CGSize
+        in container: CGSize,
+        contentSize: CGSize? = nil
     ) -> MapViewportState {
         var result = self
-        result.setScale(scale * magnification, in: container)
-        result.pan(by: translation, in: container)
+        result.setScale(scale * magnification, in: container, contentSize: contentSize)
+        result.pan(by: translation, in: container, contentSize: contentSize)
         return result
     }
 
-    func maximumOffset(in container: CGSize) -> CGSize {
-        CGSize(
-            width: max(0, container.width * (scale - 1) / 2),
-            height: max(0, container.height * (scale - 1) / 2)
+    func maximumOffset(in container: CGSize, contentSize: CGSize? = nil) -> CGSize {
+        let content = contentSize ?? container
+        return CGSize(
+            width: max(0, (content.width * scale - container.width) / 2),
+            height: max(0, (content.height * scale - container.height) / 2)
         )
     }
 
-    private func clampedOffset(_ proposedOffset: CGSize, in container: CGSize) -> CGSize {
-        let limit = maximumOffset(in: container)
+    func screenPoint(for point: CGPoint, in container: CGSize, contentSize: CGSize) -> CGPoint {
+        CGPoint(
+            x: container.width / 2 + (point.x - contentSize.width / 2) * scale + offset.width,
+            y: container.height / 2 + (point.y - contentSize.height / 2) * scale + offset.height
+        )
+    }
+
+    private mutating func position(_ point: CGPoint, at destination: CGPoint?, in container: CGSize, contentSize: CGSize?) {
+        let content = contentSize ?? container
+        let target = destination ?? CGPoint(x: container.width / 2, y: container.height / 2)
+        let proposedOffset = CGSize(
+            width: target.x - container.width / 2 - (point.x - content.width / 2) * scale,
+            height: target.y - container.height / 2 - (point.y - content.height / 2) * scale
+        )
+        offset = clampedOffset(proposedOffset, in: container, contentSize: content)
+    }
+
+    private func clampedOffset(_ proposedOffset: CGSize, in container: CGSize, contentSize: CGSize?) -> CGSize {
+        let limit = maximumOffset(in: container, contentSize: contentSize)
         return CGSize(
             width: min(limit.width, max(-limit.width, proposedOffset.width)),
             height: min(limit.height, max(-limit.height, proposedOffset.height))
         )
     }
+}
+
+/// The world can exceed the viewport at 1x; chrome never scales with it.
+struct MapWorkspaceLayout {
+    let container: CGSize
+    let canvasSize: CGSize
+    let workingRect: CGRect
+    let metrics: HexMetrics
+
+    init(mapWidth: Int, mapHeight: Int, container: CGSize, hasFocusReadout: Bool) {
+        self.container = container
+        let isPortrait = container.height >= container.width
+        let isNarrow = container.width < 620
+        let topInset: CGFloat = hasFocusReadout ? (isNarrow ? 140 : 112) : (isPortrait ? 70 : 54)
+        let bottomInset = BattleMapChromeMetrics.bottomClearance(isNarrow: isNarrow)
+        let canvasWidth = container.width * (container.height > container.width * 1.25 && isNarrow ? 1.72 : 1)
+        let horizontalUnits = CGFloat(mapWidth) + (mapHeight > 1 ? 0.5 : 0)
+        let horizontalInset = min(18, max(8, canvasWidth * 0.018))
+        let tileWidth = min(82, max(18, (canvasWidth - horizontalInset * 2) / max(1, horizontalUnits)))
+        let aspect: CGFloat = container.width > container.height * 2 ? 0.50 : (container.width > container.height ? 0.72 : 1.14)
+        let rows = CGFloat(max(0, mapHeight - 1)) * 0.75 + 1
+        let canvasHeight = max(container.height, topInset + bottomInset + rows * tileWidth * aspect)
+        canvasSize = CGSize(width: canvasWidth, height: canvasHeight)
+        workingRect = CGRect(x: 0, y: topInset, width: container.width,
+                             height: max(44, container.height - topInset - bottomInset))
+        metrics = HexMetrics(mapWidth: mapWidth, mapHeight: mapHeight, container: canvasSize,
+                             topClearance: topInset, viewport: container)
+    }
+
+    var workingCenter: CGPoint { CGPoint(x: workingRect.midX, y: workingRect.midY) }
 }
 
 struct HexMetrics {
@@ -301,15 +426,16 @@ struct HexMetrics {
     let mapSize: CGSize
     let tileAspect: CGFloat
 
-    init(mapWidth: Int, mapHeight: Int, container: CGSize, topClearance: CGFloat = 0) {
+    init(mapWidth: Int, mapHeight: Int, container: CGSize, topClearance: CGFloat = 0, viewport: CGSize? = nil) {
         let horizontalUnits = CGFloat(mapWidth) + (mapHeight > 1 ? 0.5 : 0)
         let verticalUnits = CGFloat(max(0, mapHeight - 1)) * 0.75 + 1
-        let isShortLandscape = container.width > container.height * 2
-        let isLandscape = container.width > container.height
+        let viewport = viewport ?? container
+        let isShortLandscape = viewport.width > viewport.height * 2
+        let isLandscape = viewport.width > viewport.height
 
         let horizontalInset = min(18, max(8, container.width * 0.018))
         let topInset = max(topClearance, isLandscape ? 54 : 70)
-        let bottomInset = BattleMapChromeMetrics.bottomClearance(isNarrow: container.width < 620)
+        let bottomInset = BattleMapChromeMetrics.bottomClearance(isNarrow: viewport.width < 620)
         let availableWidth = max(1, container.width - horizontalInset * 2)
         let availableHeight = max(1, container.height - topInset - bottomInset)
         tileAspect = isShortLandscape ? 0.50 : (isLandscape ? 0.72 : 1.14)
@@ -326,7 +452,7 @@ struct HexMetrics {
         let totalHeight = tileHeight * verticalUnits
         mapSize = CGSize(width: totalWidth, height: totalHeight)
         let remainingVerticalSpace = max(0, availableHeight - totalHeight)
-        let verticalBias: CGFloat = container.height > container.width * 1.25 ? 0.38 : 0.46
+        let verticalBias: CGFloat = viewport.height > viewport.width * 1.25 ? 0.38 : 0.46
         origin = CGPoint(
             x: horizontalInset + (availableWidth - totalWidth) / 2 + tileWidth / 2,
             y: topInset + remainingVerticalSpace * verticalBias + tileHeight / 2

@@ -12,13 +12,18 @@
 
 1. [完成] 安全 fetch/pull 后 main 与 origin/main 同为 32fb4fe；核对改前云端 manifest/JUnit/日志及三类代表图，百度移动检索取得两张真实战斗参考。
 2. [完成，待云端验收] 四兵种+五类材质地标、共享解码缓存、地图实体/情报条与命令钮已经接入；原15图门禁保留，加材质/地标门禁和第17张检视图。
-3. [进行中] 精确提交 main/push，下载本轮结果包、逐图核对并修复；记录结论后继续下一小目标（将领/AI）。
+3. [完成] `32abd15` / run `40802053973` attempt1：manifest/JUnit、Static 14/14 Node 合同、17 PNG、Xcode 与九资源 cmp 一致通过。
+4. [完成，待云端验收] 战场工作区与将领身份：保持 1x...1.8x 手势语义，将适屏鸟瞰与实际可平移战区画布分开，竖屏优先实体可读、横屏不再把棋盘压成中间窄带；接入四名真实将领专属肖像，收敛底栏身份卡。
+5. [进行中] 已追加真实工作区/1x 大画布平移/聚焦/复位门禁和四肖像解码/姓名映射/打包/第18张检视证据；保留既有门禁，精确 push 后复判新图，再选择下一目标。
 
 ## 本轮编辑记录与已有改动保护
 
 - 起点：main `32fb4fe3e14cd3a99ebe0c698ab520eda98ea00e`，GitHub API 确认远端同 SHA；`gh auth status` active 为 Altman-sam114。
 - 已有未提交：`RomeLegionsApp.xcodeproj/project.pbxproj`（人工签名/注释排序）、Xcode `UserInterfaceState.xcuserstate`、未跟踪 `md/unity分析/`；不覆盖、不暂存。
 - 当前编辑：四兵种 PNG 已替换，五类新材质/地标已复制；BattleViewStyles 共享加载器/缓存与 chrome 尺寸，BattleMapView 材质/地标/实体层级/78pt 竖屏情报行，BattleShellControls 兵种招募图/金属命令钮；Render 新资源门禁/检视图/同源采样区域；verify/CI 范围测试/结果清单与必要 README、AGENTS、flow/flowchart/test、美术说明同步。
+- 新阶段起点：2026-10-29 实际 fetch 后 main/origin/main 均为 `32abd15c3fcb154c4f2bc064d025834f904088af`；未提交项仍只有上述人工工程、xcuserstate 与 Unity 分析。接下来仅改战斗表现、Render/资源门禁与必要文档，不改人工工程。
+- 新阶段预计编辑：BattleViewStyles（工作区/镜头与肖像缓存）、BattleMapView（同一画布变换/将领标记）、BattleShellControls/BattlePanels（身份展示）、四张 commander PNG、Render 工具及必要 CI 资源清单/结构/架构/美术说明。
+- 新阶段实际：上述文件已实现；旋转方向仍由视口决定而非放大画布，双手势通过同一结束事件提交缩放/平移，避免两条 onEnded 覆盖彼此。新增 `md/art/battle-commander-art.md` 保存从本任务生成记录读取的四条原始提示词，未编造新调用。
 - 预计文件：BattleMapView.swift、BattleViewStyles.swift、BattleShellControls.swift、Resources/BattleUnitArt 四 PNG、Tools/RenderBattlePreview、必要结构/CI 与架构/美术说明；不为小改动重写全部入口。
 
 ## 关键决策与风险
@@ -46,8 +51,12 @@
 - 重新下载后更正旧记录：40702065272的Static实际在BattlePanels EOF新增空行处失败，未执行结构/Node合同；不能采用此前“14项Node通过”的描述。App BUILD SUCCEEDED/九资源cmp及资源解码日志确实存在。当前去掉EOF多余空行，补充混合视觉修复路由案例，让最新云端真实运行Node合同。
 - run40799212655 / e495ad8 attempt1已下载，manifest/JUnit5项1失败3主动skipped一致；Static通过，Render编译约2分半、通过精确地图构图/海岸和7张实图后在`missingDistinctCommandDockRender`失败。unit.red=70、city.red=73，城市招募红衣兵模削弱了确认攻击的独立红色信号；不放宽原断言，给真实确认/选敌按钮增加主操作渐变与象牙图标，待新云端Render+Xcode。
 - 图像目检：写实兵模/地表确实接入；焦点态仍把可玩地图压成中间窄带、军团底栏长提示溢出，不能把技术通过当成商业美术完成。下一小目标优先优化地图工作区与身份卡布局，将领肖像原稿（新增维钦托利/拉比埃努斯）先保留生成目录、不混入本次修复。
+- 2026-10-29 已读 `40802053973` 本地云端结果包的 manifest/JUnit/三项日志：main/SHA/run/attempt 精确一致，5 项 0 失败 2 主动 skipped；Static 14/14、17 图、App BUILD SUCCEEDED 与九资源 cmp 通过。重新查看 portrait-unit/landscape-focused 实图确认真实布局问题，作为下一轮依据。
+- 本次百度移动搜索实际加载了游戏图片结果网格；图片分类导航曾返回浏览安全策略拦截，不绕过或换通道，仅读取当前已显示的参考网格。使用地图主导、独立圆形肖像、低饱和材质关系，不打包商业素材。
+- 四幅生成目录原稿已目检：凯撒、汉尼拔、维钦托利、拉比埃努斯分别独立；不会把肖像按阵营/技能猜配给未知将领。第五幅爆炸精灵图属于其它生成内容，不使用。
 
 ## 当前步骤、阻塞与下一步
 
-- 当前：修复真实命令主操作区分/清除上一EOF问题，等待精确提交并云端重验；人工工程/xcuserstate/Unity分析仍保护，不暂存。
-- 下一步：核对新SHA的完整17图、Node合同和App构建；后续重做地图工作区与将领身份，不以步骤continue-on-error显示结论代替实际outcome。
+- 当前：上一阶段验收完成，进入工作区/身份表现重构；人工工程/xcuserstate/Unity分析仍保护，不暂存。
+- 风险：扩大真实战区不能把底图、命中、岸线与路径拆成多套坐标，1x 也必须能触达画布边缘；镜头状态仍只在 SwiftUI，不进入核心或存档。肖像不代表史学复原，不影响将领规则。
+- 下一步：只读复核 diff 与暂存范围后 main 精确提交/push，查询新 SHA 的云端结果，下载18图/日志进行验收；本地不运行任何自动校验。

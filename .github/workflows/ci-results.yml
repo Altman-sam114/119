@@ -21,7 +21,7 @@ permissions:
   contents: read
 
 env:
-  CI_VERSION: v0.82
+  CI_VERSION: v0.83
   PROJECT_NAME: RomeLegions
   XCODE_PROJECT: RomeLegionsApp.xcodeproj
   XCODE_SCHEME: RomeLegions
@@ -163,7 +163,7 @@ jobs:
             CODE_SIGNING_ALLOWED=NO \
             build || exit $?
           APP_PACKAGE="$DERIVED_DATA_PATH/Build/Products/Debug-iphoneos/RomeLegions.app"
-          for kind in legion cavalry archer navy ground water city forest hills; do
+          for kind in legion cavalry archer navy ground water city forest hills commander-caesar commander-hannibal commander-vercingetorix commander-labienus; do
             cmp "RomeLegionsApp/Resources/BattleUnitArt/$kind.png" "$APP_PACKAGE/BattleUnitArt/$kind.png" || exit $?
             echo "[art] bundled $kind.png matches source"
           done
@@ -214,7 +214,8 @@ jobs:
             "ci-results/render-previews/battle-wide-preview-focused-enemy.png",
             "ci-results/render-previews/battle-wide-preview-focused-countermeasure.png",
             "ci-results/render-previews/battle-unit-art-preview.png",
-            "ci-results/render-previews/battle-scenery-art-preview.png"
+            "ci-results/render-previews/battle-scenery-art-preview.png",
+            "ci-results/render-previews/battle-commander-art-preview.png"
           ];
           for (const result of results) {
             const expected = [result.log];

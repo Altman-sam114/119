@@ -12,11 +12,17 @@ struct RenderBattlePreview {
         emitPreviewDiagnostic("[preview] fixtures started: \(outputPath)")
         try verifyBattleUnitArtwork()
         try verifyBattleSceneryArtwork()
+        try verifyBattleCommanderArtwork()
+        try verifyMapWorkspaceLayout()
         if arguments.contains("--unit-art-sheet") {
             try renderUnitArtworkSheet(beside: outputPath)
             try renderArtworkProof(
                 BattleSceneryArtworkProofView(), name: "battle-scenery-art-preview.png",
                 size: CGSize(width: 700, height: 440), beside: outputPath
+            )
+            try renderArtworkProof(
+                BattleCommanderArtworkProofView(), name: "battle-commander-art-preview.png",
+                size: CGSize(width: 800, height: 400), beside: outputPath
             )
         }
         // Data-only fixtures never touch the five screenshot contexts below.
@@ -4119,6 +4125,112 @@ struct RenderBattlePreview {
         emitPreviewDiagnostic("Natural terrain contours: stable closed loops, island, lake, bridge, separated coast and campaign centers passed at three sizes")
     }
 
+    private static func verifyMapWorkspaceLayout() throws {
+        let state = GameState.newCampaign(mode: .campaign)
+        for size in [CGSize(width: 932, height: 430), CGSize(width: 390, height: 844), CGSize(width: 1024, height: 768)] {
+            let shell = BattleInterfaceMetrics(container: size)
+            let container = CGSize(width: size.width - shell.mapInset * 2,
+                                   height: size.height - shell.fixedChromeHeight - shell.mapInset * 2)
+            for focused in [false, true] {
+                let workspace = MapWorkspaceLayout(mapWidth: state.width, mapHeight: state.height,
+                                                   container: container, hasFocusReadout: focused)
+                let metrics = workspace.metrics
+                let contours = MapTerrainGeometry(tiles: state.tiles, metrics: metrics).contours(in: workspace.canvasSize)
+                guard workspace.canvasSize.width >= container.width,
+                      workspace.canvasSize.height >= container.height,
+                      metrics.mapSize.height >= container.height * 0.40,
+                      state.tiles.allSatisfy({ tile in
+                          contours.path.contains(metrics.center(for: tile.position)) == (tile.terrain != .water)
+                      }) else {
+                    emitPreviewDiagnostic("Workspace geometry failed: viewport=\(container), canvas=\(workspace.canvasSize), map=\(metrics.mapSize)")
+                    throw PreviewRenderError.missingMapWorkspaceLayout
+                }
+                if shell.isPortrait {
+                    let overview = HexMetrics(mapWidth: state.width, mapHeight: state.height, container: container)
+                    guard metrics.tileWidth >= overview.tileWidth * 1.5 else {
+                        throw PreviewRenderError.missingMapWorkspaceLayout
+                    }
+                } else if shell.isShortLandscape {
+                    guard metrics.mapSize.width >= container.width * 0.92 else {
+                        throw PreviewRenderError.missingMapWorkspaceLayout
+                    }
+                }
+                for position in [Position(x: 0, y: 0), Position(x: 3, y: 3), Position(x: state.width - 1, y: state.height - 1)] {
+                    let point = metrics.center(for: position)
+                    let home = MapViewportState().framing(on: point, in: container,
+                                                         contentSize: workspace.canvasSize, center: workspace.workingCenter)
+                    let screen = home.screenPoint(for: point, in: container, contentSize: workspace.canvasSize)
+                    guard home.scale == 1, !home.hasNavigation,
+                          workspace.workingRect.insetBy(dx: -0.001, dy: -0.001).contains(screen) else {
+                        emitPreviewDiagnostic("Workspace home failed: size=\(size), focused=\(focused), position=\(position), screen=\(screen), work=\(workspace.workingRect)")
+                        throw PreviewRenderError.missingMapWorkspaceLayout
+                    }
+                    var camera = home
+                    camera.pan(by: CGSize(width: 10_000, height: -10_000), in: container, contentSize: workspace.canvasSize)
+                    let limit = camera.maximumOffset(in: container, contentSize: workspace.canvasSize)
+                    guard camera.hasNavigation, camera.scale == 1,
+                          abs(camera.offset.width - limit.width) < 0.001,
+                          abs(camera.offset.height + limit.height) < 0.001,
+                          (workspace.canvasSize.width == container.width || limit.width > 0) else {
+                        throw PreviewRenderError.missingMapWorkspaceLayout
+                    }
+                    camera.focus(on: point, in: container, viewportCenter: workspace.workingCenter,
+                                 contentSize: workspace.canvasSize)
+                    let focusedScreen = camera.screenPoint(for: point, in: container, contentSize: workspace.canvasSize)
+                    guard camera.scale == MapViewportState.focusScale,
+                          workspace.workingRect.insetBy(dx: -0.001, dy: -0.001).contains(focusedScreen) else {
+                        emitPreviewDiagnostic("Workspace focus failed: position=\(position), screen=\(focusedScreen), work=\(workspace.workingRect)")
+                        throw PreviewRenderError.missingMapWorkspaceLayout
+                    }
+                    camera.reset()
+                    let resetHome = camera.framing(on: point, in: container,
+                                                  contentSize: workspace.canvasSize, center: workspace.workingCenter)
+                    guard camera.isDefault, !camera.hasNavigation, resetHome == home else {
+                        throw PreviewRenderError.missingMapWorkspaceLayout
+                    }
+                }
+                emitPreviewDiagnostic("Workspace: viewport=\(container), canvas=\(workspace.canvasSize), tileWidth=\(metrics.tileWidth), focused=\(focused); 1x pan/focus/reset passed")
+            }
+        }
+    }
+
+    private static func verifyBattleCommanderArtwork() throws {
+        var paths = Set<String>()
+        var originals = Set<Data>()
+        for portrait in BattleCommanderPortrait.allCases {
+            guard BattleCommanderPortrait.matching(portrait.name) == portrait,
+                  let url = BattleArtworkLoader.resourceURL(named: portrait.resourceName),
+                  paths.insert(url.path).inserted,
+                  originals.insert(try Data(contentsOf: url)).inserted,
+                  let image = BattleCommanderArtwork.image(named: portrait.name),
+                  min(image.width, image.height) >= 192,
+                  max(image.width, image.height) <= BattleCommanderArtwork.maximumDecodeSize else {
+                throw PreviewRenderError.missingBattleCommanderArtwork
+            }
+            let bitmap = NSBitmapImageRep(cgImage: image)
+            var light: CGFloat = 0
+            var dark: CGFloat = 1
+            for y in stride(from: 0, to: image.height, by: 8) {
+                for x in stride(from: 0, to: image.width, by: 8) {
+                    guard let color = bitmap.colorAt(x: x, y: y)?.usingColorSpace(.deviceRGB) else { continue }
+                    let brightness = (color.redComponent + color.greenComponent + color.blueComponent) / 3
+                    light = max(light, brightness)
+                    dark = min(dark, brightness)
+                }
+            }
+            guard light - dark > 0.28 else { throw PreviewRenderError.missingBattleCommanderArtwork }
+            emitPreviewDiagnostic("[commander] \(portrait.name): \(image.width)x\(image.height), range=\(light - dark)")
+        }
+        guard paths.count == 4, originals.count == 4,
+              BattleCommanderPortrait.matching(nil) == nil,
+              BattleCommanderPortrait.matching("马戈") == nil,
+              BattleCommanderPortrait.matching("凯撒军团") == nil,
+              BattleCommanderArtwork.image(named: "马戈") == nil,
+              BattleCommanderArtwork.image(named: nil) == nil else {
+            throw PreviewRenderError.missingBattleCommanderArtwork
+        }
+    }
+
     private static func verifyBattleSceneryArtwork() throws {
         var paths = Set<String>()
         for kind in BattleSceneryKind.allCases {
@@ -4243,6 +4355,44 @@ struct RenderBattlePreview {
     }
 }
 
+private struct BattleCommanderArtworkProofView: View {
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            Text("IMPERATORES · 将领身份")
+                .font(.system(size: 24, weight: .bold, design: .serif))
+                .foregroundStyle(BattlePalette.ivory)
+            Text("四名独立原创肖像 · 按真实姓名匹配 · 未知将领不冒用身份")
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundStyle(BattlePalette.parchment)
+            HStack(spacing: 14) {
+                ForEach(BattleCommanderPortrait.allCases, id: \.rawValue) { portrait in
+                    VStack(spacing: 12) {
+                        CommanderPortraitView(name: portrait.name, diameter: 132)
+                        Text(portrait.name)
+                            .font(.system(size: 16, weight: .bold, design: .serif))
+                            .foregroundStyle(BattlePalette.ivory)
+                        HStack(spacing: 14) {
+                            CommanderPortraitView(name: portrait.name, diameter: 40)
+                            CommanderPortraitView(name: portrait.name, diameter: 22)
+                        }
+                    }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .background(BattlePalette.panelRaised)
+                    .clipShape(.rect(cornerRadius: 8))
+                }
+            }
+            HStack(spacing: 8) {
+                CommanderPortraitView(name: "未知将领", diameter: 24)
+                Text("未知将领保留中性图标，不按阵营、技能或相似姓名猜配肖像")
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(BattlePalette.muted)
+            }
+        }
+        .padding(20)
+        .background(BattlePalette.panel)
+    }
+}
+
 private struct BattleSceneryArtworkProofView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -4359,6 +4509,8 @@ private struct CountermeasureCommandRuntimeSnapshot {
 
 enum PreviewRenderError: Error {
     case renderFailed
+    case missingMapWorkspaceLayout
+    case missingBattleCommanderArtwork
     case missingBattleUnitArtwork
     case opaqueBattleUnitArtwork
     case missingBattleSceneryArtwork

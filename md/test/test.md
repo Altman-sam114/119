@@ -52,7 +52,7 @@
 | `swift-tests` | `swift test --scratch-path .build/swift-test-ci --disable-sandbox` | 核心规则行为，实际数量从日志读取 |
 | `gameplay-smoke` | `swiftc` 编译并运行 `Tools/GameplaySmoke/main.swift` | 核心集成与 AI 执行/预演同源 |
 | `render-battle-preview` | 云端编译并运行 `Tools/RenderBattlePreview/main.swift` | ViewModel 只读/命令链、几何/布局、图像资源与静态截图 |
-| `xcode-build` | 无签名 `xcodebuild build`，`generic/platform=iOS` | App target 与 bundle；含四兵种及五类地表/地标逐文件 cmp |
+| `xcode-build` | 无签名 `xcodebuild build`，`generic/platform=iOS` | App target 与 bundle；含四兵种、五类地表/地标及四将领肖像逐文件 cmp |
 
 默认串行重步骤；Render 使用标准 `-O`，不使用移除安全检查的 `-Ounchecked`。编译/夹具/逐图进度写日志，任一尺寸失败立即传播。总 job 75 分钟、Render 50 分钟、Xcode 15 分钟上限保留；不得靠无限加时或弱化门禁处理性能回归。不会为纯文档任务启动这些重步骤。
 
@@ -60,14 +60,14 @@
 
 只有 scope 选中 Render 才要求下列产物；未选中时不把“没有截图”记为游戏回归失败。工具目前是聚合入口，选中后保留其完整已有断言，不能伪称只运行了某一条夹具。
 
-- 三个布局尺寸：932x430、390x844、1024x768；每尺寸 default 城市、unit、focused、focused-enemy、focused-countermeasure 五场景，共 15 张战斗图；另有 1400x1000 的 `battle-unit-art-preview.png` 和 1400x880 的 `battle-scenery-art-preview.png`，共 17 PNG。
+- 三个布局尺寸：932x430、390x844、1024x768；每尺寸 default 城市、unit、focused、focused-enemy、focused-countermeasure 五场景，共 15 张战斗图；另有 1400x1000 的 `battle-unit-art-preview.png`、1400x880 的 `battle-scenery-art-preview.png` 和 1600x800 的 `battle-commander-art-preview.png`，共 18 PNG。
 - 敌路/计划/威胁/反制/目标线、成长、将领、城市、处境、军令窗口、推进线与侦察 HUD 均来自真实核心/readout；读取/聚焦不改核心、AI intent 或存档编码。
 - 攻击锁定/取消幂等，预演等于核心 `CombatPreview`；敌将 focused/primary fallback 同源且只读，失效焦点清理；反制姿态/移动/锁敌三个独立入口只产生各自允许的状态变化，不自动攻击或串联命令。
 - AI 的 intent/plan/threat/map 复用同一个姿态/落点/目标预览，真实结算匹配；保留立即击杀、集火、冷却、已行动、合法落点、占城终局与旧优先级行为。预测不能反向写入核心。
 - 五种显示上下文优先级、地图主/次/隐藏层、无锁定时无攻击来源描边、用户文案不泄露 raw source ID；portrait“仅侦察”文字、102pt 命令坞和独立 44pt 入口不得回归。
-- 镜头默认 1x、1x...1.8x clamp、拖移边界、中心/边缘聚焦、reset；地图空间层共用变换，固定 HUD/镜头工具不随图漂移。
+- 镜头首帧 1x 取景、1x...1.8x clamp、独立画布在 1x 的拖移边界、三尺寸普通/焦点工作区、角落/中心聚焦及 reset 后重新取景；实际地形中心仍正确，竖屏实体至少比适屏鸟瞰大 1.5 倍，短横屏棋盘覆盖实际视口宽度。地图空间层共用变换，固定 HUD/镜头工具不随图漂移。
 - 六边形顶点与核心邻接共边、自然岸线/内湖/岛/陆桥、地表中心分类、真实相邻道路、顺序稳定性和地图安全区；不使用屏幕距离代替核心邻接。
-- 四兵种路径/透明 alpha/实体材质像素/384px 解码约束、紧凑兵牌高度；五类地表/地标的独立路径、768/384px 有界解码、材质明暗、地表不透明与地标透明 alpha；真实 App 九类资源逐字节一致。Canvas fallback 不算资源通过。
+- 四兵种路径/透明 alpha/实体材质像素/384px 解码约束、紧凑兵牌高度；五类地表/地标的独立路径、768/384px 有界解码、材质明暗、地表不透明与地标透明 alpha；四将领独立资源、256px 解码、明暗和姓名精确匹配，未知/相似姓名不得借用身份；真实 App 十三类资源逐字节一致。Canvas/中性图标 fallback 不算资源通过。
 - focused-enemy 的无宿主 ImageRenderer 使用有限静态 drawerContent；真实 App 默认仍是可滚动抽屉，截图适配不能改变产品行为。
 
 常见失败从日志定位 `missingAttackForecast`、`missingEnemyCommanderThreatFocusReadout`、`missingCountermeasure*RuntimeConfirmation`、`missingAIMoveSkillPreviewChain`、`missingAITacticalActionPreviewChain`、`missingMapViewportStrategy`、`missingHexTerrainContinuity`、`missingContinuousTerrainSurface`、`missingNaturalTerrainContours`、`missingBattleUnitArtwork` / `opaqueBattleUnitArtwork`；完整 token 和断言以工具源码为准，不在本文件逐版重复。
@@ -76,7 +76,7 @@
 
 ## 5. 结果包与核对
 
-每个 run 必须上传未加密结果包，至少包含 `ci-artifact-manifest.json`、`ci-failure-summary.md`、`junit.xml`、`validation-scope.json` 与已选检查的日志。Render 选中时列出预期 17 PNG；Xcode 选中时保留实际 xcresult。未运行项不伪造日志/结果文件。
+每个 run 必须上传未加密结果包，至少包含 `ci-artifact-manifest.json`、`ci-failure-summary.md`、`junit.xml`、`validation-scope.json` 与已选检查的日志。Render 选中时列出预期 18 PNG；Xcode 选中时保留实际 xcresult。未运行项不伪造日志/结果文件。
 
 manifest 必须包含：
 

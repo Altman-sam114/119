@@ -4,10 +4,12 @@
 
 ```mermaid
 flowchart LR
-    P[原创四兵种与五类地表地标 PNG] --> R[既有 BattleUnitArt folder resource]
+    P[原创四兵种 / 五类地表地标 / 四将领 PNG] --> R[既有 BattleUnitArt folder resource]
     R --> L[BattleArtworkLoader / bundle 或 macOS 显式根目录]
     L --> U[Unit 缓存 384px]
     L --> S[Scenery 地表768px / 地标384px]
+    L --> G[Commander 姓名精确匹配 / 256px缓存]
+    G --> I[地图将领标记 / 军团身份 / 敌将卡]
     T[真实 Tile / HexMetrics / 同源海岸] --> M[MapTerrainSurfaceView 地表裁剪与道路]
     S --> M
     S --> E[透明城镇 / 树林 / 山脊]
@@ -15,9 +17,28 @@ flowchart LR
     E --> V[地图实体 / 原战术叠层与命令]
     A --> V
     C[BattleMapChromeMetrics] --> H[情报坞 / 安全区 / 44pt入口]
-    V --> Q[云端17图 / 九资源alpha明暗与bundle cmp]
+    V --> Q[云端18图 / 十三资源解码与bundle cmp]
+    I --> Q
     M --> Q
     H --> Q
+```
+
+## 战区画布与固定工作区
+
+```mermaid
+flowchart LR
+    T[真实棋盘尺寸 / 视口 / 焦点HUD] --> W[MapWorkspaceLayout]
+    W --> H[HexMetrics 单一画布坐标]
+    W --> R[固定HUD之间的工作区]
+    H --> M[地表 / 海岸 / 格子命中 / 路线 / 实体]
+    S[只读 focusedPosition] --> C[MapViewportState 首帧取景 / 聚焦]
+    R --> C
+    W --> C
+    P[手势 / 镜头按钮 / 复位] --> C
+    C --> V[画布统一 1x...1.8x 与边界平移]
+    M --> V
+    V --> F[视口裁剪 / 固定HUD不变换]
+    C -.不写回.-> G[GameState / 存档 / AI]
 ```
 
 ## 原创兵模资源链

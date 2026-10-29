@@ -2983,8 +2983,9 @@ struct EnemyCommanderThreatCardView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 7) {
             HStack(spacing: 7) {
-                Image(systemName: readout.skillSymbol)
-                    .foregroundStyle(readout.isFocused ? .orange : .white.opacity(0.78))
+                CommanderPortraitView(name: readout.commanderLabel, diameter: 34,
+                                      tint: readout.isFocused ? .orange : BattlePalette.brass,
+                                      fallbackSymbol: readout.skillSymbol)
                 Text("敌将")
                     .font(.caption2.weight(.bold))
                     .foregroundStyle(.white.opacity(0.58))

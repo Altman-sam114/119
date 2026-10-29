@@ -33,7 +33,7 @@ test("test and tool changes select their own execution entry", () => {
 });
 
 test("battle presentation and artwork select Render and App build without core execution", () => {
-  for (const file of ["RomeLegionsApp/App/GameViewModel.swift", "RomeLegionsApp/App/GameViewModelMapReadouts.swift", "RomeLegionsApp/Views/BattlePanels.swift", "RomeLegionsApp/Resources/BattleUnitArt/legion.png", "RomeLegionsApp/Resources/BattleUnitArt/ground.png", "RomeLegionsApp/Resources/BattleUnitArt/city.png"]) {
+  for (const file of ["RomeLegionsApp/App/GameViewModel.swift", "RomeLegionsApp/App/GameViewModelMapReadouts.swift", "RomeLegionsApp/Views/BattlePanels.swift", "RomeLegionsApp/Resources/BattleUnitArt/legion.png", "RomeLegionsApp/Resources/BattleUnitArt/ground.png", "RomeLegionsApp/Resources/BattleUnitArt/city.png", "RomeLegionsApp/Resources/BattleUnitArt/commander-caesar.png"]) {
     assert.deepEqual(ids(file), ["static-checks", "render-battle-preview", "xcode-build"]);
   }
 });
@@ -143,8 +143,9 @@ test("actual metadata rejects a successful Render outcome with missing required 
   const render = manifest.checkResults.find(({ id }) => id === "render-battle-preview");
   assert.equal(render.outcome, "success");
   assert.equal(render.status, "failure");
-  assert.equal(manifest.renderPreviewPaths.length, 17);
+  assert.equal(manifest.renderPreviewPaths.length, 18);
   assert.ok(render.missingPaths.includes("ci-results/render-previews/battle-unit-art-preview.png"));
   assert.ok(render.missingPaths.includes("ci-results/render-previews/battle-scenery-art-preview.png"));
+  assert.ok(render.missingPaths.includes("ci-results/render-previews/battle-commander-art-preview.png"));
   assert.match(output, /failed_checks=1/);
 });
