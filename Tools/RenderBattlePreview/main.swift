@@ -4233,10 +4233,10 @@ struct RenderBattlePreview {
         let proof = ZStack {
             MapCanvasViewport(workspace: workspace, camera: MapViewportState()) { Color.black }
             Color.clear
-                .overlay(alignment: .topLeading) { Color.red.frame(width: 16, height: 16).padding(8) }
-                .overlay(alignment: .topTrailing) { Color.green.frame(width: 16, height: 16).padding(8) }
-                .overlay(alignment: .bottomLeading) { Color.blue.frame(width: 16, height: 16).padding(8) }
-                .overlay(alignment: .bottomTrailing) { Color.yellow.frame(width: 16, height: 16).padding(8) }
+                .overlay(alignment: .topLeading) { Color(red: 1, green: 0, blue: 0).frame(width: 16, height: 16).padding(8) }
+                .overlay(alignment: .topTrailing) { Color(red: 0, green: 1, blue: 0).frame(width: 16, height: 16).padding(8) }
+                .overlay(alignment: .bottomLeading) { Color(red: 0, green: 0, blue: 1).frame(width: 16, height: 16).padding(8) }
+                .overlay(alignment: .bottomTrailing) { Color(red: 1, green: 1, blue: 0).frame(width: 16, height: 16).padding(8) }
         }
         .frame(width: size.width, height: size.height)
         let renderer = ImageRenderer(content: proof)

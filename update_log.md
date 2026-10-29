@@ -31,6 +31,7 @@
 - Render 增加真实工作区、1x 大画布平移、角落聚焦与复位、四肖像独立解码/姓名门禁及第18张检视图；App 增至十三资源逐字节比对。保留全部既有几何、命令、AI/readout与原17图，不削弱断言。
 - 本地只读/编辑/资源复制和 Git 同步，未编译、测试、typecheck、Render、verify、diff-check 或解析校验。计划 baseline结构+14项CI合同，direct完整Render+Xcode；核心/Smoke因规则未变主动skipped。仍需最新实现SHA/run/attempt结果复判，当前不宣布验收或持续目标完成。
 - 首轮 `467ddbacd2b5258efabda8cee35564d85ee95acd` / run `40816924269` attempt1，已下载并核对 manifest/JUnit 5项0失败2skipped、14项Node合同、18PNG和Xcode十三资源cmp均成功；但目检发现超大画布撑开父 ZStack，竖屏HUD向左裁切、横屏情报坞向下偏移，视觉验收拒绝。追加 `MapCanvasViewport` 固定透明基底/overlay隔离布局、三尺寸四角实际渲染锚点与四侦察按钮逐个位置像素门禁，保留旧断言，不以CI绿灯冒充验收。
+- `51f5a0c` / run `40820258972` attempt1 的实际结果包显示 Static/14Node、App构建/十三资源cmp通过，Render在新四角探针停止：macOS语义 `Color.green` 实际RGB为0.226/0.805/0.423，不等于测试假定纯绿，并非布局坐标漂移。把探针改为显式RGB原色，保持全部位置/阈值断言；下轮只改Render工具，App输入未变，Xcode引用此精确SHA的真实证据，不重复构建或伪称新SHA重建。
 
 ### v0.82 / 写实材质、地标与编队美术
 

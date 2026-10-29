@@ -57,10 +57,12 @@
 - v0.83 实现提交 `467ddbacd2b5258efabda8cee35564d85ee95acd` 已精确提交20个相关文件并推送 main；远端已接收，云端 run `40816924269` attempt1 正在运行。人工工程/xcuserstate/Unity分析未暂存，未运行本机验证。
 - run40816924269 已完成并通过普通 gh 下载至 `/private/tmp/romelegions-review-40816924269/RomeLegions-ci-v0.83-main-467ddba-run40816924269-attempt1/`；manifest/JUnit5/0/2skipped、14Node、18图、Xcode/十三资源cmp相符。但真实portrait-unit/landscape-focused显示HUD布局回归，不验收：扩大画布影响父ZStack尺寸，而仅在外围frame不能隔离布局。
 - 当前追加修复：共享 `MapCanvasViewport` 用固定透明基底+overlay承载大画布，世界几何/同源变换不变；新增三尺寸普通/焦点态四角实际颜色锚点，及真实战斗图中四个44pt侦察按钮各自的位置/颜色门禁。结构/flow/test同步；尚未提交，不运行本机校验。
+- 上述修复已由 `51f5a0cdba1e13b96b06d87cd0768d0cfdadd46b` 精确提交9文件并push；最新 run `40820258972` attempt1正在运行，direct仍为Render+Xcode，baseline结构与CI合同。没有混入两幅待选灰绿材质。
+- run40820258972已下载至 `/private/tmp/romelegions-review-40820258972/`：manifest/JUnit5/1/2skipped、14Node、Xcode/十三资源cmp一致；Render新探针在右上绿色锚点失败，实际RGB0.226/0.805/0.423是macOS语义green而非纯绿（坐标已有绿色），不是未诊断重试。改成显式四种RGB原色，不改阈值/位置；只有Render工具输入改变，下轮direct=Render，Xcode引用51f5a0c通过证据。
 - 生图工具本轮两次真实调用成功，生成灰绿石灰土地表后按“降低白碎石/暗斑/对比、细节更细”编辑一版。候选都在 `/Users/a114514/.codex/generated_images/01a18594-4fd6-7ed3-a493-0e965dbe7cab/`，尚未替换项目ground.png；必须先修复HUD并验收，再评估候选，不把生成成功当成已接入。
 
 ## 当前步骤、阻塞与下一步
 
-- 当前：v0.83首轮技术通过但视觉拒绝，正在追加画布/HUD布局隔离修复；人工工程/xcuserstate/Unity分析仍保护，不暂存。
+- 当前：画布隔离App构建已通过，修复Render探针的语义颜色假设，等待精确提交后重验；人工工程/xcuserstate/Unity分析仍保护，不暂存。
 - 风险：扩大真实战区不能把底图、命中、岸线与路径拆成多套坐标，1x 也必须能触达画布边缘；镜头状态仍只在 SwiftUI，不进入核心或存档。肖像不代表史学复原，不影响将领规则。
 - 下一步：精确提交画布隔离与定位门禁，push后核对最新18图；通过真实视觉复判后继续灰绿材质与UI减噪。不提前声称改善完成，本地不运行任何自动校验。
