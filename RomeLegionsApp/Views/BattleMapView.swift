@@ -46,6 +46,8 @@ struct WarMapView: View {
                 container: proxy.size,
                 hasFocusReadout: hasFocusReadout
             )
+            let usesTwoIntelligenceRows = BattleMapChromeMetrics.usesTwoIntelligenceRows(width: proxy.size.width)
+            let sharesBottomRow = BattleMapChromeMetrics.sharesBottomRow(width: proxy.size.width)
             let metrics = workspace.metrics
             // One pathfinding read per map update, shared by every tile.
             let reachablePositions: Set<Position> = displayContext.mode == .unitExecution
@@ -235,59 +237,9 @@ struct WarMapView: View {
                 .simultaneousGesture(mapNavigationGesture(workspace: workspace, camera: idleViewport))
 
                 VStack {
-                    Spacer(minLength: 62)
                     HStack {
-                        MapCameraControlsView(
-                            usesHorizontalLayout: proxy.size.height < 390,
-                            canFocus: selectedPosition != nil,
-                            canZoomIn: idleViewport.scale < MapViewportState.maximumScale,
-                            canZoomOut: idleViewport.scale > MapViewportState.minimumScale,
-                            canReset: viewport.hasNavigation,
-                            onZoomIn: {
-                                zoomViewport(by: 0.2, camera: idleViewport, workspace: workspace)
-                            },
-                            onZoomOut: {
-                                zoomViewport(by: -0.2, camera: idleViewport, workspace: workspace)
-                            },
-                            onFocus: {
-                                guard let selectedPosition else { return }
-                                focusViewport(on: selectedPosition, camera: idleViewport, workspace: workspace)
-                            },
-                            onReset: {
-                                withAnimation(.easeInOut(duration: 0.22)) {
-                                    viewport.reset()
-                                }
-                            }
-                        )
-                        Spacer()
-                    }
-                    Spacer(minLength: 70)
-                }
-                .padding(.leading, 8)
-                .zIndex(5.05)
-
-                VStack {
-                    Spacer()
-                    HStack {
-                        MapScaleBarView(metrics: metrics)
-                        Spacer(minLength: 0)
-                    }
-                    .padding(.leading, 12)
-                    .padding(.bottom, BattleMapChromeMetrics.bottomClearance(isNarrow: proxy.size.width < 620) + 4)
-                }
-                .allowsHitTesting(false)
-                .zIndex(4.9)
-
-                VStack {
-                    HStack {
-                        BattlefieldStatusRibbonView(isCompact: proxy.size.width < 620)
-                            .frame(
-                                width: proxy.size.width < 620
-                                    ? max(80, proxy.size.width - 250)
-                                    : max(180, min(proxy.size.width - 250, 520)),
-                                alignment: .leading
-                            )
-                            .clipped()
+                        BattlefieldStatusRibbonView(isCompact: usesTwoIntelligenceRows)
+                            .frame(maxWidth: max(0, proxy.size.width - 250), alignment: .leading)
                         Spacer(minLength: 0)
                     }
                     .padding(10)
@@ -350,17 +302,69 @@ struct WarMapView: View {
                 }
 
                 VStack {
-                    Spacer()
-                    MapIntelligenceDockView(
-                        readout: reconHUD,
-                        engagementLoop: displayContext.mode == .baselineRecon ? engagementLoop : nil,
-                        legendItems: viewModel.activeMapOverlayLegendItems,
-                        displayContext: displayContext,
-                        usesTwoRows: proxy.size.width < 620,
-                        onSelect: viewModel.selectMapReconPerspective
-                    )
-                    .padding(.horizontal, 12)
-                    .padding(.bottom, 8)
+                    Spacer(minLength: 0)
+
+                    HStack(alignment: .bottom, spacing: 8) {
+                        if !sharesBottomRow {
+                            MapScaleBarView(metrics: metrics)
+                                .allowsHitTesting(false)
+                        }
+
+                        Spacer(minLength: 0)
+
+                        MapCameraControlsView(
+                            canFocus: selectedPosition != nil,
+                            canZoomIn: idleViewport.scale < MapViewportState.maximumScale,
+                            canZoomOut: idleViewport.scale > MapViewportState.minimumScale,
+                            canReset: viewport.hasNavigation,
+                            onZoomIn: {
+                                zoomViewport(by: 0.2, camera: idleViewport, workspace: workspace)
+                            },
+                            onZoomOut: {
+                                zoomViewport(by: -0.2, camera: idleViewport, workspace: workspace)
+                            },
+                            onFocus: {
+                                guard let selectedPosition else { return }
+                                focusViewport(on: selectedPosition, camera: idleViewport, workspace: workspace)
+                            },
+                            onReset: {
+                                withAnimation(.easeInOut(duration: 0.22)) {
+                                    viewport.reset()
+                                }
+                            }
+                        )
+                        .overlay(alignment: .topTrailing) {
+                            if sharesBottomRow {
+                                MapScaleBarView(metrics: metrics)
+                                    .alignmentGuide(.top) { $0.height + 6 }
+                                    .allowsHitTesting(false)
+                            }
+                        }
+                    }
+                    .padding(.horizontal, BattleMapChromeMetrics.edgeInset)
+                    .padding(.bottom, BattleMapChromeMetrics.cameraBottomInset(width: proxy.size.width))
+                }
+                .zIndex(5.05)
+
+                VStack {
+                    Spacer(minLength: 0)
+
+                    HStack(alignment: .bottom, spacing: 8) {
+                        MapIntelligenceDockView(
+                            readout: reconHUD,
+                            engagementLoop: displayContext.mode == .baselineRecon ? engagementLoop : nil,
+                            legendItems: viewModel.activeMapOverlayLegendItems,
+                            displayContext: displayContext,
+                            usesTwoRows: usesTwoIntelligenceRows,
+                            onSelect: viewModel.selectMapReconPerspective
+                        )
+                        if sharesBottomRow {
+                            Spacer(minLength: 0)
+                        }
+                    }
+                    .padding(.trailing, sharesBottomRow ? BattleMapChromeMetrics.cameraWidth + 8 : 0)
+                    .padding(.horizontal, BattleMapChromeMetrics.edgeInset)
+                    .padding(.bottom, BattleMapChromeMetrics.bottomInset)
                 }
                 .zIndex(5.1)
             }
@@ -589,7 +593,6 @@ struct EnemyCommanderThreatFocusMapReadoutView: View {
 }
 
 struct MapCameraControlsView: View {
-    var usesHorizontalLayout: Bool
     var canFocus: Bool
     var canZoomIn: Bool
     var canZoomOut: Bool
@@ -600,27 +603,15 @@ struct MapCameraControlsView: View {
     var onReset: () -> Void
 
     var body: some View {
-        Group {
-            if usesHorizontalLayout {
-                HStack(spacing: 2) {
-                    cameraButtons
-                }
-            } else {
-                VStack(spacing: 2) {
-                    cameraButtons
-                }
-            }
+        HStack(spacing: 0) {
+            cameraButton("放大战略地图", symbol: "plus.magnifyingglass", enabled: canZoomIn, action: onZoomIn)
+            cameraButton("缩小战略地图", symbol: "minus.magnifyingglass", enabled: canZoomOut, action: onZoomOut)
+            cameraButton("聚焦当前选择", symbol: "scope", enabled: canFocus, action: onFocus)
+            cameraButton("复位地图镜头", symbol: "arrow.counterclockwise", enabled: canReset, action: onReset)
         }
         .padding(2)
+        .battleMapPlate()
         .accessibilityElement(children: .contain)
-    }
-
-    @ViewBuilder
-    private var cameraButtons: some View {
-        cameraButton("放大战略地图", symbol: "plus.magnifyingglass", enabled: canZoomIn, action: onZoomIn)
-        cameraButton("缩小战略地图", symbol: "minus.magnifyingglass", enabled: canZoomOut, action: onZoomOut)
-        cameraButton("聚焦当前选择", symbol: "scope", enabled: canFocus, action: onFocus)
-        cameraButton("复位地图镜头", symbol: "arrow.counterclockwise", enabled: canReset, action: onReset)
     }
 
     private func cameraButton(
@@ -632,9 +623,7 @@ struct MapCameraControlsView: View {
         Button(label, systemImage: symbol, action: action)
             .labelStyle(.iconOnly)
             .font(.caption.weight(.black))
-            .buttonStyle(BattleMetalButtonStyle())
-            .frame(width: 44, height: 44)
-            .contentShape(Rectangle())
+            .buttonStyle(BattleMetalButtonStyle(diameter: 30))
             .disabled(!enabled)
             .opacity(enabled ? 1 : 0.42)
             .help(label)
@@ -703,76 +692,34 @@ struct BattlefieldStatusRibbonView: View {
     var isCompact = false
 
     var body: some View {
-        HStack(spacing: 6) {
-            if isCompact {
-                Image(systemName: "flag.fill")
-                    .foregroundStyle(viewModel.state.activeFaction.factionColor)
-                Text(viewModel.state.activeFaction.displayName)
-                    .font(.caption.weight(.bold))
-                Label("\(viewModel.hostileUnitCount)", systemImage: "flame.fill")
-                    .font(.caption.weight(.bold))
-                    .foregroundStyle(BattlePalette.brassBright)
-            } else {
+        HStack(spacing: isCompact ? 5 : 10) {
+            if !isCompact {
                 Label(viewModel.campaignStatusTitle, systemImage: viewModel.campaignStatus.kind.systemImage)
-                    .font(.caption.weight(.black))
                     .foregroundStyle(viewModel.campaignStatus.kind.tintColor)
                     .lineLimit(1)
+                    .minimumScaleFactor(0.75)
 
-                Divider()
-                    .frame(height: 20)
-                    .overlay {
-                        Color.white.opacity(0.14)
-                    }
-
-                TacticalChipView(
-                    symbol: "flag.fill",
-                    label: "行动",
-                    value: viewModel.state.activeFaction.displayName,
-                    tint: viewModel.state.activeFaction.factionColor,
-                    compact: true
-                )
-
-                TacticalChipView(
-                    symbol: "flame.fill",
-                    label: "敌军",
-                    value: "\(viewModel.hostileUnitCount)",
-                    tint: .red,
-                    compact: true
-                )
-
-                TacticalChipView(
-                    symbol: viewModel.selectedMapReconPerspective.systemImage,
-                    label: "侦察",
-                    value: viewModel.mapReconPerspectiveHUDReadout.statusLabel,
-                    tint: viewModel.selectedMapReconPerspective.mapReconTint,
-                    compact: true,
-                    accessibilityLabel: viewModel.mapReconPerspectiveHUDReadout.accessibilityLabel
-                )
+                Rectangle()
+                    .fill(BattlePalette.brass.opacity(0.30))
+                    .frame(width: 1, height: 14)
             }
+
+            Circle()
+                .fill(viewModel.state.activeFaction.factionColor)
+                .frame(width: 6, height: 6)
+            Text(viewModel.state.activeFaction.displayName)
+                .lineLimit(1)
+            Label("\(viewModel.hostileUnitCount)", systemImage: "flame.fill")
+                .monospacedDigit()
+                .foregroundStyle(BattlePalette.parchment)
         }
-        .foregroundStyle(.white)
-        .padding(.horizontal, 8)
-        .padding(.vertical, 6)
-        .background {
-            LinearGradient(
-                colors: [BattlePalette.panelRaised.opacity(0.94), BattlePalette.romanRed.opacity(0.42), .black.opacity(0.70)],
-                startPoint: .leading,
-                endPoint: .trailing
-            )
-        }
-        .clipShape(.rect(cornerRadius: 7))
-        .overlay {
-            RoundedRectangle(cornerRadius: 7)
-                .stroke(BattlePalette.parchment.opacity(0.42), lineWidth: 1)
-        }
-        .overlay(alignment: .top) {
-            Rectangle()
-                .fill(BattlePalette.brassBright.opacity(0.62))
-                .frame(height: 1)
-                .padding(.horizontal, 8)
-        }
+        .font(.caption.weight(.semibold))
+        .foregroundStyle(BattlePalette.ivory)
+        .padding(.horizontal, isCompact ? 7 : 10)
+        .frame(height: 30)
+        .battleMapPlate()
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel("\(viewModel.campaignStatusTitle)，\(viewModel.state.activeFaction.displayName)行动，敌军\(viewModel.hostileUnitCount)，\(viewModel.mapReconPerspectiveHUDReadout.statusLabel)")
+        .accessibilityLabel("\(viewModel.campaignStatusTitle)，\(viewModel.state.activeFaction.displayName)行动，敌军\(viewModel.hostileUnitCount)")
     }
 }
 
@@ -1062,19 +1009,12 @@ struct MapIntelligenceDockView: View {
                         perspective: readout.selectedKind,
                         compact: true
                     )
-                    .frame(maxWidth: .infinity, alignment: .leading)
                 }
             }
         }
-        .padding(6)
+        .padding(BattleMapChromeMetrics.intelligencePadding)
         .frame(height: BattleMapChromeMetrics.intelligenceHeight(isNarrow: usesTwoRows))
-        .background(BattlePalette.panel.opacity(0.90))
-        .clipShape(.rect(cornerRadius: 8))
-        .overlay {
-            RoundedRectangle(cornerRadius: 8)
-                .stroke(BattlePalette.brass.opacity(0.42), lineWidth: 1)
-        }
-        .shadow(color: .black.opacity(0.28), radius: 5, y: 2)
+        .battleMapPlate()
         .accessibilityElement(children: .contain)
         .accessibilityLabel("\(displayContext.title)，\(displayContext.statusLabel)，\(readout.selectorLabel)")
     }
@@ -2111,7 +2051,7 @@ struct HexTileView: View {
                 }
                 .overlay {
                     Hexagon()
-                        .stroke(borderColor, lineWidth: isSelected || isAttackOrigin || isAttackTarget ? max(2.4, 3 * scale) : max(0.4, 0.55 * scale))
+                        .stroke(borderColor, lineWidth: isAttackTarget ? max(1.6, 2 * scale) : max(0.4, 0.55 * scale))
                 }
 
             if let threatHeatZoneSummary {
@@ -2206,13 +2146,10 @@ struct HexTileView: View {
                 }
             }
 
-            if isSelected {
-                SelectedTileOverlay(scale: scale)
-            }
-
-            if isAttackOrigin && !isSelected {
-                SelectedTileOverlay(scale: scale)
-                    .opacity(0.82)
+            if isSelected || isAttackOrigin {
+                SelectedTileOverlay(scale: scale, tint: isSelected ? BattlePalette.brassBright : BattlePalette.signal)
+                    .allowsHitTesting(false)
+                    .accessibilityHidden(true)
             }
 
             if isAttackTarget {
@@ -2234,8 +2171,6 @@ struct HexTileView: View {
 
     private var borderColor: Color {
         if isAttackTarget { return .red }
-        if isSelected { return .white }
-        if isAttackOrigin { return .cyan }
         if isReachable { return .yellow.opacity(0.24) }
         return .clear
     }
@@ -2461,19 +2396,13 @@ struct SkillTargetOverlay: View {
 
 struct SelectedTileOverlay: View {
     var scale: CGFloat
+    var tint: Color
 
     var body: some View {
-        ZStack {
-            Hexagon()
-                .fill(.white.opacity(0.12))
-            Hexagon()
-                .stroke(.white.opacity(0.95), lineWidth: max(1.8, 2.6 * scale))
-                .padding(1.5 * scale)
-            Hexagon()
-                .stroke(Color(red: 0.94, green: 0.76, blue: 0.30).opacity(0.75), lineWidth: max(1, 1.2 * scale))
-                .padding(6 * scale)
-        }
-        .shadow(color: .white.opacity(0.45), radius: 5 * scale)
+        Hexagon()
+            .stroke(tint, style: StrokeStyle(lineWidth: max(1.5, 2 * scale), lineJoin: .round))
+            .padding(2 * scale)
+            .shadow(color: .black.opacity(0.84), radius: 1.5)
     }
 }
 

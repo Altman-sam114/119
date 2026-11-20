@@ -2494,14 +2494,14 @@ struct RenderBattlePreview {
         }
         guard shortInterfaceMetrics.isShortLandscape,
               shortInterfaceMetrics.topBarHeight <= 42,
-              shortInterfaceMetrics.commandDockHeight <= 80,
-              shortInterfaceMetrics.fixedChromeHeight / 430 < 0.29,
+              shortInterfaceMetrics.commandDockHeight <= 56,
+              (430 - shortInterfaceMetrics.fixedChromeHeight - shortInterfaceMetrics.mapInset * 2) / 430 >= 0.75,
               portraitInterfaceMetrics.isPortrait,
               portraitInterfaceMetrics.commandDockHeight <= 102,
               portraitInterfaceMetrics.fixedChromeHeight / 844 < 0.18,
               !wideInterfaceMetrics.isShortLandscape,
-              wideInterfaceMetrics.commandDockHeight <= 88,
-              wideInterfaceMetrics.fixedChromeHeight / 768 < 0.18,
+              wideInterfaceMetrics.commandDockHeight <= 64,
+              (768 - wideInterfaceMetrics.fixedChromeHeight - wideInterfaceMetrics.mapInset * 2) / 768 >= 0.84,
               shortInterfaceMetrics.edgeToolVisualSize < 44,
               wideInterfaceMetrics.edgeToolSpacing <= 2 else {
             throw PreviewRenderError.missingBattleCommandHierarchy
@@ -2587,7 +2587,7 @@ struct RenderBattlePreview {
                     (endTerrain == .road || endTerrain == .city)
             }),
             metrics.origin.y - metrics.tileHeight / 2 + metrics.mapSize.height <=
-                size.height - BattleMapChromeMetrics.bottomClearance(isNarrow: size.width < 620) + 0.001 else {
+                size.height - BattleMapChromeMetrics.bottomClearance(width: size.width) + 0.001 else {
                 emitPreviewDiagnostic("Terrain center/road/clearance mismatch: size=\(size), origin=\(metrics.origin), map=\(metrics.mapSize)")
                 throw PreviewRenderError.missingContinuousTerrainSurface
             }
@@ -2614,7 +2614,7 @@ struct RenderBattlePreview {
             throw PreviewRenderError.missingContinuousTerrainSurface
         }
         let portraitTop = portraitMetrics.origin.y - portraitMetrics.tileHeight / 2
-        let portraitBottomClearance = BattleMapChromeMetrics.bottomClearance(isNarrow: true)
+        let portraitBottomClearance = BattleMapChromeMetrics.bottomClearance(width: 374)
         let portraitFreeSpace = max(0, 670 - 70 - portraitBottomClearance - portraitMetrics.mapSize.height)
         let expectedPortraitTop = 70 + portraitFreeSpace * 0.38
         // The map now occupies the working area's center, not the old top strip.
@@ -3380,14 +3380,14 @@ struct RenderBattlePreview {
             )
         }
 
-        let heightRatio = logicalHeight >= logicalWidth ? 0.15 : (logicalHeight < 560 ? 0.23 : 0.15)
-        let commandContentStart = Int(interfaceMetrics.commandIdentityWidth + 25)
-        let regionHeight = Int(logicalHeight * heightRatio)
+        let commandContentStart = Int(interfaceMetrics.commandIdentityWidth + 29)
+        let actionRowHeight = Int(BattleInterfaceMetrics.controlSize)
+        let actionTop = Int(logicalHeight) - (Int(interfaceMetrics.commandDockHeight) + actionRowHeight) / 2
         return (
             x: commandContentStart,
-            y: max(0, Int(logicalHeight) - regionHeight - 2),
+            y: max(0, actionTop),
             width: max(1, Int(logicalWidth) - commandContentStart - 54),
-            height: regionHeight
+            height: actionRowHeight
         )
     }
 
@@ -3505,11 +3505,10 @@ struct RenderBattlePreview {
                 height: 24
             ))
             : 14
-        let minimumCommandHeight: CGFloat = metrics.isPortrait ? 102 : (metrics.isShortLandscape ? 80 : 88)
+        let minimumCommandHeight = metrics.isPortrait ? 102 : BattleInterfaceMetrics.controlSize + 12
         let minimumIdentityWidth: CGFloat = logicalWidth < 700 ? 128 : 220
         let layoutBudgetIsSafe = metrics.commandDockHeight >= minimumCommandHeight &&
-            metrics.commandIdentityWidth >= minimumIdentityWidth &&
-            44 >= 44
+            metrics.commandIdentityWidth >= minimumIdentityWidth
         emitPreviewDiagnostic("Focused threat preview pixels: map=\(mapSignature), command=\(commandSignature), compactStatusColumns=\(compactStatusColumns), layoutBudget=\(layoutBudgetIsSafe)")
         return readout.isFocused &&
             readout.hasExecutableCommand == false &&
@@ -3665,23 +3664,27 @@ struct RenderBattlePreview {
         let interfaceMetrics = BattleInterfaceMetrics(
             container: CGSize(width: logicalWidth, height: logicalHeight)
         )
-        let commandDockHeight = Double(interfaceMetrics.commandDockHeight)
-        let intelligenceHeight = Int(BattleMapChromeMetrics.intelligenceHeight(isNarrow: logicalWidth < 620))
+        let mapWidth = CGFloat(logicalWidth) - interfaceMetrics.mapInset * 2
+        let usesTwoRows = BattleMapChromeMetrics.usesTwoIntelligenceRows(width: mapWidth)
+        let intelligenceHeight = Int(BattleMapChromeMetrics.intelligenceHeight(isNarrow: usesTwoRows))
+        let mapBottom = Int(logicalHeight - interfaceMetrics.commandDockHeight - interfaceMetrics.mapInset)
         let region = (
             x: 10,
-            y: max(0, Int(logicalHeight - commandDockHeight) - intelligenceHeight - 4),
+            y: max(0, mapBottom - intelligenceHeight - Int(BattleMapChromeMetrics.bottomInset)),
             width: min(230, max(1, Int(logicalWidth) - 20)),
             height: intelligenceHeight
         )
-        let legendRegionX = logicalWidth < 620 ? (hasEngagementBadge ? 120 : 20) : 300
-        let legendRegionY = logicalWidth < 620
-            ? region.y + intelligenceHeight - 30
+        let legendRegionX = usesTwoRows ? (hasEngagementBadge ? 120 : 20) : 300
+        let legendRegionY = usesTwoRows
+            ? region.y + intelligenceHeight - 26
             : region.y
+        let legendEndX = Int(logicalWidth) - (BattleMapChromeMetrics.sharesBottomRow(width: mapWidth)
+            ? Int(BattleMapChromeMetrics.cameraWidth + BattleMapChromeMetrics.edgeInset * 2) : 20)
         let legendRegion = (
             x: legendRegionX,
             y: legendRegionY,
-            width: max(1, Int(logicalWidth) - legendRegionX - 20),
-            height: logicalWidth < 620 ? 24 : intelligenceHeight
+            width: max(1, legendEndX - legendRegionX),
+            height: usesTwoRows ? 20 : intelligenceHeight
         )
         var signature = (bright: 0, red: 0, cyan: 0, gold: 0)
         var legendSignature = (bright: 0, tinted: 0)
@@ -3737,9 +3740,10 @@ struct RenderBattlePreview {
         in bitmap: NSBitmapImageRep, logicalWidth: Double, logicalHeight: Double
     ) -> Bool {
         let shell = BattleInterfaceMetrics(container: CGSize(width: logicalWidth, height: logicalHeight))
-        let height = Double(BattleMapChromeMetrics.intelligenceHeight(isNarrow: logicalWidth < 620))
-        let startX = Int(shell.mapInset) + 18
-        let startY = Int(logicalHeight - Double(shell.commandDockHeight + shell.mapInset) - 8 - height) + 6
+        let usesTwoRows = BattleMapChromeMetrics.usesTwoIntelligenceRows(width: CGFloat(logicalWidth) - shell.mapInset * 2)
+        let height = BattleMapChromeMetrics.intelligenceHeight(isNarrow: usesTwoRows)
+        let startX = Int(shell.mapInset + BattleMapChromeMetrics.edgeInset + BattleMapChromeMetrics.intelligencePadding)
+        let startY = Int(logicalHeight - shell.commandDockHeight - shell.mapInset - BattleMapChromeMetrics.bottomInset - height + BattleMapChromeMetrics.intelligencePadding)
         let scaleX = Double(bitmap.pixelsWide) / logicalWidth
         let scaleY = Double(bitmap.pixelsHigh) / logicalHeight
         var counts = [Int](repeating: 0, count: 4)
@@ -3840,8 +3844,17 @@ struct RenderBattlePreview {
             )
         }
         let toolCounts = toolBins.map { toolIconPixels(in: $0) }
-        emitPreviewDiagnostic("Battle shell pixels: map=\(mapCounts.map), tools=\(toolCounts)")
-        return mapCounts.map > 240 && toolCounts.allSatisfy { $0 > 10 }
+        let mapWidth = CGFloat(logicalWidth) - interfaceMetrics.mapInset * 2
+        let slot = Int(BattleInterfaceMetrics.controlSize)
+        let cameraX = Int(logicalWidth - interfaceMetrics.mapInset - BattleMapChromeMetrics.edgeInset - BattleMapChromeMetrics.cameraWidth) + 2
+        let cameraY = Int(logicalHeight - interfaceMetrics.commandDockHeight - interfaceMetrics.mapInset - BattleMapChromeMetrics.cameraBottomInset(width: mapWidth)) - slot - 2
+        let activeCameraCounts = [0, 2].map { index in
+            toolIconPixels(in: (x: cameraX + index * slot, y: cameraY, width: slot, height: slot))
+        }
+        emitPreviewDiagnostic("Battle shell pixels: map=\(mapCounts.map), tools=\(toolCounts), camera=\(activeCameraCounts)")
+        return mapCounts.map > 240 &&
+            toolCounts.allSatisfy { $0 > 10 } &&
+            activeCameraCounts.allSatisfy { $0 > 10 }
     }
 
     private static func hasStrategicMapMaterialCoverage(

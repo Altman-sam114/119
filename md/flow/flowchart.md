@@ -32,7 +32,7 @@ flowchart LR
     U --> A[军团兵牌 / 招募兵种图]
     E --> V[地图实体 / 原战术叠层与命令]
     A --> V
-    C[BattleMapChromeMetrics] --> H[情报坞 / 安全区 / 44pt入口]
+    C[BattleMapChromeMetrics] --> H[下缘情报与镜头 / 安全区 / 44pt入口]
     V --> Q[云端18图 / 十三资源解码与bundle cmp]
     I --> Q
     M --> Q
@@ -45,7 +45,7 @@ flowchart LR
 flowchart LR
     T[真实棋盘尺寸 / 视口 / 焦点HUD] --> W[MapWorkspaceLayout]
     W --> H[HexMetrics 单一画布坐标]
-    W --> R[固定HUD之间的工作区]
+    W --> R[顶部读板和下缘工具之间的工作区]
     H --> M[地表 / 海岸 / 格子命中 / 路线 / 实体]
     S[只读 focusedPosition] --> C[MapViewportState 首帧取景 / 聚焦]
     R --> C
@@ -264,7 +264,7 @@ flowchart TD
     A["App 启动<br/>RomeLegionsApp 创建 GameViewModel"] --> B["RootView<br/>判断是否显示菜单"]
     B -->|isShowingMenu = true| C["MainMenuView<br/>人工选择战役/征服/远征"]
     C --> D["GameViewModel.start(mode:)<br/>创建 GameState.newCampaign"]
-    B -->|isShowingMenu = false| E["BattleView 根壳层<br/>ShellControls / MapView / Panels / Styles 分域<br/>薄战役带、全宽地图、横向边缘工具、目标导向命令坞"]
+    B -->|isShowingMenu = false| E["BattleView 根壳层<br/>ShellControls / MapView / Panels / Styles 分域<br/>薄顶栏、全宽地图、边缘镜头与侦察、单行横屏命令栏"]
     D --> E
     E --> F["用户点击地图或命令<br/>选择单位/城市/地块/目标"]
     F --> G["GameViewModel 命令方法<br/>selectTile / focusAttackTarget / confirmSelectedAttack / recruit / develop / endTurn"]

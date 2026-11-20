@@ -1,6 +1,8 @@
 import SwiftUI
 
 struct BattleInterfaceMetrics: Equatable {
+    static let controlSize: CGFloat = 44
+
     let isPortrait: Bool
     let isShortLandscape: Bool
     let usesCondensedTopBar: Bool
@@ -16,10 +18,10 @@ struct BattleInterfaceMetrics: Equatable {
         isShortLandscape = container.width > container.height && container.height < 560
         usesCondensedTopBar = container.width < 900 || isShortLandscape
         topBarHeight = isShortLandscape ? 42 : 44
-        commandDockHeight = isPortrait ? 102 : (isShortLandscape ? 80 : 88)
-        mapInset = isShortLandscape ? 4 : 6
-        edgeToolVisualSize = isShortLandscape ? 34 : 36
-        edgeToolSpacing = 2
+        commandDockHeight = isPortrait ? 102 : (isShortLandscape ? 56 : 64)
+        mapInset = isShortLandscape ? 2 : 4
+        edgeToolVisualSize = isShortLandscape ? 31 : 34
+        edgeToolSpacing = 0
         commandIdentityWidth = container.width < 700 ? 128 : 220
     }
 

@@ -169,9 +169,32 @@ enum UnitTokenPresentation: Equatable {
 }
 
 enum BattleMapChromeMetrics {
-    static func intelligenceHeight(isNarrow: Bool) -> CGFloat { isNarrow ? 78 : 56 }
-    static func bottomClearance(isNarrow: Bool) -> CGFloat {
-        intelligenceHeight(isNarrow: isNarrow) + 20
+    static let edgeInset: CGFloat = 12
+    static let bottomInset: CGFloat = 8
+    static let intelligencePadding: CGFloat = 6
+    static let cameraWidth: CGFloat = BattleInterfaceMetrics.controlSize * 4 + 4
+
+    static func usesTwoIntelligenceRows(width: CGFloat) -> Bool { width < 620 }
+    static func sharesBottomRow(width: CGFloat) -> Bool { width >= 840 }
+
+    static func intelligenceHeight(isNarrow: Bool) -> CGFloat {
+        isNarrow ? 78 : BattleInterfaceMetrics.controlSize + intelligencePadding * 2
+    }
+
+    static func cameraBottomInset(width: CGFloat) -> CGFloat {
+        bottomInset + 4 + (sharesBottomRow(width: width) ? 0 : intelligenceHeight(isNarrow: usesTwoIntelligenceRows(width: width)))
+    }
+
+    static func bottomClearance(width: CGFloat) -> CGFloat {
+        max(
+            bottomInset + intelligenceHeight(isNarrow: usesTwoIntelligenceRows(width: width)) + 8,
+            cameraBottomInset(width: width) + BattleInterfaceMetrics.controlSize + 4
+        )
+    }
+
+    static func tileAspect(viewport: CGSize) -> CGFloat {
+        if viewport.width > viewport.height * 2 { return 0.62 }
+        return viewport.width > viewport.height ? 0.72 : 1.14
     }
 }
 
@@ -242,8 +265,7 @@ struct CommandIconButtonStyle: ButtonStyle {
     }
 }
 
-/// Square stone tablet with a bronze rim, the campaign-HUD button shape used by
-/// drawers and camera tools. Only the face changes; hit slots stay with callers.
+/// Small button face inside a full-size hit target.
 struct BattleMetalButtonStyle: ButtonStyle {
     var isSelected = false
     var diameter: CGFloat = 36
@@ -257,17 +279,31 @@ struct BattleMetalButtonStyle: ButtonStyle {
                 shape.fill(LinearGradient(
                     colors: isSelected
                         ? [BattlePalette.brassBright, BattlePalette.brass, BattlePalette.brassDim]
-                        : [BattlePalette.stoneLight, BattlePalette.stone, BattlePalette.stoneDark],
+                        : [BattlePalette.panelRaised, BattlePalette.panel],
                     startPoint: .top, endPoint: .bottom
                 ))
             }
             .clipShape(shape)
             .overlay {
-                shape.strokeBorder(BattlePalette.brass.opacity(isSelected ? 0.95 : 0.62), lineWidth: 1.2)
-                shape.inset(by: 2.4).strokeBorder(BattlePalette.ivory.opacity(0.16), lineWidth: 0.6)
+                shape.strokeBorder(BattlePalette.brass.opacity(isSelected ? 0.9 : 0.28), lineWidth: 1)
             }
-            .shadow(color: .black.opacity(0.45), radius: 2, y: 1.5)
             .scaleEffect(configuration.isPressed ? 0.94 : 1)
+            .frame(width: BattleInterfaceMetrics.controlSize, height: BattleInterfaceMetrics.controlSize)
+            .contentShape(Rectangle())
+    }
+}
+
+extension View {
+    func battleMapPlate() -> some View {
+        background {
+            RoundedRectangle(cornerRadius: 8)
+                .fill(BattlePalette.panel.opacity(0.94))
+                .overlay {
+                    RoundedRectangle(cornerRadius: 8)
+                        .strokeBorder(BattlePalette.brass.opacity(0.36), lineWidth: 1)
+                }
+                .shadow(color: .black.opacity(0.30), radius: 6, y: 2)
+        }
     }
 }
 
@@ -447,14 +483,14 @@ struct MapWorkspaceLayout {
     init(mapWidth: Int, mapHeight: Int, container: CGSize, hasFocusReadout: Bool) {
         self.container = container
         let isPortrait = container.height >= container.width
-        let isNarrow = container.width < 620
+        let isNarrow = BattleMapChromeMetrics.usesTwoIntelligenceRows(width: container.width)
         let topInset: CGFloat = hasFocusReadout ? (isNarrow ? 140 : 112) : (isPortrait ? 70 : 54)
-        let bottomInset = BattleMapChromeMetrics.bottomClearance(isNarrow: isNarrow)
+        let bottomInset = BattleMapChromeMetrics.bottomClearance(width: container.width)
         let canvasWidth = container.width * (container.height > container.width * 1.25 && isNarrow ? 1.72 : 1)
         let horizontalUnits = CGFloat(mapWidth) + (mapHeight > 1 ? 0.5 : 0)
         let horizontalInset = min(18, max(8, canvasWidth * 0.018))
         let tileWidth = min(82, max(18, (canvasWidth - horizontalInset * 2) / max(1, horizontalUnits)))
-        let aspect: CGFloat = container.width > container.height * 2 ? 0.50 : (container.width > container.height ? 0.72 : 1.14)
+        let aspect = BattleMapChromeMetrics.tileAspect(viewport: container)
         let rows = CGFloat(max(0, mapHeight - 1)) * 0.75 + 1
         let canvasHeight = max(container.height, topInset + bottomInset + rows * tileWidth * aspect)
         canvasSize = CGSize(width: canvasWidth, height: canvasHeight)
@@ -504,15 +540,14 @@ struct HexMetrics {
         let horizontalUnits = CGFloat(mapWidth) + (mapHeight > 1 ? 0.5 : 0)
         let verticalUnits = CGFloat(max(0, mapHeight - 1)) * 0.75 + 1
         let viewport = viewport ?? container
-        let isShortLandscape = viewport.width > viewport.height * 2
         let isLandscape = viewport.width > viewport.height
 
         let horizontalInset = min(18, max(8, container.width * 0.018))
         let topInset = max(topClearance, isLandscape ? 54 : 70)
-        let bottomInset = BattleMapChromeMetrics.bottomClearance(isNarrow: viewport.width < 620)
+        let bottomInset = BattleMapChromeMetrics.bottomClearance(width: viewport.width)
         let availableWidth = max(1, container.width - horizontalInset * 2)
         let availableHeight = max(1, container.height - topInset - bottomInset)
-        tileAspect = isShortLandscape ? 0.50 : (isLandscape ? 0.72 : 1.14)
+        tileAspect = BattleMapChromeMetrics.tileAspect(viewport: viewport)
         let widthBased = availableWidth / horizontalUnits
         let heightBased = availableHeight / (verticalUnits * tileAspect)
         let fittedTileWidth = min(widthBased, heightBased)
