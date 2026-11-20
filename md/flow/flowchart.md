@@ -44,10 +44,10 @@ flowchart LR
 ```mermaid
 flowchart LR
     T[真实棋盘尺寸 / 视口 / 焦点HUD] --> W[MapWorkspaceLayout]
-    W --> H[HexMetrics 单一画布坐标]
+    W --> H[HexMetrics 单一画布坐标 / 1:1 地图格]
     W --> R[顶部读板和下缘工具之间的工作区]
     H --> M[地表 / 海岸 / 格子命中 / 路线 / 实体]
-    S[只读 focusedPosition] --> C[MapViewportState 首帧取景 / 聚焦]
+    S[只读 focusedPosition] --> C[MapViewportState 1.2x 首帧与复位 / 聚焦]
     R --> C
     W --> C
     P[手势 / 镜头按钮 / 复位] --> C
@@ -416,7 +416,7 @@ flowchart TD
     TM --> TS["CoastlineBuilder<br/>只读派生水-陆相邻段"]
     TS --> TT["CoastlineLayerView<br/>沙色岸线 + 浅色浪缘，随镜头统一变换"]
     TT --> TR
-    TP["容器尺寸 + 棋盘宽高"] --> TQ["HexMetrics<br/>稳定 inset / tileAspect / mapSize / 唯一坐标系"]
+    TP["容器尺寸 + 棋盘宽高"] --> TQ["HexMetrics<br/>稳定 inset / 格子高宽比 1:1 / mapSize / 唯一坐标系"]
     TQ --> TO
     TO --> TR["WarMapView 地貌底层<br/>只改变 SwiftUI 绘制，不改变 GameState / AI / 报告"]
     MF["GameViewModel.primaryCampaignAdvanceReadout<br/>组合首要任务、战役进度、战线压力、目标线、阶段命令、侦察视角和态势交汇"] --> MG["BattleView 顶部推进 chip 与元老院推进线读板<br/>只解释战役目标如何落到地图下一步<br/>不自动聚焦、不自动执行"]

@@ -192,11 +192,6 @@ enum BattleMapChromeMetrics {
             cameraBottomInset(width: width) + cameraHeight
         )
     }
-
-    static func tileAspect(viewport: CGSize) -> CGFloat {
-        if viewport.width > viewport.height * 2 { return 0.62 }
-        return viewport.width > viewport.height ? 0.72 : 1.14
-    }
 }
 
 /// Shared Roman command-deck palette. Keeping chrome colors in one place makes
@@ -374,15 +369,16 @@ struct SecondaryButtonStyle: ButtonStyle {
 
 struct MapViewportState: Equatable {
     static let minimumScale: CGFloat = 1
+    static let defaultScale: CGFloat = 1.2
     static let maximumScale: CGFloat = 1.8
     static let focusScale: CGFloat = 1.34
 
-    private(set) var scale: CGFloat = minimumScale
+    private(set) var scale: CGFloat = defaultScale
     private(set) var offset: CGSize = .zero
     private(set) var hasNavigation = false
 
     var isDefault: Bool {
-        abs(scale - Self.minimumScale) < 0.001 &&
+        abs(scale - Self.defaultScale) < 0.001 &&
             abs(offset.width) < 0.001 &&
             abs(offset.height) < 0.001
     }
@@ -423,7 +419,7 @@ struct MapViewportState: Equatable {
     }
 
     mutating func reset() {
-        scale = Self.minimumScale
+        scale = Self.defaultScale
         offset = .zero
         hasNavigation = false
     }
@@ -491,9 +487,8 @@ struct MapWorkspaceLayout {
         let horizontalUnits = CGFloat(mapWidth) + (mapHeight > 1 ? 0.5 : 0)
         let horizontalInset = min(18, max(8, canvasWidth * 0.018))
         let tileWidth = min(82, max(18, (canvasWidth - horizontalInset * 2) / max(1, horizontalUnits)))
-        let aspect = BattleMapChromeMetrics.tileAspect(viewport: container)
         let rows = CGFloat(max(0, mapHeight - 1)) * 0.75 + 1
-        let canvasHeight = max(container.height, topInset + bottomInset + rows * tileWidth * aspect)
+        let canvasHeight = max(container.height, topInset + bottomInset + rows * tileWidth)
         canvasSize = CGSize(width: canvasWidth, height: canvasHeight)
         workingRect = CGRect(x: 0, y: topInset, width: container.width,
                              height: max(44, container.height - topInset - bottomInset))
@@ -530,12 +525,11 @@ struct MapCanvasViewport<Content: View>: View {
 
 struct HexMetrics {
     let tileWidth: CGFloat
-    let tileHeight: CGFloat
+    var tileHeight: CGFloat { tileWidth }
     let origin: CGPoint
     let actionScale: CGFloat
     let tileScale: CGFloat
     let mapSize: CGSize
-    let tileAspect: CGFloat
 
     init(mapWidth: Int, mapHeight: Int, container: CGSize, topClearance: CGFloat = 0, viewport: CGSize? = nil) {
         let horizontalUnits = CGFloat(mapWidth) + (mapHeight > 1 ? 0.5 : 0)
@@ -548,24 +542,22 @@ struct HexMetrics {
         let bottomInset = BattleMapChromeMetrics.bottomClearance(width: viewport.width)
         let availableWidth = max(1, container.width - horizontalInset * 2)
         let availableHeight = max(1, container.height - topInset - bottomInset)
-        tileAspect = BattleMapChromeMetrics.tileAspect(viewport: viewport)
         let widthBased = availableWidth / horizontalUnits
-        let heightBased = availableHeight / (verticalUnits * tileAspect)
+        let heightBased = availableHeight / verticalUnits
         let fittedTileWidth = min(widthBased, heightBased)
 
         tileWidth = max(18, min(82, fittedTileWidth))
-        tileHeight = tileWidth * tileAspect
         tileScale = min(1.12, max(0.72, tileWidth / 44))
         actionScale = min(1.15, max(0.72, tileWidth / 54))
 
         let totalWidth = tileWidth * horizontalUnits
-        let totalHeight = tileHeight * verticalUnits
+        let totalHeight = tileWidth * verticalUnits
         mapSize = CGSize(width: totalWidth, height: totalHeight)
         let remainingVerticalSpace = max(0, availableHeight - totalHeight)
         let verticalBias: CGFloat = viewport.height > viewport.width * 1.25 ? 0.38 : 0.46
         origin = CGPoint(
             x: horizontalInset + (availableWidth - totalWidth) / 2 + tileWidth / 2,
-            y: topInset + remainingVerticalSpace * verticalBias + tileHeight / 2
+            y: topInset + remainingVerticalSpace * verticalBias + tileWidth / 2
         )
     }
 

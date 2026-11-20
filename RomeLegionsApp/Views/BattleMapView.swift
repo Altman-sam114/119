@@ -78,6 +78,7 @@ struct WarMapView: View {
                 in: proxy.size,
                 contentSize: workspace.canvasSize
             )
+            let displayedTileWidth = metrics.tileWidth * interactiveViewport.scale
             let terrainGeometry = MapTerrainGeometry(tiles: viewModel.state.tiles, metrics: metrics)
             let terrainContours = terrainGeometry.contours(in: workspace.canvasSize)
             let territory = MapTerritoryOwnership(tiles: viewModel.state.tiles, cities: viewModel.state.cities)
@@ -306,7 +307,7 @@ struct WarMapView: View {
 
                     HStack(alignment: .bottom, spacing: 8) {
                         if !sharesBottomRow {
-                            MapScaleBarView(metrics: metrics)
+                            MapScaleBarView(tileWidth: displayedTileWidth)
                                 .allowsHitTesting(false)
                         }
 
@@ -335,7 +336,7 @@ struct WarMapView: View {
                         )
                         .overlay(alignment: .bottomTrailing) {
                             if sharesBottomRow {
-                                MapScaleBarView(metrics: metrics)
+                                MapScaleBarView(tileWidth: displayedTileWidth)
                                     .fixedSize()
                                     .offset(y: -BattleMapChromeMetrics.cameraHeight - 6)
                                     .allowsHitTesting(false)
@@ -1928,14 +1929,14 @@ struct MapFogOfWarEdgeView: View {
 }
 
 struct MapScaleBarView: View {
-    var metrics: HexMetrics
+    var tileWidth: CGFloat
 
     var body: some View {
         HStack(spacing: 6) {
             VStack(alignment: .leading, spacing: 2) {
                 HStack(spacing: 0) {
-                    Rectangle().fill(BattlePalette.brassBright).frame(width: max(20, metrics.tileWidth * 0.52), height: 2)
-                    Rectangle().fill(BattlePalette.ivory.opacity(0.78)).frame(width: max(20, metrics.tileWidth * 0.52), height: 2)
+                    Rectangle().fill(BattlePalette.brassBright).frame(width: tileWidth / 2, height: 2)
+                    Rectangle().fill(BattlePalette.ivory.opacity(0.78)).frame(width: tileWidth / 2, height: 2)
                 }
                 Text("1格 · 战区比例")
                     .font(.system(size: 8, weight: .bold, design: .monospaced))

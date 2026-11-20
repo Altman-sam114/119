@@ -2445,7 +2445,7 @@ struct RenderBattlePreview {
         edgeCamera.focus(on: .zero, in: cameraContainer)
         let edgeCameraLimit = edgeCamera.maximumOffset(in: cameraContainer)
         let interactiveCamera = MapViewportState().applying(
-            magnification: 1.5,
+            magnification: 1.25,
             translation: CGSize(width: 10_000, height: 10_000),
             in: cameraContainer
         )
@@ -2506,7 +2506,8 @@ struct RenderBattlePreview {
               wideInterfaceMetrics.edgeToolSpacing <= 2 else {
             throw PreviewRenderError.missingBattleCommandHierarchy
         }
-        guard minimumCamera.isDefault,
+        guard MapViewportState.defaultScale == 1.2,
+              !minimumCamera.isDefault,
               minimumCamera.scale == MapViewportState.minimumScale,
               minimumCamera.offset == .zero,
               maximumCamera.scale == MapViewportState.maximumScale,
@@ -2517,7 +2518,7 @@ struct RenderBattlePreview {
               edgeCamera.scale == MapViewportState.focusScale,
               abs(edgeCamera.offset.width - edgeCameraLimit.width) < 0.001,
               abs(edgeCamera.offset.height - edgeCameraLimit.height) < 0.001,
-              interactiveCamera.scale == 1.5,
+              abs(interactiveCamera.scale - 1.5) < 0.001,
               abs(interactiveCamera.offset.width - interactiveCamera.maximumOffset(in: cameraContainer).width) < 0.001,
               abs(interactiveCamera.offset.height - interactiveCamera.maximumOffset(in: cameraContainer).height) < 0.001,
               resetCamera.isDefault else {
@@ -2525,7 +2526,9 @@ struct RenderBattlePreview {
         }
         guard Set(terrainProfiles.map(\.signature)).count == TerrainType.allCases.count,
               terrainProfiles.allSatisfy({ $0.layerCount >= 3 && $0.landmarkOpacity <= 0.18 }),
-              shortLandscapeMetrics.tileAspect < 0.72,
+              shortLandscapeMetrics.tileWidth == shortLandscapeMetrics.tileHeight,
+              portraitMetrics.tileWidth == portraitMetrics.tileHeight,
+              wideMetrics.tileWidth == wideMetrics.tileHeight,
               shortLandscapeMetrics.mapSize.width > 300,
               portraitMetrics.mapSize.width > 330,
               wideMetrics.mapSize.width > 700 else {
@@ -2543,7 +2546,7 @@ struct RenderBattlePreview {
                 for other in viewModel.state.tiles where other.position != tile.position {
                     let edge = metrics.sharedEdge(from: tile.position, to: other.position)
                     guard (neighbors.contains(other.position) ? edge.count == 2 : edge.count < 2) else {
-                        emitPreviewDiagnostic("Hex edge mismatch: \(tile.position) -> \(other.position), shared=\(edge.count), aspect=\(metrics.tileAspect)")
+                        emitPreviewDiagnostic("Hex edge mismatch: \(tile.position) -> \(other.position), shared=\(edge.count), tile=\(metrics.tileWidth)x\(metrics.tileHeight)")
                         throw PreviewRenderError.missingHexTerrainContinuity
                     }
                 }
@@ -2555,7 +2558,7 @@ struct RenderBattlePreview {
                           vertex.y >= metrics.origin.y - metrics.tileHeight / 2 - 0.001 &&
                           vertex.y <= metrics.origin.y - metrics.tileHeight / 2 + metrics.mapSize.height + 0.001
                       }) else {
-                    emitPreviewDiagnostic("Hex bounds mismatch: \(tile.position), aspect=\(metrics.tileAspect)")
+                    emitPreviewDiagnostic("Hex bounds mismatch: \(tile.position), tile=\(metrics.tileWidth)x\(metrics.tileHeight)")
                     throw PreviewRenderError.missingHexTerrainContinuity
                 }
             }
@@ -4339,15 +4342,16 @@ struct RenderBattlePreview {
                     let home = MapViewportState().framing(on: point, in: container,
                                                          contentSize: workspace.canvasSize, center: workspace.workingCenter)
                     let screen = home.screenPoint(for: point, in: container, contentSize: workspace.canvasSize)
-                    guard home.scale == 1, !home.hasNavigation,
+                    guard home.scale == MapViewportState.defaultScale, !home.hasNavigation,
                           workspace.workingRect.insetBy(dx: -0.001, dy: -0.001).contains(screen) else {
                         emitPreviewDiagnostic("Workspace home failed: size=\(size), focused=\(focused), position=\(position), screen=\(screen), work=\(workspace.workingRect)")
                         throw PreviewRenderError.missingMapWorkspaceLayout
                     }
                     var camera = home
+                    camera.setScale(MapViewportState.minimumScale, in: container, contentSize: workspace.canvasSize)
                     camera.pan(by: CGSize(width: 10_000, height: -10_000), in: container, contentSize: workspace.canvasSize)
                     let limit = camera.maximumOffset(in: container, contentSize: workspace.canvasSize)
-                    guard camera.hasNavigation, camera.scale == 1,
+                    guard camera.hasNavigation, camera.scale == MapViewportState.minimumScale,
                           abs(camera.offset.width - limit.width) < 0.001,
                           abs(camera.offset.height + limit.height) < 0.001,
                           (workspace.canvasSize.width == container.width || limit.width > 0) else {
@@ -4368,7 +4372,7 @@ struct RenderBattlePreview {
                         throw PreviewRenderError.missingMapWorkspaceLayout
                     }
                 }
-                emitPreviewDiagnostic("Workspace: viewport=\(container), canvas=\(workspace.canvasSize), tileWidth=\(metrics.tileWidth), focused=\(focused); 1x pan/focus/reset passed")
+                emitPreviewDiagnostic("Workspace: viewport=\(container), canvas=\(workspace.canvasSize), tile=\(metrics.tileWidth)x\(metrics.tileHeight), focused=\(focused); 1.2x home/reset, 1x pan and focus passed")
             }
         }
     }

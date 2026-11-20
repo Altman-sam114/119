@@ -19,10 +19,10 @@
 
 ## 战区画布与镜头工作区
 
-- `MapWorkspaceLayout` 从真实棋盘尺寸、屏幕和焦点 HUD 推导画布、工作区与同一 `HexMetrics`。窄竖屏使用较宽战区，短横屏使用较高的六边形与独立垂直画布，避免为了全图适屏把实体压成窄带；超出视口的真实格可平移到达，不增加假格或改变核心邻接。
+- `MapWorkspaceLayout` 从真实棋盘尺寸、屏幕和焦点 HUD 推导画布、工作区与同一 `HexMetrics`。窄竖屏使用较宽战区，短横屏使用 1:1 六边形与独立垂直画布，避免为了全图适屏把实体压成窄带；超出视口的真实格可平移到达，不增加假格或改变核心邻接。
 - `WarMapView` 通过 `MapCanvasViewport` 的固定尺寸透明基底与 overlay 隔离画布布局，在画布中统一绘制底图、岸线、道路、地标、命中格、路线、军团和攻击按钮，再整体缩放/平移并由视口裁剪。超大画布不能撑开父 ZStack；状态牌、地图焦点读板、镜头入口与情报坞留在视口，不跟随世界移动。
-- `MapViewportState` 保持 1x...1.8x，边界取画布缩放后与视口的差；初始 1x 只读取选择位置取景，首次手势/按钮后保存本地镜头。聚焦使用 HUD 间的工作区中心，复位恢复 1x 并重新取景当前选择，不写回 ViewModel、GameState 或存档。
-- Render 在三尺寸/普通与焦点态验证真实工作区、地形中心、实体尺寸、1x 平移边界、角落聚焦与复位，既有适屏几何/自然海岸/命令门禁继续保留。
+- `MapViewportState` 保持 1x...1.8x，边界取画布缩放后与视口的差；初始 1.2x 读取选择位置取景，首次手势/按钮后保存本地镜头。聚焦使用 HUD 间的工作区中心，复位恢复 1.2x 并重新取景当前选择，不写回 ViewModel、GameState 或存档。
+- Render 在三尺寸/普通与焦点态验证真实工作区、地形中心、等比例网格、实体尺寸、1x 平移边界、1.2x 首帧复位和角落聚焦，既有适屏几何/自然海岸/命令门禁继续保留。
 
 ## 生图兵模与军团展示
 
@@ -34,13 +34,13 @@
 
 - `MapTerrainGeometry.contours(in:)` 使用整数 `BattlefieldTerrainVertex` 抵消内部共边，按稳定顺序追踪外岸与内湖的反向闭环，再以受限二次曲线生成 `BattlefieldTerrainContours.path`；仍以真实 Tile 和 HexMetrics 为唯一地形与坐标来源，不更改命中格、核心邻接或寻路。
 - `WarMapView` 单次求值生成一次轮廓，同时传给 `MapTerrainSurfaceView` 和 `CoastlineLayerView`。陆地填充、浅水、沙岸与浪缘同源；浪缘以反向水域 mask 限制在水侧，不重复逐边计算。`CoastlineBuilder` 继续提供真实水陆邻接关系，供云端原有规则/共边验收使用。
-- 土地层分为地表明暗、地貌过渡、颗粒与道路绘制；树林/山脊只读取地形与坐标变化参数，无随机闪烁或状态缓存。竖屏投影为 1.14、剩余空间偏置为 0.38，几何按实际视口方向计算，地图安全区与镜头所有权不变。攻击取消入口固定自身文字宽度并提高布局优先级，仍调用原 `cancelSelectedAttackTarget()`。
+- 土地层分为地表明暗、地貌过渡、颗粒与道路绘制；树林/山脊只读取地形与坐标变化参数，无随机闪烁或状态缓存。竖屏剩余空间偏置为 0.38，几何按实际视口方向计算，地图安全区与镜头所有权不变。攻击取消入口固定自身文字宽度并提高布局优先级，仍调用原 `cancelSelectedAttackTarget()`。
 
 ## v0.79 地表绘制与交互分层
 
 - `MapTerrainGeometry` 只读取 Tile 和 HexMetrics，聚合真实非水域六边形为陆地路径，并把边缘地形延展到不可交互背景；水面、陆地渐变、地形过渡、草点和道路由 `MapTerrainSurfaceView` 在同一个 Canvas 统一绘制。道路只连接核心邻接关系中的 road/city，不再绘制虚构的屏幕背景通路或每格独立路段。
 - `HexTileView` 继续持有城市、单位、森林/山脊地标与全部战术叠层，使用透明地表和显式 `contentShape(Hexagon())` 接收原点击；原格子填色、平原/水面/道路逐格纹理由统一地表取代。绘制层禁用命中，不写入 GameState 或 ViewModel。
-- `HexMetrics` 按视口使用 0.62 / 0.72 / 1.14 的短横屏、宽屏和竖屏投影比例，保留奇偶行、核心共边与镜头变换。镜头与情报在宽视口同列，窄视口分两层；`BattleMapChromeMetrics` 据此计算底部安全区。比例尺跟随镜头工具，窄屏状态牌显示当前阵营和敌军数量。
+- `HexMetrics` 在所有屏幕使用 1:1 的格子高宽比，保留奇偶行、核心共边与镜头变换。镜头与情报在宽视口同列，窄视口分两层；`BattleMapChromeMetrics` 据此计算底部安全区。比例尺跟随镜头工具并按当前缩放计算，窄屏状态牌显示当前阵营和敌军数量。
 - `BattleMetalButtonStyle` 为五类抽屉与四个镜头入口共用的只读金属圆钮样式，外层仍为 44pt 点击槽；按钮 action、disabled、焦点与抽屉状态所有权不变。
 
 ## v0.78 连续战区与微缩军团
@@ -164,7 +164,7 @@
 - `BattleView` 在地图底部用单层情报坞切换敌路、反制、目标线、热区/控区；`MapOverlayPresentation` 只过滤或降低非当前 route/tile/legend 的视觉权重，攻击、技能、可达、选中和当前军议命令预览始终保留。它不修改 ViewModel 叠层集合、评分、选择态或 `GameState`，也不自动执行命令。
 - `MapBackdropView` 用固定路径绘制陆地分区、水系、等高线、战略道路和颗粒，`TerrainMaterialProfile` 为平原/森林/丘陵/水域/道路/城市提供唯一材质签名和图层数量，六个 `TerrainTextureView` 子组件据此绘制田垄、树冠、山脊、波纹、路床和街区；`HexMetrics` 使用横竖屏稳定 inset 与 tile aspect 计算唯一坐标系。城市城墙、军团军旗和指挥官盾徽都只消费既有 `City` / `ArmyUnit` 数据，不新增玩法状态。
 - `CoastlineBuilder` 只读遍历 `state.tiles`，按 `HexMetrics.center(for:)` 的两格中心距（`tileWidth * 0.95` 阈值）为每个水格找出视觉相邻的非水格产出 `CoastlineSegment`，与屏幕上的实际相邻关系一致；`CoastlineLayerView` 在地貌层与路线层之间用 Canvas 沿两格中点绘制沙色岸线与浅色浪缘，随镜头统一变换；`HexTileView` 默认描边减淡并按坐标做确定性明度微调，`ThreatHeatTileOverlay` 只在热区中心格显示等级图标，`MapControlTileOverlay` 使用低对比细实线。这些均为纯展示派生，不写入 `GameState`、报告、命令或存档。
-- `MapViewportState` 把缩放限制在 1x...1.8x，并按独立画布统一限制拖移、计算选择聚焦和复位；`WarMapView` 对底图、路线、六边格、城市、军团、攻击按钮和目标环应用同一个 scale/offset，战况 HUD、镜头按钮和情报坞留在屏幕坐标系。首帧在 1x 按选择位置取景，`focusedPosition` 后续变化驱动镜头动画；镜头不反向写入 ViewModel 或 `GameState`。
+- `MapViewportState` 把缩放限制在 1x...1.8x，并按独立画布统一限制拖移、计算选择聚焦和复位；`WarMapView` 对底图、路线、六边格、城市、军团、攻击按钮和目标环应用同一个 scale/offset，战况 HUD、镜头按钮和情报坞留在屏幕坐标系。首帧在 1.2x 按选择位置取景，`focusedPosition` 后续变化驱动镜头动画；镜头不反向写入 ViewModel 或 `GameState`。
 - `BattleInterfaceMetrics` 从容器尺寸统一派生顶部高度、底部命令坞高度、地图 inset 和边缘工具尺寸，`BattleView` 与 RenderBattlePreview 共用同一布局来源；顶栏展示回合、五类资源与结束回合。短横屏和宽屏底部命令栏分别为 56pt 和 64pt，竖屏为 102pt；五个抽屉入口横排在地图右上。
 - `BattleView` 默认不再用常驻右侧栏压缩地图；边缘工具按“情报军令、战场、敌情、元老院、战报”打开覆盖式抽屉，底部命令坞显示选中身份与相关命令，并在城市态展示当前城市简报里的所有招募选项。抽屉开关属于 SwiftUI 本地状态，玩法按钮调用已有 `GameViewModel` 方法并使用相同的预览与禁用条件。
 - 战斗 UI 按根壳层、壳层控制、地图、面板和共享样式拆为五个 Swift 编译单元；拆分只改变源码所有权，类型名、视觉参数、环境对象、action、disabled 条件和无障碍语义保持不变，Xcode target、结构检查与 RenderBattlePreview 使用同一文件清单。
