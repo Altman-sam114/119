@@ -209,6 +209,7 @@ enum BattlePalette {
     static let ivory = Color(red: 0.96, green: 0.93, blue: 0.84)
     static let muted = Color(red: 0.68, green: 0.66, blue: 0.60)
     static let danger = Color(red: 0.78, green: 0.16, blue: 0.12)
+    static let attackHighlight = Color(red: 1, green: 0.47, blue: 0.34)
     static let signal = Color(red: 0.24, green: 0.76, blue: 0.72)
     static let romanRed = Color(red: 0.56, green: 0.10, blue: 0.08)
     static let crimsonDeep = Color(red: 0.30, green: 0.06, blue: 0.05)

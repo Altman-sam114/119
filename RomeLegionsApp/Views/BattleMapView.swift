@@ -14,7 +14,7 @@ struct WarMapView: View {
     var body: some View {
         GeometryReader { proxy in
             let attackTargets: [ArmyUnit] = viewModel.attackTargets
-            let attackTargetIDs = Set(attackTargets.map(\.id))
+            let attackTargetPositions = Set(attackTargets.map(\.position))
             let enemyIntentSummaries = viewModel.enemyIntentSummaries
             let enemyIntentOverlays = viewModel.enemyIntentMapOverlays(for: enemyIntentSummaries)
             let enemyIntentsByUnit = Dictionary(uniqueKeysWithValues: enemyIntentSummaries.map { ($0.unit.id, $0) })
@@ -36,7 +36,8 @@ struct WarMapView: View {
             let reconHUD = viewModel.mapReconPerspectiveHUDReadout
             let engagementLoop = viewModel.primaryEnemyEngagementLoopReadout
             let selectedPosition = viewModel.focusedPosition
-            let selectedAttackSourceID = viewModel.selectedCombatForecast?.attacker.id
+            let selectedAttackForecast = viewModel.selectedCombatForecast
+            let selectedAttackSourceID = selectedAttackForecast?.attacker.id
             let displayContext = viewModel.battleDisplayContextReadout
             let hasFocusReadout = displayContext.mode == .attackLock ||
                 displayContext.mode == .countermeasureFocus || displayContext.mode == .enemyCommanderFocus
@@ -191,7 +192,8 @@ struct WarMapView: View {
                                 sourceID: selectedAttackSourceID
                             ),
                             isReachable: reachablePositions.contains(tile.position),
-                            isAttackTarget: (displayContext.mode == .unitExecution || displayContext.mode == .attackLock) && attackTargets.contains { $0.position == tile.position },
+                            isAttackTarget: (displayContext.mode == .unitExecution || displayContext.mode == .attackLock) && attackTargetPositions.contains(tile.position),
+                            isLockedAttackTarget: unit.map { $0.id == selectedAttackForecast?.defender.id } == true,
                             isSkillRange: skillRangePositions.contains(tile.position),
                             isSkillTarget: skillTargetPositions.contains(tile.position) ||
                                 unit.map { skillTargetUnitIDs.contains($0.id) } == true ||
@@ -224,15 +226,6 @@ struct WarMapView: View {
                         .position(x: center.x, y: center.y - metrics.tileHeight * 0.57)
                         .zIndex(4)
                     }
-
-                    ForEach(viewModel.state.units.filter { attackTargetIDs.contains($0.id) }) { target in
-                        let center = metrics.center(for: target.position)
-                        AttackTargetRing(isFocused: viewModel.isSelectedAttackTarget(target.id))
-                            .frame(width: metrics.tileWidth * 0.92, height: metrics.tileHeight * 0.92)
-                            .position(center)
-                            .allowsHitTesting(false)
-                            .zIndex(3)
-                    }
                 }
                 .contentShape(Rectangle())
                 .simultaneousGesture(mapNavigationGesture(workspace: workspace, camera: idleViewport))
@@ -249,7 +242,7 @@ struct WarMapView: View {
                 .allowsHitTesting(false)
                 .zIndex(5)
 
-                if let forecast = viewModel.selectedCombatForecast {
+                if let forecast = selectedAttackForecast {
                     VStack {
                         HStack {
                             AttackLockMapReadoutView(forecast: forecast)
@@ -263,7 +256,7 @@ struct WarMapView: View {
                     .zIndex(5.15)
                 }
 
-                if viewModel.selectedCombatForecast == nil,
+                if selectedAttackForecast == nil,
                    let countermeasureContext,
                    countermeasureContext.isFocused {
                     VStack {
@@ -281,7 +274,7 @@ struct WarMapView: View {
                     .accessibilityIdentifier(countermeasureContext.automationIdentifier)
                 }
 
-                if viewModel.selectedCombatForecast == nil,
+                if selectedAttackForecast == nil,
                    countermeasureContext?.isFocused != true,
                    viewModel.focusedEnemyCommanderThreatID != nil,
                    let enemyCommanderThreatFocusReadout {
@@ -482,22 +475,21 @@ struct AttackLockMapReadoutView: View {
         HStack(spacing: 8) {
             Image(systemName: "scope")
                 .font(.caption.weight(.black))
-                .foregroundStyle(.yellow)
+                .foregroundStyle(BattlePalette.brassBright)
                 .frame(width: 24, height: 24)
-                .background(.yellow.opacity(0.14))
+                .background(BattlePalette.brass.opacity(0.14))
                 .clipShape(.rect(cornerRadius: 5))
 
             VStack(alignment: .leading, spacing: 1) {
-                Text("已锁定 · \(forecast.identityChainLabel)")
+                Text("预演 · \(forecast.attacker.generalName ?? forecast.attackerLabel) → \(forecast.defender.generalName ?? forecast.defenderLabel)")
                     .font(.caption2.weight(.bold))
-                    .foregroundStyle(.white)
+                    .foregroundStyle(BattlePalette.ivory)
                     .lineLimit(2)
-                    .minimumScaleFactor(0.64)
-                Text("\(forecast.positionChainLabel) · \(forecast.outcomeLabel)")
+                Text("\(forecast.damageLabel) · \(forecast.retaliationLabel) · \(forecast.outcomeLabel)")
                     .font(.caption2.monospacedDigit().weight(.semibold))
-                    .foregroundStyle(.white.opacity(0.64))
+                    .foregroundStyle(forecast.isHighRisk ? .orange : BattlePalette.parchment)
                     .lineLimit(1)
-                    .minimumScaleFactor(0.64)
+                    .minimumScaleFactor(0.75)
             }
             .layoutPriority(1)
 
@@ -516,13 +508,8 @@ struct AttackLockMapReadoutView: View {
             .accessibilityHint("清除目标锁定，不会结算攻击")
         }
         .padding(.horizontal, 8)
-        .padding(.vertical, 4)
-        .background(.black.opacity(0.72))
-        .clipShape(.rect(cornerRadius: 7))
-        .overlay {
-            RoundedRectangle(cornerRadius: 7)
-                .stroke(Color.yellow.opacity(0.60), lineWidth: 1)
-        }
+        .padding(.vertical, 2)
+        .battleMapPlate()
         .accessibilityElement(children: .contain)
         .accessibilityLabel(forecast.accessibilityLabel)
     }
@@ -642,50 +629,46 @@ struct AttackTargetButton: View {
     var action: () -> Void
 
     var body: some View {
-        Button(action: action) {
-            VStack(spacing: 0) {
-                ZStack {
-                    Circle()
-                        .fill(LinearGradient(
-                            colors: isFocused
-                                ? [Color(red: 0.80, green: 0.54, blue: 0.19), Color(red: 0.39, green: 0.22, blue: 0.08)]
-                                : [Color(red: 0.69, green: 0.16, blue: 0.10), Color(red: 0.34, green: 0.06, blue: 0.04)],
-                            startPoint: .topLeading, endPoint: .bottomTrailing
-                        ))
-                    Circle().strokeBorder(BattlePalette.brassBright.opacity(0.95), lineWidth: 1.5)
-                    Circle().strokeBorder(.black.opacity(0.45), lineWidth: 0.7).padding(2)
-                    Image(systemName: isFocused ? "xmark.circle.fill" : "bolt.fill")
-                        .font(.system(size: 15 * scale, weight: .black))
-                        .foregroundStyle(.white)
-                        .shadow(color: .black.opacity(0.45), radius: 2, y: 1)
-                        .offset(y: preview == nil ? 0 : -3 * scale)
+        let tint = isFocused ? BattlePalette.brassBright : BattlePalette.attackHighlight
+        let background = isFocused ? BattlePalette.ink : BattlePalette.crimsonDeep
 
-                    if let preview {
-                        Text(isFocused ? "取消" : (preview.defeatsDefender ? "破" : "-\(preview.damage)"))
-                            .font(.system(size: 8 * scale, weight: .black, design: .rounded))
-                            .monospacedDigit()
-                            .foregroundStyle(.white)
-                            .lineLimit(1)
-                            .minimumScaleFactor(0.65)
-                            .offset(y: 9 * scale)
-                    }
+        Button(action: action) {
+            VStack(spacing: -0.5) {
+                HStack(spacing: 3 * scale) {
+                    Image(systemName: isFocused ? "lock.fill" : "bolt.fill")
+                        .foregroundStyle(tint)
+                    Text(badgeText)
+                        .foregroundStyle(BattlePalette.ivory)
+                        .monospacedDigit()
                 }
-                .frame(width: 31 * scale, height: 31 * scale)
-                .shadow(color: .black.opacity(0.48), radius: 3, y: 2)
+                .font(.system(size: 10 * scale, weight: .bold))
+                .fixedSize()
+                .padding(.horizontal, 6 * scale)
+                .frame(minHeight: 18 * scale)
+                .background(background, in: Capsule())
+                .overlay { Capsule().strokeBorder(tint.opacity(0.82), lineWidth: 0.8) }
 
                 TrianglePointer()
-                    .fill(isFocused ? Color(red: 0.65, green: 0.42, blue: 0.13) : Color(red: 0.52, green: 0.10, blue: 0.06))
-                    .frame(width: 10 * scale, height: 6 * scale)
-                    .offset(y: -1)
+                    .fill(background)
+                    .frame(width: 7 * scale, height: 3 * scale)
             }
+            .shadow(color: .black.opacity(0.42), radius: 2, y: 1)
+            .frame(minWidth: BattleInterfaceMetrics.controlSize, minHeight: BattleInterfaceMetrics.controlSize)
+            .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .frame(minWidth: 44, minHeight: 44)
-        .contentShape(Rectangle())
         .accessibilityLabel(accessibilityLabel)
         .accessibilityHint(isFocused ? "点击取消锁定，保留当前攻击者选择" : "点击锁定目标并查看攻击预演")
         .accessibilityAddTraits(isFocused ? .isSelected : AccessibilityTraits())
         .accessibilityHidden(isFocused)
+    }
+
+    private var badgeText: String {
+        if isFocused { return "锁定" }
+        if let preview {
+            return preview.defeatsDefender ? "歼灭" : "−\(preview.damage)"
+        }
+        return "攻击"
     }
 }
 
@@ -1505,19 +1488,25 @@ struct TacticalChipView: View {
 
 struct AttackTargetRing: View {
     var isFocused: Bool
+    var scale: CGFloat
 
     var body: some View {
+        let tint = isFocused ? BattlePalette.brassBright : BattlePalette.attackHighlight
+
         ZStack {
             Hexagon()
-                .stroke(
-                    isFocused ? BattlePalette.brassBright.opacity(0.98) : Color(red: 0.82, green: 0.19, blue: 0.12).opacity(0.95),
-                    style: StrokeStyle(lineWidth: isFocused ? 2.8 : 2.2, lineCap: .round, dash: [7, 4])
-                )
+                .fill(tint.opacity(0.09))
             Hexagon()
-                .stroke(isFocused ? Color.white.opacity(0.8) : BattlePalette.brass.opacity(0.65), lineWidth: isFocused ? 1.5 : 0.8)
-                .padding(4)
+                .stroke(tint, style: StrokeStyle(
+                    lineWidth: max(1.4, (isFocused ? 2 : 1.5) * scale),
+                    lineCap: .round,
+                    lineJoin: .round,
+                    dash: isFocused ? [] : [6 * scale, 4 * scale]
+                ))
         }
-        .shadow(color: .black.opacity(0.35), radius: 2)
+        .padding(3 * scale)
+        .shadow(color: .black.opacity(0.42), radius: 1)
+        .allowsHitTesting(false)
         .accessibilityHidden(true)
     }
 }
@@ -2035,6 +2024,7 @@ struct HexTileView: View {
     var isAttackOrigin: Bool
     var isReachable: Bool
     var isAttackTarget: Bool
+    var isLockedAttackTarget: Bool
     var isSkillRange: Bool
     var isSkillTarget: Bool
     var scale: CGFloat = 1
@@ -2052,8 +2042,10 @@ struct HexTileView: View {
                     }
                 }
                 .overlay {
-                    Hexagon()
-                        .stroke(borderColor, lineWidth: isAttackTarget ? max(1.6, 2 * scale) : max(0.4, 0.55 * scale))
+                    if isReachable {
+                        Hexagon()
+                            .stroke(.yellow.opacity(0.24), lineWidth: max(0.4, 0.55 * scale))
+                    }
                 }
 
             if let threatHeatZoneSummary {
@@ -2130,7 +2122,9 @@ struct HexTileView: View {
                 EnemyIntentTargetOverlay(overlay: enemyIntentTarget, scale: scale)
             }
 
-            if isSelected || isAttackOrigin {
+            if isAttackTarget {
+                AttackTargetRing(isFocused: isLockedAttackTarget, scale: scale)
+            } else if isSelected || isAttackOrigin {
                 SelectedTileOverlay(scale: scale, tint: isSelected ? BattlePalette.brassBright : BattlePalette.signal)
                     .allowsHitTesting(false)
                     .accessibilityHidden(true)
@@ -2154,10 +2148,6 @@ struct HexTileView: View {
                 }
             }
 
-            if isAttackTarget {
-                AttackTileOverlay(scale: scale)
-            }
-
             if let countermeasureOverlay,
                isAttackTarget,
                countermeasureOverlay.role == .target {
@@ -2169,12 +2159,6 @@ struct HexTileView: View {
         .accessibilityLabel(accessibilityLabel)
         .accessibilityAddTraits(.isButton)
         .accessibilityHidden(isAttackTarget)
-    }
-
-    private var borderColor: Color {
-        if isAttackTarget { return .red }
-        if isReachable { return .yellow.opacity(0.24) }
-        return .clear
     }
 
     private var accessibilityLabel: String {
@@ -2405,21 +2389,6 @@ struct SelectedTileOverlay: View {
             .stroke(tint, style: StrokeStyle(lineWidth: max(1.5, 2 * scale), lineJoin: .round))
             .padding(2 * scale)
             .shadow(color: .black.opacity(0.84), radius: 1.5)
-    }
-}
-
-struct AttackTileOverlay: View {
-    var scale: CGFloat
-
-    var body: some View {
-        ZStack {
-            Hexagon()
-                .fill(Color.red.opacity(0.16))
-            Hexagon()
-                .stroke(Color.red.opacity(0.95), style: StrokeStyle(lineWidth: max(2, 2.5 * scale), lineCap: .round, dash: [7 * scale, 4 * scale]))
-                .padding(2 * scale)
-        }
-        .shadow(color: .red.opacity(0.42), radius: 5 * scale)
     }
 }
 

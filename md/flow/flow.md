@@ -130,7 +130,7 @@
 
 - 用户点击单位：`GameViewModel.selectTile(_:)` 选中单位，并同步驻守城市和位置。
 - 用户点击可移动格：`selectTile(_:)` 调用 `state.moveUnit(id:to:)`。
-- 用户点击敌军攻击目标：`selectTile(_:)`、地图徽标、目标菜单和抽屉列表统一调用 `focusAttackTarget(_:)`，只写入 ViewModel 锁定态并聚焦目标；`SelectedCombatForecast` 由同一 `state.attackPreview` 派生攻击者/防守者阵营、兵种、将领、坐标、伤害、反击、余量、修正和结果，地图锁定 HUD、命令坞、紧凑/完整读板及 VoiceOver 复用这条身份链。取消入口调用幂等的 `cancelSelectedAttackTarget()`，只清除目标锁定并将焦点恢复到仍合法的攻击者，不写入 `GameState`；命令坞确认/歼灭按钮才调用 `confirmSelectedAttack()` -> `attack(_:)` -> `state.attack(attackerID:defenderID:)`。
+- 用户点击敌军攻击目标：`selectTile(_:)`、地图徽标、目标菜单和抽屉列表统一调用 `focusAttackTarget(_:)`，只写入 ViewModel 锁定态并聚焦目标；`SelectedCombatForecast` 由同一 `state.attackPreview` 派生攻击者/防守者阵营、兵种、将领、坐标、伤害、反击、余量、修正和结果，地图锁定 HUD 从同一预演读出交战双方、伤害、反击及结果，完整身份链供命令坞、读板与 VoiceOver 使用。兵模下只保留一层轮廓，候选目标用红色虚线，已锁定目标用金色实线；小标签提供伤害或锁定状态。取消入口调用幂等的 `cancelSelectedAttackTarget()`，只清除目标锁定并将焦点恢复到仍合法的攻击者，不写入 `GameState`；命令坞确认/歼灭按钮才调用 `confirmSelectedAttack()` -> `attack(_:)` -> `state.attack(attackerID:defenderID:)`。
 - 用户点击城市：选中 `selectedCityID`，命令面板通过城市读板展示收入、库存、扩建收益、招募成本、预计部署位置和阻塞原因。
 - 用户点击空地：清除单位/城市选择，只显示地形信息。
 
