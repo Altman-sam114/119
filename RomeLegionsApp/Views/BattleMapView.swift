@@ -333,10 +333,11 @@ struct WarMapView: View {
                                 }
                             }
                         )
-                        .overlay(alignment: .topTrailing) {
+                        .overlay(alignment: .bottomTrailing) {
                             if sharesBottomRow {
                                 MapScaleBarView(metrics: metrics)
-                                    .alignmentGuide(.top) { $0.height + 6 }
+                                    .fixedSize()
+                                    .offset(y: -BattleMapChromeMetrics.cameraHeight - 6)
                                     .allowsHitTesting(false)
                             }
                         }
@@ -2128,6 +2129,12 @@ struct HexTileView: View {
                 EnemyIntentTargetOverlay(overlay: enemyIntentTarget, scale: scale)
             }
 
+            if isSelected || isAttackOrigin {
+                SelectedTileOverlay(scale: scale, tint: isSelected ? BattlePalette.brassBright : BattlePalette.signal)
+                    .allowsHitTesting(false)
+                    .accessibilityHidden(true)
+            }
+
             if let city = city {
                 CityBadgeView(city: city, compact: true)
                     .scaleEffect(scale)
@@ -2144,12 +2151,6 @@ struct HexTileView: View {
                         .scaleEffect(scale)
                         .offset(x: 24 * scale, y: city == nil ? -18 * scale : -4 * scale)
                 }
-            }
-
-            if isSelected || isAttackOrigin {
-                SelectedTileOverlay(scale: scale, tint: isSelected ? BattlePalette.brassBright : BattlePalette.signal)
-                    .allowsHitTesting(false)
-                    .accessibilityHidden(true)
             }
 
             if isAttackTarget {

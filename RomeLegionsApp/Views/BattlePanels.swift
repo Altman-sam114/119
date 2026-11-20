@@ -5188,7 +5188,7 @@ struct MapOverlayLegendView: View {
             }
         }
         .foregroundStyle(.white)
-        .frame(maxWidth: 520, minHeight: compact ? 36 : 52, alignment: .leading)
+        .frame(maxWidth: compact ? nil : 520, minHeight: compact ? 36 : 52, alignment: .leading)
         .padding(.horizontal, compact ? 4 : 10)
         .padding(.vertical, compact ? 2 : 7)
         .background(.black.opacity(compact ? 0.18 : 0.35))

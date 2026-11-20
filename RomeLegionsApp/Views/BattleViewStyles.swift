@@ -173,6 +173,7 @@ enum BattleMapChromeMetrics {
     static let bottomInset: CGFloat = 8
     static let intelligencePadding: CGFloat = 6
     static let cameraWidth: CGFloat = BattleInterfaceMetrics.controlSize * 4 + 4
+    static let cameraHeight: CGFloat = BattleInterfaceMetrics.controlSize + 4
 
     static func usesTwoIntelligenceRows(width: CGFloat) -> Bool { width < 620 }
     static func sharesBottomRow(width: CGFloat) -> Bool { width >= 840 }
@@ -188,7 +189,7 @@ enum BattleMapChromeMetrics {
     static func bottomClearance(width: CGFloat) -> CGFloat {
         max(
             bottomInset + intelligenceHeight(isNarrow: usesTwoIntelligenceRows(width: width)) + 8,
-            cameraBottomInset(width: width) + BattleInterfaceMetrics.controlSize + 4
+            cameraBottomInset(width: width) + cameraHeight
         )
     }
 
