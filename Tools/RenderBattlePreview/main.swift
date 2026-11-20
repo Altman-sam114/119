@@ -27,6 +27,7 @@ struct RenderBattlePreview {
         }
         // Data-only fixtures never touch the five screenshot contexts below.
         try verifyNaturalTerrainContours()
+        try verifyMapTerritoryLayer()
         try verifyAITacticalActionPreviewChain()
         let viewModel = GameViewModel()
         viewModel.isShowingMenu = false
@@ -4158,6 +4159,137 @@ struct RenderBattlePreview {
         emitPreviewDiagnostic("Natural terrain contours: stable closed loops, island, lake, bridge, separated coast and campaign centers passed at three sizes")
     }
 
+    private static func verifyMapTerritoryLayer() throws {
+        func board(width: Int, height: Int, water: Set<Position> = []) -> [Tile] {
+            (0..<height).flatMap { y in
+                (0..<width).map { x in
+                    let position = Position(x: x, y: y)
+                    return Tile(position: position, terrain: water.contains(position) ? .water : .plains)
+                }
+            }
+        }
+        func city(_ id: String, _ x: Int, _ y: Int, _ owner: Faction) -> City {
+            City(id: id, name: id, position: Position(x: x, y: y), owner: owner, production: .zero, fortification: 0)
+        }
+        // Equal distance to different owners stays unclaimed, neutral land blocks
+        // claims without being drawn, and water is never claimed.
+        let tieTiles = board(width: 7, height: 3, water: [Position(x: 6, y: 0)])
+        let tie = MapTerritoryOwnership(tiles: tieTiles, cities: [city("a", 0, 1, .rome), city("b", 6, 1, .carthage)])
+        let neutral = MapTerritoryOwnership(
+            tiles: tieTiles,
+            cities: [city("a", 0, 1, .rome), city("b", 6, 1, .carthage), city("n", 3, 0, .neutral)]
+        )
+        guard tie.owners[Position(x: 3, y: 1)] == nil,
+              tie.owners[Position(x: 1, y: 1)] == .rome,
+              tie.owners[Position(x: 5, y: 1)] == .carthage,
+              tie.owners[Position(x: 6, y: 0)] == nil,
+              Set(tie.drawnFactions) == [.rome, .carthage],
+              neutral.owners[Position(x: 3, y: 1)] == .neutral,
+              !neutral.drawnFactions.contains(.neutral) else {
+            emitPreviewDiagnostic("Territory ownership failed: tie=\(tie.owners), neutral=\(neutral.owners)")
+            throw PreviewRenderError.missingMapTerritoryLayer
+        }
+
+        let borderTiles = board(width: 6, height: 3)
+        var cities = [city("a", 0, 1, .rome), city("b", 5, 1, .carthage)]
+        let before = MapTerritoryOwnership(tiles: borderTiles, cities: cities)
+        cities[1].owner = .rome
+        let captured = MapTerritoryOwnership(tiles: borderTiles, cities: cities)
+        guard before.owners[Position(x: 2, y: 1)] == .rome,
+              before.owners[Position(x: 3, y: 1)] == .carthage,
+              borderTiles.allSatisfy({ captured.owners[$0.position] == .rome }),
+              captured.drawnFactions == [.rome] else {
+            throw PreviewRenderError.missingMapTerritoryLayer
+        }
+
+        let campaign = GameState.newCampaign(mode: .campaign)
+        let archive = try encodedState(campaign)
+        let campaignTerritory = MapTerritoryOwnership(tiles: campaign.tiles, cities: campaign.cities)
+        guard try encodedState(campaign) == archive,
+              campaign.cities.allSatisfy({ campaignTerritory.owners[$0.position] == $0.owner }),
+              campaign.tiles.allSatisfy({ tile in
+                  tile.terrain != .water || campaignTerritory.owners[tile.position] == nil
+              }) else {
+            throw PreviewRenderError.missingMapTerritoryLayer
+        }
+
+        // Borders follow core adjacency: a point just inside each side of a
+        // shared edge belongs only to that side's owner, at every aspect.
+        var borderPairs = 0
+        for size in [CGSize(width: 916, height: 278), CGSize(width: 374, height: 670), CGSize(width: 1008, height: 606)] {
+            let metrics = HexMetrics(mapWidth: 6, mapHeight: 3, container: size)
+            let geometry = MapTerrainGeometry(tiles: borderTiles, metrics: metrics)
+            var regions: [Faction: BattlefieldTerrainContours] = [:]
+            for faction in before.drawnFactions {
+                regions[faction] = before.region(for: faction, geometry: geometry, in: size)
+            }
+            guard regions.values.allSatisfy({ region in
+                region.loops.reduce(0, { $0 + $1.count }) == region.boundaryEdgeCount
+            }) else {
+                throw PreviewRenderError.missingMapTerritoryLayer
+            }
+            for tile in borderTiles {
+                let owner = before.owners[tile.position]
+                for (faction, region) in regions {
+                    guard region.path.contains(metrics.center(for: tile.position)) == (owner == faction) else {
+                        emitPreviewDiagnostic("Territory region center mismatch: \(tile.position), faction=\(faction), size=\(size)")
+                        throw PreviewRenderError.missingMapTerritoryLayer
+                    }
+                }
+                for neighbor in tile.position.neighbors(width: 6, height: 3) {
+                    guard let first = owner, let second = before.owners[neighbor], first != second,
+                          let firstRegion = regions[first], let secondRegion = regions[second] else { continue }
+                    let start = metrics.center(for: tile.position)
+                    let end = metrics.center(for: neighbor)
+                    let near = CGPoint(x: start.x + (end.x - start.x) * 0.4, y: start.y + (end.y - start.y) * 0.4)
+                    let far = CGPoint(x: start.x + (end.x - start.x) * 0.6, y: start.y + (end.y - start.y) * 0.6)
+                    guard firstRegion.path.contains(near), !secondRegion.path.contains(near),
+                          secondRegion.path.contains(far), !firstRegion.path.contains(far) else {
+                        emitPreviewDiagnostic("Territory border mismatch: \(tile.position) -> \(neighbor), size=\(size)")
+                        throw PreviewRenderError.missingMapTerritoryLayer
+                    }
+                    borderPairs += 1
+                }
+            }
+        }
+        guard borderPairs > 0 else { throw PreviewRenderError.missingMapTerritoryLayer }
+
+        // Pixel proof: the real layer paints each owner's color just inside its
+        // side of the border and leaves the interior close to the ground below.
+        let proofSize = CGSize(width: 900, height: 420)
+        let proofMetrics = HexMetrics(mapWidth: 6, mapHeight: 3, container: proofSize)
+        let land = MapTerrainGeometry(tiles: borderTiles, metrics: proofMetrics).contours(in: proofSize).path
+        let proof = ZStack {
+            Color(red: 0.5, green: 0.5, blue: 0.5)
+            MapTerritoryLayerView(tiles: borderTiles, territory: before, metrics: proofMetrics, land: land)
+        }
+        .frame(width: proofSize.width, height: proofSize.height)
+        let renderer = ImageRenderer(content: proof)
+        renderer.scale = 2
+        guard let tiff = renderer.nsImage?.tiffRepresentation,
+              let bitmap = NSBitmapImageRep(data: tiff) else {
+            throw PreviewRenderError.missingMapTerritoryLayer
+        }
+        func rgb(at point: CGPoint) -> (r: CGFloat, g: CGFloat, b: CGFloat) {
+            let x = min(max(Int(point.x * CGFloat(bitmap.pixelsWide) / proofSize.width), 0), bitmap.pixelsWide - 1)
+            let y = min(max(Int(point.y * CGFloat(bitmap.pixelsHigh) / proofSize.height), 0), bitmap.pixelsHigh - 1)
+            guard let color = bitmap.colorAt(x: x, y: y)?.usingColorSpace(.deviceRGB) else { return (0, 0, 0) }
+            return (color.redComponent, color.greenComponent, color.blueComponent)
+        }
+        let romeCenter = proofMetrics.center(for: Position(x: 2, y: 1))
+        let carthageCenter = proofMetrics.center(for: Position(x: 3, y: 1))
+        let romeEdge = rgb(at: CGPoint(x: romeCenter.x + (carthageCenter.x - romeCenter.x) * 0.475, y: romeCenter.y))
+        let carthageEdge = rgb(at: CGPoint(x: romeCenter.x + (carthageCenter.x - romeCenter.x) * 0.525, y: romeCenter.y))
+        let interior = rgb(at: proofMetrics.center(for: Position(x: 0, y: 1)))
+        emitPreviewDiagnostic("Territory pixels: rome=\(romeEdge), carthage=\(carthageEdge), interior=\(interior)")
+        guard romeEdge.r > 0.55, romeEdge.r > romeEdge.g + 0.35, romeEdge.r > romeEdge.b + 0.35,
+              carthageEdge.b > 0.55, carthageEdge.b > carthageEdge.g + 0.30, carthageEdge.b > carthageEdge.r + 0.08,
+              abs(interior.r - 0.5) < 0.10, abs(interior.g - 0.5) < 0.10, abs(interior.b - 0.5) < 0.10 else {
+            throw PreviewRenderError.missingMapTerritoryLayer
+        }
+        emitPreviewDiagnostic("Map territory: nearest-city ownership, ties, neutral, capture, read-only state, adjacency borders and pixels passed")
+    }
+
     private static func verifyMapWorkspaceLayout() throws {
         let state = GameState.newCampaign(mode: .campaign)
         for size in [CGSize(width: 932, height: 430), CGSize(width: 390, height: 844), CGSize(width: 1024, height: 768)] {
@@ -4604,6 +4736,7 @@ enum PreviewRenderError: Error {
     case missingHexTerrainContinuity
     case missingContinuousTerrainSurface
     case missingNaturalTerrainContours
+    case missingMapTerritoryLayer
     case missingStrategicMapMaterialCoverage
     case missingCommandDockAttackFixture
     case missingAttackForecast

@@ -229,7 +229,7 @@ struct BattlefieldDrawerView: View {
     private func drawerHeader(for drawerSize: CGSize, height: CGFloat) -> some View {
         HStack(spacing: 10) {
             Label(category.title, systemImage: category.symbol)
-                .font(.headline.weight(.bold))
+                .font(.system(.headline, design: .serif, weight: .bold))
                 .foregroundStyle(BattlePalette.ivory)
             Spacer(minLength: 0)
             Button("关闭抽屉", systemImage: "xmark") {
@@ -243,10 +243,15 @@ struct BattlefieldDrawerView: View {
         .frame(width: drawerSize.width, height: height)
         .background {
             LinearGradient(
-                colors: [BattlePalette.panelRaised, BattlePalette.panel],
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
+                colors: [BattlePalette.romanRed, BattlePalette.crimsonDeep],
+                startPoint: .top,
+                endPoint: .bottom
             )
+        }
+        .overlay(alignment: .bottom) {
+            Rectangle()
+                .fill(BattlePalette.brass.opacity(0.70))
+                .frame(height: 1)
         }
     }
 
@@ -977,60 +982,68 @@ struct TopBarView: View {
             Button {
                 viewModel.openMenu()
             } label: {
-                Image(systemName: "line.3.horizontal")
-                    .font(.title3.weight(.bold))
-                    .frame(width: 36, height: 36)
+                RomanStandardEmblemView(size: height - 8)
+                    .frame(width: 44, height: height)
+                    .contentShape(Rectangle())
             }
-            .buttonStyle(CommandIconButtonStyle())
+            .buttonStyle(.plain)
             .accessibilityLabel("打开主菜单")
             .accessibilityHint("返回模式选择和战役入口")
 
             VStack(alignment: .leading, spacing: 1) {
                 Text(topBarTitle)
                     .font(.system(.subheadline, design: .serif, weight: .bold))
+                    .foregroundStyle(BattlePalette.ivory)
                     .lineLimit(1)
                     .minimumScaleFactor(0.72)
                 if !isCondensed {
                     Text(topBarSubtitle)
                         .font(.caption2)
-                        .foregroundStyle(.white.opacity(0.68))
+                        .foregroundStyle(BattlePalette.parchment.opacity(0.82))
                         .lineLimit(1)
                         .minimumScaleFactor(0.72)
                 }
             }
-            .foregroundStyle(.white)
 
             Spacer(minLength: 4)
 
             if isCondensed {
                 CompactResourcePill(resources: viewModel.romanResources)
             } else {
-                ResourcePill(symbol: "circle.stack.fill", value: viewModel.romanResources.gold, tint: .yellow)
-                ResourcePill(symbol: "leaf.fill", value: viewModel.romanResources.grain, tint: .green)
-                ResourcePill(symbol: "shield.fill", value: viewModel.romanResources.iron, tint: .gray)
-                ResourcePill(symbol: "sparkle.magnifyingglass", value: viewModel.romanResources.science, tint: .cyan)
-                ResourcePill(symbol: "star.fill", value: viewModel.romanResources.prestige, tint: .orange)
+                HStack(spacing: 0) {
+                    ResourcePill(symbol: "circle.stack.fill", value: viewModel.romanResources.gold, tint: .yellow)
+                    LedgerDivider()
+                    ResourcePill(symbol: "leaf.fill", value: viewModel.romanResources.grain, tint: .green)
+                    LedgerDivider()
+                    ResourcePill(symbol: "shield.fill", value: viewModel.romanResources.iron, tint: .gray)
+                    LedgerDivider()
+                    ResourcePill(symbol: "sparkle.magnifyingglass", value: viewModel.romanResources.science, tint: .cyan)
+                    LedgerDivider()
+                    ResourcePill(symbol: "star.fill", value: viewModel.romanResources.prestige, tint: .orange)
+                }
+                .battleLedgerStrip()
             }
 
             Button {
                 viewModel.endTurn()
             } label: {
-                HStack(spacing: 7) {
-                    Image(systemName: "arrow.clockwise")
-                    Text("结束")
+                HStack(spacing: 6) {
+                    Image(systemName: "hourglass")
+                    Text(isNarrow ? "结束" : "结束回合")
                 }
-                .font(.caption.weight(.black))
+                .font(.system(.caption, design: .serif, weight: .black))
                 .frame(height: 32)
-                .padding(.horizontal, isCondensed ? 8 : 10)
+                .padding(.horizontal, isCondensed ? 8 : 12)
             }
             .buttonStyle(PrimaryButtonStyle())
             .disabled(viewModel.isCampaignOver)
+            .accessibilityLabel("结束回合")
         }
         .padding(.horizontal, 7)
         .frame(height: height)
         .background {
             LinearGradient(
-                colors: [BattlePalette.panelRaised, BattlePalette.panel],
+                colors: [BattlePalette.panelRaised, BattlePalette.panel, BattlePalette.stoneDark],
                 startPoint: .top,
                 endPoint: .bottom
             )
@@ -1038,10 +1051,10 @@ struct TopBarView: View {
         .overlay(alignment: .bottom) {
             VStack(spacing: 0) {
                 Rectangle()
-                    .fill(.white.opacity(0.08))
+                    .fill(.black.opacity(0.40))
                     .frame(height: 1)
                 Rectangle()
-                    .fill(BattlePalette.brass.opacity(0.30))
+                    .fill(BattlePalette.brass.opacity(0.72))
                     .frame(height: 1)
             }
         }
@@ -1073,11 +1086,10 @@ struct CompactResourcePill: View {
             CompactResourceValue(symbol: "sparkle.magnifyingglass", value: resources.science, tint: .cyan)
             CompactResourceValue(symbol: "star.fill", value: resources.prestige, tint: .orange)
         }
-        .foregroundStyle(.white)
+        .foregroundStyle(BattlePalette.ivory)
         .frame(minHeight: 30)
         .padding(.horizontal, 5)
-        .background(.black.opacity(0.28))
-        .clipShape(RoundedRectangle(cornerRadius: 8))
+        .battleLedgerStrip()
         .accessibilityElement(children: .combine)
         .accessibilityLabel("金币 \(resources.gold)，粮草 \(resources.grain)，铁 \(resources.iron)，科学 \(resources.science)，威望 \(resources.prestige)")
     }
@@ -1112,13 +1124,31 @@ struct ResourcePill: View {
             Image(systemName: symbol)
                 .foregroundStyle(tint)
             Text(value, format: .number)
-                .font(.subheadline.monospacedDigit().weight(.bold))
+                .font(.system(.subheadline, design: .serif, weight: .bold).monospacedDigit())
                 .minimumScaleFactor(0.72)
         }
-        .foregroundStyle(.white)
+        .foregroundStyle(BattlePalette.ivory)
         .frame(minWidth: 64, minHeight: 34)
-        .padding(.horizontal, 8)
-        .background(.black.opacity(0.28))
-        .clipShape(RoundedRectangle(cornerRadius: 8))
+        .padding(.horizontal, 6)
+    }
+}
+
+struct LedgerDivider: View {
+    var body: some View {
+        Rectangle()
+            .fill(BattlePalette.brass.opacity(0.34))
+            .frame(width: 1, height: 18)
+    }
+}
+
+extension View {
+    /// Dark ledger plate with a bronze rim shared by both resource strips.
+    func battleLedgerStrip() -> some View {
+        background(.black.opacity(0.36))
+            .clipShape(RoundedRectangle(cornerRadius: 7))
+            .overlay {
+                RoundedRectangle(cornerRadius: 7)
+                    .strokeBorder(BattlePalette.brass.opacity(0.42), lineWidth: 1)
+            }
     }
 }

@@ -10,6 +10,7 @@
 
 ## 战场美术与材质链
 
+- `MapTerritoryOwnership` 从城市真实归属和核心六角距离只读派生陆地归属，异主等距留空、中立不绘制；`MapTerritoryLayerView` 复用海岸顶点格绘制淡网格及双侧边界，随占城刷新，不写入核心或存档。移动格、攻击目标与将领肖像沿用原状态和命令，仅更新视觉提示。
 - `BattleArtworkLoader` 统一 bundle/macOS 显式源码资源查找和 ImageIO 有界解码；`BattleUnitArtwork` 缓存四兵种（384px），`BattleSceneryArtwork` 缓存五类材质/地标（地表 768px，城镇/树林/山脊 384px），`BattleCommanderArtwork` 缓存四名将领肖像（256px）。全部位于既有 `BattleUnitArt` folder resource，不修改存档或核心状态。
 - `MapTerrainSurfaceView` 在连续水面和真实陆地路径内叠加地表 PNG；地表平铺、地形明暗、同源海岸与相邻道路共用 `HexMetrics`，不会以图片中的纹理决定地形或点击。`TerrainTextureView`、`FortifiedCitySilhouetteView` 读取透明地标，旧 Canvas 仅为缺资源降级；实体层高于地表地标，战术路线仍在原层级。
 - 地图兵牌为 54x46pt、紧凑命令兵牌保持 40x31pt，生命/将领/姿态/行动标记仍由原 `UnitTokenView` 控制。招募命令只增加同源兵种小图，仍调用原招募命令。`BattleMapChromeMetrics` 同时提供情报坞高度与地图底部安全区；竖屏被动图例收为 20pt 信息行，四个侦察按钮和全部命令保留 44pt 点击槽。
@@ -50,11 +51,11 @@
 
 ## v0.74 战区雾边与地图材质复现
 
-- `MapFogOfWarEdgeView` 是地图表现层的静态雾边，由渐变构成浅色战区边缘；它位于原创底图之后、制图网格之前，禁用命中测试，不改变 tile、overlay、镜头状态、`GameState` 或 AI。
+- `MapFogOfWarEdgeView` 是地图表现层的静态雾边，由渐变构成浅色战区边缘；它位于原创底图之后、战术叠层之下，禁用命中测试，不改变 tile、overlay、镜头状态、`GameState` 或 AI。
 
 ## v0.73 战区坐标比例与将领卡信息层级
 
-- `MapCartographyGridView` 继续复用 `HexMetrics` 的地图空间，并绘制低对比经纬曲线、内框、罗盘、边缘坐标刻度；`MapScaleBarView` 在地图空间底部提供一格比例和方位参照。两者均为只读表现层、禁用命中测试，跟随镜头缩放/拖移，不进入 `GameState`、存档或 AI。
+- `MapScaleBarView` 提供一格比例和方位参照；淡六角网格和阵营边界替代经纬曲线及坐标刻度，跟随地图镜头，不进入 `GameState`、存档或 AI。
 - `GeneralTraitCardView` 在既有将领派生数据上增加“特性 / 指挥 / 战功”信号分组，`GeneralCardSignal` 只负责视觉 token；技能、战功、目标和命令入口仍来自原有 `GameViewModel` readout。
 
 ## 当前核心数据流

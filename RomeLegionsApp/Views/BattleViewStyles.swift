@@ -135,10 +135,11 @@ struct CommanderPortraitView: View {
         .frame(width: diameter, height: diameter)
         .clipShape(Circle())
         .overlay {
-            Circle().strokeBorder(BattlePalette.ivory.opacity(0.36), lineWidth: 0.6).padding(2)
-            Circle().strokeBorder(tint, lineWidth: 1.5)
+            Circle().strokeBorder(.black.opacity(0.75), lineWidth: max(1, diameter * 0.045))
+            Circle().strokeBorder(BattlePalette.ivory.opacity(0.48), lineWidth: 0.6).padding(max(2, diameter * 0.06))
+            Circle().strokeBorder(tint, lineWidth: max(1.5, diameter * 0.035))
         }
-        .shadow(color: .black.opacity(0.36), radius: 2, y: 1)
+        .shadow(color: .black.opacity(0.56), radius: 3, y: 2)
         .accessibilityHidden(true)
     }
 }
@@ -191,6 +192,11 @@ enum BattlePalette {
     static let danger = Color(red: 0.78, green: 0.16, blue: 0.12)
     static let signal = Color(red: 0.24, green: 0.76, blue: 0.72)
     static let romanRed = Color(red: 0.56, green: 0.10, blue: 0.08)
+    static let crimsonDeep = Color(red: 0.30, green: 0.06, blue: 0.05)
+    static let stoneLight = Color(red: 0.42, green: 0.40, blue: 0.34)
+    static let stone = Color(red: 0.26, green: 0.25, blue: 0.21)
+    static let stoneDark = Color(red: 0.13, green: 0.13, blue: 0.11)
+    static let ink = Color(red: 0.17, green: 0.11, blue: 0.07)
 }
 
 struct CommandButtonLabel: View {
@@ -236,39 +242,83 @@ struct CommandIconButtonStyle: ButtonStyle {
     }
 }
 
+/// Square stone tablet with a bronze rim, the campaign-HUD button shape used by
+/// drawers and camera tools. Only the face changes; hit slots stay with callers.
 struct BattleMetalButtonStyle: ButtonStyle {
     var isSelected = false
     var diameter: CGFloat = 36
 
     func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .foregroundStyle(Color(red: 0.22, green: 0.23, blue: 0.18))
+        let shape = RoundedRectangle(cornerRadius: diameter * 0.2)
+        return configuration.label
+            .foregroundStyle(isSelected ? BattlePalette.ink : BattlePalette.ivory)
             .frame(width: diameter, height: diameter)
             .background {
-                Circle()
-                    .fill(LinearGradient(
-                        colors: isSelected
-                            ? [BattlePalette.brassBright, BattlePalette.brass, BattlePalette.brassDim]
-                            : [BattlePalette.ivory, BattlePalette.parchment, Color(red: 0.43, green: 0.44, blue: 0.34)],
-                        startPoint: .topLeading, endPoint: .bottomTrailing
-                    ))
+                shape.fill(LinearGradient(
+                    colors: isSelected
+                        ? [BattlePalette.brassBright, BattlePalette.brass, BattlePalette.brassDim]
+                        : [BattlePalette.stoneLight, BattlePalette.stone, BattlePalette.stoneDark],
+                    startPoint: .top, endPoint: .bottom
+                ))
             }
-            .clipShape(Circle())
+            .clipShape(shape)
             .overlay {
-                Circle().stroke(Color(red: 0.27, green: 0.28, blue: 0.22), lineWidth: 1.5)
-                Circle().stroke(BattlePalette.ivory.opacity(0.52), lineWidth: 0.7).padding(2.5)
+                shape.strokeBorder(BattlePalette.brass.opacity(isSelected ? 0.95 : 0.62), lineWidth: 1.2)
+                shape.inset(by: 2.4).strokeBorder(BattlePalette.ivory.opacity(0.16), lineWidth: 0.6)
             }
-            .shadow(color: .black.opacity(0.30), radius: 2, y: 2)
+            .shadow(color: .black.opacity(0.45), radius: 2, y: 1.5)
             .scaleEffect(configuration.isPressed ? 0.94 : 1)
     }
 }
 
 struct PrimaryButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .foregroundStyle(.white)
-            .background(configuration.isPressed ? Color.red.opacity(0.72) : Color(red: 0.60, green: 0.10, blue: 0.08))
-            .clipShape(RoundedRectangle(cornerRadius: 8))
+        let shape = RoundedRectangle(cornerRadius: 8)
+        return configuration.label
+            .foregroundStyle(BattlePalette.ivory)
+            .background {
+                shape.fill(LinearGradient(
+                    colors: configuration.isPressed
+                        ? [BattlePalette.romanRed, BattlePalette.crimsonDeep]
+                        : [Color(red: 0.74, green: 0.20, blue: 0.10), BattlePalette.romanRed, BattlePalette.crimsonDeep],
+                    startPoint: .top, endPoint: .bottom
+                ))
+            }
+            .clipShape(shape)
+            .overlay {
+                shape.strokeBorder(BattlePalette.brassBright.opacity(0.72), lineWidth: 1)
+            }
+    }
+}
+
+/// Original SPQR roundel on the menu entry, standing in for a faction crest.
+struct RomanStandardEmblemView: View {
+    var size: CGFloat = 36
+
+    var body: some View {
+        ZStack {
+            Circle()
+                .fill(LinearGradient(
+                    colors: [BattlePalette.brassBright, BattlePalette.brass, BattlePalette.brassDim],
+                    startPoint: .topLeading, endPoint: .bottomTrailing
+                ))
+            Circle()
+                .fill(RadialGradient(
+                    colors: [Faction.rome.factionColor, BattlePalette.crimsonDeep],
+                    center: .center, startRadius: 0, endRadius: size * 0.42
+                ))
+                .padding(size * 0.09)
+            Circle()
+                .strokeBorder(BattlePalette.brassBright.opacity(0.70), lineWidth: 0.7)
+                .padding(size * 0.15)
+            Text("SPQR")
+                .font(.system(size: size * 0.23, weight: .black, design: .serif))
+                .foregroundStyle(BattlePalette.ivory)
+                .shadow(color: .black.opacity(0.55), radius: 0.6, y: 0.6)
+        }
+        .frame(width: size, height: size)
+        .shadow(color: .black.opacity(0.45), radius: 2, y: 1)
+        .accessibilityHidden(true)
     }
 }
 

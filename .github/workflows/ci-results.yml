@@ -21,7 +21,7 @@ permissions:
   contents: read
 
 env:
-  CI_VERSION: v0.83
+  CI_VERSION: v0.84
   PROJECT_NAME: RomeLegions
   XCODE_PROJECT: RomeLegionsApp.xcodeproj
   XCODE_SCHEME: RomeLegions

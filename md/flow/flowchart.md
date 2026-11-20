@@ -1,5 +1,21 @@
 # 项目核心流程图
 
+## 阵营边界与战场提示
+
+```mermaid
+flowchart LR
+    C[真实城市归属] --> O[最近城市与核心六角距离]
+    T[真实陆地 Tile] --> O
+    O --> B[淡网格与阵营边界]
+    H[HexMetrics 与同源海岸路径] --> B
+    V[ViewModel 可达格与攻击预演] --> A[移动标记与目标提示]
+    G[真实将领姓名] --> P[精确匹配肖像与边框]
+    B --> M[同一地图画布]
+    A --> M
+    P --> M
+    M -.只读.-> S[GameState / 存档]
+```
+
 ## 战场材质与地标链
 
 ```mermaid
@@ -165,7 +181,7 @@ flowchart LR
 
 ```mermaid
 flowchart LR
-    H[HexMetrics + 地图容器] --> C[MapCartographyGridView\n经纬 / 内框 / 罗盘 / 坐标刻度]
+    H[HexMetrics + 地图容器] --> C[地图网格与阵营边界]
     H --> S[MapScaleBarView\n1格比例 / 方位]
     C --> M[WarMapView 地图空间]
     S --> M

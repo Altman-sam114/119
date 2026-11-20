@@ -78,6 +78,7 @@ struct WarMapView: View {
             )
             let terrainGeometry = MapTerrainGeometry(tiles: viewModel.state.tiles, metrics: metrics)
             let terrainContours = terrainGeometry.contours(in: workspace.canvasSize)
+            let territory = MapTerritoryOwnership(tiles: viewModel.state.tiles, cities: viewModel.state.cities)
 
             ZStack {
                 MapCanvasViewport(workspace: workspace, camera: interactiveViewport) {
@@ -90,12 +91,16 @@ struct WarMapView: View {
                     MapFogOfWarEdgeView()
                         .zIndex(0.6)
 
-                    MapCartographyGridView(metrics: metrics)
-                        .opacity(0.18)
-                        .zIndex(0.35)
-
                     CoastlineLayerView(contours: terrainContours, metrics: metrics)
                         .zIndex(0.5)
+
+                    MapTerritoryLayerView(
+                        tiles: viewModel.state.tiles,
+                        territory: territory,
+                        metrics: metrics,
+                        land: terrainContours.path
+                    )
+                    .zIndex(-0.5)
 
                     if overlayPresentation.enemyRouteOpacity > 0 {
                         EnemyIntentRouteLayerView(overlays: enemyIntentOverlays, metrics: metrics)
@@ -650,9 +655,14 @@ struct AttackTargetButton: View {
             VStack(spacing: 0) {
                 ZStack {
                     Circle()
-                        .fill(isFocused ? Color(red: 0.90, green: 0.60, blue: 0.08) : Color(red: 0.78, green: 0.08, blue: 0.05))
-                    Circle()
-                        .stroke(.white.opacity(0.92), lineWidth: 2)
+                        .fill(LinearGradient(
+                            colors: isFocused
+                                ? [Color(red: 0.80, green: 0.54, blue: 0.19), Color(red: 0.39, green: 0.22, blue: 0.08)]
+                                : [Color(red: 0.69, green: 0.16, blue: 0.10), Color(red: 0.34, green: 0.06, blue: 0.04)],
+                            startPoint: .topLeading, endPoint: .bottomTrailing
+                        ))
+                    Circle().strokeBorder(BattlePalette.brassBright.opacity(0.95), lineWidth: 1.5)
+                    Circle().strokeBorder(.black.opacity(0.45), lineWidth: 0.7).padding(2)
                     Image(systemName: isFocused ? "xmark.circle.fill" : "bolt.fill")
                         .font(.system(size: 15 * scale, weight: .black))
                         .foregroundStyle(.white)
@@ -669,12 +679,12 @@ struct AttackTargetButton: View {
                             .offset(y: 9 * scale)
                     }
                 }
-                .frame(width: 36 * scale, height: 36 * scale)
-                .shadow(color: (isFocused ? Color.yellow : Color.red).opacity(0.65), radius: 8, y: 2)
+                .frame(width: 31 * scale, height: 31 * scale)
+                .shadow(color: .black.opacity(0.48), radius: 3, y: 2)
 
                 TrianglePointer()
-                    .fill(isFocused ? Color(red: 0.90, green: 0.60, blue: 0.08) : Color(red: 0.78, green: 0.08, blue: 0.05))
-                    .frame(width: 13 * scale, height: 7 * scale)
+                    .fill(isFocused ? Color(red: 0.65, green: 0.42, blue: 0.13) : Color(red: 0.52, green: 0.10, blue: 0.06))
+                    .frame(width: 10 * scale, height: 6 * scale)
                     .offset(y: -1)
             }
         }
@@ -1558,14 +1568,14 @@ struct AttackTargetRing: View {
         ZStack {
             Hexagon()
                 .stroke(
-                    isFocused ? Color.white.opacity(0.98) : Color.red.opacity(0.95),
-                    style: StrokeStyle(lineWidth: isFocused ? 3.5 : 3, lineCap: .round, dash: [7, 5])
+                    isFocused ? BattlePalette.brassBright.opacity(0.98) : Color(red: 0.82, green: 0.19, blue: 0.12).opacity(0.95),
+                    style: StrokeStyle(lineWidth: isFocused ? 2.8 : 2.2, lineCap: .round, dash: [7, 4])
                 )
             Hexagon()
-                .stroke(isFocused ? Color.yellow.opacity(0.92) : Color.yellow.opacity(0.55), lineWidth: isFocused ? 2 : 1)
+                .stroke(isFocused ? Color.white.opacity(0.8) : BattlePalette.brass.opacity(0.65), lineWidth: isFocused ? 1.5 : 0.8)
                 .padding(4)
         }
-        .shadow(color: (isFocused ? Color.white : Color.red).opacity(0.55), radius: isFocused ? 9 : 6)
+        .shadow(color: .black.opacity(0.35), radius: 2)
         .accessibilityHidden(true)
     }
 }
@@ -1643,6 +1653,15 @@ struct MapTerrainGeometry {
 
     func contours(in size: CGSize) -> BattlefieldTerrainContours {
         let terrain = Dictionary(uniqueKeysWithValues: tiles.map { ($0.position, $0.terrain) })
+        return regionContours(in: size) { source in
+            guard let sourceTerrain = terrain[source] else { return false }
+            return sourceTerrain != .water
+        }
+    }
+
+    /// Traces any set of board cells with the coast's lattice. Scenery cells past
+    /// the board edge inherit their clamped edge cell, so regions meet the frame.
+    func regionContours(in size: CGSize, includes: (Position) -> Bool) -> BattlefieldTerrainContours {
         let lastColumn = tiles.map(\.position.x).max() ?? 0
         let lastRow = tiles.map(\.position.y).max() ?? 0
         let firstSceneryColumn = min(0, Int(floor(-metrics.origin.x / metrics.tileWidth)) - 1)
@@ -1654,7 +1673,7 @@ struct MapTerrainGeometry {
         for y in firstSceneryRow...lastRow {
             for x in firstSceneryColumn...lastSceneryColumn {
                 let source = Position(x: min(lastColumn, max(0, x)), y: max(0, y))
-                guard let sourceTerrain = terrain[source], sourceTerrain != .water else { continue }
+                guard includes(source) else { continue }
                 let vertices = BattlefieldTerrainVertex.vertices(for: Position(x: x, y: y))
                 for index in vertices.indices {
                     let edge = BattlefieldTerrainEdge(start: vertices[index], end: vertices[(index + 1) % 6])
@@ -1852,6 +1871,90 @@ struct MapBackdropView: View {
     }
 }
 
+/// Display-only campaign territory. Each land cell follows its nearest city by
+/// core hex distance; ties between different owners stay unclaimed. It is
+/// derived from real cities on every update, so a capture redraws the border
+/// without any extra state, save data or AI input.
+struct MapTerritoryOwnership {
+    let owners: [Position: Faction]
+
+    init(tiles: [Tile], cities: [City]) {
+        var owners: [Position: Faction] = [:]
+        for tile in tiles where tile.terrain != .water {
+            var nearest = Int.max
+            var claimants = Set<Faction>()
+            for city in cities {
+                let distance = city.position.hexDistance(to: tile.position)
+                if distance < nearest {
+                    nearest = distance
+                    claimants = [city.owner]
+                } else if distance == nearest {
+                    claimants.insert(city.owner)
+                }
+            }
+            if claimants.count == 1, let owner = claimants.first {
+                owners[tile.position] = owner
+            }
+        }
+        self.owners = owners
+    }
+
+    /// Neutral land still blocks other claims but carries no tint or border.
+    var drawnFactions: [Faction] {
+        Faction.allCases.filter { faction in
+            faction != .neutral && owners.values.contains(faction)
+        }
+    }
+
+    func region(for faction: Faction, geometry: MapTerrainGeometry, in size: CGSize) -> BattlefieldTerrainContours {
+        geometry.regionContours(in: size) { owners[$0] == faction }
+    }
+}
+
+/// Faint land hex grid plus faction borders traced on the coast lattice. Each
+/// region is clipped to itself, so a shared border shows both owners' colors.
+struct MapTerritoryLayerView: View {
+    var tiles: [Tile]
+    var territory: MapTerritoryOwnership
+    var metrics: HexMetrics
+    var land: Path
+
+    var body: some View {
+        Canvas { context, size in
+            let geometry = MapTerrainGeometry(tiles: tiles, metrics: metrics)
+            let width = metrics.tileWidth
+            context.clip(to: land)
+            var grid = Path()
+            for tile in tiles where tile.terrain != .water {
+                let center = metrics.center(for: tile.position)
+                grid.addPath(Hexagon().path(in: CGRect(
+                    x: center.x - width / 2, y: center.y - metrics.tileHeight / 2,
+                    width: width, height: metrics.tileHeight
+                )))
+            }
+            context.stroke(grid, with: .color(Color.black.opacity(0.16)), lineWidth: max(0.5, width * 0.012))
+            for faction in territory.drawnFactions {
+                // Intersect with the smoothed land so coastal borders follow the
+                // shoreline curve instead of being cut at convex hex corners.
+                let region = territory.region(for: faction, geometry: geometry, in: size).path.intersection(land)
+                let tint = faction.factionColor
+                context.drawLayer { layer in
+                    layer.clip(to: region)
+                    layer.fill(region, with: .color(tint.opacity(0.05)))
+                    layer.stroke(region, with: .color(tint.opacity(0.16)),
+                                 style: StrokeStyle(lineWidth: width * 0.44, lineJoin: .round))
+                    layer.stroke(region, with: .color(tint.opacity(0.22)),
+                                 style: StrokeStyle(lineWidth: width * 0.22, lineJoin: .round))
+                    layer.stroke(region, with: .color(tint.opacity(0.95)),
+                                 style: StrokeStyle(lineWidth: max(2.4, width * 0.09), lineJoin: .round))
+                }
+            }
+        }
+        .allowsHitTesting(false)
+        .accessibilityHidden(true)
+    }
+}
+
 /// Soft edge haze borrowed from campaign-map presentation: it frames the
 /// playable area without hiding terrain or changing any overlay semantics.
 struct MapFogOfWarEdgeView: View {
@@ -1875,118 +1978,6 @@ struct MapFogOfWarEdgeView: View {
                     center: .trailing,
                     startRadius: 8,
                     endRadius: 170
-                )
-            }
-        }
-        .allowsHitTesting(false)
-        .accessibilityHidden(true)
-    }
-}
-
-/// A quiet cartographic reference layer. It stays in map space with the tiles,
-/// so zooming and panning never make the strategic frame feel detached from the
-/// terrain. It is deliberately low contrast and never participates in hit tests.
-struct MapCartographyGridView: View {
-    var metrics: HexMetrics
-
-    var body: some View {
-        Canvas { context, size in
-            let inset = max(8, metrics.tileWidth * 0.42)
-            let frame = CGRect(
-                x: inset,
-                y: inset,
-                width: max(1, size.width - inset * 2),
-                height: max(1, size.height - inset * 2)
-            )
-
-            for index in 1...6 {
-                let progress = CGFloat(index) / 7
-                let x = frame.minX + frame.width * progress
-                var meridian = Path()
-                meridian.move(to: CGPoint(x: x, y: frame.minY))
-                meridian.addCurve(
-                    to: CGPoint(x: x, y: frame.maxY),
-                    control1: CGPoint(x: x - frame.width * 0.035, y: frame.height * 0.32 + frame.minY),
-                    control2: CGPoint(x: x + frame.width * 0.035, y: frame.height * 0.68 + frame.minY)
-                )
-                context.stroke(
-                    meridian,
-                    with: .color(BattlePalette.brass.opacity(0.055)),
-                    lineWidth: 0.7
-                )
-            }
-
-            for index in 1...5 {
-                let progress = CGFloat(index) / 6
-                let y = frame.minY + frame.height * progress
-                var parallel = Path()
-                parallel.move(to: CGPoint(x: frame.minX, y: y))
-                parallel.addCurve(
-                    to: CGPoint(x: frame.maxX, y: y),
-                    control1: CGPoint(x: frame.width * 0.32 + frame.minX, y: y - frame.height * 0.028),
-                    control2: CGPoint(x: frame.width * 0.68 + frame.minX, y: y + frame.height * 0.028)
-                )
-                context.stroke(
-                    parallel,
-                    with: .color(.white.opacity(0.045)),
-                    lineWidth: 0.7
-                )
-            }
-
-            context.stroke(
-                Path(roundedRect: frame, cornerRadius: max(5, metrics.tileWidth * 0.18)),
-                with: .color(BattlePalette.brass.opacity(0.18)),
-                lineWidth: 1
-            )
-
-            let compassCenter = CGPoint(x: frame.maxX - 18, y: frame.minY + 18)
-            var compass = Path()
-            compass.move(to: CGPoint(x: compassCenter.x, y: compassCenter.y - 7))
-            compass.addLine(to: CGPoint(x: compassCenter.x - 3, y: compassCenter.y + 4))
-            compass.addLine(to: CGPoint(x: compassCenter.x, y: compassCenter.y + 2))
-            compass.addLine(to: CGPoint(x: compassCenter.x + 3, y: compassCenter.y + 4))
-            compass.closeSubpath()
-            context.fill(compass, with: .color(BattlePalette.brass.opacity(0.30)))
-            context.draw(
-                Text("N")
-                    .font(.system(size: 7, weight: .black, design: .serif))
-                    .foregroundColor(BattlePalette.parchment.opacity(0.70)),
-                at: CGPoint(x: compassCenter.x, y: compassCenter.y - 13)
-            )
-            context.stroke(
-                Path(ellipseIn: CGRect(x: compassCenter.x - 9, y: compassCenter.y - 9, width: 18, height: 18)),
-                with: .color(BattlePalette.brass.opacity(0.16)),
-                lineWidth: 0.8
-            )
-
-            // Coordinate ticks make the battlefield feel like a campaign map
-            // while remaining subordinate to units and tactical overlays.
-            for index in 0...6 {
-                let progress = CGFloat(index) / 6
-                let x = frame.minX + frame.width * progress
-                context.fill(
-                    Path(CGRect(x: x - 0.5, y: frame.minY - 3, width: 1, height: 4)),
-                    with: .color(BattlePalette.brass.opacity(0.24))
-                )
-                context.draw(
-                    Text("\(index + 1)")
-                        .font(.system(size: 8, weight: .bold, design: .monospaced))
-                        .foregroundColor(BattlePalette.brass.opacity(0.38)),
-                    at: CGPoint(x: x, y: frame.minY - 8)
-                )
-            }
-            for index in 0...4 {
-                let progress = CGFloat(index) / 4
-                let y = frame.minY + frame.height * progress
-                context.fill(
-                    Path(CGRect(x: frame.minX - 3, y: y - 0.5, width: 4, height: 1)),
-                    with: .color(BattlePalette.brass.opacity(0.24))
-                )
-                context.draw(
-                    Text("\(index + 1)")
-                        .font(.system(size: 8, weight: .bold, design: .monospaced))
-                        .foregroundColor(BattlePalette.brass.opacity(0.38)),
-                    at: CGPoint(x: frame.minX - 8, y: y)
                 )
             }
         }
@@ -2367,16 +2358,19 @@ struct ReachableTileOverlay: View {
     var body: some View {
         ZStack {
             Hexagon()
-                .fill(Color(red: 0.92, green: 0.76, blue: 0.28).opacity(0.07))
+                .fill(Color(red: 0.82, green: 0.70, blue: 0.40).opacity(0.10))
             Hexagon()
                 .stroke(
-                    Color(red: 0.96, green: 0.82, blue: 0.36).opacity(0.42),
-                    style: StrokeStyle(lineWidth: max(0.8, 1.15 * scale), lineCap: .round, dash: [4 * scale, 5 * scale])
+                    BattlePalette.brassBright.opacity(0.58),
+                    style: StrokeStyle(lineWidth: max(0.8, 1.15 * scale), lineCap: .round, dash: [3 * scale, 4 * scale])
                 )
                 .padding(6 * scale)
-            Circle()
-                .fill(Color(red: 0.96, green: 0.82, blue: 0.36).opacity(0.62))
-                .frame(width: 4 * scale, height: 4 * scale)
+            Image(systemName: "arrow.up")
+                .font(.system(size: max(7, 9 * scale), weight: .heavy))
+                .foregroundStyle(BattlePalette.ivory.opacity(0.86))
+                .padding(4 * scale)
+                .background(Circle().fill(BattlePalette.panel.opacity(0.65)))
+                .overlay { Circle().strokeBorder(BattlePalette.brass.opacity(0.70), lineWidth: 0.7) }
         }
         .accessibilityHidden(true)
     }
@@ -3196,15 +3190,29 @@ struct CityBadgeView: View {
                 .offset(x: compact ? 5 : 7, y: compact ? 3 : 4)
             }
 
-            Text(city.name)
-                .font(.system(size: compact ? 8 : 11, weight: .heavy))
-                .foregroundStyle(.white)
-                .padding(.horizontal, compact ? 4 : 6)
-                .frame(minHeight: compact ? 12 : 16)
-                .background(.black.opacity(0.58))
-                .clipShape(.rect(cornerRadius: compact ? 3 : 4))
-                .lineLimit(1)
-                .minimumScaleFactor(0.5)
+            HStack(spacing: compact ? 2 : 3) {
+                Circle()
+                    .fill(city.owner.factionColor)
+                    .overlay { Circle().strokeBorder(BattlePalette.brassBright.opacity(0.85), lineWidth: 0.6) }
+                    .frame(width: compact ? 7 : 9, height: compact ? 7 : 9)
+                Text(city.name)
+                    .font(.system(size: compact ? 8 : 11, weight: .heavy, design: .serif))
+                    .foregroundStyle(BattlePalette.ivory)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.5)
+            }
+            .padding(.leading, compact ? 2 : 3)
+            .padding(.trailing, compact ? 4 : 6)
+            .frame(minHeight: compact ? 12 : 16)
+            .background(LinearGradient(
+                colors: [BattlePalette.panelRaised.opacity(0.92), BattlePalette.panel.opacity(0.92)],
+                startPoint: .top, endPoint: .bottom
+            ))
+            .clipShape(.rect(cornerRadius: compact ? 3 : 4))
+            .overlay {
+                RoundedRectangle(cornerRadius: compact ? 3 : 4)
+                    .strokeBorder(BattlePalette.brass.opacity(0.55), lineWidth: 0.6)
+            }
         }
     }
 }
