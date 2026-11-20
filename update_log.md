@@ -21,6 +21,17 @@
 
 ## 历史记录
 
+### 战斗界面 / 地图空间、缩放与攻击预演
+
+日期：2026-11-20
+
+- 短横屏命令栏由 80pt 收至 56pt，932×430 视口的地图由 300pt 增至 328pt。镜头和侦察放到地图下缘，宽屏并排、窄屏分层；城市身份去除重复城名，竖屏命令栏展示当前简报的所有招募选项。
+- 三种屏幕尺寸都用 1:1 格子外接框；默认与复位镜头为 1.2x，缩放范围为 1x 至 1.8x，比例尺跟随当前缩放。地表、格子命中、路线、城市和军团共用相同的几何和镜头变换。
+- 攻击候选使用兵模下的单层红色虚线和伤害短标，锁定使用金色实线和锁定短标。预演牌显示双方简称、伤害、反击与预计结果，继续使用 `SelectedCombatForecast`、原有取消/确认方法和完整无障碍文案。
+- 关键文件为 `BattleView.swift`、`BattleShellControls.swift`、`BattleMapView.swift`、`BattlePanels.swift`、`BattleViewStyles.swift` 与 `Tools/RenderBattlePreview/main.swift`。
+- 实现提交 `b65266ae4d86991cf7f8806e04c08018bc000760` 的 run `44761314317` attempt 1 已核对 artifact 摘要、manifest、JUnit 5 项/0 失败/2 主动跳过、三尺寸 18 张 PNG、Xcode 构建与十三资源逐文件比对。云端执行 `node Tools/verify_project.mjs`、`RenderBattlePreview` 和无签名 `xcodebuild build`。Swift Testing 与 Gameplay Smoke 因核心输入未改而跳过。
+- 查看 15 张战场图和 3 张素材检视图，并以原尺寸复看三种尺寸的攻击图。锁定、伤害/反击及核心交战目标的兵力可区分；高缩放下边缘单位或城名仍可能被固定控件遮盖，可拖移或缩小浏览。真机触控与 VoiceOver 全流程未验证。
+
 ### v0.84 / 战场边界与军令视觉
 
 日期：2026-11-20
