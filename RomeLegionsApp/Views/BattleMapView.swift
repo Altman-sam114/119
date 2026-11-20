@@ -1932,7 +1932,7 @@ struct MapTerritoryLayerView: View {
                     width: width, height: metrics.tileHeight
                 )))
             }
-            context.stroke(grid, with: .color(Color.black.opacity(0.16)), lineWidth: max(0.5, width * 0.012))
+            context.stroke(grid, with: .color(Color.black.opacity(0.10)), lineWidth: max(0.4, width * 0.009))
             for faction in territory.drawnFactions {
                 // Intersect with the smoothed land so coastal borders follow the
                 // shoreline curve instead of being cut at convex hex corners.
@@ -1941,12 +1941,12 @@ struct MapTerritoryLayerView: View {
                 context.drawLayer { layer in
                     layer.clip(to: region)
                     layer.fill(region, with: .color(tint.opacity(0.05)))
-                    layer.stroke(region, with: .color(tint.opacity(0.16)),
-                                 style: StrokeStyle(lineWidth: width * 0.44, lineJoin: .round))
-                    layer.stroke(region, with: .color(tint.opacity(0.22)),
-                                 style: StrokeStyle(lineWidth: width * 0.22, lineJoin: .round))
+                    layer.stroke(region, with: .color(tint.opacity(0.12)),
+                                 style: StrokeStyle(lineWidth: width * 0.28, lineJoin: .round))
+                    layer.stroke(region, with: .color(tint.opacity(0.18)),
+                                 style: StrokeStyle(lineWidth: width * 0.14, lineJoin: .round))
                     layer.stroke(region, with: .color(tint.opacity(0.95)),
-                                 style: StrokeStyle(lineWidth: max(2.4, width * 0.09), lineJoin: .round))
+                                 style: StrokeStyle(lineWidth: max(2.0, width * 0.065), lineJoin: .round))
                 }
             }
         }
