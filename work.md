@@ -1,5 +1,24 @@
 # 当前任务
 
+## 2026-11-24 持续迭代：大征服者罗马风格前端视觉、兵模、地图与贴图全面重构
+
+- 目标：参照 EasyTech《大征服者：罗马》实机美术与交互（已查看仓库参考图与 8 张官方高分截图），使用 `magpie-image` 全面重做高档品质透明兵模、阵营专属兵模、地中海历史图集地表/海面/地标与罗马石质/羊皮纸/猩红绸带 UI 贴图，并重构战斗页与主菜单的前端视觉、地图质感、单位标牌、HUD 层次、特效与操控反馈；全程单模型、云端-only、不开子智能体，持续迭代直到用户叫停。
+- 验收：所有新生成 PNG 经人工目检（透明通道、无裁切、无底框、高辨识度），接入既有 `BattleUnitArt` 文件夹资源（不碰 `project.pbxproj` 受保护改动）；推送 `origin/main` 后由 GitHub Actions `RomeLegions CI Results` 跑通结构检查、完整 Render 18 图与 Xcode 构建/资源比对，并下载结果包逐图目检。核心规则未变轮次跳过 Swift Testing/Smoke；改核心时必跑全套。
+- 迭代 1 计划（等待云端验收）：
+  1. [完成] 使用 `magpie-image` (`boa-2/gpt-image-2.5-flare`) 生成罗马四兵种英雄级透明兵模（`legion`/`archer`/`cavalry`/`navy`），全部目检通过并替换入 `BattleUnitArt/`。
+  2. [完成] 生成迦太基四兵种、高卢盾兵、埃及禁卫、迦太基/高卢专属城镇及五阵营金边徽章贴图，统一安置于 `BattleUnitArt/Factions/` 与 `BattleUnitArt/UI/`。
+  3. [完成] 升级地中海写实图集地表/海面/罗马大理石主城与暗石/猩红绸带/羊皮纸 UI 贴图。
+  4. [完成] 重构 `BattleViewStyles`、`BattleMapView`、`BattleShellControls`、`BattlePanels`：阵营专属兵模与城池加载、圆章替代旧火柴旗、分级水深渐变与古典海图铭文、石板罗马大道、立体青铜血条与星级、暗石与猩红织锦 HUD，并扩展 `.github/workflows/ci-results.yml` (v0.85) 逐字节核对 16 个新资源。
+  5. [进行中] 精确暂存并 push 至 `origin/main`，等待云端 `RomeLegions CI Results` 执行，下载结果包逐图核对后立即进入迭代 2（主菜单重构、战斗特效动画、更多名将与玩法迭代）。
+- 本轮编辑记录：`.github/workflows/ci-results.yml`、`RomeLegionsApp/Views/BattleViewStyles.swift`、`RomeLegionsApp/Views/BattleMapView.swift`、`RomeLegionsApp/Views/BattleShellControls.swift`、`RomeLegionsApp/Views/BattlePanels.swift`、`RomeLegionsApp/Resources/BattleUnitArt/{legion,archer,cavalry,navy,ground,water,city}.png`、`RomeLegionsApp/Resources/BattleUnitArt/Factions/*.png`（8 张）、`RomeLegionsApp/Resources/BattleUnitArt/UI/*.png`（8 张）、`work.md`。
+- 保护：起点本地 `45e4edf`（领先 `origin/main` `b65266a` 1 个文档提交）；严格不暂存、不覆盖 `RomeLegionsApp.xcodeproj/project.pbxproj`、`UserInterfaceState.xcuserstate` 与 `md/unity分析/`；保留下方既有历史恢复点。
+- 验证选择（迭代 1）：baseline（云端 diff/结构合同）+ direct（Render 完整 18 图 + Xcode 构建与资源核对）；skipped：Swift Testing、Gameplay Smoke（迭代 1 未改核心规则）。
+
+## 战斗界面 / 日志同步恢复点
+
+- 实现验收完成。远端 `main` 为 `b65266a`；run `44761314317` attempt 1 的结构、18 图、Xcode 与十三资源通过，已检查实图。结果包解压在 `/private/tmp/romelegions-review-44761314317/`。
+- 文档收口已在本地 `45e4edf`。Git HTTPS 多次超时或 TLS 连接失败，SSH 没有可用密钥，GitHub API 仍确认实现提交在远端。下一步在 Git 连接恢复后推送已有文档提交并核对其文档检查，再移除本地此段。原有未完成记录和工程个人改动保留。
+
 ## 2026-11-20 继续改善战场视觉
 
 - 目标：推进未完成的疆域、地图和战斗壳层改造，并改善移动、攻击提示及将领呈现；制作并筛选原创地图素材。保持真实规则、选择与存档不变。

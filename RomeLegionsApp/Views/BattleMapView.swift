@@ -447,19 +447,12 @@ struct CountermeasureCommandContextMapReadoutView: View {
             }
             .layoutPriority(1)
         }
-        .padding(.horizontal, 8)
+        .padding(.horizontal, 9)
         .padding(.vertical, 5)
-        .background {
-            LinearGradient(
-                colors: [BattlePalette.panelRaised.opacity(0.96), .black.opacity(0.78)],
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
-            )
-        }
-        .clipShape(.rect(cornerRadius: 7))
+        .battleMapPlate()
         .overlay {
             RoundedRectangle(cornerRadius: 7)
-                .stroke(context.priority.tintColor.opacity(0.54), lineWidth: 1)
+                .strokeBorder(context.priority.tintColor.opacity(0.68), lineWidth: 1.1)
         }
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(context.userFacingAccessibilityLabel)
@@ -555,13 +548,12 @@ struct EnemyCommanderThreatFocusMapReadoutView: View {
                 statusBadge
             }
         }
-        .padding(.horizontal, 8)
-        .padding(.vertical, 4)
-        .background(.black.opacity(0.72))
-        .clipShape(.rect(cornerRadius: 7))
+        .padding(.horizontal, 9)
+        .padding(.vertical, 5)
+        .battleMapPlate()
         .overlay {
             RoundedRectangle(cornerRadius: 7)
-                .stroke((readout.isFocused ? Color.orange : Color.white).opacity(0.56), lineWidth: 1)
+                .strokeBorder((readout.isFocused ? Color.orange : BattlePalette.brass).opacity(0.66), lineWidth: 1.1)
         }
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(readout.accessibilityLabel)
@@ -689,14 +681,13 @@ struct BattlefieldStatusRibbonView: View {
                     .frame(width: 1, height: 14)
             }
 
-            Circle()
-                .fill(viewModel.state.activeFaction.factionColor)
-                .frame(width: 6, height: 6)
+            FactionEmblemMedallionView(faction: viewModel.state.activeFaction, size: 15)
             Text(viewModel.state.activeFaction.displayName)
+                .font(.system(.caption, design: .serif, weight: .bold))
                 .lineLimit(1)
             Label("\(viewModel.hostileUnitCount)", systemImage: "flame.fill")
                 .monospacedDigit()
-                .foregroundStyle(BattlePalette.parchment)
+                .foregroundStyle(BattlePalette.brassBright)
         }
         .font(.caption.weight(.semibold))
         .foregroundStyle(BattlePalette.ivory)
@@ -1671,21 +1662,18 @@ struct MapTerrainSurfaceView: View {
             let land = contours.path
             drawSea(in: &context, size: size)
             context.fill(land, with: .linearGradient(
-                Gradient(colors: [Color(red: 0.46, green: 0.51, blue: 0.35), Color(red: 0.34, green: 0.42, blue: 0.30)]),
-                startPoint: .zero, endPoint: CGPoint(x: size.width * 0.3, y: size.height)
+                Gradient(colors: [
+                    Color(red: 0.43, green: 0.50, blue: 0.31),
+                    Color(red: 0.35, green: 0.43, blue: 0.27),
+                    Color(red: 0.31, green: 0.39, blue: 0.25)
+                ]),
+                startPoint: .zero, endPoint: CGPoint(x: size.width * 0.45, y: size.height)
             ))
             context.drawLayer { ground in
                 ground.clip(to: land)
-                drawSurfaceTexture(.ground, in: &ground, size: size, opacity: 0.52)
+                drawSurfaceTexture(.ground, in: &ground, size: size, opacity: 0.72)
                 drawRelief(in: &ground, size: size)
-                let roads = geometry.roadPath
-                let roadWidth = max(2.2, metrics.tileWidth * 0.07)
-                ground.stroke(roads, with: .color(Color(red: 0.28, green: 0.29, blue: 0.20).opacity(0.50)),
-                              style: StrokeStyle(lineWidth: roadWidth + 1.8, lineCap: .round, lineJoin: .round))
-                ground.stroke(roads, with: .color(Color(red: 0.72, green: 0.65, blue: 0.45)),
-                              style: StrokeStyle(lineWidth: roadWidth, lineCap: .round, lineJoin: .round))
-                ground.stroke(roads, with: .color(BattlePalette.ivory.opacity(0.26)),
-                              style: StrokeStyle(lineWidth: max(0.5, roadWidth * 0.22), lineCap: .round))
+                drawRoads(geometry.roadPath, in: &ground)
             }
         }
         .allowsHitTesting(false)
@@ -1694,26 +1682,71 @@ struct MapTerrainSurfaceView: View {
 
     private func drawSea(in context: inout GraphicsContext, size: CGSize) {
         context.fill(Path(CGRect(origin: .zero, size: size)), with: .linearGradient(
-            Gradient(colors: [Color(red: 0.30, green: 0.43, blue: 0.44), Color(red: 0.19, green: 0.33, blue: 0.38)]),
-            startPoint: .zero, endPoint: CGPoint(x: size.width, y: size.height)
+            Gradient(colors: [
+                Color(red: 0.34, green: 0.49, blue: 0.50),
+                Color(red: 0.26, green: 0.42, blue: 0.47),
+                Color(red: 0.20, green: 0.35, blue: 0.42)
+            ]),
+            startPoint: .zero, endPoint: CGPoint(x: size.width * 0.85, y: size.height)
         ))
-        drawSurfaceTexture(.water, in: &context, size: size, opacity: 0.40)
-        context.stroke(contours.path, with: .color(Color(red: 0.53, green: 0.66, blue: 0.59).opacity(0.20)),
-                       style: StrokeStyle(lineWidth: metrics.tileWidth * 0.30, lineCap: .round, lineJoin: .round))
-        context.stroke(contours.path, with: .color(Color(red: 0.59, green: 0.70, blue: 0.64).opacity(0.18)),
-                       style: StrokeStyle(lineWidth: metrics.tileWidth * 0.14, lineCap: .round, lineJoin: .round))
-        for row in 0..<Int(size.height / 36) + 1 {
-            let y = CGFloat(row) * 36 + CGFloat((row * 11) % 13)
-            let phase = CGFloat((row * 17) % 29)
-            for column in 0..<Int(size.width / 62) + 1 {
-                let x = CGFloat(column) * 62 + phase + CGFloat((row * 7 + column * 13) % 23)
+        drawSurfaceTexture(.water, in: &context, size: size, opacity: 0.78)
+        // Graduated antique Mediterranean coastal bathymetry glow fading outward from shore.
+        context.stroke(contours.path, with: .color(Color(red: 0.56, green: 0.71, blue: 0.67).opacity(0.16)),
+                       style: StrokeStyle(lineWidth: metrics.tileWidth * 0.44, lineCap: .round, lineJoin: .round))
+        context.stroke(contours.path, with: .color(Color(red: 0.64, green: 0.77, blue: 0.72).opacity(0.17)),
+                       style: StrokeStyle(lineWidth: metrics.tileWidth * 0.22, lineCap: .round, lineJoin: .round))
+        context.stroke(contours.path, with: .color(Color(red: 0.74, green: 0.84, blue: 0.77).opacity(0.16)),
+                       style: StrokeStyle(lineWidth: metrics.tileWidth * 0.09, lineCap: .round, lineJoin: .round))
+        drawAtlasSeaInscription(in: &context, size: size)
+        for row in 0..<Int(size.height / 42) + 1 {
+            let y = CGFloat(row) * 42 + CGFloat((row * 11) % 15)
+            let phase = CGFloat((row * 17) % 31)
+            for column in 0..<Int(size.width / 74) + 1 {
+                let x = CGFloat(column) * 74 + phase + CGFloat((row * 7 + column * 13) % 23)
                 var wave = Path()
                 wave.move(to: CGPoint(x: x, y: y))
-                wave.addCurve(to: CGPoint(x: x + 38, y: y - 1),
-                              control1: CGPoint(x: x + 12, y: y - 3), control2: CGPoint(x: x + 26, y: y + 2))
-                context.stroke(wave, with: .color(BattlePalette.ivory.opacity(row.isMultiple(of: 3) ? 0.085 : 0.035)), lineWidth: 0.7)
+                wave.addCurve(to: CGPoint(x: x + 34, y: y - 0.8),
+                              control1: CGPoint(x: x + 11, y: y - 2.4), control2: CGPoint(x: x + 23, y: y + 1.6))
+                context.stroke(wave, with: .color(BattlePalette.ivory.opacity(row.isMultiple(of: 3) ? 0.065 : 0.028)), lineWidth: 0.6)
             }
         }
+    }
+
+    private func drawAtlasSeaInscription(in context: inout GraphicsContext, size: CGSize) {
+        let seaTiles = tiles.filter { $0.terrain == .water }
+        guard seaTiles.count >= 6 else { return }
+        let points = seaTiles.map { metrics.center(for: $0.position) }
+        let avgX = points.map(\.x).reduce(0, +) / CGFloat(points.count)
+        let avgY = points.map(\.y).reduce(0, +) / CGFloat(points.count)
+        let fontSize = max(12, min(22, metrics.tileWidth * 0.28))
+        let caption = Text("M A R E   M E D I T E R R A N E U M")
+            .font(.system(size: fontSize, weight: .semibold, design: .serif))
+            .italic()
+            .foregroundColor(BattlePalette.ivory.opacity(0.16))
+        context.drawLayer { layer in
+            var seaClip = Path(CGRect(origin: .zero, size: size))
+            seaClip.addPath(contours.path)
+            layer.clip(to: seaClip, style: FillStyle(eoFill: true))
+            layer.draw(caption, at: CGPoint(x: avgX, y: avgY + metrics.tileHeight * 0.12), anchor: .center)
+        }
+    }
+
+    private func drawRoads(_ roads: Path, in context: inout GraphicsContext) {
+        let roadWidth = max(2.6, metrics.tileWidth * 0.078)
+        // Shadowed earth embankment beneath Roman stone paving.
+        context.stroke(roads, with: .color(Color(red: 0.22, green: 0.21, blue: 0.14).opacity(0.58)),
+                       style: StrokeStyle(lineWidth: roadWidth + 3.2, lineCap: .round, lineJoin: .round))
+        // Warm travertine stone roadbed.
+        context.stroke(roads, with: .color(Color(red: 0.68, green: 0.61, blue: 0.44)),
+                       style: StrokeStyle(lineWidth: roadWidth, lineCap: .round, lineJoin: .round))
+        // Flagstone paving texture dashes down the center of the Via.
+        context.stroke(roads, with: .color(Color(red: 0.84, green: 0.78, blue: 0.61).opacity(0.55)),
+                       style: StrokeStyle(
+                        lineWidth: max(1.0, roadWidth * 0.46),
+                        lineCap: .butt,
+                        lineJoin: .round,
+                        dash: [max(2.5, roadWidth * 0.9), max(1.6, roadWidth * 0.45)]
+                       ))
     }
 
     private func drawSurfaceTexture(
@@ -1721,7 +1754,7 @@ struct MapTerrainSurfaceView: View {
     ) {
         guard let bitmap = BattleSceneryArtwork.image(for: kind) else { return }
         let image = Image(decorative: bitmap, scale: 1, orientation: .up)
-        let side = max(180, metrics.tileWidth * 5)
+        let side = max(220, metrics.tileWidth * 5.4)
         context.drawLayer { texture in
             texture.opacity = opacity
             for row in 0...Int(ceil(size.height / side)) {
@@ -1735,57 +1768,53 @@ struct MapTerrainSurfaceView: View {
 
     private func drawRelief(in context: inout GraphicsContext, size: CGSize) {
         drawGroundVariation(in: &context, size: size)
+        // Subtle sunlit Mediterranean northwest-to-southeast daylight wash.
+        context.fill(Path(CGRect(origin: .zero, size: size)), with: .linearGradient(
+            Gradient(colors: [
+                Color(red: 0.88, green: 0.84, blue: 0.64).opacity(0.08),
+                .clear,
+                Color(red: 0.10, green: 0.14, blue: 0.11).opacity(0.14)
+            ]),
+            startPoint: .zero, endPoint: CGPoint(x: size.width, y: size.height)
+        ))
         for tile in tiles where tile.terrain != .water {
             let center = metrics.center(for: tile.position)
             let tint: Color
             switch tile.terrain {
-            case .forest: tint = Color(red: 0.18, green: 0.32, blue: 0.23).opacity(0.56)
-            case .hills: tint = Color(red: 0.61, green: 0.55, blue: 0.39).opacity(0.68)
-            case .city, .road: tint = Color(red: 0.66, green: 0.60, blue: 0.42).opacity(0.25)
-            default: tint = Color(red: 0.65, green: 0.64, blue: 0.39).opacity(0.12)
+            case .forest: tint = Color(red: 0.14, green: 0.28, blue: 0.17).opacity(0.50)
+            case .hills: tint = Color(red: 0.62, green: 0.56, blue: 0.42).opacity(0.56)
+            case .city: tint = Color(red: 0.72, green: 0.64, blue: 0.45).opacity(0.34)
+            case .road: tint = Color(red: 0.64, green: 0.58, blue: 0.41).opacity(0.18)
+            default: tint = Color(red: 0.54, green: 0.58, blue: 0.34).opacity(0.10)
             }
-            let radius = metrics.tileWidth * 0.78
+            let radius = metrics.tileWidth * 0.82
             context.fill(Path(ellipseIn: CGRect(x: center.x - radius, y: center.y - radius,
                                                width: radius * 2, height: radius * 2)),
                          with: .radialGradient(Gradient(colors: [tint, .clear, .clear]), center: center,
                                                startRadius: 0, endRadius: radius))
         }
-        for row in 0..<Int(size.height / 12) + 1 {
-            for column in 0..<Int(size.width / 14) + 1 {
-                let seed = (row * 37 + column * 19) % 43
-                let point = CGPoint(x: CGFloat(column * 14 + seed % 9), y: CGFloat(row * 12 + seed % 7))
-                let color = seed.isMultiple(of: 3) ? BattlePalette.ivory.opacity(0.10) : Color.black.opacity(0.065)
-                context.fill(Path(ellipseIn: CGRect(x: point.x, y: point.y, width: CGFloat(1 + seed % 3), height: 0.8)), with: .color(color))
-                if seed.isMultiple(of: 7) {
-                    var grass = Path()
-                    grass.move(to: point)
-                    grass.addLine(to: CGPoint(x: point.x - 1.5, y: point.y - 2.4))
-                    context.stroke(grass, with: .color(Color(red: 0.26, green: 0.35, blue: 0.22).opacity(0.25)), lineWidth: 0.6)
-                }
-            }
-        }
     }
 
     private func drawGroundVariation(in context: inout GraphicsContext, size: CGSize) {
-        for row in 0..<Int(size.height / 36) + 1 {
-            for column in 0..<Int(size.width / 48) + 1 {
+        for row in 0..<Int(size.height / 42) + 1 {
+            for column in 0..<Int(size.width / 54) + 1 {
                 let seed = (row * 97 + column * 61 + row * column * 7) % 101
-                let center = CGPoint(x: CGFloat(column * 48 + seed % 37), y: CGFloat(row * 36 + seed % 29))
-                let radius = CGFloat(24 + seed % 46)
+                let center = CGPoint(x: CGFloat(column * 54 + seed % 37), y: CGFloat(row * 42 + seed % 29))
+                let radius = CGFloat(28 + seed % 50)
                 let tint = seed.isMultiple(of: 3)
-                    ? Color(red: 0.73, green: 0.67, blue: 0.43).opacity(0.13)
-                    : Color(red: 0.22, green: 0.32, blue: 0.20).opacity(0.12)
+                    ? Color(red: 0.74, green: 0.69, blue: 0.44).opacity(0.11)
+                    : Color(red: 0.18, green: 0.30, blue: 0.18).opacity(0.11)
                 context.fill(Path(ellipseIn: CGRect(x: center.x - radius, y: center.y - radius,
                                                    width: radius * 2, height: radius * 2)),
                              with: .radialGradient(Gradient(colors: [tint, .clear]), center: center,
                                                    startRadius: 0, endRadius: radius))
-                if seed.isMultiple(of: 4) {
+                if seed.isMultiple(of: 5) {
                     var contour = Path()
                     contour.move(to: CGPoint(x: center.x - 18, y: center.y + 3))
                     contour.addCurve(to: CGPoint(x: center.x + 24, y: center.y - 2),
                                      control1: CGPoint(x: center.x - 6, y: center.y - 7),
                                      control2: CGPoint(x: center.x + 9, y: center.y + 6))
-                    context.stroke(contour, with: .color(BattlePalette.parchment.opacity(0.12)), lineWidth: 0.65)
+                    context.stroke(contour, with: .color(BattlePalette.parchment.opacity(0.08)), lineWidth: 0.6)
                 }
             }
         }
@@ -1795,7 +1824,7 @@ struct MapTerrainSurfaceView: View {
 struct MapBackdropView: View {
     var body: some View {
         LinearGradient(
-            colors: [Color(red: 0.32, green: 0.46, blue: 0.47), Color(red: 0.23, green: 0.38, blue: 0.43)],
+            colors: [Color(red: 0.30, green: 0.45, blue: 0.47), Color(red: 0.20, green: 0.35, blue: 0.42)],
             startPoint: .topLeading, endPoint: .bottomTrailing
         )
         .allowsHitTesting(false)
@@ -1842,8 +1871,8 @@ struct MapTerritoryOwnership {
     }
 }
 
-/// Faint land hex grid plus faction borders traced on the coast lattice. Each
-/// region is clipped to itself, so a shared border shows both owners' colors.
+/// Faint land hex grid plus painterly campaign faction borders traced on the coast lattice.
+/// Each region is clipped to itself, so a shared border shows both owners' colors.
 struct MapTerritoryLayerView: View {
     var tiles: [Tile]
     var territory: MapTerritoryOwnership
@@ -1863,7 +1892,7 @@ struct MapTerritoryLayerView: View {
                     width: width, height: metrics.tileHeight
                 )))
             }
-            context.stroke(grid, with: .color(Color.black.opacity(0.10)), lineWidth: max(0.4, width * 0.009))
+            context.stroke(grid, with: .color(Color.black.opacity(0.075)), lineWidth: max(0.35, width * 0.008))
             for faction in territory.drawnFactions {
                 // Intersect with the smoothed land so coastal borders follow the
                 // shoreline curve instead of being cut at convex hex corners.
@@ -1871,13 +1900,15 @@ struct MapTerritoryLayerView: View {
                 let tint = faction.factionColor
                 context.drawLayer { layer in
                     layer.clip(to: region)
-                    layer.fill(region, with: .color(tint.opacity(0.05)))
-                    layer.stroke(region, with: .color(tint.opacity(0.12)),
-                                 style: StrokeStyle(lineWidth: width * 0.28, lineJoin: .round))
-                    layer.stroke(region, with: .color(tint.opacity(0.18)),
+                    layer.fill(region, with: .color(tint.opacity(0.045)))
+                    layer.stroke(region, with: .color(tint.opacity(0.11)),
+                                 style: StrokeStyle(lineWidth: width * 0.30, lineJoin: .round))
+                    layer.stroke(region, with: .color(tint.opacity(0.20)),
                                  style: StrokeStyle(lineWidth: width * 0.14, lineJoin: .round))
                     layer.stroke(region, with: .color(tint.opacity(0.95)),
-                                 style: StrokeStyle(lineWidth: max(2.0, width * 0.065), lineJoin: .round))
+                                 style: StrokeStyle(lineWidth: max(2.2, width * 0.068), lineJoin: .round))
+                    layer.stroke(region, with: .color(Color.black.opacity(0.22)),
+                                 style: StrokeStyle(lineWidth: max(0.7, width * 0.018), lineJoin: .round))
                 }
             }
         }
@@ -1892,23 +1923,23 @@ struct MapFogOfWarEdgeView: View {
     var body: some View {
         ZStack {
             LinearGradient(
-                colors: [BattlePalette.parchment.opacity(0.16), .clear, .clear, BattlePalette.parchment.opacity(0.12)],
+                colors: [Color(red: 0.10, green: 0.09, blue: 0.07).opacity(0.24), .clear, .clear, Color(red: 0.10, green: 0.09, blue: 0.07).opacity(0.22)],
                 startPoint: .top,
                 endPoint: .bottom
             )
             HStack(spacing: 0) {
                 RadialGradient(
-                    colors: [BattlePalette.parchment.opacity(0.20), .clear],
+                    colors: [BattlePalette.parchment.opacity(0.12), .clear],
                     center: .leading,
                     startRadius: 8,
-                    endRadius: 170
+                    endRadius: 150
                 )
                 Spacer(minLength: 0)
                 RadialGradient(
-                    colors: [BattlePalette.parchment.opacity(0.16), .clear],
+                    colors: [BattlePalette.parchment.opacity(0.10), .clear],
                     center: .trailing,
                     startRadius: 8,
-                    endRadius: 170
+                    endRadius: 150
                 )
             }
         }
@@ -1925,24 +1956,19 @@ struct MapScaleBarView: View {
             VStack(alignment: .leading, spacing: 2) {
                 HStack(spacing: 0) {
                     Rectangle().fill(BattlePalette.brassBright).frame(width: tileWidth / 2, height: 2)
-                    Rectangle().fill(BattlePalette.ivory.opacity(0.78)).frame(width: tileWidth / 2, height: 2)
+                    Rectangle().fill(BattlePalette.ivory.opacity(0.82)).frame(width: tileWidth / 2, height: 2)
                 }
                 Text("1格 · 战区比例")
-                    .font(.system(size: 8, weight: .bold, design: .monospaced))
-                    .foregroundStyle(BattlePalette.ivory.opacity(0.70))
+                    .font(.system(size: 8, weight: .bold, design: .serif))
+                    .foregroundStyle(BattlePalette.ivory.opacity(0.82))
             }
             Image(systemName: "location.north.fill")
                 .font(.system(size: 10, weight: .black))
                 .foregroundStyle(BattlePalette.brassBright)
         }
-        .padding(.horizontal, 7)
+        .padding(.horizontal, 8)
         .padding(.vertical, 5)
-        .background(.black.opacity(0.52))
-        .clipShape(RoundedRectangle(cornerRadius: 5))
-        .overlay {
-            RoundedRectangle(cornerRadius: 5)
-                .stroke(BattlePalette.brass.opacity(0.24), lineWidth: 1)
-        }
+        .battleMapPlate()
         .accessibilityHidden(true)
     }
 }
@@ -1978,22 +2004,25 @@ struct CoastlineLayerView: View {
     var contours: BattlefieldTerrainContours
     var metrics: HexMetrics
 
-    private static let sandColor = Color(red: 0.82, green: 0.72, blue: 0.50)
-    private static let foamColor = Color(red: 0.72, green: 0.86, blue: 0.90)
+    private static let sandColor = Color(red: 0.78, green: 0.71, blue: 0.52)
+    private static let foamColor = Color(red: 0.80, green: 0.89, blue: 0.88)
 
     var body: some View {
         Canvas { context, size in
             let shore = contours.path
-            context.stroke(shore, with: .color(Color(red: 0.18, green: 0.25, blue: 0.19).opacity(0.42)),
-                           style: StrokeStyle(lineWidth: max(3, metrics.tileWidth * 0.07), lineCap: .round, lineJoin: .round))
-            context.stroke(shore, with: .color(Self.sandColor.opacity(0.74)),
-                           style: StrokeStyle(lineWidth: max(1.4, metrics.tileWidth * 0.033), lineCap: .round, lineJoin: .round))
+            // Subtle coastal land-bank shadow bevel.
+            context.stroke(shore, with: .color(Color(red: 0.16, green: 0.22, blue: 0.16).opacity(0.46)),
+                           style: StrokeStyle(lineWidth: max(2.6, metrics.tileWidth * 0.065), lineCap: .round, lineJoin: .round))
+            // Warm sunlit Mediterranean sand beach edge.
+            context.stroke(shore, with: .color(Self.sandColor.opacity(0.68)),
+                           style: StrokeStyle(lineWidth: max(1.3, metrics.tileWidth * 0.028), lineCap: .round, lineJoin: .round))
+            // Soft water-side shoreline shimmer (replaces bright neon foam ring).
             context.drawLayer { foam in
                 var water = Path(CGRect(origin: .zero, size: size))
                 water.addPath(shore)
                 foam.clip(to: water, style: FillStyle(eoFill: true))
-                foam.stroke(shore, with: .color(Self.foamColor.opacity(0.38)),
-                            style: StrokeStyle(lineWidth: max(3, metrics.tileWidth * 0.09), lineCap: .round, lineJoin: .round))
+                foam.stroke(shore, with: .color(Self.foamColor.opacity(0.22)),
+                            style: StrokeStyle(lineWidth: max(2.2, metrics.tileWidth * 0.065), lineCap: .round, lineJoin: .round))
             }
         }
         .allowsHitTesting(false)
@@ -3070,49 +3099,77 @@ struct CityBadgeView: View {
     var city: City
     var compact = false
 
+    private var fortificationTierLabel: String {
+        switch city.fortification {
+        case 12...: return "III"
+        case 9...: return "II"
+        default: return "I"
+        }
+    }
+
     var body: some View {
-        VStack(spacing: compact ? 1 : 3) {
+        VStack(spacing: compact ? 1 : 2.5) {
             ZStack(alignment: .bottomTrailing) {
                 FortifiedCitySilhouetteView(owner: city.owner, compact: compact)
 
-                HStack(spacing: 1) {
-                    Image(systemName: "shield.fill")
-                        .font(.system(size: compact ? 5 : 7, weight: .black))
-                    Text("\(city.fortification)")
-                        .font(.system(size: compact ? 6 : 8, weight: .black, design: .rounded))
-                        .monospacedDigit()
+                // EasyTech-inspired Roman numeral fortification tier medallion.
+                ZStack {
+                    Circle()
+                        .fill(LinearGradient(
+                            colors: [BattlePalette.panelRaised, BattlePalette.stoneDark],
+                            startPoint: .top, endPoint: .bottom
+                        ))
+                    Circle()
+                        .strokeBorder(
+                            LinearGradient(
+                                colors: [BattlePalette.brassBright, BattlePalette.brassDim],
+                                startPoint: .top, endPoint: .bottom
+                            ),
+                            lineWidth: compact ? 0.9 : 1.1
+                        )
+                    Text(fortificationTierLabel)
+                        .font(.system(size: compact ? 5.5 : 7.5, weight: .black, design: .serif))
+                        .foregroundStyle(BattlePalette.brassBright)
                 }
-                .foregroundStyle(.black.opacity(0.72))
-                .padding(.horizontal, compact ? 2 : 3)
-                .frame(height: compact ? 9 : 12)
-                .background(Color(red: 0.86, green: 0.68, blue: 0.34))
-                .clipShape(RoundedRectangle(cornerRadius: compact ? 3 : 4))
-                .offset(x: compact ? 5 : 7, y: compact ? 3 : 4)
+                .frame(width: compact ? 13 : 17, height: compact ? 13 : 17)
+                .shadow(color: .black.opacity(0.55), radius: 1.5, y: 1)
+                .offset(x: compact ? 3 : 5, y: compact ? 2 : 3)
             }
 
-            HStack(spacing: compact ? 2 : 3) {
-                Circle()
-                    .fill(city.owner.factionColor)
-                    .overlay { Circle().strokeBorder(BattlePalette.brassBright.opacity(0.85), lineWidth: 0.6) }
-                    .frame(width: compact ? 7 : 9, height: compact ? 7 : 9)
+            HStack(spacing: compact ? 3 : 4) {
+                FactionEmblemMedallionView(faction: city.owner, size: compact ? 12 : 16)
                 Text(city.name)
-                    .font(.system(size: compact ? 8 : 11, weight: .heavy, design: .serif))
+                    .font(.system(size: compact ? 8.5 : 11, weight: .bold, design: .serif))
                     .foregroundStyle(BattlePalette.ivory)
+                    .shadow(color: .black.opacity(0.75), radius: 0.8, y: 0.6)
                     .lineLimit(1)
-                    .minimumScaleFactor(0.5)
+                    .minimumScaleFactor(0.55)
             }
-            .padding(.leading, compact ? 2 : 3)
-            .padding(.trailing, compact ? 4 : 6)
-            .frame(minHeight: compact ? 12 : 16)
-            .background(LinearGradient(
-                colors: [BattlePalette.panelRaised.opacity(0.92), BattlePalette.panel.opacity(0.92)],
-                startPoint: .top, endPoint: .bottom
-            ))
-            .clipShape(.rect(cornerRadius: compact ? 3 : 4))
+            .padding(.leading, compact ? 1.5 : 2.5)
+            .padding(.trailing, compact ? 5 : 7)
+            .frame(minHeight: compact ? 13.5 : 18)
+            .background {
+                let shape = RoundedRectangle(cornerRadius: compact ? 3.5 : 5)
+                ZStack {
+                    shape.fill(LinearGradient(
+                        colors: [BattlePalette.panelRaised.opacity(0.95), BattlePalette.stoneDark.opacity(0.96)],
+                        startPoint: .top, endPoint: .bottom
+                    ))
+                    BattleTextureSurface(kind: .panelStone, opacity: 0.45)
+                }
+                .clipShape(shape)
+            }
             .overlay {
-                RoundedRectangle(cornerRadius: compact ? 3 : 4)
-                    .strokeBorder(BattlePalette.brass.opacity(0.55), lineWidth: 0.6)
+                RoundedRectangle(cornerRadius: compact ? 3.5 : 5)
+                    .strokeBorder(
+                        LinearGradient(
+                            colors: [BattlePalette.brassBright.opacity(0.76), BattlePalette.brassDim.opacity(0.52)],
+                            startPoint: .top, endPoint: .bottom
+                        ),
+                        lineWidth: 0.75
+                    )
             }
+            .shadow(color: .black.opacity(0.55), radius: 2, y: 1)
         }
     }
 }
@@ -3123,23 +3180,17 @@ struct FortifiedCitySilhouetteView: View {
 
     var body: some View {
         Group {
-            if let image = BattleSceneryArtwork.image(for: .city) {
+            if let image = BattleSceneryArtwork.cityImage(for: owner) {
                 Image(decorative: image, scale: 1, orientation: .up)
                     .resizable()
                     .interpolation(.high)
-                    .frame(width: compact ? 48 : 66, height: compact ? 30 : 46)
-                    .overlay(alignment: .topTrailing) {
-                        Image(systemName: "flag.fill")
-                            .font(.system(size: compact ? 8 : 11, weight: .black))
-                            .foregroundStyle(owner.factionColor)
-                            .shadow(color: .black.opacity(0.65), radius: 1, y: 1)
-                            .offset(x: -6, y: 1)
-                    }
+                    .scaledToFit()
+                    .frame(width: compact ? 54 : 74, height: compact ? 42 : 56)
             } else {
                 vectorCity
             }
         }
-        .shadow(color: .black.opacity(0.30), radius: 1, y: 1)
+        .shadow(color: .black.opacity(0.45), radius: 2, y: 1.5)
         .accessibilityHidden(true)
     }
 
@@ -3284,7 +3335,7 @@ struct ArmyMiniatureView: View {
 
     var body: some View {
         Group {
-            if let image = BattleUnitArtwork.image(for: kind) {
+            if let image = BattleUnitArtwork.image(for: kind, faction: faction) {
                 paintedMiniature(image)
             } else {
                 VectorArmyMiniatureView(kind: kind, faction: faction)
@@ -3296,29 +3347,36 @@ struct ArmyMiniatureView: View {
 
     private func paintedMiniature(_ image: CGImage) -> some View {
         GeometryReader { proxy in
+            let ringWidth = proxy.size.width * 0.78
+            let ringHeight = proxy.size.height * 0.17
             ZStack(alignment: .bottom) {
+                // Ground ambient contact shadow + luminous EasyTech-style faction ring.
                 Ellipse()
-                    .fill(.black.opacity(0.24))
-                    .frame(width: proxy.size.width * 0.84, height: proxy.size.height * 0.18)
+                    .fill(RadialGradient(
+                        colors: [.black.opacity(0.46), .black.opacity(0.18), .clear],
+                        center: .center, startRadius: 0, endRadius: ringWidth * 0.56
+                    ))
+                    .frame(width: ringWidth * 1.08, height: ringHeight * 1.25)
                 Ellipse()
-                    .stroke(faction.factionColor.opacity(0.94), lineWidth: 1.4)
-                    .frame(width: proxy.size.width * 0.84, height: proxy.size.height * 0.18)
+                    .stroke(.black.opacity(0.65), lineWidth: 2.2)
+                    .frame(width: ringWidth, height: ringHeight)
+                Ellipse()
+                    .stroke(
+                        LinearGradient(
+                            colors: [BattlePalette.ivory.opacity(0.55), faction.factionColor, faction.factionColor.opacity(0.85)],
+                            startPoint: .top, endPoint: .bottom
+                        ),
+                        lineWidth: 1.5
+                    )
+                    .frame(width: ringWidth, height: ringHeight)
 
                 Image(decorative: image, scale: 1, orientation: .up)
                     .resizable()
                     .interpolation(.high)
                     .scaledToFit()
-                    .padding(.horizontal, 2)
+                    .padding(.horizontal, 1)
                     .padding(.bottom, proxy.size.height * 0.04)
-                    .shadow(color: .black.opacity(0.34), radius: 0.8, x: 0.6, y: 1)
-
-                Canvas { context, size in
-                    let paint = BattlefieldMiniaturePainter(size: size)
-                    paint.line(&context, [(5, 34), (5, 12)], color: BattlefieldMiniaturePainter.ivory, width: 0.9)
-                    let flag = LegionStandardShape().path(in: paint.rect(x: 5, y: 12, width: 9, height: 11))
-                    context.fill(flag, with: .color(faction.factionColor))
-                    context.stroke(flag, with: .color(BattlePalette.brassBright.opacity(0.88)), lineWidth: 0.6)
-                }
+                    .shadow(color: .black.opacity(0.55), radius: 1.8, x: 1, y: 1.5)
             }
         }
     }
@@ -3361,83 +3419,130 @@ struct UnitTokenView: View {
     var unit: ArmyUnit
     var presentation: UnitTokenPresentation = .map
 
+    private var medallionSize: CGFloat {
+        switch presentation {
+        case .map: return 15
+        case .compact: return 12
+        case .inspection: return 22
+        }
+    }
+
     var body: some View {
         VStack(spacing: 1) {
             ArmyMiniatureView(kind: unit.kind, faction: unit.faction)
                 .frame(width: presentation.artSize.width, height: presentation.artSize.height)
-                .overlay(alignment: .bottomTrailing) {
-                    Text(unit.kind.shortLabel)
-                        .font(.system(size: 6, weight: .black))
-                        .foregroundStyle(BattlePalette.ivory)
-                        .padding(.horizontal, 2)
-                        .background(BattlePalette.panel.opacity(0.88))
-                        .clipShape(.rect(cornerRadius: 2))
+                .overlay(alignment: .bottomLeading) {
+                    // Iconic circular gold-rimmed faction medallion anchored at the unit's foot.
+                    FactionEmblemMedallionView(faction: unit.faction, size: medallionSize)
+                        .offset(x: presentation == .inspection ? -2 : -1, y: 2)
                 }
                 .overlay(alignment: .topTrailing) {
                     if let generalName = unit.generalName {
-                        CommanderTokenBadgeView(name: generalName, trait: unit.generalTrait)
-                            .offset(x: 5, y: -5)
+                        CommanderTokenBadgeView(
+                            name: generalName,
+                            trait: unit.generalTrait,
+                            diameter: presentation == .inspection ? 26 : 20
+                        )
+                        .offset(x: 4, y: -6)
                     }
                 }
                 .overlay(alignment: .topLeading) {
                     if unit.resolvedTacticalOrder != .balanced {
                         Image(systemName: unit.resolvedTacticalOrder.systemImage)
-                            .font(.system(size: 8, weight: .black))
+                            .font(.system(size: 7.5, weight: .black))
                             .foregroundStyle(.white)
-                            .padding(2)
+                            .padding(2.5)
                             .background(unit.resolvedTacticalOrder.tintColor)
                             .clipShape(Circle())
-                            .offset(x: -4, y: -4)
+                            .overlay { Circle().strokeBorder(BattlePalette.brassBright.opacity(0.8), lineWidth: 0.6) }
+                            .shadow(color: .black.opacity(0.55), radius: 1.5, y: 1)
+                            .offset(x: -3, y: -3)
                     }
-                }
-                .overlay(alignment: .bottomLeading) {
-                    HStack(spacing: 1) {
-                        ForEach(0..<min(unit.experience, 3), id: \.self) { _ in
-                            Circle()
-                                .fill(Color(red: 0.95, green: 0.78, blue: 0.36))
-                                .frame(width: 4, height: 4)
-                        }
-                    }
-                    .padding(3)
                 }
                 .overlay(alignment: .trailing) {
                     if unit.generalSkillCooldownRemaining > 0 {
                         Text("\(unit.generalSkillCooldownRemaining)")
                             .font(.system(size: 8, weight: .black, design: .rounded))
-                            .foregroundStyle(.black.opacity(0.78))
+                            .foregroundStyle(.black.opacity(0.82))
                             .frame(width: 13, height: 13)
                             .background(Color(red: 0.36, green: 0.86, blue: 0.92))
                             .clipShape(Circle())
-                            .offset(x: 5)
+                            .overlay { Circle().strokeBorder(BattlePalette.ivory.opacity(0.8), lineWidth: 0.6) }
+                            .offset(x: 4)
                     }
                 }
                 .overlay(alignment: .bottomTrailing) {
                     if unit.hasMoved && unit.hasActed {
                         Image(systemName: "checkmark.circle.fill")
                             .font(.system(size: 10, weight: .bold))
-                            .foregroundStyle(.white, .black.opacity(0.75))
-                            .offset(x: 4, y: 4)
+                            .foregroundStyle(.white, .black.opacity(0.82))
+                            .offset(x: 3, y: 2)
+                    } else if unit.experience > 0 {
+                        HStack(spacing: 1) {
+                            ForEach(0..<min(unit.experience, 3), id: \.self) { _ in
+                                Image(systemName: "star.fill")
+                                    .font(.system(size: presentation == .inspection ? 6 : 4.5, weight: .black))
+                                    .foregroundStyle(BattlePalette.brassBright)
+                                    .shadow(color: .black.opacity(0.85), radius: 0.8)
+                            }
+                        }
+                        .padding(.horizontal, 2)
+                        .padding(.vertical, 1)
+                        .background(BattlePalette.stoneDark.opacity(0.75))
+                        .clipShape(Capsule())
+                        .offset(x: 2, y: 1)
                     }
                 }
 
+            // Sculpted bronze-rimmed vitality bar with subtle segment dividers.
             GeometryReader { proxy in
                 ZStack(alignment: .leading) {
-                    Capsule().fill(BattlePalette.panel.opacity(0.94))
-                    Capsule()
+                    RoundedRectangle(cornerRadius: presentation.strengthHeight * 0.45)
+                        .fill(BattlePalette.stoneDark.opacity(0.96))
+                    RoundedRectangle(cornerRadius: presentation.strengthHeight * 0.45)
                         .fill(LinearGradient(
                             colors: unit.healthRatio > 0.42
-                                ? [Color(red: 0.60, green: 0.76, blue: 0.38), Color(red: 0.22, green: 0.46, blue: 0.24)]
-                                : [Color(red: 0.90, green: 0.40, blue: 0.22), BattlePalette.danger],
+                                ? [Color(red: 0.48, green: 0.82, blue: 0.36), Color(red: 0.18, green: 0.50, blue: 0.22)]
+                                : [Color(red: 0.96, green: 0.42, blue: 0.20), BattlePalette.danger],
                             startPoint: .top, endPoint: .bottom
                         ))
-                        .frame(width: proxy.size.width * unit.healthRatio)
+                        .frame(width: max(2, proxy.size.width * unit.healthRatio))
+                    // Subtle glossy top sheen on the vitality bar.
+                    RoundedRectangle(cornerRadius: presentation.strengthHeight * 0.45)
+                        .fill(LinearGradient(
+                            colors: [.white.opacity(0.32), .clear],
+                            startPoint: .top, endPoint: .center
+                        ))
+                        .frame(width: max(2, proxy.size.width * unit.healthRatio))
+                    // Quarter-strength calibration ticks.
+                    HStack(spacing: 0) {
+                        ForEach(0..<4, id: \.self) { index in
+                            Spacer(minLength: 0)
+                            if index < 3 {
+                                Rectangle()
+                                    .fill(.black.opacity(0.35))
+                                    .frame(width: 0.6)
+                            }
+                        }
+                    }
                     Text("\(unit.health)")
-                        .font(.system(size: presentation == .inspection ? 7 : 6, weight: .black, design: .rounded))
+                        .font(.system(size: presentation == .inspection ? 7.5 : 6, weight: .black, design: .rounded))
                         .foregroundStyle(BattlePalette.ivory)
-                        .shadow(color: .black, radius: 0.6, y: 0.5)
+                        .shadow(color: .black, radius: 0.8, y: 0.5)
                         .frame(maxWidth: .infinity)
                 }
-                .overlay { Capsule().stroke(BattlePalette.brass.opacity(0.55), lineWidth: 0.5) }
+                .clipShape(RoundedRectangle(cornerRadius: presentation.strengthHeight * 0.45))
+                .overlay {
+                    RoundedRectangle(cornerRadius: presentation.strengthHeight * 0.45)
+                        .strokeBorder(
+                            LinearGradient(
+                                colors: [BattlePalette.brassBright.opacity(0.85), BattlePalette.brassDim.opacity(0.70)],
+                                startPoint: .top, endPoint: .bottom
+                            ),
+                            lineWidth: 0.65
+                        )
+                }
+                .shadow(color: .black.opacity(0.55), radius: 1.5, y: 1)
             }
             .frame(width: presentation.strengthWidth, height: presentation.strengthHeight)
         }
@@ -3460,24 +3565,40 @@ struct LegionStandardShape: Shape {
 struct CommanderTokenBadgeView: View {
     var name: String
     var trait: GeneralTrait?
+    var diameter: CGFloat = 20
 
     var body: some View {
-        ZStack {
-            if BattleCommanderPortrait.matching(name) != nil {
-                CommanderPortraitView(name: name, diameter: 22)
-            } else {
-                CommanderShieldShape()
-                    .fill(Color(red: 0.93, green: 0.72, blue: 0.24))
-                CommanderShieldShape()
-                    .stroke(.white.opacity(0.92), lineWidth: 1)
-                Text(String(name.prefix(1)))
-                    .font(.system(size: 7, weight: .black, design: .rounded))
-                    .foregroundStyle(Color(red: 0.24, green: 0.10, blue: 0.07))
-                    .minimumScaleFactor(0.7)
+        VStack(spacing: -1.5) {
+            ZStack {
+                if BattleCommanderPortrait.matching(name) != nil {
+                    CommanderPortraitView(name: name, diameter: diameter)
+                } else {
+                    Circle()
+                        .fill(LinearGradient(
+                            colors: [BattlePalette.panelRaised, BattlePalette.stoneDark],
+                            startPoint: .top, endPoint: .bottom
+                        ))
+                    Circle()
+                        .strokeBorder(
+                            LinearGradient(
+                                colors: [BattlePalette.brassBright, BattlePalette.brassDim],
+                                startPoint: .top, endPoint: .bottom
+                            ),
+                            lineWidth: 1.4
+                        )
+                    Text(String(name.prefix(1)))
+                        .font(.system(size: diameter * 0.42, weight: .black, design: .serif))
+                        .foregroundStyle(BattlePalette.brassBright)
+                        .shadow(color: .black.opacity(0.8), radius: 0.8)
+                }
             }
+            .frame(width: diameter, height: diameter)
+
+            TrianglePointer()
+                .fill(BattlePalette.brassBright)
+                .frame(width: 6, height: 3.5)
         }
-        .frame(width: 22, height: 22)
-        .shadow(color: .black.opacity(0.42), radius: 2, y: 1)
+        .shadow(color: .black.opacity(0.58), radius: 2.5, y: 1.5)
         .accessibilityHidden(true)
     }
 }

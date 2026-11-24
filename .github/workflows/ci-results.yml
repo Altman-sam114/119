@@ -21,7 +21,7 @@ permissions:
   contents: read
 
 env:
-  CI_VERSION: v0.84
+  CI_VERSION: v0.85
   PROJECT_NAME: RomeLegions
   XCODE_PROJECT: RomeLegionsApp.xcodeproj
   XCODE_SCHEME: RomeLegions
@@ -166,6 +166,10 @@ jobs:
           for kind in legion cavalry archer navy ground water city forest hills commander-caesar commander-hannibal commander-vercingetorix commander-labienus; do
             cmp "RomeLegionsApp/Resources/BattleUnitArt/$kind.png" "$APP_PACKAGE/BattleUnitArt/$kind.png" || exit $?
             echo "[art] bundled $kind.png matches source"
+          done
+          for rel in Factions/carthage-legion Factions/carthage-cavalry Factions/carthage-archer Factions/carthage-navy Factions/gaul-legion Factions/egypt-legion Factions/city-carthage Factions/city-gaul UI/ui-panel-stone UI/ui-banner-crimson UI/ui-panel-parchment UI/emblem-rome UI/emblem-carthage UI/emblem-gaul UI/emblem-egypt UI/emblem-neutral; do
+            cmp "RomeLegionsApp/Resources/BattleUnitArt/$rel.png" "$APP_PACKAGE/BattleUnitArt/$rel.png" || exit $?
+            echo "[art] bundled $rel.png matches source"
           done
           } 2>&1 | tee ci-results/xcodebuild.log
 

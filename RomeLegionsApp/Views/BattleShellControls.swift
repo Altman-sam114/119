@@ -203,13 +203,28 @@ struct BattlefieldDrawerView: View {
                 drawerLayout(for: layoutSize)
             }
         }
-        .background(BattlePalette.panel.opacity(0.98))
+        .background {
+            ZStack {
+                BattlePalette.panel.opacity(0.98)
+                BattleTextureSurface(kind: .panelStone, opacity: 0.62)
+                LinearGradient(
+                    colors: [.clear, .black.opacity(0.32)],
+                    startPoint: .top, endPoint: .bottom
+                )
+            }
+        }
         .clipShape(.rect(cornerRadius: 8))
         .overlay {
             RoundedRectangle(cornerRadius: 8)
-                .stroke(BattlePalette.brass.opacity(0.48), lineWidth: 1)
+                .strokeBorder(
+                    LinearGradient(
+                        colors: [BattlePalette.brassBright.opacity(0.82), BattlePalette.brass.opacity(0.55), BattlePalette.brassDim.opacity(0.60)],
+                        startPoint: .top, endPoint: .bottom
+                    ),
+                    lineWidth: 1.25
+                )
         }
-        .shadow(color: .black.opacity(0.58), radius: 18, x: -4, y: 6)
+        .shadow(color: .black.opacity(0.65), radius: 20, x: -4, y: 8)
         .accessibilityElement(children: .contain)
         .accessibilityLabel("\(category.title)战场抽屉")
     }
@@ -231,6 +246,7 @@ struct BattlefieldDrawerView: View {
             Label(category.title, systemImage: category.symbol)
                 .font(.system(.headline, design: .serif, weight: .bold))
                 .foregroundStyle(BattlePalette.ivory)
+                .shadow(color: .black.opacity(0.75), radius: 1.5, y: 1)
             Spacer(minLength: 0)
             Button("关闭抽屉", systemImage: "xmark") {
                 onClose()
@@ -239,19 +255,32 @@ struct BattlefieldDrawerView: View {
             .frame(width: 44, height: 44)
             .buttonStyle(CommandIconButtonStyle())
         }
-        .padding(.horizontal, 10)
+        .padding(.horizontal, 12)
         .frame(width: drawerSize.width, height: height)
         .background {
-            LinearGradient(
-                colors: [BattlePalette.romanRed, BattlePalette.crimsonDeep],
-                startPoint: .top,
-                endPoint: .bottom
-            )
+            ZStack {
+                LinearGradient(
+                    colors: [BattlePalette.romanRed, BattlePalette.crimsonDeep],
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
+                BattleTextureSurface(kind: .bannerCrimson, opacity: 0.92)
+                LinearGradient(
+                    colors: [.white.opacity(0.10), .clear, .black.opacity(0.28)],
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
+            }
         }
         .overlay(alignment: .bottom) {
-            Rectangle()
-                .fill(BattlePalette.brass.opacity(0.70))
-                .frame(height: 1)
+            VStack(spacing: 0) {
+                Rectangle()
+                    .fill(BattlePalette.brassBright.opacity(0.85))
+                    .frame(height: 1.2)
+                Rectangle()
+                    .fill(.black.opacity(0.55))
+                    .frame(height: 1)
+            }
         }
     }
 
@@ -346,16 +375,29 @@ struct SelectionCommandDockView: View {
         .padding(.horizontal, 8)
         .foregroundStyle(BattlePalette.ivory)
         .background {
-            LinearGradient(
-                colors: [BattlePalette.panelRaised, BattlePalette.panel],
-                startPoint: .top,
-                endPoint: .bottom
-            )
+            ZStack {
+                LinearGradient(
+                    colors: [BattlePalette.panelRaised, BattlePalette.panel, BattlePalette.stoneDark],
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
+                BattleTextureSurface(kind: .panelStone, opacity: 0.60)
+                LinearGradient(
+                    colors: [BattlePalette.brass.opacity(0.08), .clear, .black.opacity(0.28)],
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
+            }
         }
         .overlay(alignment: .top) {
-            Rectangle()
-                .fill(BattlePalette.brass.opacity(0.42))
-                .frame(height: 1)
+            VStack(spacing: 0) {
+                Rectangle()
+                    .fill(BattlePalette.brassBright.opacity(0.68))
+                    .frame(height: 1.2)
+                Rectangle()
+                    .fill(.black.opacity(0.55))
+                    .frame(height: 1)
+            }
         }
     }
 
@@ -859,42 +901,70 @@ struct DockCommandButtonContent: View {
     var isPrimaryAction = false
 
     var body: some View {
+        let shape = RoundedRectangle(cornerRadius: 6)
         VStack(spacing: 1) {
             ZStack {
                 Circle()
-                    .fill(tint.opacity(isPrimaryAction ? 0.54 : (isSecondary ? 0.12 : 0.22)))
+                    .fill(
+                        isPrimaryAction
+                            ? Color(red: 0.88, green: 0.16, blue: 0.12).opacity(0.75)
+                            : tint.opacity(isSecondary ? 0.14 : (artKind != nil ? 0.34 : 0.24))
+                    )
                 if let artKind, let image = BattleUnitArtwork.image(for: artKind) {
                     Image(decorative: image, scale: 1, orientation: .up)
                         .resizable()
                         .interpolation(.high)
                         .scaledToFit()
+                        .padding(1)
                 } else {
                     Image(systemName: symbol)
                         .font(.system(size: 12, weight: .bold))
                         .foregroundStyle(isPrimaryAction ? BattlePalette.ivory : tint)
                 }
             }
-            .frame(width: 25, height: 25)
+            .frame(width: 26, height: 26)
             Text(title)
-                .font(.system(size: 10, weight: .semibold))
+                .font(.system(size: 10, weight: .bold, design: .serif))
+                .shadow(color: .black.opacity(0.8), radius: 0.6, y: 0.5)
                 .lineLimit(1)
                 .minimumScaleFactor(0.8)
         }
         .foregroundStyle(BattlePalette.ivory)
         .frame(width: BattleInterfaceMetrics.controlSize, height: BattleInterfaceMetrics.controlSize)
         .background {
-            LinearGradient(
-                colors: isPrimaryAction
-                    ? [tint.opacity(0.62), tint.opacity(0.28), BattlePalette.panel]
-                    : [tint.opacity(0.10), BattlePalette.panel],
-                startPoint: .topLeading, endPoint: .bottomTrailing
+            ZStack {
+                if isPrimaryAction {
+                    shape.fill(LinearGradient(
+                        colors: [Color(red: 0.84, green: 0.16, blue: 0.12), BattlePalette.romanRed, BattlePalette.crimsonDeep],
+                        startPoint: .top, endPoint: .bottom
+                    ))
+                    BattleTextureSurface(kind: .bannerCrimson, opacity: 0.48)
+                } else {
+                    shape.fill(LinearGradient(
+                        colors: [tint.opacity(artKind != nil ? 0.28 : 0.13), BattlePalette.stoneDark],
+                        startPoint: .top, endPoint: .bottom
+                    ))
+                    BattleTextureSurface(kind: .panelStone, opacity: 0.42)
+                }
+                LinearGradient(
+                    colors: [.white.opacity(isPrimaryAction ? 0.16 : 0.08), .clear, .black.opacity(0.28)],
+                    startPoint: .top, endPoint: .bottom
+                )
+            }
+            .clipShape(shape)
+        }
+        .overlay {
+            shape.strokeBorder(
+                LinearGradient(
+                    colors: isPrimaryAction
+                        ? [BattlePalette.brassBright.opacity(0.95), tint.opacity(0.90)]
+                        : [tint.opacity(artKind != nil ? 0.85 : 0.52), BattlePalette.brassDim.opacity(0.45)],
+                    startPoint: .top, endPoint: .bottom
+                ),
+                lineWidth: isPrimaryAction ? 1.25 : 1
             )
         }
-        .clipShape(.rect(cornerRadius: 6))
-        .overlay {
-            RoundedRectangle(cornerRadius: 6)
-                .strokeBorder(tint.opacity(isPrimaryAction ? 0.88 : 0.36), lineWidth: 1)
-        }
+        .shadow(color: .black.opacity(0.42), radius: 2, y: 1)
         .contentShape(Rectangle())
     }
 }
@@ -1020,20 +1090,31 @@ struct TopBarView: View {
         .padding(.horizontal, 7)
         .frame(height: height)
         .background {
-            LinearGradient(
-                colors: [BattlePalette.panelRaised, BattlePalette.panel, BattlePalette.stoneDark],
-                startPoint: .top,
-                endPoint: .bottom
-            )
+            ZStack {
+                LinearGradient(
+                    colors: [BattlePalette.panelRaised, BattlePalette.panel, BattlePalette.stoneDark],
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
+                BattleTextureSurface(kind: .panelStone, opacity: 0.64)
+                LinearGradient(
+                    colors: [BattlePalette.romanRed.opacity(0.22), .clear, .clear],
+                    startPoint: .leading,
+                    endPoint: .trailing
+                )
+            }
         }
         .overlay(alignment: .bottom) {
             VStack(spacing: 0) {
                 Rectangle()
-                    .fill(.black.opacity(0.40))
+                    .fill(.black.opacity(0.55))
                     .frame(height: 1)
                 Rectangle()
-                    .fill(BattlePalette.brass.opacity(0.42))
-                    .frame(height: 1)
+                    .fill(LinearGradient(
+                        colors: [BattlePalette.brassDim, BattlePalette.brassBright.opacity(0.80), BattlePalette.brassDim],
+                        startPoint: .leading, endPoint: .trailing
+                    ))
+                    .frame(height: 1.2)
             }
         }
     }
@@ -1120,13 +1201,28 @@ struct LedgerDivider: View {
 }
 
 extension View {
-    /// Dark ledger plate with a bronze rim shared by both resource strips.
+    /// Sculpted stone ledger plate with a brushed bronze rim shared by both resource strips.
     func battleLedgerStrip() -> some View {
-        background(.black.opacity(0.36))
-            .clipShape(RoundedRectangle(cornerRadius: 7))
-            .overlay {
-                RoundedRectangle(cornerRadius: 7)
-                    .strokeBorder(BattlePalette.brass.opacity(0.42), lineWidth: 1)
+        let shape = RoundedRectangle(cornerRadius: 7)
+        return background {
+            ZStack {
+                shape.fill(BattlePalette.stoneDark.opacity(0.86))
+                BattleTextureSurface(kind: .panelStone, opacity: 0.45)
+                LinearGradient(
+                    colors: [.black.opacity(0.25), .clear, .white.opacity(0.05)],
+                    startPoint: .top, endPoint: .bottom
+                )
             }
+            .clipShape(shape)
+        }
+        .overlay {
+            shape.strokeBorder(
+                LinearGradient(
+                    colors: [BattlePalette.brassBright.opacity(0.65), BattlePalette.brassDim.opacity(0.55)],
+                    startPoint: .top, endPoint: .bottom
+                ),
+                lineWidth: 1
+            )
+        }
     }
 }

@@ -5073,26 +5073,39 @@ struct PanelView<Content: View>: View {
     @ViewBuilder var content: Content
 
     var body: some View {
+        let shape = RoundedRectangle(cornerRadius: 8)
         VStack(alignment: .leading, spacing: 10) {
             Label(title, systemImage: symbol)
-                .font(.subheadline.weight(.heavy))
-                .foregroundStyle(.white.opacity(0.9))
+                .font(.system(.subheadline, design: .serif, weight: .heavy))
+                .foregroundStyle(BattlePalette.ivory)
+                .shadow(color: .black.opacity(0.75), radius: 1, y: 0.8)
 
             content
         }
-        .foregroundStyle(.white)
+        .foregroundStyle(BattlePalette.ivory)
         .padding(12)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color(red: 0.18, green: 0.17, blue: 0.15))
-        .clipShape(RoundedRectangle(cornerRadius: 8))
+        .background {
+            ZStack {
+                shape.fill(Color(red: 0.15, green: 0.14, blue: 0.12))
+                BattleTextureSurface(kind: .panelStone, opacity: 0.50)
+                LinearGradient(
+                    colors: [BattlePalette.brass.opacity(0.08), .clear, .black.opacity(0.24)],
+                    startPoint: .top, endPoint: .bottom
+                )
+            }
+            .clipShape(shape)
+        }
         .overlay(alignment: .top) {
             Rectangle()
-                .fill(Color(red: 0.84, green: 0.66, blue: 0.32).opacity(0.65))
-                .frame(height: 2)
+                .fill(LinearGradient(
+                    colors: [BattlePalette.brassDim, BattlePalette.brassBright.opacity(0.82), BattlePalette.brassDim],
+                    startPoint: .leading, endPoint: .trailing
+                ))
+                .frame(height: 1.8)
         }
         .overlay {
-            RoundedRectangle(cornerRadius: 8)
-                .stroke(.white.opacity(0.07), lineWidth: 1)
+            shape.strokeBorder(BattlePalette.brass.opacity(0.28), lineWidth: 1)
         }
     }
 }

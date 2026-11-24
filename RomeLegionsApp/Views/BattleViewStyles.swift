@@ -6,23 +6,33 @@ import ImageIO
 enum BattleArtworkLoader {
     static let resourceSubdirectory = "BattleUnitArt"
 
-    static func resourceURL(named name: String) -> URL? {
+    static func resourceURL(named name: String, subdirectory: String? = nil) -> URL? {
+        let bundleDirectory = subdirectory.map { "\(resourceSubdirectory)/\($0)" } ?? resourceSubdirectory
         if let bundled = Bundle.main.url(
-            forResource: name, withExtension: "png", subdirectory: resourceSubdirectory
+            forResource: name, withExtension: "png", subdirectory: bundleDirectory
         ) {
             return bundled
         }
         #if os(macOS)
         if let directory = ProcessInfo.processInfo.environment["ROMELEGIONS_ART_ROOT"], !directory.isEmpty {
-            return URL(fileURLWithPath: directory, isDirectory: true)
-                .appendingPathComponent(name).appendingPathExtension("png")
+            var base = URL(fileURLWithPath: directory, isDirectory: true)
+            if let subdirectory {
+                base = base.appendingPathComponent(subdirectory, isDirectory: true)
+            }
+            let candidate = base.appendingPathComponent(name).appendingPathExtension("png")
+            if FileManager.default.fileExists(atPath: candidate.path) {
+                return candidate
+            }
+            if subdirectory == nil {
+                return candidate
+            }
         }
         #endif
         return nil
     }
 
-    static func decode(named name: String, maximumSize: Int) -> CGImage? {
-        guard let url = resourceURL(named: name),
+    static func decode(named name: String, subdirectory: String? = nil, maximumSize: Int) -> CGImage? {
+        guard let url = resourceURL(named: name, subdirectory: subdirectory),
               let source = CGImageSourceCreateWithURL(url as CFURL, nil) else { return nil }
         let options: [CFString: Any] = [
             kCGImageSourceCreateThumbnailFromImageAlways: true,
@@ -50,8 +60,27 @@ enum BattleUnitArtwork {
         return result
     }()
 
+    private static let factionImages: [String: CGImage] = {
+        var result: [String: CGImage] = [:]
+        for faction in Faction.allCases where faction != .rome && faction != .neutral {
+            for kind in UnitKind.allCases {
+                let key = "\(faction.rawValue)-\(kind.rawValue)"
+                if let image = BattleArtworkLoader.decode(
+                    named: key, subdirectory: "Factions", maximumSize: maximumDecodeSize
+                ) {
+                    result[key] = image
+                }
+            }
+        }
+        return result
+    }()
+
     static func image(for kind: UnitKind) -> CGImage? {
         images[kind.rawValue]
+    }
+
+    static func image(for kind: UnitKind, faction: Faction) -> CGImage? {
+        factionImages["\(faction.rawValue)-\(kind.rawValue)"] ?? images[kind.rawValue]
     }
 }
 
@@ -71,7 +100,101 @@ enum BattleSceneryArtwork {
         return result
     }()
 
+    private static let factionCities: [Faction: CGImage] = {
+        var result: [Faction: CGImage] = [:]
+        for faction in [Faction.carthage, .gaul, .egypt] {
+            if let image = BattleArtworkLoader.decode(
+                named: "city-\(faction.rawValue)", subdirectory: "Factions", maximumSize: 384
+            ) {
+                result[faction] = image
+            }
+        }
+        return result
+    }()
+
     static func image(for kind: BattleSceneryKind) -> CGImage? { images[kind] }
+
+    static func cityImage(for owner: Faction) -> CGImage? {
+        factionCities[owner] ?? images[.city]
+    }
+}
+
+enum BattleUITextureKind: String, CaseIterable, Hashable {
+    case panelStone = "ui-panel-stone"
+    case bannerCrimson = "ui-banner-crimson"
+    case panelParchment = "ui-panel-parchment"
+
+    var maximumDecodeSize: Int { self == .bannerCrimson ? 768 : 512 }
+}
+
+enum BattleUIArtwork {
+    private static let textures: [BattleUITextureKind: CGImage] = {
+        var result: [BattleUITextureKind: CGImage] = [:]
+        for kind in BattleUITextureKind.allCases {
+            result[kind] = BattleArtworkLoader.decode(
+                named: kind.rawValue, subdirectory: "UI", maximumSize: kind.maximumDecodeSize
+            )
+        }
+        return result
+    }()
+
+    private static let emblems: [Faction: CGImage] = {
+        var result: [Faction: CGImage] = [:]
+        for faction in Faction.allCases {
+            result[faction] = BattleArtworkLoader.decode(
+                named: "emblem-\(faction.rawValue)", subdirectory: "UI", maximumSize: 160
+            )
+        }
+        return result
+    }()
+
+    static func texture(_ kind: BattleUITextureKind) -> CGImage? { textures[kind] }
+    static func emblem(for faction: Faction) -> CGImage? { emblems[faction] }
+}
+
+struct BattleTextureSurface: View {
+    var kind: BattleUITextureKind
+    var opacity: Double = 1
+
+    var body: some View {
+        Color.clear
+            .overlay {
+                if let image = BattleUIArtwork.texture(kind) {
+                    Image(decorative: image, scale: 1, orientation: .up)
+                        .resizable()
+                        .interpolation(.high)
+                        .scaledToFill()
+                        .opacity(opacity)
+                }
+            }
+            .clipped()
+            .allowsHitTesting(false)
+            .accessibilityHidden(true)
+    }
+}
+
+struct FactionEmblemMedallionView: View {
+    var faction: Faction
+    var size: CGFloat = 18
+
+    var body: some View {
+        Group {
+            if let image = BattleUIArtwork.emblem(for: faction) {
+                Image(decorative: image, scale: 1, orientation: .up)
+                    .resizable()
+                    .interpolation(.high)
+                    .scaledToFit()
+            } else {
+                ZStack {
+                    Circle().fill(faction.factionColor)
+                    Circle().strokeBorder(BattlePalette.brassBright, lineWidth: max(1, size * 0.1))
+                }
+            }
+        }
+        .frame(width: size, height: size)
+        .shadow(color: .black.opacity(0.60), radius: 1.5, y: 1)
+        .accessibilityHidden(true)
+    }
 }
 
 enum BattleCommanderPortrait: String, CaseIterable, Hashable {
@@ -135,11 +258,20 @@ struct CommanderPortraitView: View {
         .frame(width: diameter, height: diameter)
         .clipShape(Circle())
         .overlay {
-            Circle().strokeBorder(.black.opacity(0.75), lineWidth: max(1, diameter * 0.045))
-            Circle().strokeBorder(BattlePalette.ivory.opacity(0.48), lineWidth: 0.6).padding(max(2, diameter * 0.06))
-            Circle().strokeBorder(tint, lineWidth: max(1.5, diameter * 0.035))
+            Circle().strokeBorder(.black.opacity(0.82), lineWidth: max(1.2, diameter * 0.055))
+            Circle().strokeBorder(
+                LinearGradient(
+                    colors: [BattlePalette.brassBright, tint, BattlePalette.brassDim],
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                ),
+                lineWidth: max(1.8, diameter * 0.075)
+            )
+            .padding(max(0.6, diameter * 0.02))
+            Circle().strokeBorder(BattlePalette.ivory.opacity(0.55), lineWidth: 0.6)
+                .padding(max(2.2, diameter * 0.095))
         }
-        .shadow(color: .black.opacity(0.56), radius: 3, y: 2)
+        .shadow(color: .black.opacity(0.66), radius: 3.5, y: 2)
         .accessibilityHidden(true)
     }
 }
@@ -151,21 +283,21 @@ enum UnitTokenPresentation: Equatable {
 
     var artSize: CGSize {
         switch self {
-        case .map: return CGSize(width: 54, height: 46)
-        case .compact: return CGSize(width: 40, height: 31)
-        case .inspection: return CGSize(width: 86, height: 68)
+        case .map: return CGSize(width: 58, height: 54)
+        case .compact: return CGSize(width: 40, height: 34)
+        case .inspection: return CGSize(width: 92, height: 84)
         }
     }
 
     var strengthWidth: CGFloat {
         switch self {
-        case .map: return 42
+        case .map: return 46
         case .compact: return 36
-        case .inspection: return 58
+        case .inspection: return 66
         }
     }
 
-    var strengthHeight: CGFloat { self == .inspection ? 8 : 6 }
+    var strengthHeight: CGFloat { self == .inspection ? 9 : 7 }
 }
 
 enum BattleMapChromeMetrics {
@@ -251,39 +383,72 @@ struct CommandButtonLabel: View {
 
 struct CommandIconButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
-        configuration.label
+        let shape = RoundedRectangle(cornerRadius: 6)
+        return configuration.label
             .foregroundStyle(configuration.isPressed ? BattlePalette.brassBright : BattlePalette.ivory)
-            .background(configuration.isPressed ? BattlePalette.brass.opacity(0.22) : .white.opacity(0.08))
-            .clipShape(RoundedRectangle(cornerRadius: 8))
+            .background {
+                ZStack {
+                    shape.fill(configuration.isPressed ? BattlePalette.brass.opacity(0.24) : BattlePalette.stoneDark.opacity(0.75))
+                    BattleTextureSurface(kind: .panelStone, opacity: 0.42)
+                }
+                .clipShape(shape)
+            }
             .overlay {
-                RoundedRectangle(cornerRadius: 8)
-                    .stroke(BattlePalette.brass.opacity(configuration.isPressed ? 0.74 : 0.22), lineWidth: 1)
+                shape.strokeBorder(
+                    LinearGradient(
+                        colors: [BattlePalette.brassBright.opacity(configuration.isPressed ? 0.85 : 0.45), BattlePalette.brassDim.opacity(0.35)],
+                        startPoint: .top, endPoint: .bottom
+                    ),
+                    lineWidth: 1
+                )
             }
     }
 }
 
-/// Small button face inside a full-size hit target.
+/// Sculpted stone-and-bronze button face inside a full-size 44pt hit target.
 struct BattleMetalButtonStyle: ButtonStyle {
     var isSelected = false
     var diameter: CGFloat = 36
 
     func makeBody(configuration: Configuration) -> some View {
-        let shape = RoundedRectangle(cornerRadius: diameter * 0.2)
+        let shape = RoundedRectangle(cornerRadius: diameter * 0.18)
         return configuration.label
             .foregroundStyle(isSelected ? BattlePalette.ink : BattlePalette.ivory)
+            .shadow(color: isSelected ? .white.opacity(0.25) : .black.opacity(0.65), radius: 0.8, y: 0.8)
             .frame(width: diameter, height: diameter)
             .background {
-                shape.fill(LinearGradient(
-                    colors: isSelected
-                        ? [BattlePalette.brassBright, BattlePalette.brass, BattlePalette.brassDim]
-                        : [BattlePalette.panelRaised, BattlePalette.panel],
-                    startPoint: .top, endPoint: .bottom
-                ))
+                ZStack {
+                    shape.fill(LinearGradient(
+                        colors: isSelected
+                            ? [BattlePalette.brassBright, BattlePalette.brass, BattlePalette.brassDim]
+                            : [BattlePalette.stone.opacity(0.95), BattlePalette.panel, BattlePalette.stoneDark],
+                        startPoint: .top, endPoint: .bottom
+                    ))
+                    if !isSelected {
+                        BattleTextureSurface(kind: .panelStone, opacity: 0.48)
+                    }
+                    LinearGradient(
+                        colors: [.white.opacity(isSelected ? 0.28 : 0.12), .clear, .black.opacity(0.28)],
+                        startPoint: .top, endPoint: .bottom
+                    )
+                }
+                .clipShape(shape)
             }
-            .clipShape(shape)
             .overlay {
-                shape.strokeBorder(BattlePalette.brass.opacity(isSelected ? 0.9 : 0.28), lineWidth: 1)
+                shape.strokeBorder(
+                    LinearGradient(
+                        colors: isSelected
+                            ? [BattlePalette.ivory.opacity(0.90), BattlePalette.brassBright]
+                            : [BattlePalette.brassBright.opacity(0.60), BattlePalette.brassDim.opacity(0.45)],
+                        startPoint: .top, endPoint: .bottom
+                    ),
+                    lineWidth: isSelected ? 1.3 : 1
+                )
             }
+            .overlay {
+                shape.strokeBorder(.black.opacity(0.45), lineWidth: 0.6).padding(1)
+            }
+            .shadow(color: .black.opacity(0.42), radius: 2, y: 1)
             .scaleEffect(configuration.isPressed ? 0.94 : 1)
             .frame(width: BattleInterfaceMetrics.controlSize, height: BattleInterfaceMetrics.controlSize)
             .contentShape(Rectangle())
@@ -293,77 +458,130 @@ struct BattleMetalButtonStyle: ButtonStyle {
 extension View {
     func battleMapPlate() -> some View {
         background {
-            RoundedRectangle(cornerRadius: 8)
-                .fill(BattlePalette.panel.opacity(0.94))
-                .overlay {
-                    RoundedRectangle(cornerRadius: 8)
-                        .strokeBorder(BattlePalette.brass.opacity(0.36), lineWidth: 1)
-                }
-                .shadow(color: .black.opacity(0.30), radius: 6, y: 2)
+            let shape = RoundedRectangle(cornerRadius: 7)
+            ZStack {
+                shape.fill(BattlePalette.panel.opacity(0.94))
+                BattleTextureSurface(kind: .panelStone, opacity: 0.56)
+                LinearGradient(
+                    colors: [BattlePalette.brass.opacity(0.11), .clear, .black.opacity(0.32)],
+                    startPoint: .top, endPoint: .bottom
+                )
+            }
+            .clipShape(shape)
+            .overlay {
+                shape.strokeBorder(
+                    LinearGradient(
+                        colors: [BattlePalette.brassBright.opacity(0.68), BattlePalette.brass.opacity(0.44), BattlePalette.brassDim.opacity(0.50)],
+                        startPoint: .top, endPoint: .bottom
+                    ),
+                    lineWidth: 1.15
+                )
+            }
+            .overlay {
+                shape.strokeBorder(.black.opacity(0.55), lineWidth: 0.6).padding(1.2)
+            }
+            .shadow(color: .black.opacity(0.52), radius: 7, y: 3)
         }
     }
 }
 
 struct PrimaryButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
-        let shape = RoundedRectangle(cornerRadius: 8)
+        let shape = RoundedRectangle(cornerRadius: 7)
         return configuration.label
             .foregroundStyle(BattlePalette.ivory)
+            .shadow(color: .black.opacity(0.65), radius: 1, y: 1)
             .background {
-                shape.fill(LinearGradient(
-                    colors: configuration.isPressed
-                        ? [BattlePalette.romanRed, BattlePalette.crimsonDeep]
-                        : [Color(red: 0.74, green: 0.20, blue: 0.10), BattlePalette.romanRed, BattlePalette.crimsonDeep],
-                    startPoint: .top, endPoint: .bottom
-                ))
+                ZStack {
+                    shape.fill(LinearGradient(
+                        colors: configuration.isPressed
+                            ? [BattlePalette.romanRed, BattlePalette.crimsonDeep]
+                            : [Color(red: 0.76, green: 0.16, blue: 0.10), BattlePalette.romanRed, BattlePalette.crimsonDeep],
+                        startPoint: .top, endPoint: .bottom
+                    ))
+                    BattleTextureSurface(kind: .bannerCrimson, opacity: configuration.isPressed ? 0.45 : 0.72)
+                    LinearGradient(
+                        colors: [.white.opacity(0.18), .clear, .black.opacity(0.32)],
+                        startPoint: .top, endPoint: .bottom
+                    )
+                }
+                .clipShape(shape)
             }
-            .clipShape(shape)
             .overlay {
-                shape.strokeBorder(BattlePalette.brassBright.opacity(0.72), lineWidth: 1)
+                shape.strokeBorder(
+                    LinearGradient(
+                        colors: [BattlePalette.brassBright.opacity(0.95), BattlePalette.brass, BattlePalette.brassDim],
+                        startPoint: .top, endPoint: .bottom
+                    ),
+                    lineWidth: 1.25
+                )
             }
+            .overlay {
+                shape.strokeBorder(.black.opacity(0.42), lineWidth: 0.6).padding(1.2)
+            }
+            .shadow(color: .black.opacity(0.45), radius: 3, y: 1.5)
+            .scaleEffect(configuration.isPressed ? 0.97 : 1)
     }
 }
 
-/// Original SPQR roundel on the menu entry, standing in for a faction crest.
+/// Sculpted imperial eagle & laurel medallion on the menu entry.
 struct RomanStandardEmblemView: View {
     var size: CGFloat = 36
 
     var body: some View {
         ZStack {
-            Circle()
-                .fill(LinearGradient(
-                    colors: [BattlePalette.brassBright, BattlePalette.brass, BattlePalette.brassDim],
-                    startPoint: .topLeading, endPoint: .bottomTrailing
-                ))
-            Circle()
-                .fill(RadialGradient(
-                    colors: [Faction.rome.factionColor, BattlePalette.crimsonDeep],
-                    center: .center, startRadius: 0, endRadius: size * 0.42
-                ))
-                .padding(size * 0.09)
-            Circle()
-                .strokeBorder(BattlePalette.brassBright.opacity(0.70), lineWidth: 0.7)
-                .padding(size * 0.15)
-            Text("SPQR")
-                .font(.system(size: size * 0.23, weight: .black, design: .serif))
-                .foregroundStyle(BattlePalette.ivory)
-                .shadow(color: .black.opacity(0.55), radius: 0.6, y: 0.6)
+            if let image = BattleUIArtwork.emblem(for: .rome) {
+                Image(decorative: image, scale: 1, orientation: .up)
+                    .resizable()
+                    .interpolation(.high)
+                    .scaledToFit()
+            } else {
+                Circle()
+                    .fill(LinearGradient(
+                        colors: [BattlePalette.brassBright, BattlePalette.brass, BattlePalette.brassDim],
+                        startPoint: .topLeading, endPoint: .bottomTrailing
+                    ))
+                Circle()
+                    .fill(RadialGradient(
+                        colors: [Faction.rome.factionColor, BattlePalette.crimsonDeep],
+                        center: .center, startRadius: 0, endRadius: size * 0.42
+                    ))
+                    .padding(size * 0.09)
+                Text("SPQR")
+                    .font(.system(size: size * 0.23, weight: .black, design: .serif))
+                    .foregroundStyle(BattlePalette.ivory)
+            }
         }
         .frame(width: size, height: size)
-        .shadow(color: .black.opacity(0.45), radius: 2, y: 1)
+        .shadow(color: .black.opacity(0.60), radius: 3, y: 1.5)
         .accessibilityHidden(true)
     }
 }
 
 struct SecondaryButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .foregroundStyle(configuration.isPressed ? BattlePalette.ivory : .white.opacity(0.86))
-            .background(configuration.isPressed ? BattlePalette.brass.opacity(0.20) : .black.opacity(0.22))
-            .clipShape(RoundedRectangle(cornerRadius: 8))
+        let shape = RoundedRectangle(cornerRadius: 7)
+        return configuration.label
+            .foregroundStyle(configuration.isPressed ? BattlePalette.brassBright : BattlePalette.ivory.opacity(0.92))
+            .background {
+                ZStack {
+                    shape.fill(configuration.isPressed ? BattlePalette.brass.opacity(0.24) : BattlePalette.stoneDark.opacity(0.86))
+                    BattleTextureSurface(kind: .panelStone, opacity: 0.46)
+                    LinearGradient(
+                        colors: [.white.opacity(0.08), .clear, .black.opacity(0.24)],
+                        startPoint: .top, endPoint: .bottom
+                    )
+                }
+                .clipShape(shape)
+            }
             .overlay {
-                RoundedRectangle(cornerRadius: 8)
-                    .stroke(BattlePalette.brass.opacity(configuration.isPressed ? 0.58 : 0.18), lineWidth: 1)
+                shape.strokeBorder(
+                    LinearGradient(
+                        colors: [BattlePalette.brass.opacity(configuration.isPressed ? 0.78 : 0.46), BattlePalette.brassDim.opacity(0.32)],
+                        startPoint: .top, endPoint: .bottom
+                    ),
+                    lineWidth: 1
+                )
             }
     }
 }
